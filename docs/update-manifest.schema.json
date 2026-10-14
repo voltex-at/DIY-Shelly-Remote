@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DIY Shelly Remote proposed signed OTA manifest (installer not implemented)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "hardware_id", "version", "url", "size", "sha256", "key_id", "signature_algorithm", "signature"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "hardware_id": {"type": "string", "pattern": "^(?!unconfigured$)[a-z0-9][a-z0-9_-]{0,63}$"},
+    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "url": {"type": "string", "pattern": "^https://[^/\\s]+/[^\\s]+$"},
+    "size": {"type": "integer", "minimum": 1},
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "key_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "signature_algorithm": {"const": "ed25519"},
+    "signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"}
+  }
+}
