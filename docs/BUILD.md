@@ -23,10 +23,12 @@ idf.py -B build -D DSR_DIAGNOSTIC_BUILD=ON build
 
 `esp32s3` is the second CI compile target. Neither is a confirmed physical board. The diagnostic build uses ESP-IDF defaults where a chip build requires them; those defaults are not accepted production hardware parameters. CMake refuses a normal build until a real board port is supplied.
 
-The GitHub Actions workflow runs portable tests and both diagnostic builds. It retains ELF/map files for debugging. It does not publish installable BIN assets or create Releases. The workflow has not run at the initial checkpoint.
+The GitHub Actions workflow runs portable tests and both diagnostic builds. It retains ELF/map files for debugging. It does not publish installable BIN assets or create Releases. The foundation workflow passed in run 38657250244. Board-specific changes require their own successful CI run.
 
-## Installation
+## ES3C35P hardware build and installation
 
-There is currently **no firmware to install on the user's board**. Do not flash diagnostic outputs to an unidentified board. After bring-up, the board-specific guide must give the exact target, Flash layout, USB driver, port and install command. Use the generated `flasher_args.json` or `idf.py flash` with that board profile instead of guessing offsets.
+The [LCDWiki ES3C35P board guide](../boards/lcdwiki-es3c35p/README.md) now provides the confirmed profile, pin map, partition table, exact build selection, USB first-install procedure and physical test checklist. Select `-DDSR_BOARD=lcdwiki-es3c35p`; never combine it with `DSR_DIAGNOSTIC_BUILD`.
 
-First installation will use USB. OTA requires a later verified dual-slot board profile and installer. USB recovery must remain documented. Do not erase all Flash as a routine troubleshooting step: it removes settings.
+The additional `es3c35p` CI job builds an actual hardware-test application and merged first-install image, computes SHA-256 sums, and retains the resolved dependency lockfile. Its artifact is labeled `es3c35p-hardware-test-NOT-STABLE`. A successful job produces a real compiled image, not proof of physical operation. It is not published automatically as a stable Release.
+
+First installation uses USB. Subsequent OTA requires the still-unimplemented verified installer. The app-only BIN and merged first-install BIN have different meanings; follow the board guide and do not guess offsets.

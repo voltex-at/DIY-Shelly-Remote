@@ -3,21 +3,35 @@
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_ui.h"
+#endif
 
 void app_main(void)
 {
     const char *tag = "dsr";
     ESP_LOGI(tag, "DIY Shelly Remote %s", esp_app_get_description()->version);
-    ESP_LOGW(tag, "Diagnostic target only; physical board is unconfirmed");
+#ifndef DSR_BOARD_ES3C35P
+    ESP_LOGW(tag, "Unconfigured diagnostic target only");
+#else
+    ESP_LOGW(tag, "ES3C35P hardware bring-up build; physical validation pending");
+#endif
     esp_err_t error = nvs_flash_init();
     if (error != ESP_OK) {
         /* Never erase user settings automatically on version/space errors. */
         ESP_LOGE(tag, "NVS initialization failed: %s; settings preserved", esp_err_to_name(error));
         return;
     }
-    if (dsr_board_init() != ESP_OK) {
-        ESP_LOGW(tag, "Hardware profile '%s': LCD/touch/Wi-Fi/BLE not started", dsr_board_hardware_id());
+    error = dsr_board_init();
+    if (error != ESP_OK) {
+        ESP_LOGW(tag, "Board startup stopped for profile '%s'; network/BLE not started", dsr_board_hardware_id());
+        ESP_LOGE(tag, "Board initialization: %s", esp_err_to_name(error));
         return;
     }
-    /* Production boot sequence is gated on a confirmed board implementation. */
+#ifdef DSR_BOARD_ES3C35P
+    dsr_ui_init();
+    ESP_ERROR_CHECK(dsr_board_start_ui_task());
+    ESP_ERROR_CHECK(dsr_board_set_backlight(70));
+    ESP_LOGI(tag, "UI started. Test corners, colors, brightness and touch-to-wake.");
+#endif
 }

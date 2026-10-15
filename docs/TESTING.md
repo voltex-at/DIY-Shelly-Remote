@@ -10,11 +10,11 @@
 - Numeric stable-version ordering, overflow, suffixes and malformed versions.
 - OTA metadata policy: wrong board, oversized image, downgrade/equal/prerelease, non-HTTPS URL and malformed digest.
 
-Native and UBSan-only execution passed in the initial workspace. ASan/LeakSanitizer could not execute in its restricted process environment; CI requests ASan+UBSan. These tests do not validate actual HTTP parsing/transport, Wi-Fi, NVS, FreeRTOS scheduling, LVGL, BLE or OTA installation. Add fixture tests and IDF/component tests as those paths are integrated.
+Native and UBSan-only execution passed locally. ASan/UBSan also passed in GitHub Actions run 38657250244, together with ESP32/ESP32-S3 diagnostic compilation. The initial local runtime could not run LeakSanitizer. These tests do not validate actual HTTP parsing/transport, Wi-Fi, NVS, FreeRTOS scheduling, LVGL, BLE or OTA installation. Add fixture tests and IDF/component tests as those paths are integrated.
 
-## First board smoke test (not ready to run)
+## Board bring-up and later functional smoke test
 
-Prerequisites: confirmed schematic and board profile, successful target build, provided exact USB installation instructions and a debug firmware asset with checksum. There is no such asset at this checkpoint.
+The [ES3C35P guide](../boards/lcdwiki-es3c35p/README.md) contains the first hardware-only test. Run it only with a successful board-specific CI artifact and matching checksum. The following extended sequence additionally requires Wi-Fi/device UI integration, which this hardware-only build does not include.
 
 Expected sequence after board implementation:
 

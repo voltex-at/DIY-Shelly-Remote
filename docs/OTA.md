@@ -6,7 +6,7 @@ Primary reference: [ESP-IDF v5.5.4 OTA documentation](https://docs.espressif.com
 
 ## Storage contract
 
-After Flash capacity is confirmed, provide a reviewed per-board table with NVS, otadata and two app slots, plus any necessary asset/key storage. Ensure the complete signed image fits both slots. Do not change the partition layout over routine OTA; a layout change requires an explicit USB migration guide. Preserve configuration and schema migrations. No production partition CSV is supplied in this checkpoint.
+The documented ES3C35P 16 MiB profile now includes NVS, otadata, PHY and two 6 MiB app slots in `boards/lcdwiki-es3c35p/partitions.csv`. This layout is compiled for hardware bring-up and still requires physical validation. No installer, signature validation or post-update health confirmation is present. Ensure the final signed image fits both slots. Do not change the partition layout through routine OTA; a layout change requires an explicit USB migration guide. Preserve configuration and schema migrations. The merged first-install USB image may overwrite settings; it is not an OTA update.
 
 ## GitHub Releases path
 

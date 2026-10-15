@@ -1,6 +1,6 @@
 # Compatibility
 
-No physical board or Shelly model has been tested with this project yet.
+LCDWiki ES3C35P now has a documented source-level hardware-test port. Its physical validation is pending. No Shelly model has been tested with this project yet.
 
 | Category | Source implementation | Confirmed on hardware |
 | --- | --- | --- |

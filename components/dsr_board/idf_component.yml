@@ -1,0 +1,10 @@
+dependencies:
+  idf: "==5.5.4"
+  lvgl/lvgl:
+    version: "==9.3.0"
+    rules:
+      - if: "target == esp32s3"
+  espressif/esp_lcd_st77922:
+    version: "==2.1.1"
+    rules:
+      - if: "target == esp32s3"

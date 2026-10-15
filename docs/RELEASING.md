@@ -1,12 +1,8 @@
-# GitHub import and releases
+# GitHub and releases
 
-The account `voltex-at` was accessible at the initial checkpoint, but the connected toolset could not create a new repository. No remote commit or Release is claimed.
+Repository: https://github.com/voltex-at/DIY-Shelly-Remote
 
-Create a **public** repository named exactly `DIY-Shelly-Remote`, with this description:
-
-> An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
-
-Use the included source tree as the initial commit; include `.github/workflows/ci.yml`. GitHub's browser upload can omit hidden files, so verify that the workflow is present. Use an authenticated Git client or the connected contents integration for importing sources. Do not paste access tokens into scripts, URLs, logs or this repository. Preserve existing remote work if someone initialized the repository first; use a branch/PR if necessary.
+Foundation sources were published through PR #1 and merged after successful native and ESP-IDF diagnostic checks. Larger changes continue through focused branches and pull requests. Never store tokens, passwords or private signing keys in Git.
 
 ## Foundation CI
 

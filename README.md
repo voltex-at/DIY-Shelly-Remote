@@ -2,39 +2,34 @@
 
 An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
 
-**Status: foundation, version `0.0.1-dev`. No supported board and no installable firmware release yet.**
+**Current milestone: `0.1.0-bringup`, LCDWiki ES3C35P hardware test. Physical validation is pending.**
 
-This is a new, independent project for a custom 3.5-inch touchscreen remote. It does not modify the separate sensor remote firmware. Basic control will work locally without a phone, Home Assistant or Shelly Cloud. This project is not affiliated with or endorsed by Shelly.
+Project repository: [voltex-at/DIY-Shelly-Remote](https://github.com/voltex-at/DIY-Shelly-Remote). This independent firmware does not modify the separate sensor remote projects. It is not affiliated with or endorsed by Shelly.
 
-## What is present
+## Current implementation
 
-- Portable C core: separate Gen1 HTTP and Gen2+ HTTP RPC request builders, bounded device registry, numeric stable-version comparison and OTA metadata compatibility policy.
-- ESP-IDF transport code: manual IPv4 probing through `/shelly`, relay/switch status, explicit ON/OFF and readback, limited Gen2+ power readings. Authentication-required responses are reported explicitly.
-- Platform code: NVS settings, Wi-Fi station connection/reconnection and a bounded asynchronous network worker.
-- Safe unconfigured board boundary and a serial-only diagnostic entry point. It does not start the display, touch, network or Bluetooth.
-- Native tests and a GitHub Actions workflow for native tests and ESP-IDF diagnostic compilation.
+- ESP-IDF v5.5.4 project with a documented LCDWiki ES3C35P N16R8 board profile: ST77922 QSPI display, 320x480 portrait, 16 MB Flash and 8 MB OPI PSRAM.
+- LVGL 9.3.0 hardware-test UI: Home, navigation shell for Rooms/Devices/Scenes/Energy, touch corner test, primary color test, brightness, backlight off and first-touch wake. The empty sections are explicitly identified as future work.
+- Bounded asynchronous ST77922 touch polling, single-owner LVGL task, DMA display flushing with four-pixel alignment, and actual memory checks at boot.
+- Portable C core and ESP-IDF HTTP/Wi-Fi/NVS/worker source for later local Shelly integration. These adapters are not yet connected to the test UI.
+- Two 6 MiB OTA application slots planned into the confirmed 16 MiB Flash layout. There is **no OTA installer yet**.
+- Native tests and GitHub Actions for diagnostic/board compilation and hardware-test artifacts. No stable release is published automatically.
 
-The network/platform code is **written but not ESP-IDF compiled or tested on hardware**. Native tests cover the portable core. There is no functional UI, BLE scanner, discovery, authenticated Shelly control or OTA installer yet. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for precise evidence.
+Foundation validation: 94 portable assertions passed, including ASan/UBSan in GitHub Actions; ESP32 and ESP32-S3 diagnostic compilation passed in [run 38657250244](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38657250244). Board/UI changes have their own build evidence in [PROJECT_STATUS.md](PROJECT_STATUS.md). A successful compilation is not a physical board test.
 
-## Start here
+## First installation and test
 
-1. Confirm the board using [docs/HARDWARE.md](docs/HARDWARE.md).
-2. Read [docs/BUILD.md](docs/BUILD.md) and run `python3 tools/test.py`.
-3. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/API.md](docs/API.md).
-4. Bring up display and touch before the first real relay test in [docs/TESTING.md](docs/TESTING.md).
+Read [the ES3C35P guide](boards/lcdwiki-es3c35p/README.md) before using a hardware-test artifact. Use only the ES3C35P variant; generic diagnostic artifacts are not firmware for this board. The first milestone checks colors, all touch corners, brightness, full backlight off and wake behavior. Wi-Fi credentials, actual Shelly control, rooms/scenes, energy, BLE and OTA will be integrated after this test.
 
-Planned stack: ESP-IDF, C, LVGL, FreeRTOS, NimBLE where supported and NVS. ESP-IDF **v5.5.4** is the pinned baseline for diagnostic CI; final board support must validate it against the board vendor drivers. LVGL and NimBLE are not dependencies yet: they will be pinned/enabled with the board implementation.
+No phone, Home Assistant or cloud will be required for the final local-control functionality. All network/device states in production will come from real devices; no simulated devices are included in this bring-up build.
 
-## Intended experience
+## Development
 
-An original dark interface inspired by Shelly Smart Control: Home, Rooms, Devices, Scenes, Energy and Settings. Device capabilities determine the controls displayed. Unsupported features are not presented as available. See [docs/UI.md](docs/UI.md).
+```sh
+python3 tools/test.py
+python3 tools/test.py --sanitize
+```
 
-First hardware milestone: boot the confirmed board, show a responsive screen, configure Wi-Fi, add one Shelly by IPv4, read its relay state, issue ON/OFF, confirm state and handle disconnection. Support for authenticated devices must be added before claiming a generally usable first release.
+See [BUILD.md](docs/BUILD.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [UI.md](docs/UI.md), [OTA.md](docs/OTA.md), [COMPATIBILITY.md](docs/COMPATIBILITY.md) and [ROADMAP.md](docs/ROADMAP.md).
 
-Wi-Fi discovery, other component types, rooms/scenes, BLE/BTHome and signed OTA follow in tracked stages. OTA must preserve configuration, require user confirmation, check board compatibility, authenticate images and retain rollback; see [docs/OTA.md](docs/OTA.md).
-
-## Repository and license
-
-Intended repository: `voltex-at/DIY-Shelly-Remote` (not created at this checkpoint). The connected integration could read the account but does not expose repository creation. The archive contains the source tree and workflow ready for initial import.
-
-Original project code: [MIT](LICENSE). Dependency licenses and review requirements: [NOTICE.md](NOTICE.md). No Shelly logos, proprietary icons, application source or graphical assets are included.
+Original project code is [MIT](LICENSE). The panel initialization data derives from a separately attributed MIT project; driver/framework dependencies retain their own licenses. See [NOTICE.md](NOTICE.md). No official Shelly application code, graphics or logos are included.
