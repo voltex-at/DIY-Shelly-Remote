@@ -42,6 +42,13 @@ At packaging time, no physical test had occurred. The following user evidence wa
 
 The user wrote “Działa” and supplied two photographs: native portrait Home with readable text and `Touch controller: responding`, and the corner test with `Corner 4 detected` / `Touch count: 4`. This is physical boot/display rendering and touch-response evidence for the supplied 0.1.0-bringup firmware, not an independent verification of every corner, exact colors, brightness/wake behavior or stability. No physical radio/Shelly/battery test was reported. Photos were not republished in this repository.
 
+
+## Additional user hardware confirmation — 2026-10-15 02:55 Europe/Vienna
+
+Before installing 0.2.0, the user explicitly confirmed working colors, brightness adjustment and wake in the first (`0.1.0-bringup`) firmware. These are user-reported physical results; no quantitative color/brightness measurements or wake timing were supplied. This report does not establish every corner mapping, first-touch action suppression, long-duration stability, battery or radio behavior.
+
+The user also noted that updates were inactive in the first version and planned to install 0.2.0 next. OTA installation remains intentionally unavailable in both versions; 0.2.0 is installed through USB. No physical 0.2.0 Wi-Fi/Shelly result was reported at this checkpoint.
+
 ## 0.2.0-local-dev local validation
 
 94 portable checks and 371 platform checks passed normally and with UBSan. The new platform executable compiles actual HTTP/identity/NVS adapters and real cJSON, with fake HTTP client and NVS APIs. Tests cover Gen1/Gen2 identification, MAC normalization, type errors, malformed/oversized responses, 401/403/429/redirect rejection, 401-body reset, explicit output/readback, mismatch-before-command, no replay after timeout, bounded strings, storage errors and unknown schemas. This does not validate IDF Digest cryptography, actual NVS atomicity or a physical device. The completed CI/artifact result follows; physical Wi-Fi/Shelly tests remain pending.

@@ -2,7 +2,7 @@
 
 Hardware ID: `lcdwiki-es3c35p-n16r8`. Target: `esp32s3`. This page retains the original `0.1.0-bringup` instructions and hardware reference. For the current `0.2.0-local-dev` image and on-screen network workflow use [LOCAL_CONTROL_PL.md](../../docs/LOCAL_CONTROL_PL.md).
 
-Verified compilation: [GitHub Actions 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). [Download the hardware-test artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486). Source commit: `f592876f532f9de0714c3cd04a074280d57d9278`. The user subsequently supplied photos confirming boot/readable display and touch responses; all-corner mapping, primary colors, brightness/wake and long-duration operation remain separate physical checks.
+Verified compilation: [GitHub Actions 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). [Download the hardware-test artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486). Source commit: `f592876f532f9de0714c3cd04a074280d57d9278`. The user subsequently supplied photos confirming boot/readable display and touch responses, then explicitly confirmed colors, brightness adjustment and wake on 0.1.0-bringup (2026-10-15, 02:55 Europe/Vienna). Complete corner mapping, first-touch action suppression and long-duration operation remain separate checks. The 0.2.0 network workflow still awaits its physical test; OTA installation is unavailable in both versions.
 
 ## Evidence and boundaries
 
