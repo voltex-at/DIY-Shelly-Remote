@@ -96,6 +96,7 @@ dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t 
 void dsr_network_home(lv_event_t *event)
 {
     (void)event;
+    dsr_ui_workspace_hide();
     dsr_network_reset_view(); view = VIEW_HOME;
     render(); dsr_mobile_show(DSR_MOBILE_HOME, 0);
 }

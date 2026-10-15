@@ -21,7 +21,7 @@ dsr_mobile_page_t dsr_mobile_page(void){return page;}
 void dsr_mobile_hide(void){active=false;content=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
-static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,lv_color_hex(c),0);lv_obj_set_style_border_width(o,width,0);}
+static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
 static void navigate(lv_event_t *e)
 {
     unsigned target=(unsigned)(uintptr_t)lv_event_get_user_data(e);
@@ -83,17 +83,18 @@ static void bottom(lv_obj_t *root)
     lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);edge(bar,0x60646b,1);
     lv_obj_set_style_bg_grad_color(bar,lv_color_hex(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
     int current=page==DSR_MOBILE_HOME?0:1;
-    dsr_sc_panel(bar,16+current*64,0,32,3,DSR_SC_BLUE,2);
-    const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_PLUG,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
-    const unsigned targets[]={DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,99,10,11};
-    for(unsigned i=0;i<5;i++){
-        lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,
+    dsr_sc_panel(bar,11+current*53,0,32,3,DSR_SC_BLUE,2);
+    const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_ENERGY,DSR_ICON_SETTINGS,DSR_ICON_SCENES,DSR_ICON_PLUS};
+    const unsigned targets[]={DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,99,10,12,11};
+    for(unsigned i=0;i<6;i++){
+        int x=(int)i*320/6,w=(int)(i+1)*320/6-x;
+        lv_obj_t *b=dsr_sc_button(bar,x,4,w,47,DSR_SC_NAV,0,
             targets[i]==99?NULL:navigate,(void *)(uintptr_t)targets[i]);
         lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-        if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);
+        if(i==5){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);
             dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
         else dsr_sc_icon_centered(b,icons[i],26,i==(unsigned)current?DSR_SC_TEXT:0xbec5cd);
-        if((i==3&&!actions.open_settings)||(i==4&&!actions.add_device)||i==2)lv_obj_add_state(b,LV_STATE_DISABLED);
+        if((i==3&&!actions.open_settings)||(i==4&&!actions.edit_dashboard)||(i==5&&!actions.add_device)||i==2)lv_obj_add_state(b,LV_STATE_DISABLED);
     }
 }
 static void toolbar(lv_obj_t *root,const char *title)
@@ -143,7 +144,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     int name_width=cover?124:sensor?218:166;
     lv_obj_t *name=dsr_sc_text(card,d->name,68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
     const char *state=!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":sensor?(d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
-    char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",room_name(d),state);
+    char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",room_name(d),dsr_sc_tr(state));
     dsr_sc_text(card,subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online?DSR_SC_MUTED:0xffc18c);
     if(cover){
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
@@ -155,9 +156,9 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     lv_obj_t *strip=dsr_sc_panel(card,68,height-30,width-78,24,0x292d30,6);
     char values[128]={0},part[40];
     if(!d->online)snprintf(values,sizeof(values),"Offline • odczyty niedostępne");
-    else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"Pozycja   %.0f%%",d->position_pct);else snprintf(values,sizeof(values),"Pozycja   —");}
+    else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"%s   %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else snprintf(values,sizeof(values),"%s   —",dsr_sc_tr("Pozycja"));}
     else if(sensor){
-      if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"Bateria %.0f%%",d->battery_pct);
+      if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
       if((fields&8)&&d->has_temperature){snprintf(part,sizeof(part),"  %.1f °C",d->temperature_c);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if((fields&16)&&d->has_humidity){snprintf(part,sizeof(part),"  %.0f%% RH",d->humidity_pct);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if(!values[0])snprintf(values,sizeof(values),"Brak dodatkowych pomiarów");
@@ -222,7 +223,7 @@ static void render(void)
 {
     int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
-    lv_obj_set_style_bg_color(root,lv_color_hex(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
+    lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     const char *title=page==DSR_MOBILE_DETAILS&&selected<model.device_count?model.devices[selected].name:

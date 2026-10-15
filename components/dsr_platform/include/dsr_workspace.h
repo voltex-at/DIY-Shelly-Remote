@@ -23,4 +23,5 @@ void dsr_panel_tick(void); /* called by existing LVGL owner task */
 void dsr_photos_load(void);
 const void *dsr_photo_pixels(const char *id);
 bool dsr_photo_save(const char *id,const void *pixels,size_t size);
+const char *dsr_photo_id(unsigned index);
 #endif

@@ -2,6 +2,7 @@
  * part of the ESP-IDF firmware. All populated review frames carry DEMO labels. */
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
+#include "dsr_config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -122,10 +123,14 @@ static void click_power(int size)
 }
 int main(int argc,char **argv)
 {
- CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
+ CHECK(argc==2||argc==3);output=argv[1];lv_init();display=lv_display_create(320,480);
  lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);
  lv_display_set_buffers(display,buffer,NULL,sizeof(buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
+ if(argc==3){
+  FILE *f=fopen(argv[2],"rb");CHECK(f);char text[DSR_CONFIG_MAX_JSON+1];size_t length=fread(text,1,DSR_CONFIG_MAX_JSON,f);fclose(f);text[length]=0;
+  dsr_mobile_model_t model={.demo=true};CHECK(dsr_mobile_configure(&model,text));dsr_mobile_update(&model);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");lv_deinit();return 0;
+ }
  check_icon_alignment();save_icon_atlas();
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");

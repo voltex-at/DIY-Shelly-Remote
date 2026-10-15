@@ -20,7 +20,7 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     DSR_ICON_PLUS, DSR_ICON_POWER, DSR_ICON_BACK, DSR_ICON_EDIT, DSR_ICON_INFO,
     DSR_ICON_PLUG, DSR_ICON_LIGHT, DSR_ICON_SOFA, DSR_ICON_BED, DSR_ICON_KITCHEN,
     DSR_ICON_BATH, DSR_ICON_WIFI, DSR_ICON_GRID, DSR_ICON_CHEVRON,
-    DSR_ICON_UP, DSR_ICON_DOWN, DSR_ICON_CONTACT, DSR_ICON_COVER, DSR_ICON_BATTERY } dsr_ui_icon_t;
+    DSR_ICON_UP, DSR_ICON_DOWN, DSR_ICON_CONTACT, DSR_ICON_COVER, DSR_ICON_BATTERY, DSR_ICON_SCENES } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);
@@ -29,4 +29,7 @@ lv_obj_t *dsr_sc_icon(lv_obj_t *parent,dsr_ui_icon_t kind,int x,int y,int size,u
  * Do not use (parent_size-icon_size)/2 as a child's relative position. */
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint32_t color);
 void dsr_sc_icon_color(lv_obj_t *icon,uint32_t color);
+void dsr_sc_appearance(uint32_t accent,bool midnight,unsigned language);
+const char *dsr_sc_tr(const char *text);
+lv_color_t dsr_sc_color(uint32_t color);
 #endif

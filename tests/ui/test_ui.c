@@ -5,6 +5,7 @@
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_board.h"
+#include "dsr_workspace.h"
 #include "esp_app_desc.h"
 #include <assert.h>
 #include <stdio.h>
@@ -12,6 +13,8 @@
 #include <string.h>
 
 static unsigned checks;
+void test_workspace_enable(void);
+void test_workspace_disable(void);
 #define CHECK(x) do {checks++; if (!(x)) {fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort();}} while(0)
 static dsr_job_t submitted;
 static dsr_event_t response;
@@ -140,6 +143,18 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Desk lamp")!=NULL);
     click("Desk lamp");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
     CHECK(find_label(lv_screen_active(),"Offline • stan niepotwierdzony")!=NULL);
-    printf("PASS: %u real LVGL UI checks; twelve 320x480 screenshots; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
+    test_workspace_enable();dsr_ui_edit_dashboard();
+    CHECK(find_label(lv_screen_active(),"Edytuj pilot"));screenshot("13-workspace-editor");
+    click("Pomieszczenia");click("+ Dodaj wpis");
+    lv_obj_t *name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name);lv_textarea_set_text(name,"Salon testowy");click("Zapisz");
+    char *configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_config_revision(configuration)==2);
+    dsr_mobile_model_t model={0};CHECK(dsr_mobile_configure(&model,configuration));free(configuration);
+    CHECK(model.room_count==1);CHECK(!strcmp(model.rooms[0].name,"Salon testowy"));
+    dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));
+    configuration=dsr_workspace_snapshot();CHECK(dsr_workspace_submit(configuration,2));free(configuration);dsr_ui_workspace_tick();
+    CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
+    dsr_network_home(NULL);dsr_ui_workspace_tick();
+    test_workspace_disable();
+    printf("PASS: %u real LVGL UI checks; thirteen 320x480 screenshots; touch editor shares versioned configuration; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
     lv_deinit();return 0;
 }

@@ -6,16 +6,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdatomic.h>
 
 #define PHOTO_BYTES (160*90*2)
 /* Immutable, content-addressed cache. No pointer is freed while LVGL can use
  * it. At most 16 photos = 450 KiB of the confirmed 8 MiB PSRAM. */
 static struct {char id[33];void *pixels;} photos[16];
-static unsigned count;
+static atomic_uint count;
 static bool valid_id(const char *id)
 {if(!id||strlen(id)!=32)return false;for(unsigned i=0;i<32;i++)if(!((id[i]>='0'&&id[i]<='9')||(id[i]>='a'&&id[i]<='f')))return false;return true;}
 const void *dsr_photo_pixels(const char *id)
 {if(!valid_id(id))return NULL;for(unsigned i=0;i<count;i++)if(!strcmp(photos[i].id,id))return photos[i].pixels;return NULL;}
+const char *dsr_photo_id(unsigned index){return index<atomic_load(&count)?photos[index].id:NULL;}
 static bool content_id(const char *id,const void *data)
 {unsigned char digest[32];char actual[33];mbedtls_sha256(data,PHOTO_BYTES,digest,0);for(unsigned i=0;i<16;i++)sprintf(actual+2*i,"%02x",digest[i]);return !strcmp(id,actual);}
 bool dsr_photo_save(const char *id,const void *data,size_t size)

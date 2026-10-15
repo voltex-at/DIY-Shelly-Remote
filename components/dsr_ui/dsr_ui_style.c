@@ -1,20 +1,61 @@
 #include "dsr_ui_style.h"
 #include <stdint.h>
+#include <string.h>
+
+static uint32_t accent=DSR_SC_BLUE;
+static bool midnight;
+static unsigned language;
+void dsr_sc_appearance(uint32_t color,bool night,unsigned locale){accent=color;midnight=night;language=locale<3?locale:0;}
+lv_color_t dsr_sc_color(uint32_t c)
+{if(c==DSR_SC_BLUE)c=accent;if(midnight&&c==DSR_SC_BG)c=0x080f19;return lv_color_hex(c);}
+const char *dsr_sc_tr(const char *text)
+{
+ static const char *const words[][3]={
+ {"Mój dom","My home","Mein Zuhause"},{"Mój pulpit","My dashboard","Mein Dashboard"},{"Aktywność","Activity","Aktivität"},
+ {"Pomieszczenia","Rooms","Räume"},{"Urządzenia","Devices","Geräte"},{"Grupy","Groups","Gruppen"},{"Sceny","Scenes","Szenen"},
+ {"Sterowanie","Controls","Steuerung"},{"Wykresy","Charts","Diagramme"},{"Ustawienia","Settings","Einstellungen"},
+ {"Główne sterowanie","Main control","Hauptsteuerung"},{"Włączone","On","Ein"},{"Wyłączone","Off","Aus"},
+ {"Włącz","Turn on","Einschalten"},{"Wyłącz","Turn off","Ausschalten"},{"Otwarte","Open","Offen"},{"Zamknięte","Closed","Geschlossen"},
+ {"Brak połączenia","No connection","Keine Verbindung"},{"Nieprzypisane","Unassigned","Nicht zugeordnet"},{"Roleta","Cover","Rollladen"},
+ {"Oczekiwanie…","Waiting…","Warten…"},{"Moc chwilowa","Current power","Aktuelle Leistung"},{"Pomiar mocy niedostępny","Power not available","Keine Leistungsmessung"},
+ {"Napięcie","Voltage","Spannung"},{"Natężenie","Current","Stromstärke"},{"Brak urządzeń","No devices","Keine Geräte"},
+ {"Brak pomieszczeń","No rooms","Keine Räume"},{"DEMO • dane przykładowe","DEMO • sample data","DEMO • Beispieldaten"},
+ {"Wstecz","Back","Zurück"},{"Zapisz","Save","Speichern"},{"Edytuj pilot","Edit remote","Fernbedienung bearbeiten"},
+ {"Pulpity","Dashboards","Dashboards"},{"Wygląd i język","Appearance & language","Design und Sprache"},
+ {"+ Dodaj wpis","+ Add item","+ Eintrag hinzufügen"},{"Usuń wpis","Delete item","Eintrag löschen"},{"Edytuj konfigurację","Edit configuration","Konfiguration bearbeiten"},
+ {"Edycja • wspólna konfiguracja","Edit • shared configuration","Gemeinsame Konfiguration"},
+ {"Nazwa","Name","Name"},{"Ikona","Icon","Symbol"},{"Typ","Type","Typ"},{"Adres IPv4 Shelly","Shelly IPv4 address","Shelly IPv4-Adresse"},
+ {"Kanał (0–15)","Channel (0–15)","Kanal (0–15)"},{"ID pomieszczenia (0 = brak)","Room ID (0 = none)","Raum-ID (0 = keiner)"},
+ {"Obiekt","Object","Objekt"},{"Rozmiar","Size","Größe"},{"Dane","Data","Daten"},{"Góra","Up","Hoch"},{"Dół","Down","Runter"},{"Usuń","Remove","Entfernen"},
+ {"+ Urządzenie","+ Device","+ Gerät"},{"+ Pomieszczenie","+ Room","+ Raum"},{"+ Scena","+ Scene","+ Szene"},
+ {"Web Panel • parowanie","Web panel • pairing","Webpanel • Kopplung"},{"Parowanie Web Panelu","Web panel pairing","Webpanel koppeln"},
+ {"Jednorazowy kod • ważny 2 minuty","One-time code • valid 2 minutes","Einmalcode • 2 Minuten gültig"},
+ {"Zezwól na OTA • 2 minuty","Allow OTA • 2 minutes","OTA erlauben • 2 Minuten"},
+ {"Zmiany zostaną zastosowane po zapisaniu","Changes apply after saving","Änderungen nach dem Speichern"},
+ {"Bateria","Battery","Batterie"},{"Pozycja","Position","Position"},
+ {"Offline • stan niepotwierdzony","Offline • state unconfirmed","Offline • Zustand unbestätigt"},
+ {"Włączone • Online","On • Online","Ein • Online"},{"Wyłączone • Online","Off • Online","Aus • Online"},
+ {"Oczekiwanie na odczyt…","Waiting for reading…","Messwert wird abgerufen…"},
+ {"Brak dodatkowych pomiarów","No additional readings","Keine weiteren Messwerte"}
+ };
+ for(unsigned i=0;i<sizeof(words)/sizeof(words[0]);i++)if(!strcmp(text,words[i][0]))return words[i][language];
+ return text;
+}
 
 lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius)
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);
     lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+    lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
     lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_pad_all(o,0,0);
     lv_obj_set_style_text_color(o,lv_color_hex(DSR_SC_TEXT),0);
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
 {
-    lv_obj_t *o=lv_label_create(p);lv_obj_remove_style_all(o);lv_label_set_text(o,s);
+    lv_obj_t *o=lv_label_create(p);lv_obj_remove_style_all(o);lv_label_set_text(o,dsr_sc_tr(s));
     lv_obj_set_pos(o,x,y);lv_obj_set_width(o,w);lv_obj_set_style_text_font(o,font,0);
-    lv_obj_set_style_text_color(o,lv_color_hex(color),0);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_set_style_text_color(o,dsr_sc_color(color),0);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
     return o;
 }
 lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *ctx)
@@ -84,6 +125,7 @@ static void icon_draw(lv_event_t *e)
     case DSR_ICON_CONTACT: LINE(4,3,15,3);LINE(4,3,4,21);LINE(4,21,15,21);LINE(15,3,15,21);LINE(19,5,21,5);LINE(21,5,21,12);LINE(21,12,19,12);DOT(11,12);break;
     case DSR_ICON_COVER: LINE(3,3,21,3);LINE(3,3,3,21);LINE(21,3,21,21);LINE(3,21,21,21);for(int y=7;y<=17;y+=5)LINE(4,y,20,y);break;
     case DSR_ICON_BATTERY: LINE(2,6,20,6);LINE(2,6,2,18);LINE(2,18,20,18);LINE(20,6,20,18);LINE(22,10,22,14);LINE(6,9,6,15);LINE(10,9,10,15);break;
+    case DSR_ICON_SCENES: LINE(10,3,13,9);LINE(13,9,19,12);LINE(19,12,13,15);LINE(13,15,10,22);LINE(10,22,7,15);LINE(7,15,1,12);LINE(1,12,7,9);LINE(7,9,10,3);LINE(20,2,20,7);LINE(18,4,22,4);break;
     }
 #undef LINE
 #undef ARC
@@ -93,7 +135,7 @@ lv_obj_t *dsr_sc_icon(lv_obj_t *p,dsr_ui_icon_t kind,int x,int y,int size,uint32
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,size,size);
     lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_line_color(o,lv_color_hex(color),0);
+    lv_obj_set_style_line_color(o,dsr_sc_color(color),0);
     lv_obj_add_event_cb(o,icon_draw,LV_EVENT_DRAW_MAIN,(void *)(uintptr_t)kind);return o;
 }
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *p,dsr_ui_icon_t kind,int size,uint32_t color)

@@ -19,7 +19,8 @@ typedef struct {
     double battery_pct,temperature_c,humidity_pct,position_pct;
     uint8_t fields;
 } dsr_mobile_device_t;
-typedef struct {char name[32];uint8_t icon;char photo[33];} dsr_mobile_room_t;
+typedef struct {char name[48];uint8_t icon;char photo[33];} dsr_mobile_room_t;
+typedef struct {char name[48];uint8_t actions;} dsr_mobile_scene_t;
 typedef struct {uint8_t type,index,span,height,fields;} dsr_mobile_tile_t;
 typedef struct {
     bool demo,wifi;
@@ -32,6 +33,8 @@ typedef struct {
     bool configured_layout,midnight;
     uint8_t tile_count;
     dsr_mobile_tile_t tiles[24];
+    uint8_t scene_count;
+    dsr_mobile_scene_t scenes[8];
 } dsr_mobile_model_t;
 typedef struct {
     void (*set_output)(unsigned index,bool on);

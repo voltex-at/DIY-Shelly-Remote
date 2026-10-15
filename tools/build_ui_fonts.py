@@ -12,7 +12,7 @@ root = Path(__file__).resolve().parents[1]
 dest = root / "components/dsr_ui/fonts"
 dest.mkdir(exist_ok=True)
 env = dict(os.environ, npm_config_cache=str(root / ".test-deps/npm-cache"))
-symbols = "ĄąĆćĘęŁłŃńÓóŚśŹźŻż°µ–—•…"
+symbols = "ĄąĆćĘęŁłŃńÓóŚśŹźŻżÄäÖöÜüß°µ–—•…"
 for size, weight in [(11,"Regular"),(12,"Regular"),(14,"Regular"),(16,"Medium"),(18,"Medium"),(28,"Medium")]:
     name = f"dsr_roboto_{size}"
     subprocess.run(["npm", "exec", "--yes", "--package=lv_font_conv@1.5.3", "--", "lv_font_conv",

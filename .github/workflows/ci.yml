@@ -20,12 +20,25 @@ jobs:
           python3 tools/test_ui.py --sanitize
           python3 tools/test_ui.py --review
           python3 tools/render_review.py --no-run
+      - name: Install pinned browser test runner
+        run: npm install --prefix .test-deps/panel-node --no-audit --no-fund playwright@1.51.1
+      - name: Verify real panel assets against shared C configuration and LVGL
+        shell: bash
+        run: |
+          export NODE_PATH="$PWD/.test-deps/panel-node/node_modules"
+          export DSR_TEST_CHROME="$(command -v google-chrome || command -v chromium)"
+          python3 tools/serve_panel_test.py > build-ui/panel-host.log 2>&1 &
+          panel_pid=$!
+          trap 'kill "$panel_pid"' EXIT
+          python3 -c 'import socket,time; [(time.sleep(.2)) for _ in range(50) if socket.socket().connect_ex(("127.0.0.1",8765)) != 0]'
+          node tests/test_panel.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: real-lvgl-ui-review-NOT-FIRMWARE
           path: |
             build-ui/review-export/
             build-ui/review-export.zip
+            build-ui/panel-review/
           if-no-files-found: error
   native:
     runs-on: ubuntu-24.04

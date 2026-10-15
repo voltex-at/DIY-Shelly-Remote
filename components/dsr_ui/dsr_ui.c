@@ -1,6 +1,7 @@
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
+#include "dsr_ui_style.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
 #include "lvgl.h"
@@ -45,7 +46,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_style_color_filter_opa(obj, LV_OPA_TRANSP, LV_STATE_DISABLED);
     lv_obj_set_style_radius(obj, 12, 0);
     lv_obj_t *caption = lv_label_create(obj);
-    lv_label_set_text(caption, text);
+    lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
     if (callback) lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, context);
     return obj;
@@ -87,6 +88,7 @@ void dsr_ui_keyboard(lv_obj_t *obj)
 lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
 {
     dsr_network_reset_view();
+    dsr_ui_workspace_hide();
     dsr_mobile_hide();
     touch_status = brightness_text = NULL;
     lv_obj_t *root = lv_screen_active();

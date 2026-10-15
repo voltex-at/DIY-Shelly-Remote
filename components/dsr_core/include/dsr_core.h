@@ -54,7 +54,8 @@ typedef struct {
     size_t size;
 } dsr_update_metadata_t;
 /* Syntax/compatibility policy only. This does NOT authenticate a signature,
- * download an image or authorize writing Flash. Installer is not implemented. */
+ * download an image or authorize writing Flash. The separate local installer
+ * is implemented by dsr_platform/dsr_panel.c and requires local approval. */
 dsr_result_t dsr_update_metadata_check(const dsr_update_metadata_t *meta,
                                      const char *hardware_id, const char *current,
                                      size_t inactive_slot_size);

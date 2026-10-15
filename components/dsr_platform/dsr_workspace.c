@@ -39,7 +39,8 @@ esp_err_t dsr_workspace_start(void)
   /* Only an entirely erased data partition may be provisioned automatically.
    * A corrupt/nonempty filesystem must be recovered explicitly, never erased. */
   const esp_partition_t *part=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_DATA_SPIFFS,"dsrdata");
-  if(!part)return err;uint8_t data[1024];bool erased=true;
+  if(!part)return err;
+  uint8_t data[1024];bool erased=true;
   for(size_t at=0;at<part->size&&erased;at+=sizeof(data)){
    if(esp_partition_read(part,at,data,sizeof(data))!=ESP_OK)return err;
    for(unsigned i=0;i<sizeof(data);i++)if(data[i]!=255){erased=false;break;}
@@ -56,7 +57,8 @@ esp_err_t dsr_workspace_start(void)
 }
 char *dsr_workspace_snapshot(void)
 {
- if(!mutex)return NULL;xSemaphoreTake(mutex,portMAX_DELAY);
+ if(!mutex)return NULL;
+ xSemaphoreTake(mutex,portMAX_DELAY);
  char *copy=malloc(strlen(current)+1);if(copy)strcpy(copy,current);xSemaphoreGive(mutex);return copy;
 }
 uint32_t dsr_workspace_revision(void)
