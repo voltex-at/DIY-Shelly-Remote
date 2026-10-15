@@ -3,6 +3,10 @@
 This is a development proposal, `0.4.1-ui-review`, stacked on PR #5. Do not merge
 or mark stable before visual acceptance and the physical tests below.
 
+Native forms and dropdowns explicitly inherit Roboto with Polish/German glyphs
+and LVGL symbol fallback. Regression coverage checks diacritics and the keyboard
+checkmark; the onboarding renders are generated from this corrected code.
+
 | Token | Value / behavior |
 | --- | --- |
 | Canvas / card | #101A22 / #323638 rooms; #41474B–#3C4246 devices |

@@ -21,6 +21,11 @@ they do not establish physical LAN operation. [Physical procedure](docs/ISSUE7_L
 
 ## Issue #6 — rounded icon family and configurable photographic HOME
 
+Follow-up: native labels/forms/dropdowns use the licensed Roboto font explicitly,
+including Polish/German glyphs and LVGL keyboard-symbol fallback. 2400 review
+checks (13 glyph checks added), 330 integrated checks and real native frames
+pass with UBSan. This correction is also present in the stacked LAN branch.
+
 2026-10-15: branch `work/issue-6-visual-system`, based on PR #5's reviewed
 `5f6a653`. Source version `0.4.1-ui-review`. Dedicated draft PR; no main merge.
 Replaced the diagnostic line/arc icon renderer with 24 Apache-2.0 Material
