@@ -78,7 +78,7 @@ bool dsr_config_validate(const cJSON *r,char error[96])
   cJSON_ArrayForEach(t,tiles){
    if(!keys(t,"|id||type||ref||span||height||fields|")||!number(t,"id",1,1000000)||!choice(t,"type","|device||room||scene|")||!number(t,"span",1,2)||!number(t,"height",1,2)||!number(t,"fields",0,255))return fail(error,"Invalid tile");
    const char *type=get(t,"type")->valuestring;
-   if(!strcmp(type,"device")&&get(t,"span")->valueint!=2)return fail(error,"Device cards must use full width");
+   if(strcmp(type,"room")&&get(t,"span")->valueint!=2)return fail(error,"Device and scene cards must use full width");
    if(!reference(r,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":"scenes",get(t,"ref"),false))return fail(error,"Tile references missing object");
    for(const cJSON *b=t->next;b;b=b->next)if(number(b,"id",1,1000000)&&get(b,"id")->valueint==get(t,"id")->valueint)return fail(error,"Duplicate tile ID");
   }

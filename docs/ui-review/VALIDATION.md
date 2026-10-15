@@ -1,4 +1,8 @@
-# UI review v2 validation — 2026-10-15
+# UI review validation — 2026-10-15
+
+Current v3 and configuration evidence: [CONFIG_VALIDATION.md](../CONFIG_VALIDATION.md).
+The current renders show full-width typed device cards and six bottom actions.
+The older v2 counts below are retained as historical evidence only.
 
 Local native results:
 

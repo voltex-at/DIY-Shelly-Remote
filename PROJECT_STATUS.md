@@ -1,5 +1,29 @@
 # Project status
 
+## Current: shared configuration and local panel review
+
+2026-10-15, `0.4.0-config-dev`, branch `work/config-web-panel`, draft PR #5
+(base `ui/shelly-smart-control`). No merge to `main` is authorized or performed.
+
+Implemented: full-width typed device cards; shared schema/revisions; dashboard,
+room, device and scene editors on touch and web; drag ordering on web; appearance;
+durable two-checkpoint configuration; photo upload/crop; real LVGL preview;
+physical pairing, per-device TLS identity, local authenticated administration;
+operator-selected OTA upload with inactive-slot validation and boot confirmation.
+Original LCD/touch/backlight and Shelly request/transport modules are retained.
+
+All five CI jobs passed for source `5d309013bdfeb64b628b2c1c2c7e6475561fe126`
+in [run 38737249365](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38737249365):
+ESP32-S3 board package, both diagnostic builds, native sanitizers and real
+LVGL/browser tests. See [current validation](docs/CONFIG_VALIDATION.md).
+
+Limits: one actual relay connection; no new cover/sensor transport or scene
+executor; partial PL/EN/DE translation; no publisher-signed OTA release updater.
+Physical HTTPS, Flash interruption, OTA/rollback and long-run memory tests remain
+outstanding. [Operation and installation](docs/CONFIG_WEB_PL.md).
+
+The following sections are historical checkpoints, not the current feature list.
+
 ## Active branch: UI review, awaiting user approval
 
 2026-10-15: development priority changed to a closer visual/interaction match to Shelly Smart Control. `reference/0.2.0-local-dev` preserves the working baseline; `work/wifi-onboarding` preserves pending Wi-Fi work; `ui/shelly-smart-control` isolates the UI proposal. Source version here is `0.3.0-ui-review`, not a public release. Do not merge or expand further screens before approval.

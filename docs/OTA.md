@@ -1,12 +1,29 @@
-# OTA design and current limits
+# OTA implementation and remaining release work
 
-**No OTA installer exists yet.** The portable core validates limited metadata syntax, stable version ordering, exact board ID and available slot capacity. It neither checks an actual image digest/signature nor writes Flash. This distinction must remain explicit in the UI and release notes.
+**0.4.0-config-dev has a local development upload installer.** A paired HTTPS
+session and a separate 120-second touch authorization are mandatory. It accepts
+an application BIN, verifies its size, ESP32-S3/project metadata, exact embedded
+ES3C35P board marker and supplied SHA-256, writes the inactive OTA slot and uses
+ESP-IDF image validation before selecting that slot. Restart is explicit. After
+five seconds of local UI operation with touch, configuration and panel readiness,
+the new app confirms its boot. It does not require an Internet/Shelly connection.
+
+**Publisher signature verification and the GitHub Releases updater are not
+implemented.** A checksum does not authenticate the publisher. Only deliberately
+selected development images belong in this installer; it is not the signed
+release pipeline described below. No eFuses are written. Physical power-loss and
+rollback validation remains pending. See [installation guide](CONFIG_WEB_PL.md).
 
 Primary reference: [ESP-IDF v5.5.4 OTA documentation](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32/api-reference/system/ota.html).
 
 ## Storage contract
 
-The documented ES3C35P 16 MiB profile now includes NVS, otadata, PHY and two 6 MiB app slots in `boards/lcdwiki-es3c35p/partitions.csv`. This layout is compiled for hardware bring-up and still requires physical validation. No installer, signature validation or post-update health confirmation is present. Ensure the final signed image fits both slots. Do not change the partition layout through routine OTA; a layout change requires an explicit USB migration guide. Preserve configuration and schema migrations. The merged first-install USB image may overwrite settings; it is not an OTA update.
+The ES3C35P 16 MiB profile preserves NVS, otadata, PHY and both 6 MiB app slots
+at their original offsets. The previously unused final 0x3e0000 bytes now hold
+`dsrdata` SPIFFS. OTA writes only an application slot; configuration, photos and
+NVS remain outside it. Never alter this layout through application OTA. The first
+upgrade from 0.2.0 requires USB to install the new partition table. Use separate
+files from the guide to retain NVS; the merged USB image fills intervening gaps.
 
 ## GitHub Releases path
 
@@ -22,9 +39,11 @@ The documented ES3C35P 16 MiB profile now includes NVS, otadata, PHY and two 6 M
 
 The JSON schema in `docs/update-manifest.schema.json` is a proposed wire contract, not an example signed release or a functioning verifier. A signed manifest must bind the board ID to the exact image digest. Key rotation and recovery must be reviewed before stable releases. The current development version is outside the stable-only OTA policy.
 
-## Local upload
+## Local upload status
 
-Optional, later stage. It must be disabled by default, opened for a short period by a physical/UI action, require a per-device credential over a suitably protected connection, validate origin/CSRF as appropriate and enforce the same signed-image, board and slot checks as remote OTA. An HTTP password on an open network alone does not secure firmware upload. Do not add an unauthenticated upload endpoint as a shortcut.
+Implemented as an authenticated, origin-checked development endpoint with a
+one-attempt local authorization window. Board/slot/hash/image checks are active;
+publisher signatures remain future work. Port 80 only redirects GET to HTTPS.
 
 ## UI acceptance
 

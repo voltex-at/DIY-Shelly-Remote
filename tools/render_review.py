@@ -51,7 +51,7 @@ for index, name in enumerate(list(frames)[:6]):
         sheet[start:start + 960] = frame[y * 960:(y + 1) * 960]
 png(out / "contact_sheet.png", 648, 1456, bytes(sheet))
 manifest = {
-    "branch": "ui/shelly-smart-control", "lvgl": "9.3.0", "display": [320, 480],
+    "branch": "work/config-web-panel", "lvgl": "9.3.0", "display": [320, 480],
     "renderer": "native C project source, LVGL software draw, RGB565 framebuffer", 
     "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
     "frames": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.glob("*.png"))},

@@ -165,11 +165,11 @@ static void tile_next(lv_event_t *event)
 static void tile_size(lv_event_t *event)
 {cJSON *t=lv_event_get_user_data(event);cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"height"),integer(t,"height")==1?2:1);show_entity(editing);}
 static void tile_span(lv_event_t *event)
-{cJSON *t=lv_event_get_user_data(event);if(!strcmp(string(t,"type"),"device"))return;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),integer(t,"span")==1?2:1);show_entity(editing);}
+{cJSON *t=lv_event_get_user_data(event);if(strcmp(string(t,"type"),"room")){lv_label_set_text(status_label,"Urządzenia i sceny używają pełnej szerokości.");return;}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),integer(t,"span")==1?2:1);show_entity(editing);}
 static void tile_type(lv_event_t *event)
 {
  cJSON *t=lv_event_get_user_data(event);const char *types[]={"device","room","scene"},*keys[]={"devices","rooms","scenes"};unsigned current=!strcmp(string(t,"type"),"device")?0:!strcmp(string(t,"type"),"room")?1:2;
- for(unsigned n=1;n<=3;n++){unsigned to=(current+n)%3;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to==0)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}show_entity(editing);
+ for(unsigned n=1;n<=3;n++){unsigned to=(current+n)%3;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to!=1)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}show_entity(editing);
 }
 static void field_changed(lv_event_t *event)
 {unsigned bit=(unsigned)(uintptr_t)lv_event_get_user_data(event);int f=integer(fields_tile,"fields");if(lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED))f|=(int)bit;else f&=~(int)bit;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(fields_tile,"fields"),f);}

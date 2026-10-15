@@ -1,4 +1,23 @@
-# UI review v2 — actual LVGL, 320×480
+# UI review v3 — wide HOME cards, actual LVGL 320×480
+
+Current branch: `work/config-web-panel`, draft PR #5, version
+`0.4.0-config-dev`. The next visual approval concerns **HOME**: a light,
+contact sensor and cover in full-width cards, clearly DEMO. Room cards remain
+two-column. Top tabs and six bottom icons follow the supplied phone reference;
+icons and fonts are independently sourced. [Polish comparison](README_PL.txt)
+and [configuration scope/limits](../CONFIG_WEB_PL.md).
+
+![Actual HOME v3](renders/01-home.png)
+
+The supplied reference is the user's Shelly Smart Control 3.77.26 screenshot.
+Its dark surfaces, blue active-tab outline, dashboard toolbar and six-action
+navigation informed the shell. Its two-column room layout is retained only for
+rooms; the requested device composition uses wide cards with a large left icon,
+central name/status and light gray controls on the right. Measured fields sit
+on dark strips. No official logo, app code or image asset is distributed.
+
+The historical icon notes below explain the retained centering fix; current
+configuration editors and local OTA are described in the current guide above.
 
 Branch: `ui/shelly-smart-control`. Reference: `reference/0.2.0-local-dev`.
 The pending Wi-Fi work is separately preserved in `work/wifi-onboarding`.
@@ -39,10 +58,10 @@ Every visible glyph's bounding-box centre is within 1px of the circle centre;
 the centred object boxes are within 0.5px, the unavoidable odd/even pixel case.
 The 320×480 icon sheet is also a real LVGL render, not an image-editor overlay.
 
-The user also requested a persisted PL/EN/DE language selector and OTA.
-These are explicitly pending functional work, not implemented by this icon
-correction; no OTA installation button or working-update claim is introduced.
-This visual revision does not merge the draft or expand further screens.
+The earlier icon-only revision did not implement language selection or OTA.
+The current configuration branch adds persisted language/theme selection and a
+local development OTA installer; complete translation and signed release OTA
+remain pending. Further visual redesign is paused for HOME approval.
 
 ## Shared implementation
 
@@ -51,9 +70,11 @@ This visual revision does not merge the draft or expand further screens.
 - `dsr_ui_mobile.h`: bounded snapshot model and existing command callbacks. No UI-owned network calls.
 - Roboto at 11/12/14/16/18/28px, including Polish glyphs; RGB565 rendering; 128 KiB LVGL heap.
 - `dsr_ui_network.c`: adapter from the existing saved Shelly connection to the new model. Real mode does not invent rooms or voltage/current readings absent from the transport.
-- Existing display/touch/backlight and platform files are unchanged from the saved checkpoint. Existing settings, diagnostics, add-device and Wi-Fi views remain accessible; their complete visual migration waits for approval.
+- Existing display/touch/backlight and Shelly transport are retained. New platform services provide configuration storage, TLS/pairing, photos and local OTA. Existing settings, diagnostics, add-device and Wi-Fi remain accessible; complete visual migration waits for approval.
 
-Live controls send explicit desired output through the existing worker and wait for readback. Demo controls only affect the local demo model. Offline/busy/unsupported controls are blocked. Disabled group/scene/consumption/edit affordances do not claim implemented features.
+Live relay controls use the existing worker and wait for readback. Demo controls
+only affect the test model. Offline/busy/unsupported controls are blocked.
+Dashboard/scene editing is implemented; scene execution and energy history are not.
 
 ## Reproduce
 

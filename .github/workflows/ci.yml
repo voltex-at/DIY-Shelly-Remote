@@ -97,7 +97,7 @@ jobs:
           cp build-board/bootloader/bootloader.bin build-board/package/bootloader/
           cp build-board/partition_table/partition-table.bin build-board/package/partition_table/
           cp dependencies.lock build-board/package/
-          cp docs/LOCAL_CONTROL_PL.md build-board/package/INSTALL_AND_TEST.md
+          cp docs/CONFIG_WEB_PL.md build-board/package/INSTALL_AND_TEST.md
           cp boards/lcdwiki-es3c35p/README.md build-board/package/BOARD_REFERENCE.md
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/package/licenses/
           cp "$IDF_PATH/LICENSE" build-board/package/licenses/ESP-IDF-Apache-2.0.txt

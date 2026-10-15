@@ -1,5 +1,5 @@
 {
-  "branch": "ui/shelly-smart-control",
+  "branch": "work/config-web-panel",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -8,15 +8,15 @@
   "renderer": "native C project source, LVGL software draw, RGB565 framebuffer",
   "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
   "frames": {
-    "01-home.png": "d8c899ea5ac94d9070b60a05b9e96266fdfb0809df477f2e8cddc33a782383d8",
-    "02-rooms.png": "d06551523fd3ebe96061449b30a88cf3c40bcf0fa4161124e617de4eb1b15e70",
-    "03-devices.png": "81d62ba14cea92886af3d2d6ab63db9f17ebbe0f6cab80615a347656296440fd",
-    "04-room-salon.png": "8405d7da3bc2e488269cb479e9696e644f7453e9bfb1f279f11ac54914cb534d",
-    "05-device-details-on.png": "6da37f6f607fdce29bbfb5beafd4f9bbf5615a6fe71df1f75b895f717df15806",
-    "06-device-details-off.png": "0626bab07cb987f57cb6e764a3b0cb12c2863af2ba19f91775c4c58d521dbdeb",
-    "07-device-offline.png": "5df8c448228e4921c3b6f727cd551bc8c72aa3905cab057f79c6711b1688d828",
-    "08-live-empty.png": "3a34ecba57e9d4999a7811172a9b34852dccac9d20fa0d062ea03623e94a4078",
+    "01-home.png": "aa2a65b1cfcc8fdcebb02038a4c24c2a81b8173e377140ef9d2b9b9cc3332c02",
+    "02-rooms.png": "d148581ef732d763240daa133d07718800290ef05c4182e539ecf1524e42c0a9",
+    "03-devices.png": "aa41f1cc9e4e97a6c5cb03393b7352a85935164a7529c76afd176c96c90bc49f",
+    "04-room-salon.png": "439e7ebb1fd821eedb7884e526999e9a30a5b4475f5bd3404779ae53555491f9",
+    "05-device-details-on.png": "c0669a0ee3999b9d2de3606b52f2f51a9dd2f800285a2f1c95b18d3c2764cce7",
+    "06-device-details-off.png": "539e21cf0fabd3ce972786750e091853429526d22750b109bbc395ec397ffafc",
+    "07-device-offline.png": "94e1952de2971cd9d7e1b21ad276c31c3622e26817adb12baa7f205e1dc087a6",
+    "08-live-empty.png": "f1bc9b17f62b6747a2398696462f1cdd7830192f31b5586ee44bac382e27d1f6",
     "09-icon-alignment.png": "4ff9df3ffbf9aac80460396cceff91edabe085e47637c04144b24019c7e2639f",
-    "contact_sheet.png": "7211f011fa9e8a07a40a91b16f5f52791b94485fe50631eb34006a6bdc80bcc0"
+    "contact_sheet.png": "b26cbf4a7ef8617b8075d72180479d58859828912d439c5470e79e28c9125133"
   }
 }

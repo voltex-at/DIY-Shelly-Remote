@@ -1,14 +1,18 @@
 # DIY Shelly Remote
 
-> **UI review branch — awaiting visual approval.** The reference firmware remains in `reference/0.2.0-local-dev`; this branch is not merged to `main`. See [actual 320×480 LVGL frames and design notes](docs/ui-review/README.md). All populated review frames are marked DEMO; there is no new release to install at this checkpoint.
+> **0.4.0-config-dev — review branch, not a stable release.** `work/config-web-panel` contains the shared configuration, touch editor, local HTTPS panel, real LVGL preview and local development OTA installer. [Installation, pairing and limits](docs/CONFIG_WEB_PL.md) · [API](docs/CONFIG_API.md) · [actual 320×480 frames](docs/ui-review/README.md). Draft [PR #5](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5) is awaiting review; `main` and `reference/0.2.0-local-dev` remain unchanged.
+
+The configuration supports dashboards, rooms, devices, scenes, ordering, card sizes/fields and appearance in both editors. Revisions and two checksummed Flash checkpoints protect concurrent changes and interrupted saves. Room photos are resized in the browser and stored locally. Administrative APIs require physical pairing and authenticated HTTPS. No cloud services or CDN resources are used.
+
+Live communication still controls **one verified Shelly switch/channel** through the preserved transport. Configured cover/sensor entries have no new transport implementation, and scenes have no executor yet. Populated review images are explicitly DEMO. Native/browser tests and target compilation pass; TLS, persistence and OTA on the physical board still require testing. The baseline description below records the preceding 0.2.0 milestone.
 
 An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
 
-**Current milestone: `0.2.0-local-dev`, on-device Wi-Fi and one local Shelly switch. The preceding bring-up boots and responds to touch on the user’s ES3C35P; new network/control behavior awaits its physical test.**
+**Preserved baseline: `0.2.0-local-dev`, on-device Wi-Fi and one local Shelly switch.** The preceding bring-up boots and responds to touch on the user’s ES3C35P; later network/control behavior awaits its physical test.
 
 Project repository: [voltex-at/DIY-Shelly-Remote](https://github.com/voltex-at/DIY-Shelly-Remote). This independent firmware does not modify the separate sensor remote projects. It is not affiliated with or endorsed by Shelly.
 
-## Current implementation
+## Baseline implementation (0.2.0)
 
 - ESP-IDF v5.5.4 project with a documented LCDWiki ES3C35P N16R8 board profile: ST77922 QSPI display, 320x480 portrait, 16 MB Flash and 8 MB OPI PSRAM.
 - LVGL 9.3.0 Home with confirmed relay state, explicit ON/OFF and optional actual Gen2+ power. On-screen Wi-Fi and Shelly forms with keyboard and scrolling. Hardware corner/color/brightness/off/wake tools remain available in Menu.
