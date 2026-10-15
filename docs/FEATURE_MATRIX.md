@@ -1,4 +1,10 @@
-# Matryca funkcji — 0.7.4, rewizja 4
+# Matryca funkcji — 0.7.5, rewizja 5
+
+0.7.5 realizuje wejście Ustawienia wybranego urządzenia i lokalną edycję karty
+(#29A, kolejność #25). Dane z transportu, trwałe ID, nazwa/pokój, CAS i powrót;
+odświeżanie wyłącznie właściwego aktywnego połączenia. Nie wdraża historii #22,
+zdalnych ustawień RPC, AP #19, wielu transportów #20 ani native OTA #24.
+[Odbiór sprzętowy](DEVICE_SETTINGS_PL.md) pozostaje wymagany.
 
 0.7.4 dodaje kontekstowe Dodaj/Edytuj/Usuń pomieszczenie (#28), z istniejącym
 modelem, asynchronicznym potwierdzeniem zapisu, CAS i ochroną zależności.
@@ -60,7 +66,9 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
 | W/V/A / wiek próbki / offline | Ten sam framebuffer | Tylko obecne i poprawne pola API | CI tested: parser, zera/braki/błędy, stabilny polling | #12; porównać realne V/A z API |
 | Szczegóły Wykresy | Brak historii | Rzeczywista retencja potrzebna | Not implemented: disabled | #22; pomiar po czasie, Flash, restart/offline |
-| Szczegóły Ustawienia | Lokalna definicja host/kanał/typ; nie RPC settings | API konkretnego urządzenia | Not implemented: zakładka disabled | #23/#24; potwierdzony model/capability |
+| Szczegóły Ustawienia → status / Odśwież | Ten sam rzeczywisty preview | Aktywny switch/relay; pozostałe karty bez połączenia | Host tested: stałe ID, aktualny transport, W/V/A/error; target CI wymagane | #29A; [test LCD](DEVICE_SETTINGS_PL.md), bez przypisywania obcego stanu |
+| Edytuj kartę urządzenia → nazwa/pokój | Wspólny model i rewizja | Lokalne metadane karty | Host tested: CAS, trwały ACK, błędy, powrót po ID, konflikt | #29A/#28; restart, sync WWW, brak zmiany bindingu |
+| Ustawienia samego Shelly | Wymaga dedykowanego API | Potwierdzony model/capability/auth | Not implemented: brak obietnicy zdalnego RPC | #23/#29; osobna implementacja danego modelu |
 | Karta sceny / ikona ołówka | Edytor scen | Zapis definicji, bez wykonawcy | CI tested: edycja; Not implemented: uruchamianie scen | #21; nie przedstawiać otwarcia edytora jako wykonania |
 
 ## Dodawanie i rzeczywiste urządzenia

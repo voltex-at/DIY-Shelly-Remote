@@ -65,6 +65,8 @@ static void render(void)
         else mobile_model.device_count = 1;
         if(index>=mobile_model.device_count){dsr_mobile_update(&mobile_model);return;}
         dsr_mobile_device_t *d = &mobile_model.devices[index];
+        snprintf(d->identity,sizeof(d->identity),"%s",saved.device.device_id);
+        d->generation=saved.device.generation;d->can_refresh=true;
         if(!layout){
         snprintf(d->name, sizeof(d->name), "%s", saved.device.name);
         snprintf(d->host, sizeof(d->host), "%s", saved.device.host);
@@ -121,6 +123,11 @@ void dsr_network_rooms(void)
     dsr_network_home(NULL); /* Re-read the published shared configuration first. */
     dsr_mobile_show(DSR_MOBILE_ROOMS,0);
 }
+void dsr_network_device_settings(uint32_t id)
+{
+    dsr_network_home(NULL);
+    dsr_mobile_show_device_settings(id);
+}
 
 static void mobile_output(unsigned index, bool on)
 {
@@ -131,8 +138,8 @@ static void mobile_output(unsigned index, bool on)
     if(result!=DSR_OK){last_result=result;command_error=true;render();}
 }
 static void mobile_add(void) { dsr_network_device(NULL); }
-static void mobile_edit_device(unsigned index)
-{if(index<mobile_model.device_count&&mobile_model.devices[index].id)dsr_ui_edit_device(mobile_model.devices[index].id);}
+static void mobile_edit_device(uint32_t id)
+{if(id)dsr_ui_edit_local_device(id);}
 static void mobile_refresh(void)
 {
  if((busy&&operation!=DSR_JOB_PROBE)||queued_output||!configured)return;

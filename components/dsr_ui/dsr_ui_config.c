@@ -50,21 +50,25 @@ static bool editor_active;
 static bool own_save;
 static bool dashboard_picker;
 static bool room_editor,room_new,room_deleted;
+static bool device_editor;
+static uint32_t context_device_id;
+static const char *device_input_error;
 static lv_obj_t *room_dialog;
 static unsigned tile_page;
 static cJSON *fields_tile;
 static void clear_draft(void)
-{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;}
-void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;body=keyboard=status_label=NULL;clear_draft();}
+{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;}
+void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;body=keyboard=status_label=NULL;clear_draft();}
 static void show_menu(void);
 static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
 static void show_room_form(void);
+static void show_device_form(void);
 static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);if(body)lv_obj_set_height(body,292);}
 static void focus(lv_event_t *event)
 {if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
 static void set_text(lv_event_t *event)
-{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
+{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;device_input_error=NULL;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
 static void set_number(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateNumber(strtoul(lv_textarea_get_text(lv_event_get_target(event)),NULL,10)));}
 static lv_obj_t *screen(const char *title)
@@ -82,6 +86,9 @@ static void save(lv_event_t *event)
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
  if(room_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
   dsr_sc_label_set_text(status_label,!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
+ }
+ if(device_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+  device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";dsr_sc_label_set_text(status_label,device_input_error);return;
  }
  char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
  cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
@@ -141,7 +148,7 @@ static void choose_photo(lv_event_t *event)
 /* Contextual rooms use the same draft, CAS submission and durable acknowledgement
  * as the full editor. Only their entry points and navigation differ. */
 static bool room_dirty(void){return draft&&(!saved_baseline||!cJSON_Compare(draft,saved_baseline,true));}
-static void room_leave(lv_event_t *event){(void)event;dsr_network_rooms();}
+static void room_leave(lv_event_t *event){(void)event;if(device_editor)dsr_network_device_settings(context_device_id);else dsr_network_rooms();}
 static void room_dialog_close(lv_event_t *event)
 {(void)event;if(room_dialog){lv_obj_delete(room_dialog);room_dialog=NULL;}}
 static lv_obj_t *room_modal(const char *title,const char *text)
@@ -205,6 +212,14 @@ static void show_room_form(void)
   dsr_sc_text(body,dsr_photo_id(0)?"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.":"Brak zdjęć w pamięci. Dodaj zdjęcia w Web Panelu.",2,room_new?236:292,280,&dsr_roboto_12,DSR_SC_MUTED);
  }
  if(deleted_saved)dsr_ui_button(root,"Wstecz",12,420,296,room_back,NULL);else actions(root,room_back);
+}
+static void show_device_form(void)
+{
+ lv_obj_t *root=screen("Edytuj kartę urządzenia");room_dialog=NULL;
+ lv_obj_set_y(body,118);lv_obj_set_height(body,280);
+ add_field("Nazwa","name",0,false);object_choice("Pomieszczenie","room",80);
+ dsr_sc_text(body,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,168,280,&dsr_roboto_14,DSR_SC_MUTED);
+ actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)
 {
@@ -275,6 +290,7 @@ static void tiles_page(lv_event_t *event){tile_page=(unsigned)(uintptr_t)lv_even
 static void show_entity(cJSON *entity)
 {
  if(room_editor){editing=entity;show_room_form();return;}
+ if(device_editor){editing=entity;show_device_form();return;}
  editing=entity;lv_obj_t *root=screen("Edytuj konfigurację");add_field("Nazwa","name",0,false);
  if(!strcmp(collection_name,"rooms")){add_choice("Ikona",&icon_choice,80);dsr_ui_button(body,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",0,168,284,choose_photo,NULL);dsr_sc_text(body,"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.",0,228,284,&dsr_roboto_12,DSR_SC_MUTED);}
  if(!strcmp(collection_name,"devices")){add_choice("Typ",&kind_choice,80);add_field("Adres IPv4 Shelly","host",160,false);add_field("Kanał (0–15)","channel",240,true);object_choice("Pomieszczenie","room",320);}
@@ -337,7 +353,7 @@ static void show_menu(void)
 }
 void dsr_ui_edit_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();room_editor=room_new=room_deleted=false;room_dialog=NULL;draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
+ char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
 }
 static bool room_begin(void)
 {
@@ -345,7 +361,7 @@ static bool room_begin(void)
  cJSON *next=cJSON_Parse(json);free(json);if(!next)return false;
  cJSON *baseline=cJSON_Duplicate(next,true);if(!baseline){cJSON_Delete(next);return false;}
  clear_draft();draft=next;saved_baseline=baseline;draft_revision=(uint32_t)integer(draft,"revision");
- editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=false;room_dialog=NULL;
+ editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  snprintf(collection_name,sizeof(collection_name),"rooms");return true;
 }
 void dsr_ui_add_room(void)
@@ -367,6 +383,14 @@ void dsr_ui_edit_room(uint32_t id)
  /* A Web edit may remove/reorder rooms before the LCD click is handled. */
  room_leave(NULL);
 }
+void dsr_ui_edit_local_device(uint32_t id)
+{
+ if(!room_begin())return;
+ room_editor=false;device_editor=true;context_device_id=id;
+ snprintf(collection_name,sizeof(collection_name),"devices");
+ cJSON *d;cJSON_ArrayForEach(d,cJSON_GetObjectItemCaseSensitive(draft,"devices"))if((uint32_t)integer(d,"id")==id){editing=d;show_device_form();return;}
+ room_leave(NULL);
+}
 void dsr_ui_edit_device(uint32_t id)
 {
  dsr_ui_edit_dashboard();if(!draft)return;
@@ -379,7 +403,7 @@ static void pick_dashboard(lv_event_t *event)
 void dsr_ui_select_dashboard(void)
 {
  char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);
- draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
  dsr_ui_button(root,"Wstecz",12,420,296,return_home,NULL);
@@ -405,6 +429,7 @@ void dsr_ui_workspace_tick(void)
   if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
+ if(device_editor&&device_input_error){dsr_sc_label_set_text(status_label,device_input_error);return;}
  if(dashboard_picker&&save_confirmed&&!dirty){dashboard_picker=false;return_home(NULL);return;}
  if(own_save)dsr_sc_label_set_text(status_label,"Zapisywanie…");
  else if(save_failed)dsr_sc_label_set_text(status_label,"Zapis nie powiódł się. Zmiany pozostają w edytorze.");

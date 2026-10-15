@@ -1,5 +1,38 @@
 # Project status
 
+## 0.7.5 — selected device settings (Issue #29A)
+
+Branch `work/device-settings-context`, stacked on draft PR #33; existing scope
+and the ordering recorded in #25. The device Settings tab now opens a dedicated
+page for the selected stable configuration ID. Controls/Settings selection and
+Back retain the same device after Web reorder. The page displays recorded
+identity/family, configured address/channel, actual transport status, available
+W/V/A and sample age. Exact model/firmware are not guessed when the transport
+has not retained those fields. Gen2+ is an API family, not a claim of Gen2/3/4.
+Refresh is enabled only for the card served by the current bound transport;
+an unrelated definition cannot refresh another device's connection.
+
+Edit card opens a focused local name/room form on the same shared config. It
+reuses immutable async saves, durable acknowledgement, CAS/conflict and explicit
+discard, then re-reads published data and returns to this device's Settings.
+No host/channel/credentials/kind mutation or device RPC settings are offered by
+this form. Removed IDs fall back to the device list. Existing global editor
+remains available. No extra model, secret storage, schema or partition change.
+
+Local UBSan: 1641 integrated LVGL checks / 74 frames, 2635 design review checks /
+24 frames. Tests cover actual pointer tabs/footer, GET/readings/auth/no-metering,
+unbound refresh guard, rename/room, failed/deferred save, CAS Web conflict,
+reorder/deleted ID, PL/EN/DE and 40 edit/Back cycles (98984 → 98984 warmed LVGL
+bytes free). Existing room stress remains 66872 → 66872 at 8 rooms. Exact-head
+target, sanitizer and browser CI are required. Actual C LVGL 320×480 frames
+`110-*`–`119-*` are exported with synthetic TEST / DEMO data. No owner's private
+identifiers/photos are included. [Hardware procedure](docs/DEVICE_SETTINGS_PL.md).
+
+This completes the bounded local Settings entry point, not all of #29. History
+and Charts remain unavailable pending #22/#29B; no samples or device settings
+are simulated. #19 AP, #20 multi-device and #24 native signed OTA remain open.
+No new scope, Stable, main merge or physical acceptance of 0.7.5 is claimed.
+
 ## 0.7.4 — contextual room editor (Issue #28)
 
 Branch `work/rooms-context-editor`, stacked on draft PR #31. Rooms now has a

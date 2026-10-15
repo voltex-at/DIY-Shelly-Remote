@@ -134,6 +134,41 @@ static void room_delete_button(void)
  lv_obj_t *button=lv_obj_get_parent(label);lv_obj_scroll_to_view(button,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());
  lv_area_t a;lv_obj_get_coords(button,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=118&&a.y2<420);CHECK(lv_obj_get_height(button)>=44);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
 }
+static void device_settings_regression(void)
+{
+ dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DETAILS,0);tap(267,65);
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);CHECK(find_label(lv_screen_active(),"Wybrane urządzenie"));CHECK(find_label(lv_screen_active(),"Model nieodczytany"));CHECK(find_label(lv_screen_active(),"shellyplus2pm-aabbccddeeff"));screenshot("110-device-settings");
+ tap(80,376);CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);
+ response.device.has_power=true;response.device.power_w=6.8;response.device.online=true;response.telemetry=(dsr_telemetry_t){.has_voltage=true,.voltage_v=229.1,.has_current=true,.current_a=.030};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);CHECK(find_label(lv_screen_active(),"6.8 W • 229.1 V • 0.030 A"));screenshot("111-device-settings-metrics");
+ unsigned before=requests;tap(236,376);CHECK(find_label(lv_screen_active(),"Edytuj kartę urządzenia"));CHECK(!dsr_mobile_active());
+ unsigned skip=1;CHECK(!nth_type(lv_screen_active(),&lv_textarea_class,&skip)); /* No host/channel/secrets editing here. */
+ room_name("");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj nazwę urządzenia."));room_name("ąąąąąąąąąąąąąąąąąąąąąąąą");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj krótszą nazwę urządzenia."));
+ room_name("Światło testowe");tap(100,158);lv_obj_t *kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(kb&&!lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));key(kb,"q");key(kb,LV_SYMBOL_BACKSPACE);screenshot("119-device-card-keyboard");key(kb,"Gotowe");CHECK(lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));CHECK(requests==before);
+ room_name("Światło kuchnia");lv_obj_t *room=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(room);lv_dropdown_set_selected(room,0);lv_obj_send_event(room,LV_EVENT_VALUE_CHANGED,NULL);
+ test_workspace_defer(true);click("Zapisz");dsr_ui_workspace_tick();tap(78,442);CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));
+ click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));screenshot("112-device-card-saved");test_workspace_defer(false);click("Wstecz");
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);CHECK(find_label(lv_screen_active(),"Światło kuchnia"));CHECK(requests==before);
+ cJSON *r=room_document(),*d=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"host")->valuestring,"192.168.1.88"));CHECK(cJSON_GetObjectItemCaseSensitive(d,"channel")->valueint==1);CHECK(cJSON_GetObjectItemCaseSensitive(d,"room")->valueint==0);cJSON_Delete(r);
+ tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);CHECK(find_label(lv_screen_active(),"Światło kuchnia"));tap(267,65);tap(236,376);room_name("Nie zapisuj");click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));click("Odrzuć");CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);CHECK(find_label(lv_screen_active(),"Światło kuchnia"));
+ /* Shared CAS rejects a Web write without replacing the active binding. */
+ tap(236,376);room_name("Zmiana LCD");r=room_document();publish_document(r);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));click("Zapisz");click("Wstecz");click("Odrzuć");
+ /* Add another definition, reorder it before the selected device, retain ID. */
+ r=room_document();cJSON *devices=cJSON_GetObjectItemCaseSensitive(r,"devices");d=cJSON_Duplicate(devices->child,true);cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(d,"id"),99);cJSON_ReplaceItemInObjectCaseSensitive(d,"name",cJSON_CreateString("TEST unbound"));cJSON_ReplaceItemInObjectCaseSensitive(d,"host",cJSON_CreateString("192.168.1.99"));cJSON_InsertItemInArray(devices,0,d);publish_document(r);tick();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);CHECK(find_label(lv_screen_active(),"Światło kuchnia"));tap(236,376);CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Światło kuchnia"));click("Wstecz");tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);CHECK(find_label(lv_screen_active(),"Światło kuchnia"));tap(267,65);
+ /* Unbound cards cannot refresh somebody else's real transport. */
+ dsr_mobile_show_device_settings(99);before=requests;tap(80,376);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Tożsamość niepotwierdzona"));CHECK(find_label(lv_screen_active(),"Brak aktywnego połączenia"));screenshot("113-device-settings-unbound");
+ dsr_mobile_show_device_settings(1);tap(80,376);CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania"));CHECK(!find_label(lv_screen_active(),"6.8 W • 229.1 V • 0.030 A"));screenshot("114-device-settings-auth-error");
+ tap(80,376);response.device.online=true;response.device.has_power=false;memset(&response.telemetry,0,sizeof(response.telemetry));deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak obsługiwanych pomiarów"));
+ for(unsigned language=1;language<3;language++){
+  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);dsr_network_device_settings(1);screenshot(language==1?"115-device-settings-english":"117-device-settings-german");tap(236,376);screenshot(language==1?"116-device-card-english":"118-device-card-german");click("Wstecz");
+ }
+ r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("pl"));publish_document(r);dsr_network_device_settings(1);lv_obj_update_layout(lv_screen_active());lv_refr_now(display);lv_mem_monitor_t a,b;tap(236,376);click("Wstecz");lv_refr_now(display);lv_mem_monitor(&a);
+ for(unsigned i=0;i<40;i++){tap(236,376);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Device settings heap before=%u after=%u; 40 edit/back cycles\n",(unsigned)a.free_size,(unsigned)b.free_size);
+ /* Removing the selected definition returns safely rather than editing index 0. */
+ r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");cJSON_DeleteItemFromArray(devices,1);cJSON *tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");cJSON_DeleteItemFromArray(tiles,0);publish_document(r);dsr_network_device_settings(1);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICES);dsr_ui_edit_local_device(1);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICES);
+ dsr_network_home(NULL);
+}
 static void rooms_regression(void)
 {
  /* The network connection stays intact; only shared layout starts empty. */
@@ -394,7 +429,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();rooms_regression();test_workspace_disable();
-    printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
+    dsr_ui_lan_reset();device_settings_regression();rooms_regression();test_workspace_disable();
+    printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, rooms, device settings, stable IDs, references, CAS/save regression; 60 navigation + 40 room + 40 device edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }
