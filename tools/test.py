@@ -37,8 +37,10 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     "-I", str(ROOT / "tests/support"), "-I", str(json_include),
                     "-I", str(ROOT / "components/dsr_core/include"),
                     "-I", str(ROOT / "components/dsr_platform/include"),
+                    "-I", str(ROOT / "components/dsr_config/include"),
                     *[str(ROOT / source) for source in [
                         "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c",
+                        "components/dsr_platform/dsr_discovery_model.c", "components/dsr_config/dsr_config.c",
                         "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_settings.c",
                         "components/dsr_platform/dsr_wifi_policy.c",
                         "tests/test_platform.c"]],

@@ -1,6 +1,9 @@
 #include "dsr_platform.h"
 #include "cJSON.h"
+#include "dsr_discovery.h"
+#include "dsr_config.h"
 #include "esp_http_client.h"
+#include "esp_timer.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -9,10 +12,11 @@
 
 #define RESPONSE_LIMIT 8192
 
-typedef struct { char *text; size_t used; bool overflow; } response_t;
+typedef struct { char *text; size_t used; bool overflow; int64_t deadline; } response_t;
 static esp_err_t on_http_event(esp_http_client_event_t *event)
 {
     response_t *response = event->user_data;
+    if(esp_timer_get_time()>response->deadline)return ESP_FAIL;
     /* A Digest challenge can have a body. Discard it before the retry. */
     if (event->event_id == HTTP_EVENT_HEADERS_SENT) {
         response->used = 0; response->overflow = false; response->text[0] = '\0';
@@ -30,19 +34,19 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
     return ESP_OK;
 }
 
-static dsr_result_t fetch_json(const dsr_connection_t *connection, const dsr_request_t *request,
-                               bool identity_request, cJSON **out)
+static dsr_result_t fetch_json_timeout(const dsr_connection_t *connection, const dsr_request_t *request,
+                               bool identity_request, cJSON **out,int timeout_ms)
 {
     *out = NULL;
     if (!dsr_connection_valid(connection, false)) return DSR_INVALID;
     char url[160];
     int length = snprintf(url, sizeof(url), "http://%s%s", connection->device.host, request->path);
     if (length < 0 || (size_t)length >= sizeof(url)) return DSR_INVALID;
-    response_t response = {.text = calloc(RESPONSE_LIMIT + 1, 1)};
+    response_t response = {.text = calloc(RESPONSE_LIMIT + 1, 1),.deadline=esp_timer_get_time()+(int64_t)timeout_ms*1000};
     if (!response.text) return DSR_IO;
     bool authenticated = connection->credentials.username[0] != '\0' && !identity_request;
     esp_http_client_config_t config = {
-        .url = url, .timeout_ms = 3000, .event_handler = on_http_event,
+        .url = url, .timeout_ms = timeout_ms, .event_handler = on_http_event,
         .user_data = &response, .disable_auto_redirect = true,
         .username = authenticated ? connection->credentials.username : NULL,
         .password = authenticated ? connection->credentials.password : NULL,
@@ -67,7 +71,7 @@ static dsr_result_t fetch_json(const dsr_connection_t *connection, const dsr_req
     else if (error != ESP_OK) result = DSR_OFFLINE;
     else if (status != 200) result = DSR_BAD_RESPONSE;
     else {
-        *out = cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true);
+        *out = dsr_config_json_depth(response.text)?cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true):NULL;
         result = cJSON_IsObject(*out) ? DSR_OK : DSR_BAD_RESPONSE;
         if (result != DSR_OK) { cJSON_Delete(*out); *out = NULL; }
         if (*out && cJSON_GetObjectItemCaseSensitive(*out, "error")) {
@@ -77,6 +81,31 @@ static dsr_result_t fetch_json(const dsr_connection_t *connection, const dsr_req
     esp_http_client_cleanup(client);
     free(response.text);
     return result;
+}
+static dsr_result_t fetch_json(const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out)
+{return fetch_json_timeout(c,r,identity_request,out,3000);}
+
+dsr_result_t dsr_http_lan_identity(const char *host,dsr_lan_device_t *out)
+{
+    if(!host||!out||!dsr_ipv4_valid(host))return DSR_INVALID;
+    dsr_connection_t c={0};snprintf(c.device.host,sizeof(c.device.host),"%s",host);
+    dsr_request_t request={.path="/shelly"};cJSON *json=NULL;
+    dsr_result_t result=fetch_json_timeout(&c,&request,true,&json,650);
+    if(result==DSR_OK)result=dsr_lan_parse_identity(json,host,out);
+    cJSON_Delete(json);return result;
+}
+dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out)
+{
+    if(!expected||!credentials||!out)return DSR_INVALID;
+    dsr_lan_device_t observed;dsr_result_t result=dsr_http_lan_identity(expected->host,&observed);
+    if(result!=DSR_OK)return result;
+    if(strcmp(expected->id,observed.id)||strcmp(expected->mac,observed.mac)||expected->generation!=observed.generation)return DSR_IDENTITY_MISMATCH;
+    dsr_connection_t c={.credentials=*credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",expected->host);
+    c.device.generation=expected->generation==1?DSR_GEN1:DSR_GEN2_PLUS;
+    dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/Shelly.GetStatus");cJSON *json=NULL;
+    result=fetch_json(&c,&request,false,&json);memset(&c,0,sizeof(c));
+    if(result==DSR_OK)result=dsr_lan_parse_capabilities(json,expected->generation,out);
+    cJSON_Delete(json);return result;
 }
 
 static bool identifier(const char *text, bool mac)
@@ -149,6 +178,7 @@ dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *ou
     if (!out || !dsr_connection_valid(connection, false)) return DSR_INVALID;
     dsr_connection_t probed = *connection;
     dsr_result_t result = identity(connection, &probed.device);
+    if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id))result=DSR_IDENTITY_MISMATCH;
     if (result == DSR_OK) result = status(&probed);
     *out = probed.device;
     return result;

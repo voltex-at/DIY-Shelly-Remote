@@ -7,6 +7,7 @@
 #include "dsr_ui.h"
 #include "dsr_platform.h"
 #include "dsr_workspace.h"
+#include "dsr_discovery.h"
 #endif
 
 void app_main(void)
@@ -40,6 +41,7 @@ void app_main(void)
     esp_err_t workspace_error=dsr_workspace_start();
     if(workspace_error!=ESP_OK)ESP_LOGE(tag,"Configuration storage unavailable; existing data preserved: %s",esp_err_to_name(workspace_error));
     else if(error==ESP_OK&&dsr_panel_start()!=ESP_OK)ESP_LOGE(tag,"Local Web Panel startup failed");
+    if(dsr_lan_init()!=ESP_OK)ESP_LOGE(tag,"LAN discovery unavailable");
     dsr_ui_init();
     ESP_ERROR_CHECK(dsr_board_start_ui_task());
     ESP_ERROR_CHECK(dsr_board_set_backlight(70));

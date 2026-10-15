@@ -1,5 +1,16 @@
 # Project status
 
+## Issue #7 — LAN discovery implementation in progress
+
+Dedicated branch `work/issue-7-lan-discovery`, stacked on the visual PR #9.
+Portable identity/capability/deduplication/subnet policy and real mDNS + passive
+ARP/known-host probing are implemented in a separate bounded network task.
+HTTP identity reads carry no credentials; protected component inspection uses
+the retained Basic/Digest transport and checks the selected ID/MAC again.
+545 HTTP/parser/NVS checks, 94 core and 222 Wi-Fi checks pass with UBSan.
+Wizard/API integration and target build are the next verification steps.
+No physical LAN result is claimed. AP/BLE and multi-device control are not added.
+
 ## Issue #6 — rounded icon family and configurable photographic HOME
 
 2026-10-15: branch `work/issue-6-visual-system`, based on PR #5's reviewed

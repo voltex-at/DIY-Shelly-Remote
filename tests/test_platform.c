@@ -1,6 +1,8 @@
 /* Runs actual HTTP parsing, binding checks and NVS adapters with real cJSON.
  * The fake HTTP transport does not validate IDF's Digest cryptography or radio. */
 #include "dsr_platform.h"
+#include "dsr_discovery.h"
+#include "cJSON.h"
 #include "esp_http_client.h"
 #include "nvs.h"
 #include <assert.h>
@@ -8,6 +10,8 @@
 #include <string.h>
 
 static unsigned checks;
+static bool lan_mode;
+int64_t esp_timer_get_time(void){return 0;}
 #define CHECK(expr) do { checks++; if (!(expr)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); assert(expr); } } while (0)
 typedef struct { const char *path, *body; int status; bool post, challenge; } step_t;
 static step_t steps[8];
@@ -20,8 +24,8 @@ static void fixture(const step_t *data, unsigned length, esp_http_client_auth_ty
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg)
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == 1);
-    CHECK(cfg->timeout_ms == 3000);
     bool identity = strcmp(steps[used].path, "/shelly") == 0;
+    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:3000));
     CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
     if (identity) CHECK(!cfg->username && !cfg->password);
     else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
@@ -154,8 +158,41 @@ static void test_storage(void)
     fail_commit = true; CHECK(dsr_connection_save(&c) == ESP_FAIL); fail_commit = false;
     memset(c.credentials.username, 'a', sizeof(c.credentials.username)); CHECK(!dsr_connection_valid(&c, true));
 }
+static void test_discovery(void)
+{
+    const char info2[]="{\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"gen\":2,\"auth_en\":true,\"name\":\"Kitchen\"}";
+    const char info1[]="{\"type\":\"SHSW-21\",\"mac\":\"aabbccddeeff\",\"auth\":false}";
+    dsr_lan_device_t d={0},one={0};cJSON *json=cJSON_Parse(info2);
+    CHECK(dsr_lan_parse_identity(json,"192.168.1.10",&d)==DSR_OK);
+    CHECK(d.generation==2&&d.auth_required&&!strcmp(d.mac,"AABBCCDDEEFF")&&!strcmp(d.name,"Kitchen"));cJSON_Delete(json);
+    json=cJSON_Parse(info1);CHECK(dsr_lan_parse_identity(json,"192.168.1.11",&one)==DSR_OK);CHECK(one.generation==1&&!one.auth_required&&!strcmp(one.id,"AABBCCDDEEFF"));cJSON_Delete(json);
+    const char *bad[]={"[]","{}","{\"gen\":2,\"id\":\"fake\",\"mac\":\"aabbccddeeff\",\"model\":\"model\",\"auth_en\":false}","{\"type\":\"SHSW-1\",\"mac\":\"000000000000\",\"auth\":false}","{\"type\":\"SHSW-1\",\"mac\":\"aabbccddeeff\",\"auth\":\"false\"}","{\"type\":\"SHSW-1\",\"type\":\"SHSW-2\",\"mac\":\"aabbccddeeff\",\"auth\":false}"};
+    for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){json=cJSON_Parse(bad[i]);CHECK(dsr_lan_parse_identity(json,"192.168.1.10",&one)!=DSR_OK);cJSON_Delete(json);}
+    for(int generation=-1;generation<=5;generation++){json=cJSON_Parse(info2);cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(json,"gen"),generation);CHECK((dsr_lan_parse_identity(json,"192.168.1.10",&one)==DSR_OK)==(generation>=2&&generation<=4));cJSON_Delete(json);}
+    dsr_lan_snapshot_t scan={0};CHECK(dsr_lan_upsert(&scan,&d)==DSR_OK&&scan.count==1);strcpy(d.host,"192.168.1.99");CHECK(dsr_lan_upsert(&scan,&d)==DSR_OK&&scan.count==1&&!strcmp(scan.devices[0].host,d.host));
+    one=d;strcpy(one.mac,"112233445566");CHECK(dsr_lan_upsert(&scan,&one)==DSR_IDENTITY_MISMATCH&&scan.count==1);
+    for(unsigned i=1;i<16;i++){one=d;snprintf(one.id,sizeof(one.id),"shelly-test-%u",i);snprintf(one.mac,sizeof(one.mac),"AABBCCDD%04X",i);CHECK(dsr_lan_upsert(&scan,&one)==DSR_OK);}one=d;strcpy(one.id,"shelly-extra");strcpy(one.mac,"001122334455");CHECK(dsr_lan_upsert(&scan,&one)==DSR_FULL);
+    dsr_lan_plan_t plan={0};CHECK(dsr_lan_plan_add(&plan,"192.168.1.10","192.168.1.2","255.255.255.0"));CHECK(!dsr_lan_plan_add(&plan,"192.168.1.10","192.168.1.2","255.255.255.0"));
+    const char *invalid[]={"192.168.2.10","192.168.1.0","192.168.1.255","192.168.1.2","224.0.0.1","127.0.0.1","192.168.01.3","https://192.168.1.10","1.2.3.4/"};
+    for(unsigned i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++)CHECK(!dsr_lan_plan_add(&plan,invalid[i],"192.168.1.2","255.255.255.0"));
+    CHECK(!dsr_lan_plan_add(&plan,"192.168.1.11","192.168.1.2","255.0.255.0"));
+    for(unsigned i=11;i<42;i++){char ip[16];snprintf(ip,sizeof(ip),"192.168.1.%u",i);CHECK(dsr_lan_plan_add(&plan,ip,"192.168.1.2","255.255.255.0"));}CHECK(plan.count==32);CHECK(!dsr_lan_plan_add(&plan,"192.168.1.50","192.168.1.2","255.255.255.0"));
+    dsr_lan_capabilities_t caps;
+    json=cJSON_Parse("{\"switch:0\":{\"id\":0,\"output\":true},\"switch:3\":{\"id\":3,\"output\":false},\"cover:1\":{\"id\":1,\"state\":\"stopped\"}}");CHECK(dsr_lan_parse_capabilities(json,2,&caps)==DSR_OK&&caps.switches==9&&caps.covers==2);cJSON_Delete(json);
+    json=cJSON_Parse("{\"relays\":[{\"ison\":false},{\"ison\":true}],\"rollers\":[{\"state\":\"stop\"}]}");CHECK(dsr_lan_parse_capabilities(json,1,&caps)==DSR_OK&&caps.switches==3&&caps.covers==1);cJSON_Delete(json);
+    const char *bad_caps[]={"{\"switch:0\":{\"id\":1,\"output\":true}}","{\"switch:16\":{\"id\":16,\"output\":true}}","{\"switch:0\":{\"id\":0,\"output\":\"true\"}}","{\"switch:0\":{},\"switch:0\":{}}"};
+    for(unsigned i=0;i<sizeof(bad_caps)/sizeof(bad_caps[0]);i++){json=cJSON_Parse(bad_caps[i]);CHECK(dsr_lan_parse_capabilities(json,2,&caps)!=DSR_OK);cJSON_Delete(json);}
+    lan_mode=true;step_t data[]={{"/shelly",info2,200,false,false},{"/rpc/Shelly.GetStatus","{\"switch:0\":{\"id\":0,\"output\":false}}",200,false,true}};
+    fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OK&&used==1);
+    dsr_connection_t c=connection();fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&caps.switches==1&&used==2);
+    data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_AUTH_REQUIRED);
+    data[1].status=429;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_RATE_LIMITED);
+    data[0].body=NULL;data[0].status=0;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OFFLINE);
+    data[0].body=info1;data[0].status=200;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_IDENTITY_MISMATCH&&used==1);
+    lan_mode=false;strcpy(c.device.device_id,"WRONG-IDENTITY");data[0].body=gen2;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_IDENTITY_MISMATCH&&used==1);
+}
 int main(void)
 {
-    test_probe(); test_control(); test_storage();
+    test_probe(); test_control(); test_discovery(); test_storage();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
 }
