@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | 0 - Foundation and GitHub | Repo, source, status, docs, successful native/diagnostic CI | Completed: public repo, merged foundation, native and both diagnostic CI jobs passed |
 | 1 - Identify hardware | Schematic/model, LCD/touch, pin map, Flash/PSRAM, reviewed profile | ES3C35P vendor model, memory and GPIO documented; physical PCB revision pending |
-| 2 - Board bring-up | Boot, display, touch, Wi-Fi, stability on physical board | Display/touch/backlight test source implemented; build/physical test pending; Wi-Fi UI next |
+| 2 - Board bring-up | Boot, display, touch, Wi-Fi, stability on physical board | Display/touch/backlight test compiled and packaged; physical test pending; Wi-Fi UI next |
 | 3 - UI | LVGL navigation, dashboard, rooms/devices/details/settings and marked demo | Hardware-test navigation shell implemented; real-device UI pending |
 | 4 - First actual Shelly | Manual add, auth as required, state, explicit ON/OFF, offline recovery | Transport source written; no integration/hardware test |
 | 5 - Broader local support | Discovery, live status, capabilities, dimmers/covers/lights, energy, persistence, rooms/scenes | Not started |

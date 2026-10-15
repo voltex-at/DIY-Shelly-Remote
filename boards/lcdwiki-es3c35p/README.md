@@ -2,6 +2,8 @@
 
 Hardware ID: `lcdwiki-es3c35p-n16r8`. Target: `esp32s3`. Firmware stage: `0.1.0-bringup`.
 
+Verified compilation: [GitHub Actions 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). [Download the hardware-test artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486). Source commit: `f592876f532f9de0714c3cd04a074280d57d9278`. This confirms compilation and packaging; physical validation is still pending.
+
 ## Evidence and boundaries
 
 - [Vendor product page and pin allocation](https://www.lcdwiki.com/3.5inch_ESP32-S3_Display)

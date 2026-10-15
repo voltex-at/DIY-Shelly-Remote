@@ -14,13 +14,19 @@ Foundation PR #1 was merged after all three jobs passed in [run 38657250244](htt
 | --- | --- | --- | --- |
 | Portable requests, registry, versions and OTA metadata policy | Yes | 94 assertions; native, UBSan locally; ASan/UBSan in CI passed | No |
 | HTTP probe/status/ON/OFF/readback, NVS, Wi-Fi, worker | Yes | Foundation ESP32/S3 compilation passed; protocol fixture tests pending | No |
-| LCDWiki ES3C35P memory/pin/Flash profile | Yes, vendor references documented | Board-specific build pending | No |
-| ST77922 QSPI display and integrated I2C touch | Yes | Board-specific build pending | No |
-| LVGL test UI, colors/corners/brightness/screen off/wake | Yes | Board-specific build pending | No |
+| LCDWiki ES3C35P memory/pin/Flash profile | Yes, vendor references documented | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
+| ST77922 QSPI display and integrated I2C touch | Yes | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
+| LVGL test UI, colors/corners/brightness/screen off/wake | Yes | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
 | Wi-Fi onboarding and actual Shelly control in UI | No | Not applicable | No |
 | Rooms/scenes, energy and full device screens | Navigation shells only | No functional feature claim | No |
 | BLE scanning, BTHome, keys and BLE RPC | No | Not applicable | No |
 | OTA installer, signature validation and health-confirmed rollback | No; metadata policy and dual-slot layout only | No installation validation | No |
+
+## Verified hardware-test artifact
+
+The ES3C35P job, both diagnostic jobs and native ASan/UBSan checks all passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). Firmware source commit: `f592876f532f9de0714c3cd04a074280d57d9278`; tested PR merge commit: `8e857169a8c4cb509751b9619e10f800c29c9c99`. PR #2 was merged into `main` after these checks.
+
+The actual [hardware-test artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486) was downloaded and its ZIP SHA-256, both BIN SHA-256 values, ESP32-S3 image header, version string and generated Flash addresses were verified. The merged USB image is 618592 bytes, starts at 0x0 and contains the app at 0x20000. See [VALIDATION.md](docs/VALIDATION.md) for exact hashes and dependency versions. No physical board validation has occurred.
 
 ## Hardware decision
 
@@ -52,4 +58,4 @@ See [the board guide](boards/lcdwiki-es3c35p/README.md) for evidence, Flash layo
 
 ## Next physical milestone
 
-After board compilation succeeds, provide the actual hardware-test artifact and follow the board guide: boot photo/log, four touch corners, primary colors, brightness, off/wake and repeated operation without restarts. Use those results to fix the board port. Then integrate Wi-Fi setup and a real Shelly relay with state readback, authentication and offline recovery.
+The board compilation and artifact verification succeeded. Install the provided hardware-test artifact and follow the board guide: boot photo/log, four touch corners, primary colors, brightness, off/wake and repeated operation without restarts. Use those results to fix the board port. Then integrate Wi-Fi setup and a real Shelly relay with state readback, authentication and offline recovery.
