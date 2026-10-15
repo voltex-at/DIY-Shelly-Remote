@@ -2,7 +2,9 @@
 
 Reference reviewed: [Shelly Smart Control](https://www.shelly.com/pages/shelly-app) and the [My Home guide](https://kb.shelly.cloud/knowledge-base/my-home-page), 2026-10-15. The official material organizes devices by rooms, presents device states and allows scenes and consumption views. This informs navigation; it does not imply pixel-for-pixel equivalence to any app version. No official artwork or logo will be copied.
 
-The first LVGL UI is implemented for the documented 320x480 native portrait display. It has an original dark Home/Menu shell, clearly labeled hardware-test scope, four-corner touch test, primary-color test, brightness, full backlight off and first-touch wake. Rooms, Devices, Scenes and Energy are navigation shells with explicit empty/future states, not completed control features. No fabricated devices or measurements are shown. Physical rendering has not been validated yet. The table below describes the full intended UI beyond this bring-up milestone.
+The current 320x480 portrait LVGL UI has Home (one saved switch, network/state, explicit ON/OFF, Refresh, optional actual `apower`), Menu, on-device Wi-Fi entry with Save & restart, and manual Shelly IP/channel/name/login/password forms. Keyboard Ready/Cancel hides the keyboard; the forms scroll. Password fields are masked and byte lengths checked. A bounded worker handles network/NVS writes and returns events to the single LVGL owner; no background task manipulates widgets. View pointers are cleared before objects are deleted.
+
+The previous bring-up UI was photographed working on the user's board, including touch responses. New forms and network/control behavior still need physical validation. Hardware corner/color tests and brightness/off/wake tools remain in Menu. Rooms, scenes, multiple devices, energy history, BLE and OTA installation are not yet available. The table below describes the broader intended UI.
 
 | View | Required content | Interaction rules |
 | --- | --- | --- |

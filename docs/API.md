@@ -14,7 +14,7 @@ Primary documentation reviewed 2026-10-15:
 
 | Operation | Gen1 | Gen2+ |
 | --- | --- | --- |
-| Identify generation | `GET /shelly`, legacy type field | `GET /shelly`, `gen >= 2` and ID |
+| Identify generation | `GET /shelly`, legacy type and MAC fields | `GET /shelly`, `gen >= 2` and ID |
 | Read selected relay/switch | `GET /relay/<channel>` | `GET /rpc/Switch.GetStatus?id=<channel>` |
 | Set explicit output | `GET /relay/<channel>?turn=on` or `off` | `POST /rpc/Switch.Set`, body `{"id":0,"on":true}` |
 | Confirm current output | `ison` boolean | `output` boolean |
@@ -22,11 +22,15 @@ Primary documentation reviewed 2026-10-15:
 
 Use `/shelly` for identification; do not infer the generation from a marketing name. A newer generation is routed to the documented Gen2+ protocol only where its actual component implements that protocol. The current adapter supports selected switch components, not every Shelly device or component. Channel 0..15 is an implementation limit, not a claim about all model capabilities.
 
-Transport limits: 3-second per-request timeout, 8192-byte response cap, no redirect following, strict dotted IPv4 endpoint, complete JSON object required, explicit 401/403 classification. The adapter is written but not target-compiled or hardware-tested. Gen1 power meters, dimmers, lights, covers and energy histories are future adapters.
+Transport limits: 3-second per-request timeout, 8192-byte response cap, no redirect following, strict dotted IPv4 endpoint, complete JSON object required, explicit 401/403 and 429 classification. HTTP/JSON adapters have native fixture coverage with real cJSON; physical Shelly testing remains pending. Gen1 power meters, dimmers, lights, covers and energy histories are future adapters.
 
 ## Authentication
 
-Gen1 and Gen2+ authentication differ. Gen2+ documents Digest/SHA-256; adding a generic Basic Auth flag is not sufficient. Implement/test the actual challenge/response with correct nonce handling before claiming protected-device support. Current `DSR_AUTH_REQUIRED` tells the caller to show an unsupported-authentication message. Never ask users to disable authentication to satisfy a feature claim.
+Gen1 uses HTTP Basic; Gen2+ uses ESP-IDF 5.5.4 Digest (including SHA-256). Both optional IDF authentication features are enabled in the board defaults. Credentials are separate bounded strings, never URL parameters or log output; no redirects are followed. The unprotected `/shelly` endpoint is queried without credentials. A response buffer resets on `HTTP_EVENT_HEADERS_SENT` so a 401 challenge body cannot contaminate the successful JSON response. One authorization retry is allowed per request.
+
+A successful user-directed add stores the Gen1 MAC or Gen2+ ID with the endpoint/channel. Subsequent polls and writes compare this identity first. Identity mismatch, authentication failure and rate limiting stop automatic polling until explicit Refresh or re-add. Explicit ON/OFF is followed by readback and is not replayed after timeout. These identity checks guard against accidental IP reuse, not a cryptographic authentication of local HTTP peers.
+
+The fixtures check client configuration and HTTP callback behavior, not IDF's cryptographic implementation or a real protected Shelly. Physical validation is required. Gen1 Basic has no confidentiality on local HTTP. NVS is unencrypted in this development version. Primary IDF reference: [HTTP client v5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/protocols/esp_http_client.html).
 
 ## Discovery, status and Bluetooth
 

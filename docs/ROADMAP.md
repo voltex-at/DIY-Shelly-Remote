@@ -4,9 +4,9 @@
 | --- | --- | --- |
 | 0 - Foundation and GitHub | Repo, source, status, docs, successful native/diagnostic CI | Completed: public repo, merged foundation, native and both diagnostic CI jobs passed |
 | 1 - Identify hardware | Schematic/model, LCD/touch, pin map, Flash/PSRAM, reviewed profile | ES3C35P vendor model, memory and GPIO documented; physical PCB revision pending |
-| 2 - Board bring-up | Boot, display, touch, Wi-Fi, stability on physical board | Display/touch/backlight test compiled and packaged; physical test pending; Wi-Fi UI next |
-| 3 - UI | LVGL navigation, dashboard, rooms/devices/details/settings and marked demo | Hardware-test navigation shell implemented; real-device UI pending |
-| 4 - First actual Shelly | Manual add, auth as required, state, explicit ON/OFF, offline recovery | Transport source written; no integration/hardware test |
+| 2 - Board bring-up | Boot, display, touch, Wi-Fi, stability on physical board | User boot/display/touch response confirmed; colors/brightness/wake/stability pending; Wi-Fi UI implemented, physical test pending |
+| 3 - UI | LVGL navigation, dashboard, rooms/devices/details/settings and marked demo | One-switch Home, on-screen Wi-Fi/device forms and hardware tests implemented; full UI pending |
+| 4 - First actual Shelly | Manual add, auth as required, state, explicit ON/OFF, offline recovery | One-switch integration, auth configuration and protocol fixtures implemented; actual Shelly test pending |
 | 5 - Broader local support | Discovery, live status, capabilities, dimmers/covers/lights, energy, persistence, rooms/scenes | Not started |
 | 6 - Bluetooth | NimBLE coexistence, scan, verified BLU/BTHome events, encrypted payloads with keys, applicable BLE RPC | Not started |
 | 7 - OTA | Signed compatible update, progress/approval, rollback, preserved settings, local upload | Metadata policy and per-board dual-slot layout; installer pending |

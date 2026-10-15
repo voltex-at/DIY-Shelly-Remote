@@ -1,61 +1,47 @@
 # Project status
 
-Checkpoint: 2026-10-15, Europe/Vienna. Current source version: `0.1.0-bringup`.
+Checkpoint: 2026-10-15, Europe/Vienna. Current source version: `0.2.0-local-dev`.
+Repository: https://github.com/voltex-at/DIY-Shelly-Remote
 
-## Verified repository and foundation
+## Physical evidence received
 
-Public repository: https://github.com/voltex-at/DIY-Shelly-Remote
+The user reported “Działa” and supplied two photographs of the actual ES3C35P running the previously supplied `0.1.0-bringup` image. The Home screen is readable in native portrait and reports `Touch controller: responding`. The touch-test photograph shows `Corner 4 detected` and `Touch count: 4`.
 
-Foundation PR #1 was merged after all three jobs passed in [run 38657250244](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38657250244): 94 portable assertions with ASan/UBSan, ESP32 diagnostic compilation and ESP32-S3 diagnostic compilation. The HTTP/Wi-Fi/NVS/worker source therefore passed ESP-IDF v5.5.4 compilation. None of it has been tested against physical Shelly devices.
+This confirms physical boot/display rendering and touch responses. It does not independently establish that all four corners map correctly. Primary colors, brightness range, first-touch wake, long-duration operation, battery, Wi-Fi and Shelly control remain separate tests. No photos were copied into the public repository.
 
-## Current evidence
+## Implementation and verification
 
-| Area | Written | Compilation / automated validation | Physical test |
-| --- | --- | --- | --- |
-| Portable requests, registry, versions and OTA metadata policy | Yes | 94 assertions; native, UBSan locally; ASan/UBSan in CI passed | No |
-| HTTP probe/status/ON/OFF/readback, NVS, Wi-Fi, worker | Yes | Foundation ESP32/S3 compilation passed; protocol fixture tests pending | No |
-| LCDWiki ES3C35P memory/pin/Flash profile | Yes, vendor references documented | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
-| ST77922 QSPI display and integrated I2C touch | Yes | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
-| LVGL test UI, colors/corners/brightness/screen off/wake | Yes | Passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879) | No |
-| Wi-Fi onboarding and actual Shelly control in UI | No | Not applicable | No |
-| Rooms/scenes, energy and full device screens | Navigation shells only | No functional feature claim | No |
-| BLE scanning, BTHome, keys and BLE RPC | No | Not applicable | No |
-| OTA installer, signature validation and health-confirmed rollback | No; metadata policy and dual-slot layout only | No installation validation | No |
+| Area | Current implementation | Evidence / outstanding test |
+| --- | --- | --- |
+| Portable requests, registry, versions, OTA metadata policy | Implemented | 94 assertions; prior CI ASan/UBSan passed |
+| ES3C35P hardware profile and ST77922 LCD/touch | Implemented | Previous full board CI passed; user boot/touch photos received |
+| Test UI, colors/corners/brightness/off/wake | Implemented; tests retained in Menu | Readable UI and touch response observed; other physical checks pending |
+| On-device Wi-Fi entry and restart | Implemented | Local compilation of adapters/fixtures; new board CI and physical test pending |
+| One saved manual IPv4 switch/channel | Implemented | Real cJSON + fake HTTP fixtures; actual Shelly test pending |
+| Gen1 Basic / Gen2+ Digest authentication | ESP-IDF transport configured; both auth features enabled | Configuration and challenge-body parsing fixture checked; real Digest exchange/device test pending |
+| Identity before read/write, explicit ON/OFF/readback, five-second polling | Implemented | Identity mismatch blocks command in fixture; physical network recovery pending |
+| NVS settings and device binding | Validated schema; save after successful probe; credentials local | Fake-NVS adapter tests; persistence on actual board pending; NVS unencrypted |
+| Multiple devices, rooms/scenes, energy history | Not implemented | Future milestone |
+| BLE / BTHome / BLE RPC | Not implemented | Future milestone |
+| OTA installation/signatures/health-confirmed rollback | No installer; metadata policy and dual-slot layout only | Future milestone |
 
-## Verified hardware-test artifact
+Current local validation: **94 portable + 371 platform checks** passed both normally and with UBSan. Platform tests compile the real request/HTTP/connection/settings code and use real cJSON with mocked HTTP and NVS APIs. They check malformed/oversized JSON, authentication errors/429, challenge-body reset, explicit command/readback, identity mismatch, no command replay and invalid NVS schemas. They do not test IDF Digest cryptography, actual flash commits, Wi-Fi or radio coexistence. Full new-version CI result and artifact evidence will be added after completion.
 
-The ES3C35P job, both diagnostic jobs and native ASan/UBSan checks all passed in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). Firmware source commit: `f592876f532f9de0714c3cd04a074280d57d9278`; tested PR merge commit: `8e857169a8c4cb509751b9619e10f800c29c9c99`. PR #2 was merged into `main` after these checks.
+## Hardware and artifact history
 
-The actual [hardware-test artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486) was downloaded and its ZIP SHA-256, both BIN SHA-256 values, ESP32-S3 image header, version string and generated Flash addresses were verified. The merged USB image is 618592 bytes, starts at 0x0 and contains the app at 0x20000. See [VALIDATION.md](docs/VALIDATION.md) for exact hashes and dependency versions. No physical board validation has occurred.
+Profile: LCDWiki ES3C35P, ESP32-S3 N16R8, 16 MiB QSPI Flash, 8 MiB OPI PSRAM, ST77922 320x480 QSPI display and integrated I2C touch. GPIOs are manufacturer-sourced. Exact-board upstream initialization is attributed to its MIT source. Runtime checks enforce expected memory sizes. The display/touch port is preserved from the working bring-up.
 
-## Hardware decision
+PR #1 foundation passed [run 38657250244](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38657250244). PR #2 board bring-up passed all four jobs in [run 38658803879](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879). The prior [0.1.0 artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38658803879/artifacts/11938610486) was downloaded and its ZIP/BIN checksums, image metadata, Flash addresses and version verified. Exact values remain in [VALIDATION.md](docs/VALIDATION.md).
 
-The user supplied LCDWiki ES3C35P documentation. Profile: ESP32-S3, 16 MiB QSPI Flash, 8 MiB OPI PSRAM, ST77922 320x480 QSPI LCD and integrated touch block. GPIO mapping is sourced from the manufacturer. The module-specific initialization table and touch register protocol are attributed to an exact-board upstream MIT implementation. Firmware verifies actual memory sizes at startup. Physical board revision, colors, touch orientation and electrical behavior still need the user's test.
+## Current limits and next test
 
-See [the board guide](boards/lcdwiki-es3c35p/README.md) for evidence, Flash layout, USB installation, expected screen, tests and logs.
+Use [the Polish local-control guide](docs/LOCAL_CONTROL_PL.md) for the new development firmware; [the board reference](boards/lcdwiki-es3c35p/README.md) records hardware and original bring-up. No stable Release is claimed.
 
-## Implemented bring-up behavior
+- One stored relay/switch channel, manual IPv4 only. No discovery, automatic DHCP address relocation, capability enumeration or notifications. Reserve the Shelly IP in DHCP; a different saved identity blocks control until explicitly added again.
+- Local HTTP: Gen1 Basic has no transport confidentiality; Gen2+ uses IDF Digest SHA-256. No redirects, credentials in URLs/source/logs, or cloud dependency. Auth failure/429/identity mismatch pauses automatic polls; explicit Refresh or re-add resumes a user-directed attempt.
+- Wi-Fi start is once per boot. The explicit Save & restart button applies a new network after NVS success. Reconnect uses 1–32 second backoff. Network operations run in a bounded worker; no LVGL call runs in that worker.
+- NVS is not encrypted. Schema migration/production secure storage remain pending. NVS initialization/schema errors do not automatically erase settings. Brightness changes are temporary; screen off remains 60 seconds.
+- Merged USB installation overwrites covered Flash contents including settings; it is not settings-preserving OTA. Both app slots are 6 MiB but installation and post-OTA health confirmation are not implemented.
+- No battery, charging, RGB LED, deep sleep, audio, SD or pogo accessory behavior is claimed.
 
-- Native portrait UI; no unverified hardware axis swap.
-- Four-pixel horizontal invalidation alignment and bounded internal DMA draw buffer.
-- Separate bounded touch polling; LVGL reads a synchronized sample without I2C calls.
-- One LVGL owner task; creation occurs before that task starts.
-- Backlight PWM, manual full off, 60-second inactivity off and first-touch-only wake. If touch probing fails, automatic off stays disabled.
-- Actual Flash/PSRAM checks, amplifier disabled, no initialization of SD/audio/RGB/accessories and no guessed charge state.
-- Two 6 MiB OTA slots within the documented 16 MiB, with no updater or authenticity claim yet.
-
-## Known limitations
-
-- No physical tests have occurred. Do not mark a compile success as hardware support validation or a stable release.
-- The bring-up UI does not start Wi-Fi/BLE or control Shelly devices. Settings on the test screen are RAM-only; no credentials are collected.
-- Local transport supports manual IPv4 and selected relay/switch channels only. No discovery, stable DHCP identity, WebSocket subscriptions, full capability enumeration or polling scheduler yet.
-- Shelly authentication is not implemented: 401/403 report `DSR_AUTH_REQUIRED`. Do not disable device authentication to satisfy a support claim.
-- Wi-Fi initialization is once per boot; failed partial initialization requires restart. Runtime reconfiguration/cleanup remains to be added.
-- NVS schema 1 is validated but not encrypted. Migration and production secure-storage review remain outstanding. No automatic settings erasure is performed on NVS initialization errors.
-- The OTA metadata helper does not verify an image digest/signature or install firmware. The bring-up version is intentionally outside the stable-only OTA policy. Post-OTA health confirmation is not implemented.
-- Initial merged USB installation replaces the existing firmware and covered Flash contents; it is not a settings-preserving OTA update.
-- No battery/charging, LED behavior, deep sleep or pogo accessory support is claimed.
-
-## Next physical milestone
-
-The board compilation and artifact verification succeeded. Install the provided hardware-test artifact and follow the board guide: boot photo/log, four touch corners, primary colors, brightness, off/wake and repeated operation without restarts. Use those results to fix the board port. Then integrate Wi-Fi setup and a real Shelly relay with state readback, authentication and offline recovery.
+Next physical milestone: configure Wi-Fi on the screen, add an actual authenticated Shelly switch, verify ON/OFF and external state changes, reboot persistence and recovery after disconnection. Record exact Shelly model, firmware, generation, channel and auth mode without passwords. Complete the separate colors/brightness/wake checks as well.

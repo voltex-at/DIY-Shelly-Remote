@@ -36,4 +36,12 @@ The exact component hashes and source registry are preserved in the artifact's d
 
 ## Not yet validated
 
-No physical power-up, display orientation/color, touch-corner, brightness, wake, battery, radio or Shelly-device test has been performed. Compilation cannot establish those outcomes. The first user test follows [the board guide](../boards/lcdwiki-es3c35p/README.md). The bring-up UI does not enable Wi-Fi control, BLE or OTA installation.
+At packaging time, no physical test had occurred. The following user evidence was received afterward. The 0.1.0 bring-up UI does not enable Wi-Fi, BLE or OTA installation.
+
+## User hardware report received 2026-10-15
+
+The user wrote “Działa” and supplied two photographs: native portrait Home with readable text and `Touch controller: responding`, and the corner test with `Corner 4 detected` / `Touch count: 4`. This is physical boot/display rendering and touch-response evidence for the supplied 0.1.0-bringup firmware, not an independent verification of every corner, exact colors, brightness/wake behavior or stability. No physical radio/Shelly/battery test was reported. Photos were not republished in this repository.
+
+## 0.2.0-local-dev local validation
+
+94 portable checks and 371 platform checks passed normally and with UBSan. The new platform executable compiles actual HTTP/identity/NVS adapters and real cJSON, with fake HTTP client and NVS APIs. Tests cover Gen1/Gen2 identification, MAC normalization, type errors, malformed/oversized responses, 401/403/429/redirect rejection, 401-body reset, explicit output/readback, mismatch-before-command, no replay after timeout, bounded strings, storage errors and unknown schemas. This does not validate IDF Digest cryptography, actual NVS atomicity or a physical device. New firmware CI and hardware test results are recorded separately after completion.
