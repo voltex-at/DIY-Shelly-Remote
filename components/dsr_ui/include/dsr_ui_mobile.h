@@ -25,6 +25,8 @@ typedef struct {
     bool has_frequency,can_stop_cover;
     double frequency_hz;
     dsr_mobile_cover_state_t cover_state;
+    bool has_sample_time;
+    uint32_t sample_ms;
     uint8_t fields;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;

@@ -1,5 +1,29 @@
 # Project status
 
+## 0.6.3 — stable background reads and one deferred user command (Issue #12)
+
+Branch `work/issue-12-stable-polling`, stacked on cover PR #16. A periodic PROBE
+retains confirmed state/metrics and enabled ON/OFF. Unchanged samples update
+only freshness text, preserving card objects and scroll. An accepted tap during
+a read queues one explicit target ON/OFF, disables duplicates, verifies the same
+device/host/generation/channel after the read and dispatches before config jobs.
+Read/auth/Wi-Fi/dispatch failures cancel the intent; SET is never auto-replayed.
+The confirmed output changes only after mandatory SET/readback. Manual Refresh
+can join an existing read. Physical drivers, relay transport and NVS are retained.
+
+Local UBSan: 1101 integrated LVGL checks/38 frames and 2615 review checks/23
+frames pass, including two stable 5/10 s polls, pointer tap during a read, one
+deferred SET, double tap, auth failure, Wi-Fi loss, dispatch rejection and sample
+age. Repeated UI and cover preview cycles retain the same host heap. Tests and
+renders inject clearly marked TEST/DEMO transport events, not physical readings.
+[Exact regression and physical test](docs/STABLE_POLLING.md). Target/browser/ASan
+CI runs on this draft; physical regression remains pending. No merge/stable.
+
+PR #16 (`41137b6`, cover view 0.6.2) completed all five CI jobs successfully:
+[run 38800101997](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38800101997).
+This includes the actual ES3C35P firmware and host ASan/browser checks. It does
+not establish a physical Cover transport test or visual acceptance.
+
 ## 0.6.2 — Shelly-inspired vertical cover details (Issue #15)
 
 Branch `work/issue-15-cover-details`, stacked on PR #14. The existing cover view

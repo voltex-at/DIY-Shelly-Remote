@@ -20,13 +20,24 @@ static dsr_mobile_page_t previous_page;
 static unsigned previous_selected;
 static bool active;
 static lv_obj_t *content;
+static lv_obj_t *sample_age;
+static lv_timer_t *age_timer;
 static void render(void);
+static void update_sample_age(void)
+{
+ if(!active||!sample_age||selected>=model.device_count)return;
+ const dsr_mobile_device_t *d=&model.devices[selected];char text[72];
+ if(d->has_sample_time)snprintf(text,sizeof(text),dsr_sc_tr("Odczyt potwierdzony %u s temu"),(unsigned)((lv_tick_get()-d->sample_ms)/1000));
+ else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Brak potwierdzonego odczytu"));
+ lv_label_set_text(sample_age,text);
+}
+static void age_tick(lv_timer_t *timer){(void)timer;update_sample_age();}
 
-void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(&actions,0,sizeof(actions));}
+void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(&actions,0,sizeof(actions));if(!age_timer)age_timer=lv_timer_create(age_tick,1000,NULL);}
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){end_preview();active=false;content=NULL;}
+void dsr_mobile_hide(void){end_preview();active=false;content=sample_age=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -292,7 +303,8 @@ static void details(lv_obj_t *root)
     center(dsr_sc_text(panel,d->has_power?"Moc chwilowa":"Pomiar mocy niedostępny",8,103,280,&dsr_roboto_12,DSR_SC_MUTED));
     power_button(panel,selected,105,130,86);
     if(actions.refresh){lv_obj_t *button=dsr_sc_button(panel,202,148,82,48,DSR_SC_PANEL,10,refresh,NULL);lv_obj_t *label=dsr_sc_text(button,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT);center(label);if(d->busy)lv_obj_add_state(button,LV_STATE_DISABLED);}
-    center(dsr_sc_text(panel,d->error!=DSR_OK?"Odśwież, aby potwierdzić stan":!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,226,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
+    center(dsr_sc_text(panel,d->error!=DSR_OK?"Odśwież, aby potwierdzić stan":!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,220,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
+    sample_age=dsr_sc_text(panel,"",8,242,280,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
     char voltage[32],current[32];
     if(d->online&&d->error==DSR_OK&&d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"—");
     if(d->online&&d->error==DSR_OK&&d->has_current)snprintf(current,sizeof(current),"%.3f A",d->current_a);else snprintf(current,sizeof(current),"—");
@@ -301,7 +313,7 @@ static void details(lv_obj_t *root)
 static void render(void)
 {
     int scroll=content?lv_obj_get_scroll_y(content):0;
-    lv_obj_t *root=lv_screen_active();content=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
+    lv_obj_t *root=lv_screen_active();content=sample_age=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
@@ -354,7 +366,9 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
         preview_saved.demo=false;
 #endif
         return;}
-    if(!memcmp(&model,m,sizeof(model)))return;
+    /* Freshness changes update one label, not the entire screen or scroll state. */
+    for(unsigned i=0;i<DSR_UI_MAX_DEVICES;i++){model.devices[i].has_sample_time=m->devices[i].has_sample_time;model.devices[i].sample_ms=m->devices[i].sample_ms;}
+    if(!memcmp(&model,m,sizeof(model))){update_sample_age();return;}
     if(page==DSR_MOBILE_HOME&&model.dashboard_id!=m->dashboard_id)content=NULL;
     if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].id){
         uint32_t id=model.devices[selected].id;unsigned next=0;while(next<m->device_count&&m->devices[next].id!=id)next++;

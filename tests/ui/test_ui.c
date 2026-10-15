@@ -25,6 +25,7 @@ void test_lan_inspected(dsr_result_t result,const char *components);
 static dsr_job_t submitted;
 static dsr_event_t response;
 static bool in_flight, result_ready;
+static dsr_result_t next_submit_result;
 static dsr_settings_t stored = {.brightness = 70, .idle_seconds = 60};
 static dsr_wifi_info_t wifi;
 static unsigned char canvas[320 * 480 * 3];
@@ -58,7 +59,7 @@ bool dsr_wifi_connected(void) {return wifi.connected;}
 void dsr_wifi_get_info(dsr_wifi_info_t *out) {*out=wifi;}
 void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);}
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
-{CHECK(!in_flight);requests++;submitted=*job; in_flight=true; return DSR_OK;}
+{if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);requests++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
 {if(!result_ready)return false; *out=response; result_ready=false; in_flight=false; return true;}
 
@@ -115,6 +116,39 @@ static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *sk
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
 {response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();}
+static void polling_regression(void)
+{
+ dsr_network_home(NULL);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *name=find_label(lv_screen_active(),"Desk lamp");CHECK(name);
+ unsigned before=requests;
+ for(unsigned i=0;i<2;i++){
+  lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);
+  CHECK(find_label(lv_screen_active(),"Desk lamp")==name);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Włączone"));CHECK(!find_label(lv_screen_active(),"Odczyt stanu…"));
+  response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Desk lamp")==name);
+ }
+ CHECK(requests==before+2);screenshot("70-home-poll-stable");
+ lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);before=requests;
+ tap(274,178);CHECK(submitted.kind==DSR_JOB_PROBE&&requests==before);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wysyłanie polecenia…"));screenshot("71-command-queued-behind-read");
+ tap(274,178);CHECK(requests==before); /* disabled duplicate, never lost/replayed */
+ deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!submitted.on);CHECK(requests==before+1);CHECK(!find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
+ response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
+ tap(274,178);CHECK(submitted.kind==DSR_JOB_SET_OUTPUT&&submitted.on);response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ /* A failed read cancels the queued intent, rather than blindly sending SET. */
+ lv_tick_inc(5000);tick();before=requests;tap(274,178);response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
+ click("Desk lamp");click("Odśwież stan");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ lv_obj_t *label=find_label(lv_screen_active(),"230.4 V");CHECK(label);
+ lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);CHECK(find_label(lv_screen_active(),"230.4 V")==label);CHECK(find_label(lv_screen_active(),"Włączone • Online"));
+ before=requests;click("Odśwież stan");CHECK(requests==before); /* joins read */
+ deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"230.4 V")==label);screenshot("72-details-poll-freshness");
+ lv_tick_inc(1000);tick();CHECK(find_label(lv_screen_active(),"Odczyt potwierdzony 1 s temu"));CHECK(find_label(lv_screen_active(),"230.4 V")==label);
+ /* Busy dispatch is reported and never retried as a SET by automatic polling. */
+ lv_tick_inc(5000);tick();before=requests;tap(160,262);CHECK(submitted.kind==DSR_JOB_PROBE);next_submit_result=DSR_BUSY;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!in_flight&&requests==before);
+ lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);deliver(DSR_OK,DSR_WIFI_IDLE);click("Odśwież stan");deliver(DSR_OK,DSR_WIFI_IDLE);
+ /* Losing Wi-Fi while queued cancels intent even if the read later succeeds. */
+ lv_tick_inc(5000);tick();before=requests;tap(160,262);wifi.connected=false;tick();CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(requests==before&&!in_flight);
+ wifi.connected=true;tick();CHECK(submitted.kind==DSR_JOB_PROBE);click("Odśwież stan");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!find_label(lv_screen_active(),"Brak odpowiedzi"));
+ dsr_network_home(NULL);
+}
 static void bounds(lv_obj_t *obj,int max_y)
 {lv_area_t a;lv_obj_get_coords(obj,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=0&&a.y2<max_y);}
 static void keyboard_regression(void)
@@ -199,6 +233,7 @@ int main(int argc,char **argv)
         .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true,.has_power=true,.power_w=4.1};
     response.telemetry=(dsr_telemetry_t){.has_voltage=true,.has_current=true,.voltage_v=230.4,.current_a=0.018};
     deliver(DSR_OK,DSR_WIFI_IDLE);screenshot("11-configured-switch");
+    polling_regression();
     click("Desk lamp");CHECK(find_label(lv_screen_active(),"230.4 V"));CHECK(find_label(lv_screen_active(),"0.018 A"));screenshot("50-real-metrics-fixture");
     lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT);
     response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania"));CHECK(!find_label(lv_screen_active(),"230.4 V"));screenshot("51-command-auth-error");

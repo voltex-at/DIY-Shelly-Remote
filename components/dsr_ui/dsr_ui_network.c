@@ -12,6 +12,10 @@ static dsr_connection_t saved, pending;
 static bool configured, busy, blocked, wifi_previous;
 static dsr_result_t last_result = DSR_OK;
 static bool command_error;
+/* One user intent may wait behind a read. Never replay SET after a failure. */
+static bool queued_output,queued_on,sample_valid;
+static dsr_device_t queued_device;
+static uint32_t sample_ms;
 static dsr_job_kind_t operation;
 static uint32_t serial, outstanding, last_poll;
 static bool storage_error;
@@ -68,8 +72,9 @@ static void render(void)
         d->channel=saved.device.channel;
         }
         d->online = mobile_model.wifi && saved.device.online;
-        d->output = saved.device.output; d->busy = busy;
-        d->command_pending=busy&&operation==DSR_JOB_SET_OUTPUT;
+        d->output = saved.device.output; d->busy = queued_output||(busy&&operation!=DSR_JOB_PROBE);
+        d->command_pending=queued_output||(busy&&operation==DSR_JOB_SET_OUTPUT);
+        d->has_sample_time=sample_valid;d->sample_ms=sample_ms;
         d->error=last_result;
         d->can_switch = saved.device.has_switch && !blocked;
         d->has_power = saved.device.has_power; d->power_w = saved.device.power_w;
@@ -113,7 +118,9 @@ void dsr_network_home(lv_event_t *event)
 
 static void mobile_output(unsigned index, bool on)
 {
-    if (index>=mobile_model.device_count||strcmp(mobile_model.devices[index].host,saved.device.host)||mobile_model.devices[index].channel!=saved.device.channel||busy||blocked||!saved.device.online||!dsr_wifi_connected()) return;
+    if (index>=mobile_model.device_count||strcmp(mobile_model.devices[index].host,saved.device.host)||mobile_model.devices[index].channel!=saved.device.channel||queued_output||(busy&&operation!=DSR_JOB_PROBE)||blocked||!saved.device.online||!dsr_wifi_connected()) return;
+    last_result=DSR_OK;command_error=false;
+    if(busy){queued_output=true;queued_on=on;queued_device=saved.device;render();return;}
     dsr_result_t result=submit(DSR_JOB_SET_OUTPUT,on);
     if(result!=DSR_OK){last_result=result;command_error=true;render();}
 }
@@ -122,9 +129,10 @@ static void mobile_edit_device(unsigned index)
 {if(index<mobile_model.device_count&&mobile_model.devices[index].id)dsr_ui_edit_device(mobile_model.devices[index].id);}
 static void mobile_refresh(void)
 {
- if(busy||!configured)return;
+ if((busy&&operation!=DSR_JOB_PROBE)||queued_output||!configured)return;
  command_error=false;blocked=false;
  if(!dsr_wifi_connected()){last_result=DSR_OFFLINE;render();return;}
+ if(busy){last_result=DSR_OK;render();return;} /* Join the existing read. */
  dsr_result_t result=submit(DSR_JOB_PROBE,false);if(result!=DSR_OK){last_result=result;render();}
 }
 
@@ -257,6 +265,7 @@ static void poll(lv_timer_t *timer)
                 char old_host[16]={0};if(configured&&!strcmp(saved.device.device_id,event.device.device_id))snprintf(old_host,sizeof(old_host),"%s",saved.device.host);
                 saved = pending; saved.device = event.device;saved.telemetry=event.telemetry; configured = true; blocked = false;command_error=false;
                 dsr_ui_workspace_migrate_bound(&saved,pending_room,old_host);
+                sample_valid=event.device.online;sample_ms=now;
                 last_result = DSR_OK; if(!external_bind)dsr_network_home(NULL);
             }
             if(lan_binding){if(event.result!=DSR_OK)dsr_ui_lan_bind_result(event.result);lan_binding=false;}
@@ -265,17 +274,32 @@ static void poll(lv_timer_t *timer)
             if(external_bind){dsr_workspace_bind_result(event.result);external_bind=false;}
         } else {
             saved.device = event.device;saved.telemetry=event.telemetry;
+            if(event.result==DSR_OK&&event.device.online){sample_valid=true;sample_ms=now;}
             if(operation==DSR_JOB_SET_OUTPUT){last_result=event.result;command_error=event.result!=DSR_OK;}
             else if(!command_error)last_result=event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
         if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT)
             dsr_sc_label_set_text(message, result_text(event.result));
+        if(queued_output){
+            bool on=queued_on;
+            dsr_result_t result=event.result;
+            if(result==DSR_OK&&!dsr_wifi_connected())result=DSR_OFFLINE;
+            if(result==DSR_OK&&(!saved.device.online||!saved.device.has_switch))result=DSR_BAD_RESPONSE;
+            if(result==DSR_OK&&(strcmp(saved.device.device_id,queued_device.device_id)||strcmp(saved.device.host,queued_device.host)||saved.device.generation!=queued_device.generation||saved.device.channel!=queued_device.channel))result=DSR_IDENTITY_MISMATCH;
+            queued_output=false;memset(&queued_device,0,sizeof(queued_device));
+            if(result==DSR_OK)result=submit(DSR_JOB_SET_OUTPUT,on);
+            if(result!=DSR_OK){last_result=result;command_error=true;
+                if(result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED)blocked=true;
+                if(result==DSR_IDENTITY_MISMATCH)saved.device.online=false;
+            }
+        }
         render();
     }
     bool wifi = dsr_wifi_connected();
     if (wifi != wifi_previous) {
         wifi_previous = wifi; saved.device.online = false;
+        if(!wifi&&queued_output){queued_output=false;memset(&queued_device,0,sizeof(queued_device));last_result=DSR_OFFLINE;command_error=true;}
         if (wifi) last_poll = now - 5000;
         render();
     }

@@ -36,6 +36,8 @@ const char *dsr_sc_tr(const char *text)
  {"Zezwól na OTA • 2 minuty","Allow OTA • 2 minutes","OTA erlauben • 2 Minuten"},
  {"Zmiany zostaną zastosowane po zapisaniu","Changes apply after saving","Änderungen nach dem Speichern"},
  {"Bateria","Battery","Batterie"},{"Pozycja","Position","Position"},
+ {"Odczyt potwierdzony %u s temu","Reading confirmed %u s ago","Messung vor %u s bestätigt"},
+ {"Brak potwierdzonego odczytu","No confirmed reading","Keine bestätigte Messung"},
  {"Otwórz","Open","Öffnen"},{"Zamknij","Close","Schließen"},
  {"Otwieranie","Opening","Wird geöffnet"},{"Zamykanie","Closing","Wird geschlossen"},
  {"Zatrzymano","Stopped","Gestoppt"},{"Kalibracja","Calibration","Kalibrierung"},

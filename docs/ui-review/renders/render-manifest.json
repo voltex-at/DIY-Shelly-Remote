@@ -1,5 +1,5 @@
 {
-  "branch": "work/issue-15-cover-details",
+  "branch": "work/issue-12-stable-polling",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -14,9 +14,9 @@
     "02-rooms.png": "21ed3c320254f2b19623ccd0468c509cab047488affdbb572d73e699c00525b4",
     "03-devices.png": "373ceef3205332ca77286e0c9e6dfddc333b4f5e40475ef1c538b4cc9ed8c748",
     "04-room-salon.png": "fa0f28dc082efd7fc4010742d51ecbb56ec5d734cf3abd8cc72bf8d1871d0a96",
-    "05-device-details-on.png": "0a283d71ab5134ba65ae09cac510c96242fb97d2d34f9c7c1ef1cc0237dc4a63",
-    "06-device-details-off.png": "db3c60c766d7b8b79429ddca3e1ff0ff83599b67584d8b8450d85c886c071fb5",
-    "07-device-offline.png": "e135d211457fb7d745f488319b1405dc2ff02bcd1b3acc3e90dd60ff302a1339",
+    "05-device-details-on.png": "7620cf59f9af06807edd80839cc081a1fe770651803c9b5440418510ee546bed",
+    "06-device-details-off.png": "e68fff60f160d765361e285b6693720c82840083752307089ba7ac4acd4249ca",
+    "07-device-offline.png": "55bb7791eefcb009e7845bb0111ef4c167ce6fc79716dfd48d7ad895ef150a8f",
     "08-live-empty.png": "3c4d3514bef53234e60e2de1333ae45a2595b1e3fa2e2fa7ff7baa37641dd6e3",
     "09-icon-alignment.png": "dcf3a7b38277a6b66fbab876edc73c497f5bf2bc36c7bfa88dea784152d181c9",
     "10-home-room-photos.png": "a70f4e0dbd110852462ce9949c99fdb6417f4112e5189a76214020b69c55596b",
@@ -42,11 +42,11 @@
     "40-settings-menu.png": "b5b324252d8c2b197ad773760b3e41b53205e32cea4d8e80e8a253a88cbe8d64",
     "41-display-settings.png": "a485bb379f898d02e0455db1dcacc840ef9d284669831ea889642f741072783e",
     "42-cover-preview-on-device.png": "5c6b98c0dc735dbcc7fc54c3eabf30dd329cb74ed9797f4e2336b14ffd8d5c85",
-    "50-real-metrics-fixture.png": "285fd409bbaba4afaaecb7dedd11450f2b4cd9f316980ec192589caf5f7d13ab",
-    "51-command-auth-error.png": "4b12856580c3d29a658c545d39ddaeecac8b8833977413c3d551c7271d62615d",
-    "52-command-timeout.png": "9b69ea3d561c5797b1508a7945c308941005b20904adc067b6a504c7329386e7",
+    "50-real-metrics-fixture.png": "5ff60949749c661dac632a72eb6847dd57f676216b6e8b5830f8265e7fc2e4a3",
+    "51-command-auth-error.png": "33b2ae03db707660d760709e7f49b857d6fa78654f30169177de92e4d5397532",
+    "52-command-timeout.png": "77e211ea2653af1bca830b9ba822b72e96a9a172abcf40a564f2cfac2a4091f1",
     "53-card-auth-error.png": "e323bcd047f2ffadf840fd1af6b74540d08f16c6edd4c3483021472b6a7162dd",
-    "54-readback-unconfirmed.png": "8b52678625cd10cf02cf060e579d32b59c2f671bf4790c782de5c359c87632d7",
+    "54-readback-unconfirmed.png": "631629d251c7f3a06d9f64cb0777844ddf0124a98f5608e2f9f659e2e41df07d",
     "60-cover-closed.png": "7d9a7d32b392560bb62b8caa5685afbd74e98af22a228a3a6b5ab3033240c013",
     "61-cover-open.png": "b5814d8dd230f4e867140870ec38b5f021f03031687722f55c1502f3c0b840ea",
     "62-cover-opening.png": "1ba8666f8d0b687e10f507e6181f63e7ab8637a4bd6ad81cb1965ab7c7ad8c8b",
@@ -57,11 +57,14 @@
     "67-cover-command-pending.png": "5bcf94de82a6ec007fa403e27d7e7af49574c2e21e5532a08e2023c42132d124",
     "68-cover-english.png": "92ee982cf7fc69c6e2f8308fe44f2972fcb97b7906053aca81c0ea7ab07131d7",
     "69-cover-german.png": "8352c88759214dfa999d21404b82f359537d54ad4c7b1113e03b79d7195f201b",
+    "70-home-poll-stable.png": "c031d6bdae1598573e9b2d0df1c1be180fdd0c3535f460725078c0ecb974e9f5",
+    "71-command-queued-behind-read.png": "d4fc00c5a6043be4caa333438262b94ddc8205e5134819d49f82b98f2e924c37",
+    "72-details-poll-freshness.png": "5ff60949749c661dac632a72eb6847dd57f676216b6e8b5830f8265e7fc2e4a3",
     "before-01-home.png": "0bdf81ddf69393f5761b1a5626bf428cb48c76356ee05907d458087e4718307d",
     "before-10-home-room-photos.png": "e93bc1745a16de35fef8bc292f12fc9d3f6be3f449ae3e27019205de5dac7182",
     "before-21-fixture-wifi-keyboard.png": "53460c0f81244f0fddd17ea3a85c9e848388b3886793a980853ea10c9e260f23",
     "before-26-fixture-lan-components.png": "7566dd6738d2cb86aabb4773ba3d9923905ad6610cd0615edf9ee74c227cf8cc",
     "before-cover-0.6.1.png": "3d26e712af48141de343d6e1737c7400bb770f3ea739759d246ae060d3294bd9",
-    "contact_sheet.png": "92eab36368508dab111a3405ddcab0fbf67b50d77dad9cb09a31435a1fcbd098"
+    "contact_sheet.png": "b8a14b6401539a905e54d1b57956c08ace3feb44737b007ebbe5347efd4e1624"
   }
 }
