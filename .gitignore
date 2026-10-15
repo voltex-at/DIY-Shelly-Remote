@@ -16,3 +16,4 @@ secrets*
 *.map
 *.bin
 /cc*.s
+/.test-deps/

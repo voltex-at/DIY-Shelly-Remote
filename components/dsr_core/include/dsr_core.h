@@ -12,13 +12,14 @@
 
 typedef enum {
     DSR_OK = 0, DSR_INVALID, DSR_FULL, DSR_UNSUPPORTED, DSR_AUTH_REQUIRED,
-    DSR_OFFLINE, DSR_BAD_RESPONSE, DSR_IO, DSR_BUSY
+    DSR_OFFLINE, DSR_BAD_RESPONSE, DSR_IO, DSR_BUSY, DSR_IDENTITY_MISMATCH, DSR_RATE_LIMITED
 } dsr_result_t;
 
 typedef enum { DSR_GEN1 = 1, DSR_GEN2_PLUS = 2 } dsr_generation_t;
 typedef struct {
     char host[DSR_HOST_SIZE];
     char name[DSR_NAME_SIZE];
+    char device_id[64];
     dsr_generation_t generation;
     uint8_t channel;
     bool online;
