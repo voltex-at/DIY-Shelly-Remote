@@ -1,0 +1,5 @@
+#define BIT0 (1U << 0)
+#define BIT1 (1U << 1)
+#define BIT2 (1U << 2)
+#define BIT3 (1U << 3)
+#define BIT4 (1U << 4)

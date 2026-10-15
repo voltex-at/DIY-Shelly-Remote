@@ -1,6 +1,6 @@
 set(ui_source "")
 if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
-    set(ui_source "dsr_ui.c" "dsr_ui_network.c")
+    set(ui_source "dsr_ui.c" "dsr_ui_network.c" "dsr_ui_wifi.c")
 endif()
 if(IDF_TARGET STREQUAL "esp32s3")
     idf_component_register(SRCS ${ui_source} INCLUDE_DIRS "include"

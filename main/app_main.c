@@ -34,10 +34,8 @@ void app_main(void)
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));
     ESP_ERROR_CHECK(dsr_worker_start());
-    if (error == ESP_OK && settings.ssid[0]) {
-        error = dsr_wifi_start(&settings);
-        if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
-    }
+    error = dsr_wifi_start(error == ESP_OK ? &settings : NULL);
+    if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
     dsr_ui_init();
     ESP_ERROR_CHECK(dsr_board_start_ui_task());
     ESP_ERROR_CHECK(dsr_board_set_backlight(70));

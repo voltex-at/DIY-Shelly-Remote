@@ -14,8 +14,10 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if (job.kind == DSR_JOB_SAVE_WIFI) {
-            event.result = dsr_settings_save(&job.settings) == ESP_OK ? DSR_OK : DSR_IO;
+        if (job.kind == DSR_JOB_WIFI_SCAN) {
+            event.result = dsr_wifi_scan(&event.scan);
+        } else if (job.kind == DSR_JOB_WIFI_CONNECT) {
+            event.result = dsr_wifi_connect_saved(&job.settings, &event.wifi_detail);
         } else if (!dsr_wifi_connected()) {
             event.result = DSR_OFFLINE; event.device.online = false;
         } else if (job.kind == DSR_JOB_BIND) {
@@ -43,7 +45,7 @@ esp_err_t dsr_worker_start(void)
     available = xSemaphoreCreateBinary();
     if (!jobs || !events || !available) goto fail;
     xSemaphoreGive(available);
-    if (xTaskCreate(network_task, "dsr_network", 8192, NULL, 4, NULL) != pdPASS) goto fail;
+    if (xTaskCreate(network_task, "dsr_network", 10240, NULL, 4, NULL) != pdPASS) goto fail;
     return ESP_OK;
 fail:
     if (jobs) vQueueDelete(jobs);
@@ -55,12 +57,12 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_SAVE_WIFI) return DSR_INVALID;
-    if (job->kind == DSR_JOB_SAVE_WIFI) {
-        if (!memchr(job->settings.ssid, 0, sizeof(job->settings.ssid)) || !job->settings.ssid[0] ||
-            !memchr(job->settings.password, 0, sizeof(job->settings.password))) return DSR_INVALID;
-    } else if (!dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_WIFI_CONNECT) return DSR_INVALID;
+    if (job->kind == DSR_JOB_WIFI_CONNECT) {
+        if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
+    } else if (job->kind != DSR_JOB_WIFI_SCAN && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
+    if (job->kind == DSR_JOB_WIFI_CONNECT) dsr_wifi_prepare_connect();
     if (xQueueSend(jobs, job, 0) != pdTRUE) { xSemaphoreGive(available); return DSR_BUSY; }
     return DSR_OK;
 }

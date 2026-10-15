@@ -40,7 +40,18 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     *[str(ROOT / source) for source in [
                         "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c",
                         "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_settings.c",
+                        "components/dsr_platform/dsr_wifi_policy.c",
                         "tests/test_platform.c"]],
                     "-l:libcjson.so.1", "-lm", "-o", str(platform_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(platform_binary)], check=True, cwd=temp_root, env=test_env)
+    wifi_binary = temp_root / "test_wifi"
+    subprocess.run([os.environ.get("CC", "cc"), *flags,
+                    "-I", str(ROOT / "tests/support"),
+                    "-I", str(ROOT / "components/dsr_core/include"),
+                    "-I", str(ROOT / "components/dsr_platform/include"),
+                    str(ROOT / "components/dsr_platform/dsr_wifi.c"),
+                    str(ROOT / "components/dsr_platform/dsr_wifi_policy.c"),
+                    str(ROOT / "tests/test_wifi.c"), "-o", str(wifi_binary)],
+                   check=True, cwd=temp_root, env=test_env)
+    subprocess.run([str(wifi_binary)], check=True, cwd=temp_root, env=test_env)
