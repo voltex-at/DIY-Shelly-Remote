@@ -1,5 +1,39 @@
 # Project status
 
+## 0.7.3 — controlled startup diagnostics after PR #30 review
+
+Branch `work/fix-startup-recovery`, stacked on PR #30, not a replacement for
+the owner's ongoing 0.7.2 physical test. The review correctly identified that
+the post-task `ESP_ERROR_CHECK` could repeat the abort/reset class despite the
+SRAM fix. Critical returned NVS/board/worker/UI-task/backlight errors now latch
+DIAGNOSTIC and return normally from app_main; no new automatic reset, retry,
+rollback selection, format or erase. USB serial records stage/error and heap.
+This does not intercept SDK assertions, panics, watchdog or power failures.
+
+The LVGL owner waits on an atomic startup-ready callback, so a task created
+before a backlight failure cannot process hidden input/timers or auto-confirm
+OTA. Local admin API/pair/OTA approval reject incomplete/diagnostic startup.
+OTA health confirmation separately checks readiness, propagates confirmation
+failure for retry, and writes validity only for a pending image after the
+existing UI/storage/panel/touch health delay. No OTA data write on a USB image
+with no selection record. Existing auth and local-only restrictions remain.
+
+Local UBSan: 163 checks execute actual app_main plus the actual boot/OTA guard
+under injected UI NO_MEM/INVALID_STATE, backlight, worker, NVS and board errors,
+subsequent explicit boot and OTA state/write failures. The real static task
+loop is tested before readiness and after gate closure; boot/storage regression
+now totals 15943 checks. Core 94/platform 847/Wi-Fi 222/BLE 2138/config 265
+remain passing. These are host fault fixtures, not physical recovery/rollback
+evidence. Integrated LVGL 1176 checks/47 frames and review 2635 checks/24 frames
+also pass locally, with unchanged host heap across repeated navigation/BLE/
+cover cycles. Full target/ASan/browser CI follows on the exact head.
+
+The 128 KiB PSRAM LVGL pool, internal 8192 B stack/TCB, DMA/pins/drivers,
+transports, OTA slots and settings layout remain preserved. No visible UI
+feature change; Issue #28 (contextual room CRUD) is next after this blocking
+safety patch. [Policy, evidence and hardware test](docs/STARTUP_RECOVERY_PL.md).
+No main merge, Stable or physical-pass claim.
+
 ## 0.7.2 — boot SRAM regression fix; physical acceptance pending
 
 Branch `work/fix-071-boot-memory`, stacked on draft PR #27. The user confirmed

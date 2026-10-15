@@ -3,6 +3,7 @@
 #include "dsr_config.h"
 #include "esp_err.h"
 #include "dsr_platform.h"
+#include "dsr_boot.h"
 #define DSR_PHOTO_WIDTH 320
 #define DSR_PHOTO_HEIGHT 180
 #define DSR_PHOTO_BYTES (DSR_PHOTO_WIDTH*DSR_PHOTO_HEIGHT*2)
@@ -20,7 +21,6 @@ void dsr_panel_pair_cancel(void);
 void dsr_panel_allow_ota(void);
 esp_err_t dsr_panel_start(void);
 bool dsr_panel_ready(void);
-void dsr_ota_boot_confirm(void);
 /* LVGL owns rendering; the server only requests/copies a published frame. */
 bool dsr_panel_preview_requested(void);
 void dsr_panel_preview_publish(const void *rgb565,size_t size);

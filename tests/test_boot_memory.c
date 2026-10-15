@@ -13,6 +13,9 @@ static unsigned checks;
 #define CHECK(x) do { checks++; if (!(x)) { fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort(); } } while (0)
 static bool task_failure = true;
 static unsigned task_calls, delay_calls;
+static bool allow_run;
+static unsigned held;
+static bool startup_ready(void) { return allow_run; }
 static void (*task_entry)(void *);
 static StackType_t *reserved_stack;
 static StaticTask_t *reserved_tcb;
@@ -33,7 +36,11 @@ TaskHandle_t xTaskCreateStatic(void (*entry)(void *), const char *name,
 uint32_t lv_timer_handler(void)
 { const uint32_t delays[] = {0, 15, UINT32_MAX}; CHECK(delay_calls < 3); return delays[delay_calls]; }
 void vTaskDelay(TickType_t ticks)
-{ const unsigned expected[] = {10, 15, 20}; CHECK(ticks == expected[delay_calls]); if (++delay_calls == 3) longjmp(loop_done,1); }
+{
+    if (!allow_run) { CHECK(ticks == 20); held++; longjmp(loop_done,1); }
+    const unsigned expected[] = {10, 15, 20}; CHECK(ticks == expected[delay_calls]);
+    if (++delay_calls == 3) longjmp(loop_done,1);
+}
 
 static esp_partition_t partition = {.size = 0x3e0000};
 static bool missing, nonempty;
@@ -66,11 +73,18 @@ int main(void)
 {
     /* Dynamic task creation is deliberately absent from this link: restoring
      * the 0.7.1 xTaskCreate path breaks the regression target at link time. */
-    CHECK(dsr_ui_task_start() == ESP_ERR_NO_MEM);
-    task_failure=false; CHECK(dsr_ui_task_start() == ESP_OK);
-    CHECK(dsr_ui_task_start() == ESP_ERR_INVALID_STATE && task_calls == 2);
+    CHECK(dsr_ui_task_start(NULL) == ESP_ERR_INVALID_ARG && task_calls == 0);
+    CHECK(dsr_ui_task_start(startup_ready) == ESP_ERR_NO_MEM);
+    task_failure=false; CHECK(dsr_ui_task_start(startup_ready) == ESP_OK);
+    CHECK(dsr_ui_task_start(startup_ready) == ESP_ERR_INVALID_STATE && task_calls == 2);
+    if (!setjmp(loop_done)) task_entry(NULL);
+    CHECK(held == 1 && delay_calls == 0); /* No LVGL callbacks before readiness. */
+    allow_run=true;
     if (!setjmp(loop_done)) task_entry(NULL);
     CHECK(delay_calls == 3);
+    allow_run=false;
+    if (!setjmp(loop_done)) task_entry(NULL);
+    CHECK(held == 2 && delay_calls == 3); /* A latched failure closes the gate. */
     reset_storage(); mount_error=ESP_OK;
     CHECK(dsr_storage_mount() == ESP_OK && mount_calls == 1 && !format_calls && !read_calls);
     reset_storage(); mount_error=ESP_ERR_NO_MEM;

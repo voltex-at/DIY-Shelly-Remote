@@ -8,7 +8,8 @@ esp_err_t dsr_board_init(void);
 #include <stdint.h>
 #include "lvgl.h"
 lv_display_t *dsr_board_display(void);
-esp_err_t dsr_board_start_ui_task(void);
+/* The owner waits for startup_ready before handling any LVGL timer/input. */
+esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void));
 esp_err_t dsr_board_set_backlight(uint8_t percent);
 void dsr_board_sleep_display(void);
 bool dsr_board_touch_available(void);

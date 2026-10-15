@@ -115,6 +115,7 @@ jobs:
           cp docs/BLE_PLAN.md build-board/package/
           cp docs/FEATURE_MATRIX.md build-board/package/
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
+          cp docs/STARTUP_RECOVERY_PL.md build-board/package/
           cp build-board/BOOT_MEMORY.json build-board/package/
           cp boards/lcdwiki-es3c35p/README.md build-board/package/BOARD_REFERENCE.md
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/package/licenses/

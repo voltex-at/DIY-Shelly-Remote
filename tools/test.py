@@ -75,3 +75,14 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     str(ROOT / "tests/test_boot_memory.c"), "-o", str(boot_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(boot_binary)], check=True, cwd=temp_root, env=test_env)
+    startup_binary = temp_root / "test_startup"
+    subprocess.run([os.environ.get("CC", "cc"), *flags, "-DDSR_BOARD_ES3C35P=1",
+                    "-I", str(ROOT / "tests/startup"), "-I", str(ROOT / "tests/boot"),
+                    "-I", str(ROOT / "tests/ble"), "-I", str(ROOT / "tests/ui"),
+                    "-I", str(ROOT / "tests/support"),
+                    "-I", str(ROOT / "components/dsr_core/include"),
+                    "-I", str(ROOT / "components/dsr_platform/include"),
+                    str(ROOT / "main/app_main.c"), str(ROOT / "components/dsr_platform/dsr_boot.c"),
+                    str(ROOT / "tests/test_startup.c"), "-o", str(startup_binary)],
+                   check=True, cwd=temp_root, env=test_env)
+    subprocess.run([str(startup_binary)], check=True, cwd=temp_root, env=test_env)

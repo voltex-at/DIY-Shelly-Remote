@@ -148,12 +148,12 @@ static void idle_check(lv_timer_t *timer)
 }
 
 static void tick(void *arg) { (void)arg; lv_tick_inc(5); }
-esp_err_t dsr_board_start_ui_task(void)
+esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void))
 {
     if (!display || ui_started) return ESP_ERR_INVALID_STATE;
     lv_timer_t *idle = lv_timer_create(idle_check, 500, NULL);
     if (!idle) return ESP_ERR_NO_MEM;
-    esp_err_t error = dsr_ui_task_start();
+    esp_err_t error = dsr_ui_task_start(startup_ready);
     if (error != ESP_OK) { lv_timer_delete(idle); return error; }
     ui_started = true;
     return ESP_OK;

@@ -11,7 +11,7 @@ void dsr_panel_tick(void)
  if(!started)started=lv_tick_get();
  static bool confirmed;
  if(!confirmed&&lv_tick_get()-started>5000&&dsr_workspace_revision()&&dsr_panel_ready()&&dsr_board_touch_available()){
-  dsr_ota_boot_confirm();confirmed=true;
+  confirmed=dsr_ota_boot_confirm();
  }
  if(!dsr_panel_preview_requested())return;
  if(!pixels)pixels=malloc(320*480*2+64);

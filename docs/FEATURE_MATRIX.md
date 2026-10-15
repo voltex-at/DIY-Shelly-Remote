@@ -1,4 +1,11 @@
-# Matryca funkcji — 0.7.2, rewizja 2
+# Matryca funkcji — 0.7.3, rewizja 3
+
+0.7.3 dodaje zatrzask diagnostyczny startu po uwadze recenzji PR #30: zwrócony
+błąd krytyczny nie wywołuje abort/restart/erase; LVGL i API administracyjne
+czekają na gotowość, a OTA nie potwierdza błędnego startu. Test rzeczywistego
+app_main z błędami wymuszonymi jest hostowy; nie oznacza odbioru fizycznego.
+[Polityka i testy](STARTUP_RECOVERY_PL.md). Pomieszczenia #28 nadal oczekują
+realizacji — ten PR ich nie aktywuje.
 
 ## Bramka regresji sprzętowej — 2026-10-16
 

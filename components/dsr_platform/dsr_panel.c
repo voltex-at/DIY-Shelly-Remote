@@ -45,9 +45,9 @@ static void random_hex(char *out,size_t bytes)
 static bool equal(const void *a,const void *b,size_t n)
 {const uint8_t *x=a,*y=b;unsigned d=0;while(n--)d|=*x++^*y++;return d==0;}
 void dsr_panel_pair_begin(char code[17])
-{if(!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
+{if(!dsr_boot_ready()||!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
 void dsr_panel_allow_ota(void)
-{if(lock&&xSemaphoreTake(lock,0)==pdTRUE){ota_until=esp_timer_get_time()+120000000;xSemaphoreGive(lock);}}
+{if(dsr_boot_ready()&&lock&&xSemaphoreTake(lock,0)==pdTRUE){ota_until=esp_timer_get_time()+120000000;xSemaphoreGive(lock);}}
 void dsr_panel_pair_cancel(void)
 {if(lock){xSemaphoreTake(lock,portMAX_DELAY);memset(pairing,0,sizeof(pairing));pair_until=0;xSemaphoreGive(lock);}}
 bool dsr_panel_preview_requested(void)
@@ -201,6 +201,7 @@ static esp_err_t ble_api(httpd_req_t *r)
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
+ if(!dsr_boot_ready())return json(r,"503 Service Unavailable","{\"error\":\"Startup incomplete or diagnostic mode; collect USB boot log\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
  if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
@@ -276,11 +277,4 @@ esp_err_t dsr_panel_start(void)
  if(httpd_start(&redirect_server,&plain)==ESP_OK){httpd_uri_t redirect={.uri="/*",.method=HTTP_GET,.handler=redirect_https};httpd_register_uri_handler(redirect_server,&redirect);}
  if(mdns_init()==ESP_OK){mdns_hostname_set("shelly-remote");mdns_instance_name_set("DIY Shelly Remote");mdns_service_add(NULL,"_https","_tcp",443,NULL,0);mdns_service_add(NULL,"_http","_tcp",80,NULL,0);}
  return ESP_OK;
-}
-void dsr_ota_boot_confirm(void)
-{
- /* Called only after the board, persistent configuration and LVGL owner task
-  * have all started. Never auto-confirm a failed startup. */
- const esp_partition_t *running=esp_ota_get_running_partition();esp_ota_img_states_t state;
- if(running&&esp_ota_get_state_partition(running,&state)==ESP_OK&&state==ESP_OTA_IMG_PENDING_VERIFY)esp_ota_mark_app_valid_cancel_rollback();
 }

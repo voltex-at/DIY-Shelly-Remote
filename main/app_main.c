@@ -9,6 +9,7 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
+#include "dsr_boot.h"
 #include "esp_heap_caps.h"
 static void boot_memory(const char *stage)
 {
@@ -21,6 +22,9 @@ static void boot_memory(const char *stage)
 
 void app_main(void)
 {
+#ifdef DSR_BOARD_ES3C35P
+    dsr_boot_begin();
+#endif
     const char *tag = "dsr";
     ESP_LOGI(tag, "DIY Shelly Remote %s", esp_app_get_description()->version);
 #ifndef DSR_BOARD_ES3C35P
@@ -32,12 +36,18 @@ void app_main(void)
     if (error != ESP_OK) {
         /* Never erase user settings automatically on version/space errors. */
         ESP_LOGE(tag, "NVS initialization failed: %s; settings preserved", esp_err_to_name(error));
+#ifdef DSR_BOARD_ES3C35P
+        dsr_boot_diagnostic("nvs", error);
+#endif
         return;
     }
     error = dsr_board_init();
     if (error != ESP_OK) {
         ESP_LOGW(tag, "Board startup stopped for profile '%s'; network/BLE not started", dsr_board_hardware_id());
         ESP_LOGE(tag, "Board initialization: %s", esp_err_to_name(error));
+#ifdef DSR_BOARD_ES3C35P
+        dsr_boot_diagnostic("board", error);
+#endif
         return;
     }
 #ifdef DSR_BOARD_ES3C35P
@@ -45,7 +55,8 @@ void app_main(void)
     dsr_settings_t settings;
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));
-    ESP_ERROR_CHECK(dsr_worker_start());
+    esp_err_t worker_error = dsr_worker_start();
+    if (worker_error != ESP_OK) { dsr_boot_diagnostic("worker", worker_error); return; }
     boot_memory("worker_ready");
     error = dsr_wifi_start(error == ESP_OK ? &settings : NULL);
     if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
@@ -59,10 +70,11 @@ void app_main(void)
     boot_memory("discovery_ready");
     dsr_ui_init();
     boot_memory("ui_constructed");
-    error = dsr_board_start_ui_task();
-    if (error != ESP_OK) ESP_LOGE(tag,"UI task failed: %s (reserved internal stack)",esp_err_to_name(error));
-    ESP_ERROR_CHECK(error);
-    ESP_ERROR_CHECK(dsr_board_set_backlight(70));
+    error = dsr_board_start_ui_task(dsr_boot_ready);
+    if (error != ESP_OK) { dsr_boot_diagnostic("ui_task", error); return; }
+    error = dsr_board_set_backlight(70);
+    if (error != ESP_OK) { dsr_boot_diagnostic("backlight", error); return; }
+    if (!dsr_boot_finish()) { dsr_boot_diagnostic("startup_state", ESP_ERR_INVALID_STATE); return; }
     boot_memory("ui_started");
     ESP_LOGI(tag, "UI started. Configure Wi-Fi, then add one Shelly switch.");
 #endif
