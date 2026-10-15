@@ -23,6 +23,7 @@ lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int wid
     lv_obj_set_width(obj, width);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_WRAP);
     lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_set_style_text_font(obj, &dsr_roboto_14, 0);
     return obj;
 }
 
@@ -46,6 +47,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_style_color_filter_opa(obj, LV_OPA_TRANSP, LV_STATE_DISABLED);
     lv_obj_set_style_radius(obj, 12, 0);
     lv_obj_t *caption = lv_label_create(obj);
+    lv_obj_set_style_text_font(caption, &dsr_roboto_14, 0);
     dsr_sc_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
     if (callback) lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, context);
@@ -61,6 +63,7 @@ void dsr_ui_primary(lv_obj_t *obj)
 
 void dsr_ui_textarea(lv_obj_t *obj)
 {
+    lv_obj_set_style_text_font(obj, &dsr_roboto_14, 0);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x152132), 0);
     lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
     lv_obj_set_style_text_color(obj, lv_color_hex(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
@@ -73,6 +76,7 @@ void dsr_ui_textarea(lv_obj_t *obj)
 
 void dsr_ui_keyboard(lv_obj_t *obj)
 {
+    lv_obj_set_style_text_font(obj, &dsr_roboto_14, LV_PART_ITEMS);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0x111b29), 0);
     lv_obj_set_style_pad_all(obj, 3, 0);
     lv_obj_set_style_pad_gap(obj, 4, 0);
@@ -95,6 +99,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     lv_obj_clean(root);
     lv_obj_set_style_bg_color(root, lv_color_hex(BG), 0);
     lv_obj_set_style_text_color(root, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_set_style_text_font(root, &dsr_roboto_14, 0);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     dsr_ui_label(root, "DIY SHELLY REMOTE", 16, 14, 288);
@@ -215,4 +220,10 @@ static void hardware(lv_event_t *event)
     dsr_ui_label(root, "ES3C35P / 320 x 480", 16, 390, 288);
 }
 
-void dsr_ui_init(void) { dsr_network_init(); dsr_network_start_view(); }
+void dsr_ui_init(void)
+{
+    lv_display_t *display=lv_display_get_default();
+    lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),true,&dsr_roboto_14);
+    lv_display_set_theme(display,theme);
+    dsr_network_init();dsr_network_start_view();
+}

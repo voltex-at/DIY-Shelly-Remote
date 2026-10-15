@@ -46,7 +46,7 @@ assert len(frames) >= 13
 onboarding = ROOT / "build-ui/native/screenshots"
 if not onboarding.exists():
     onboarding = ROOT / "build-ui/asan/screenshots"
-for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-password-keyboard", "21-fixture-wifi-keyboard"), ("14-add-device-wizard", "22-fixture-add-wizard")]:
+for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-password-keyboard", "21-fixture-wifi-keyboard"), ("14-add-device-wizard", "22-fixture-add-wizard"), ("15-lan-scanning", "23-fixture-lan-scanning"), ("16-lan-results", "24-fixture-lan-results"), ("17-lan-auth-error", "25-fixture-lan-auth-error"), ("18-lan-components", "26-fixture-lan-components"), ("19-lan-no-wifi", "27-fixture-lan-no-wifi")]:
     path = onboarding / (original + ".ppm")
     if path.exists():
         _, size, _, rgb = path.read_bytes().split(b"\n", 3)

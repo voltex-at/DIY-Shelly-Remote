@@ -270,16 +270,25 @@ void dsr_ui_workspace_tick(void)
  if(revision!=draft_revision){if(own_save&&revision==draft_revision+1){draft_revision=revision;own_save=false;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);if(dashboard_picker){dashboard_picker=false;return_home(NULL);return;}dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");}else dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");}
  else if(busy||message[0])dsr_sc_label_set_text(status_label,message);
 }
-void dsr_ui_workspace_migrate(const dsr_connection_t *connection)
+void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t room,const char *previous_host)
 {
  if(!connection||!connection->device.host[0])return;
  char *json=dsr_workspace_snapshot();if(!json)return;cJSON *r=cJSON_Parse(json);free(json);if(!r)return;
- cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices");bool found=false;int id=1;
- for(cJSON *v=a->child;v;v=v->next){if(!strcmp(string(v,"host"),connection->device.host)&&integer(v,"channel")==connection->device.channel)found=true;if(integer(v,"id")>=id)id=integer(v,"id")+1;}
- if(!found&&cJSON_GetArraySize(a)<16){cJSON *d=cJSON_CreateObject();cJSON_AddNumberToObject(d,"id",id);cJSON_AddStringToObject(d,"name",connection->device.name[0]?connection->device.name:"Shelly");cJSON_AddStringToObject(d,"host",connection->device.host);cJSON_AddNumberToObject(d,"channel",connection->device.channel);cJSON_AddNumberToObject(d,"room",0);cJSON_AddStringToObject(d,"kind","relay");cJSON_AddItemToArray(a,d);
+ cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices");bool found=false,changed=false;int id=1;
+ if(room!=UINT32_MAX&&room&&object_index(item(r,"rooms"),(int)room)==255)room=0;
+ for(cJSON *v=a->child;v;v=v->next){
+  if((!strcmp(string(v,"host"),connection->device.host)||(previous_host&&previous_host[0]&&!strcmp(string(v,"host"),previous_host)))&&integer(v,"channel")==connection->device.channel){
+   found=true;
+   if(strcmp(string(v,"host"),connection->device.host)){cJSON_ReplaceItemInObjectCaseSensitive(v,"host",cJSON_CreateString(connection->device.host));changed=true;}
+   if(room!=UINT32_MAX){cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(v,"room"),room);cJSON_ReplaceItemInObjectCaseSensitive(v,"name",cJSON_CreateString(connection->device.name));changed=true;}
+  }if(integer(v,"id")>=id)id=integer(v,"id")+1;
+ }
+ if(!found&&cJSON_GetArraySize(a)<16){changed=true;cJSON *d=cJSON_CreateObject();cJSON_AddNumberToObject(d,"id",id);cJSON_AddStringToObject(d,"name",connection->device.name[0]?connection->device.name:"Shelly");cJSON_AddStringToObject(d,"host",connection->device.host);cJSON_AddNumberToObject(d,"channel",connection->device.channel);cJSON_AddNumberToObject(d,"room",room==UINT32_MAX?0:room);cJSON_AddStringToObject(d,"kind","relay");cJSON_AddItemToArray(a,d);
   cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles"),*t=cJSON_CreateObject();int tile_id=1;for(cJSON *v=tiles->child;v;v=v->next)if(integer(v,"id")>=tile_id)tile_id=integer(v,"id")+1;
-  cJSON_AddNumberToObject(t,"id",tile_id);cJSON_AddStringToObject(t,"type","device");cJSON_AddNumberToObject(t,"ref",id);cJSON_AddNumberToObject(t,"span",2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);cJSON_AddItemToArray(tiles,t);
-  char *next=cJSON_PrintUnformatted(r);if(next){dsr_workspace_submit(next,(uint32_t)integer(r,"revision"));free(next);}
- }cJSON_Delete(r);
+  cJSON_AddNumberToObject(t,"id",tile_id);cJSON_AddStringToObject(t,"type","device");cJSON_AddNumberToObject(t,"ref",id);cJSON_AddNumberToObject(t,"span",2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);if(cJSON_GetArraySize(tiles)<24)cJSON_AddItemToArray(tiles,t);else cJSON_Delete(t);
+ }
+ if(changed){char *next=cJSON_PrintUnformatted(r);if(next){dsr_workspace_submit(next,(uint32_t)integer(r,"revision"));free(next);}}
+ cJSON_Delete(r);
 }
+void dsr_ui_workspace_migrate(const dsr_connection_t *connection){dsr_ui_workspace_migrate_bound(connection,UINT32_MAX,NULL);}
 #endif

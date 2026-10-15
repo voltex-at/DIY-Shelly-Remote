@@ -1,5 +1,5 @@
 {
-  "branch": "work/issue-6-visual-system",
+  "branch": "work/issue-7-lan-discovery",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -22,9 +22,14 @@
     "11-cover-details.png": "58152c5f76996852560453aac2ee87cf965bdb9380094ab26963e576a0444f83",
     "12-home-english.png": "ff572ee1f3a8f2e876e2ee6f0a4acfce2bf76c012c5e62d31898fe849867d4f3",
     "13-home-german.png": "10d737c8ae7a08c4a460585f900eec10af952d587c2dd910509dc116cb0a08ee",
-    "20-fixture-wifi-list.png": "0770577c303f368165277934be7d2040621df02c0ebb7b6ff97a1f37140bd64d",
-    "21-fixture-wifi-keyboard.png": "f4bab984d0ec6a107f8576f0b60571b82d87cb3c10c160c2db05ad93ca95bfbd",
-    "22-fixture-add-wizard.png": "1e480edf6f384fd38a1f9a1b0862f7bedb87c8dd7cbf3ffd85729277bd8b4982",
+    "20-fixture-wifi-list.png": "488b92325696fb95492021145464d94070db4782f4aa6184b36967260b272d9e",
+    "21-fixture-wifi-keyboard.png": "53460c0f81244f0fddd17ea3a85c9e848388b3886793a980853ea10c9e260f23",
+    "22-fixture-add-wizard.png": "3d372cf4faa4bfee203d88bb6d80883ae048df6ee72949314e09fd9b44463799",
+    "23-fixture-lan-scanning.png": "89d1238981c6bc5c545b927a20354f1f5560eb3dcf3946ad7524d0f38f1321d6",
+    "24-fixture-lan-results.png": "b939396116090a4ab1ae32926185dd1cf901e10a932958c893bfd275ada113ae",
+    "25-fixture-lan-auth-error.png": "4a7754a7449306e3efedb4406bfd3441f111a15e868efd26205cffc0ca19deea",
+    "26-fixture-lan-components.png": "7566dd6738d2cb86aabb4773ba3d9923905ad6610cd0615edf9ee74c227cf8cc",
+    "27-fixture-lan-no-wifi.png": "a15754de2db181eba6154ed74acf2c38cc77f3d456f2330b3020481d07c56987",
     "contact_sheet.png": "322c3c5d339144b3b599a5d4ec8097f124acdf058e048169a2c986fad677d85c"
   }
 }

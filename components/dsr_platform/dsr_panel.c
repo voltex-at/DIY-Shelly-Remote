@@ -1,4 +1,5 @@
 #include "dsr_workspace.h"
+#include "dsr_discovery.h"
 #include "dsr_platform.h"
 #include "esp_http_server.h"
 #include "esp_https_server.h"
@@ -160,11 +161,36 @@ static esp_err_t ota(httpd_req_t *r)
  if(esp_ota_set_boot_partition(slot)!=ESP_OK)return json(r,"500 Internal Server Error","{\"error\":\"Boot slot not changed\"}");
  return json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");
 }
+static cJSON *lan_device_json(const dsr_lan_device_t *d)
+{
+ cJSON *o=cJSON_CreateObject();cJSON_AddStringToObject(o,"host",d->host);cJSON_AddStringToObject(o,"id",d->id);cJSON_AddStringToObject(o,"mac",d->mac);cJSON_AddStringToObject(o,"model",d->model);cJSON_AddStringToObject(o,"name",d->name);cJSON_AddNumberToObject(o,"generation",d->generation);cJSON_AddBoolToObject(o,"auth_required",d->auth_required);return o;
+}
+static esp_err_t lan_api(httpd_req_t *r)
+{
+ if(!strcmp(r->uri,"/api/v1/discovery")&&r->method==HTTP_GET){
+  dsr_lan_snapshot_t scan;dsr_lan_snapshot(&scan);cJSON *o=cJSON_CreateObject(),*devices=cJSON_AddArrayToObject(o,"devices");
+  cJSON_AddNumberToObject(o,"phase",scan.phase);cJSON_AddNumberToObject(o,"result",scan.result);cJSON_AddNumberToObject(o,"serial",scan.serial);cJSON_AddNumberToObject(o,"probed",scan.probed);cJSON_AddNumberToObject(o,"total",scan.total);cJSON_AddNumberToObject(o,"skipped",scan.skipped);
+  for(unsigned i=0;i<scan.count;i++)cJSON_AddItemToArray(devices,lan_device_json(&scan.devices[i]));
+  cJSON_AddItemToObject(o,"selected",lan_device_json(&scan.selected));cJSON *caps=cJSON_AddObjectToObject(o,"capabilities");cJSON_AddNumberToObject(caps,"switches",scan.capabilities.switches);cJSON_AddNumberToObject(caps,"covers",scan.capabilities.covers);cJSON_AddNumberToObject(caps,"lights",scan.capabilities.lights);cJSON_AddBoolToObject(caps,"sensors",scan.capabilities.sensors);
+  char *text=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t result=json(r,"200 OK",text?text:"{}");free(text);return result;
+ }
+ if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/discovery/scan")){bool ok=dsr_lan_scan();return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"scanning\":true}":"{\"error\":\"Brak Wi-Fi lub wyszukiwanie w toku\"}");}
+ if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/discovery/cancel")){dsr_lan_cancel();return json(r,"202 Accepted","{\"cancelling\":true}");}
+ if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/discovery/inspect")){
+  char *data=body(r,512);cJSON *input=data&&dsr_config_json_depth(data)?cJSON_Parse(data):NULL;dsr_credentials_t credentials={0};
+  const cJSON *host=cJSON_GetObjectItemCaseSensitive(input,"host"),*id=cJSON_GetObjectItemCaseSensitive(input,"id"),*username=cJSON_GetObjectItemCaseSensitive(input,"username"),*password=cJSON_GetObjectItemCaseSensitive(input,"password");
+  bool valid=cJSON_IsString(host)&&strlen(host->valuestring)<16&&cJSON_IsString(id)&&strlen(id->valuestring)<64&&cJSON_IsString(username)&&strlen(username->valuestring)<sizeof(credentials.username)&&cJSON_IsString(password)&&strlen(password->valuestring)<sizeof(credentials.password);
+  if(valid){strcpy(credentials.username,username->valuestring);strcpy(credentials.password,password->valuestring);valid=dsr_lan_inspect(host->valuestring,id->valuestring,&credentials);}
+  memset(&credentials,0,sizeof(credentials));if(data){memset(data,0,strlen(data));free(data);}cJSON_Delete(input);return json(r,valid?"202 Accepted":"409 Conflict",valid?"{\"checking\":true}":"{\"error\":\"Urządzenie niedostępne lub operacja w toku\"}");
+ }
+ return json(r,"404 Not Found","{}");
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
  if(!strcmp(r->uri,"/api/v1/config")){
   if(r->method==HTTP_GET){char *config=dsr_workspace_snapshot();if(!config)return json(r,"503 Service Unavailable","{}");esp_err_t e=json(r,"200 OK",config);free(config);return e;}
   if(r->method==HTTP_PUT){char *candidate=body(r,DSR_CONFIG_MAX_JSON),*current=dsr_workspace_snapshot();char error[96]={0};
@@ -176,13 +202,16 @@ static esp_err_t api(httpd_req_t *r)
  if(!strcmp(r->uri,"/api/v1/status")&&r->method==HTTP_GET){
   bool busy;char message[96];dsr_workspace_status(&busy,message);cJSON *o=cJSON_CreateObject();cJSON_AddNumberToObject(o,"revision",dsr_workspace_revision());cJSON_AddBoolToObject(o,"busy",busy);cJSON_AddStringToObject(o,"message",message);
   bool device_busy;char device_message[64];dsr_workspace_bind_status(&device_busy,device_message);cJSON_AddBoolToObject(o,"device_busy",device_busy);cJSON_AddStringToObject(o,"device_message",device_message);
-  cJSON_AddStringToObject(o,"firmware",esp_app_get_description()->version);char *s=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t e=json(r,"200 OK",s?s:"{}");free(s);return e;
+  cJSON_AddNumberToObject(o,"device_result",dsr_workspace_bind_result_code());cJSON_AddStringToObject(o,"firmware",esp_app_get_description()->version);char *s=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t e=json(r,"200 OK",s?s:"{}");free(s);return e;
  }
  if(!strcmp(r->uri,"/api/v1/devices/bind")&&r->method==HTTP_POST){
   char *data=body(r,512);cJSON *input=data&&dsr_config_json_depth(data)?cJSON_Parse(data):NULL;dsr_connection_t connection={0};
   const cJSON *host=cJSON_GetObjectItemCaseSensitive(input,"host"),*name=cJSON_GetObjectItemCaseSensitive(input,"name"),*username=cJSON_GetObjectItemCaseSensitive(input,"username"),*password=cJSON_GetObjectItemCaseSensitive(input,"password"),*channel=cJSON_GetObjectItemCaseSensitive(input,"channel");
   bool valid=cJSON_IsString(host)&&strlen(host->valuestring)<sizeof(connection.device.host)&&cJSON_IsString(name)&&strlen(name->valuestring)<sizeof(connection.device.name)&&cJSON_IsString(username)&&strlen(username->valuestring)<sizeof(connection.credentials.username)&&cJSON_IsString(password)&&strlen(password->valuestring)<sizeof(connection.credentials.password)&&cJSON_IsNumber(channel)&&channel->valuedouble==channel->valueint&&channel->valueint>=0&&channel->valueint<=15;
-  if(valid){strcpy(connection.device.host,host->valuestring);strcpy(connection.device.name,name->valuestring);strcpy(connection.credentials.username,username->valuestring);strcpy(connection.credentials.password,password->valuestring);connection.device.channel=(uint8_t)channel->valueint;valid=dsr_workspace_bind(&connection);}
+  const cJSON *expected=cJSON_GetObjectItemCaseSensitive(input,"expected_id"),*room=cJSON_GetObjectItemCaseSensitive(input,"room");uint32_t room_id=UINT32_MAX;
+  if(expected){if(!cJSON_IsString(expected)||!expected->valuestring[0]||strlen(expected->valuestring)>=sizeof(connection.device.device_id))valid=false;else strcpy(connection.device.device_id,expected->valuestring);}
+  if(room){if(!cJSON_IsNumber(room)||room->valuedouble!=room->valueint||room->valueint<0||room->valueint>1000000)valid=false;else{room_id=(uint32_t)room->valueint;if(room_id){char *config=dsr_workspace_snapshot();cJSON *root=config?cJSON_Parse(config):NULL;free(config);bool found=false;const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(root,"rooms")){const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id");if(cJSON_IsNumber(id)&&id->valueint==(int)room_id)found=true;}cJSON_Delete(root);valid=valid&&found;}}}
+  if(valid){strcpy(connection.device.host,host->valuestring);strcpy(connection.device.name,name->valuestring);strcpy(connection.credentials.username,username->valuestring);strcpy(connection.credentials.password,password->valuestring);connection.device.channel=(uint8_t)channel->valueint;valid=dsr_workspace_bind_with_room(&connection,room_id);}
   memset(&connection,0,sizeof(connection));if(data){memset(data,0,strlen(data));free(data);}cJSON_Delete(input);return json(r,valid?"202 Accepted":"400 Bad Request",valid?"{\"checking\":true}":"{\"error\":\"Invalid details or another device check is running\"}");
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){

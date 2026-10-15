@@ -30,4 +30,11 @@ void dsr_ui_select_dashboard(void);
 void dsr_ui_workspace_tick(void);
 void dsr_ui_workspace_hide(void);
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection);
+void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t room,const char *previous_host);
+void dsr_ui_lan_open(lv_event_t *event);
+void dsr_ui_lan_tick(void);
+void dsr_ui_lan_reset(void);
+bool dsr_ui_lan_active(void);
+void dsr_ui_lan_bind_result(dsr_result_t result);
+dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room);
 #endif

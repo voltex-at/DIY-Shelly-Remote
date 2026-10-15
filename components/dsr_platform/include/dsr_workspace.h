@@ -34,7 +34,10 @@ const unsigned char *dsr_tls_certificate(void);
 const unsigned char *dsr_tls_key(void);
 const char *dsr_tls_fingerprint(void);
 bool dsr_workspace_bind(const dsr_connection_t *connection);
+bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t room);
 bool dsr_workspace_take_bind(dsr_connection_t *connection);
+bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *room);
 void dsr_workspace_bind_result(dsr_result_t result);
 void dsr_workspace_bind_status(bool *busy,char message[64]);
+dsr_result_t dsr_workspace_bind_result_code(void);
 #endif

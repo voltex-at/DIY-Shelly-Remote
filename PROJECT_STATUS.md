@@ -1,6 +1,6 @@
 # Project status
 
-## Issue #7 — LAN discovery implementation in progress
+## Issue #7 A — real LAN discovery and wizard
 
 Dedicated branch `work/issue-7-lan-discovery`, stacked on the visual PR #9.
 Portable identity/capability/deduplication/subnet policy and real mDNS + passive
@@ -8,8 +8,16 @@ ARP/known-host probing are implemented in a separate bounded network task.
 HTTP identity reads carry no credentials; protected component inspection uses
 the retained Basic/Digest transport and checks the selected ID/MAC again.
 545 HTTP/parser/NVS checks, 94 core and 222 Wi-Fi checks pass with UBSan.
-Wizard/API integration and target build are the next verification steps.
-No physical LAN result is claimed. AP/BLE and multi-device control are not added.
+Touch wizard and authenticated panel API now use this service. Users select a
+verified device, authenticate, choose an actual switch channel, name and room;
+the old binding is retained on a failed probe. DHCP rebind updates the prior
+configuration entry for the same saved physical ID. Unsupported covers/sensors
+are identified but cannot be falsely bound as a relay. AP/BLE stay disabled.
+Native LVGL: 362 checks and 19 frames including no-Wi-Fi, discovery, auth error,
+nonconsecutive channels and room binding. The service checkpoint `efe4db2` passed
+all five jobs in run 38748844770; integrated UI/API receives its own build.
+Browser onboarding tests use explicit radio fixtures plus the actual C parser;
+they do not establish physical LAN operation. [Physical procedure](docs/ISSUE7_LAN.md).
 
 ## Issue #6 — rounded icon family and configurable photographic HOME
 

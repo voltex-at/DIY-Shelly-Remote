@@ -15,6 +15,8 @@
 static unsigned checks;
 void test_workspace_enable(void);
 void test_workspace_disable(void);
+void test_lan_found(const char *identity,const char *host);
+void test_lan_inspected(dsr_result_t result,const char *components);
 #define CHECK(x) do {checks++; if (!(x)) {fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort();}} while(0)
 static dsr_job_t submitted;
 static dsr_event_t response;
@@ -78,6 +80,11 @@ static void click(const char *text)
     lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label!=NULL);
     (void)lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);
     lv_obj_update_layout(lv_screen_active());
+}
+static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *skip)
+{
+    if(lv_obj_check_type(root,type)){if(!*skip)return root;(*skip)--;}
+    for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=nth_type(lv_obj_get_child(root,(int)i),type,skip);if(o)return o;}return NULL;
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
 {response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();}
@@ -154,7 +161,22 @@ int main(int argc,char **argv)
     configuration=dsr_workspace_snapshot();CHECK(dsr_workspace_submit(configuration,2));free(configuration);dsr_ui_workspace_tick();
     CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
     dsr_network_home(NULL);dsr_ui_workspace_tick();
-    test_workspace_disable();
-    printf("PASS: %u real LVGL UI checks; fourteen 320x480 screenshots; touch editor shares versioned configuration; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
+    wifi.connected=false;dsr_ui_lan_open(NULL);tick();CHECK(find_label(lv_screen_active(),"Najpierw połącz Wi-Fi"));screenshot("19-lan-no-wifi");
+    wifi.connected=true;dsr_network_device(NULL);click("Skanuj sieć Wi-Fi");tick();CHECK(dsr_ui_lan_active());screenshot("15-lan-scanning");
+    const char info[]="{\"gen\":2,\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"auth_en\":true}";
+    test_lan_found(info,"192.168.1.88");tick();CHECK(find_label(lv_screen_active(),"SNSW-002P16EU"));screenshot("16-lan-results");click("SNSW-002P16EU");
+    unsigned skip=1;password=nth_type(lv_screen_active(),&lv_textarea_class,&skip);CHECK(password);lv_textarea_set_text(password,"wrong-password");click("Sprawdź");
+    test_lan_inspected(DSR_AUTH_REQUIRED,"{}");tick();CHECK(find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));screenshot("17-lan-auth-error");
+    skip=1;password=nth_type(lv_screen_active(),&lv_textarea_class,&skip);CHECK(password);lv_textarea_set_text(password,"correct-password");click("Sprawdź");
+    const char components[]="{\"switch:1\":{\"id\":1,\"output\":false},\"switch:4\":{\"id\":4,\"output\":true}}";
+    test_lan_inspected(DSR_OK,components);tick();CHECK(find_label(lv_screen_active(),"Kanał z odpowiedzi API"));screenshot("18-lan-components");
+    name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name);lv_textarea_set_text(name,"Światło testowe");
+    skip=0;lv_obj_t *room=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(room);lv_dropdown_set_selected(room,1);
+    skip=1;lv_obj_t *channels=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(channels);CHECK(lv_dropdown_get_option_count(channels)==2);
+    click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
+    response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+    configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
+    dsr_ui_lan_reset();test_workspace_disable();
+    printf("PASS: %u real LVGL UI checks; 19 screenshots; LAN no-Wi-Fi, scan, verified results, auth error, actual channels and room binding; 60 navigation cycles\n",checks);
     lv_deinit();return 0;
 }

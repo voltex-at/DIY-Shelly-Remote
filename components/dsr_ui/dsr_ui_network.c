@@ -15,6 +15,8 @@ static dsr_job_kind_t operation;
 static uint32_t serial, outstanding, last_poll;
 static bool storage_error;
 static bool external_bind;
+static bool lan_binding;
+static uint32_t pending_room=UINT32_MAX;
 static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5];
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
@@ -38,6 +40,7 @@ static const char *result_text(dsr_result_t result)
 void dsr_network_reset_view(void)
 {
     dsr_wifi_ui_reset();
+    dsr_ui_lan_reset();
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
 }
@@ -176,6 +179,7 @@ static void bind_device(lv_event_t *event)
     if (busy) { dsr_sc_label_set_text(message, result_text(DSR_BUSY)); return; }
     if (!dsr_wifi_connected()) { dsr_sc_label_set_text(message, "Connect Wi-Fi first"); return; }
     memset(&pending, 0, sizeof(pending));
+    pending_room=UINT32_MAX;lan_binding=false;
     const char *channel = lv_textarea_get_text(fields[1]);
     char *end = NULL; long value = strtol(channel, &end, 10);
     if (!channel[0] || !end || *end || value < 0 || value > DSR_MAX_CHANNEL ||
@@ -208,11 +212,19 @@ static void manual_device(lv_event_t *event)
 void dsr_network_device(lv_event_t *event)
 {
     (void)event;lv_obj_t *root=dsr_ui_screen("Dodaj urządzenie Shelly",true);
-    lv_obj_t *scan=dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,NULL,NULL);lv_obj_add_state(scan,LV_STATE_DISABLED);
+    dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,dsr_ui_lan_open,NULL);
     lv_obj_t *ap=dsr_ui_button(root,"Wi-Fi AP",12,152,296,NULL,NULL);lv_obj_add_state(ap,LV_STATE_DISABLED);
     lv_obj_t *ble=dsr_ui_button(root,"Bluetooth LE",12,208,296,NULL,NULL);lv_obj_add_state(ble,LV_STATE_DISABLED);
     dsr_ui_button(root,"Dodaj ręcznie (IP)",12,264,296,manual_device,NULL);
-    dsr_ui_label(root,"Wyszukiwanie LAN w kolejnym etapie.\nWi-Fi AP i Bluetooth nie są jeszcze obsługiwane.",16,329,288);
+    dsr_ui_label(root,"LAN wyszukuje urządzenia w tej samej sieci.\nWi-Fi AP i Bluetooth nie są jeszcze obsługiwane.",16,329,288);
+}
+dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room)
+{
+    if(!connection||busy)return DSR_BUSY;
+    if(!dsr_wifi_connected())return DSR_OFFLINE;
+    pending=*connection;pending_room=room;dsr_result_t result=submit(DSR_JOB_BIND,false);
+    if(result==DSR_OK)lan_binding=true;else{memset(&pending,0,sizeof(pending));pending_room=UINT32_MAX;}
+    return result;
 }
 
 static void poll(lv_timer_t *timer)
@@ -229,10 +241,13 @@ static void poll(lv_timer_t *timer)
             dsr_wifi_ui_result(&event, operation);
         } else if (operation == DSR_JOB_BIND) {
             if (event.result == DSR_OK) {
+                char old_host[16]={0};if(configured&&!strcmp(saved.device.device_id,event.device.device_id))snprintf(old_host,sizeof(old_host),"%s",saved.device.host);
                 saved = pending; saved.device = event.device; configured = true; blocked = false;
-                dsr_ui_workspace_migrate(&saved);
+                dsr_ui_workspace_migrate_bound(&saved,pending_room,old_host);
                 last_result = DSR_OK; if(!external_bind)dsr_network_home(NULL);
             }
+            if(lan_binding){if(event.result!=DSR_OK)dsr_ui_lan_bind_result(event.result);lan_binding=false;}
+            pending_room=UINT32_MAX;
             memset(&pending, 0, sizeof(pending));
             if(external_bind){dsr_workspace_bind_result(event.result);external_bind=false;}
         } else {
@@ -250,15 +265,16 @@ static void poll(lv_timer_t *timer)
         render();
     }
     dsr_wifi_ui_tick();
+    dsr_ui_lan_tick();
     dsr_ui_workspace_tick();dsr_panel_tick();
-    if(!busy){dsr_connection_t connection;if(dsr_workspace_take_bind(&connection)){
-        pending=connection;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
+    if(!busy){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
+        pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
         if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
     }}
     static uint32_t config_revision;
     uint32_t next_revision=dsr_workspace_revision();
     if(config_revision!=next_revision){config_revision=next_revision;render();}
-    if (configured && wifi && !busy && !blocked && !dsr_wifi_ui_active() && now - last_poll >= 5000) {
+    if (configured && wifi && !busy && !blocked && !dsr_wifi_ui_active() && !dsr_ui_lan_active() && now - last_poll >= 5000) {
         last_poll = now; (void)submit(DSR_JOB_PROBE, false);
     }
 }

@@ -1,4 +1,5 @@
 #include "dsr_workspace.h"
+#include "dsr_discovery.h"
 #include <stdlib.h>
 #include <string.h>
 /* Disabled for the original Wi-Fi fixture until explicitly enabled. */
@@ -17,4 +18,18 @@ const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
 const char *dsr_photo_id(unsigned index){(void)index;return NULL;}
 const char *dsr_tls_fingerprint(void){return "TEST FIXTURE";}
 bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
+bool dsr_workspace_take_bind_with_room(dsr_connection_t *c,uint32_t *room){(void)c;(void)room;return false;}
 void dsr_workspace_bind_result(dsr_result_t r){(void)r;}
+
+/* Explicit radio fixture. Production dsr_lan.c is not replaced in firmware. */
+static dsr_lan_snapshot_t lan;
+void dsr_lan_snapshot(dsr_lan_snapshot_t *out){*out=lan;}
+bool dsr_lan_scan(void)
+{lan.count=0;lan.phase=dsr_wifi_connected()?DSR_LAN_SCANNING:DSR_LAN_NO_WIFI;lan.serial++;return dsr_wifi_connected();}
+void dsr_lan_cancel(void){lan.phase=DSR_LAN_CANCELLED;lan.serial++;}
+bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *credentials)
+{(void)credentials;for(unsigned i=0;i<lan.count;i++)if(!strcmp(lan.devices[i].host,host)&&!strcmp(lan.devices[i].id,id)){lan.selected=lan.devices[i];lan.phase=DSR_LAN_INSPECTING;lan.serial++;return true;}return false;}
+void test_lan_found(const char *identity,const char *host)
+{cJSON *r=cJSON_Parse(identity);dsr_lan_device_t d;if(dsr_lan_parse_identity(r,host,&d)==DSR_OK)dsr_lan_upsert(&lan,&d);cJSON_Delete(r);lan.phase=DSR_LAN_DONE;lan.serial++;}
+void test_lan_inspected(dsr_result_t result,const char *components)
+{cJSON *r=cJSON_Parse(components);if(result==DSR_OK)result=dsr_lan_parse_capabilities(r,lan.selected.generation,&lan.capabilities);cJSON_Delete(r);lan.result=result;lan.phase=result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR;lan.serial++;}

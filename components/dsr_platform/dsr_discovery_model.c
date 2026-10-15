@@ -59,7 +59,7 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
 }
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *d)
 {
-    if(!scan||!d||!d->id[0]||!d->mac[0])return DSR_INVALID;
+    if(!scan||scan->count>DSR_LAN_MAX_DEVICES||!d||!d->id[0]||!d->mac[0])return DSR_INVALID;
     for(unsigned i=0;i<scan->count;i++)if(!strcmp(scan->devices[i].id,d->id)||!strcmp(scan->devices[i].mac,d->mac)){
         if(strcmp(scan->devices[i].id,d->id)||strcmp(scan->devices[i].mac,d->mac))return DSR_IDENTITY_MISMATCH;
         scan->devices[i]=*d;return DSR_OK; /* DHCP: stable identity, new location. */

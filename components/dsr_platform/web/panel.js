@@ -1,7 +1,7 @@
 'use strict';
 const $=s=>document.querySelector(s), el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 let config=null,page='dashboards',dirty=false,saving=false,conflict=false,dragId=null;
-const titles={dashboards:'Pulpity',rooms:'Pomieszczenia',devices:'Urządzenia Shelly',scenes:'Sceny',appearance:'Wygląd i język',system:'System i aktualizacje'};
+const titles={dashboards:'Pulpity',rooms:'Pomieszczenia',devices:'Urządzenia Shelly',discovery:'Dodaj urządzenie Shelly',scenes:'Sceny',appearance:'Wygląd i język',system:'System i aktualizacje'};
 const kinds={light:'Oświetlenie',relay:'Przekaźnik',plug:'Gniazdko',cover:'Roleta',contact:'Czujnik otwarcia',sensor:'Czujnik'};
 function notice(s){$('#notice').textContent=s;}
 function changed(){dirty=true;$('#dirty').textContent='Niezapisane zmiany';$('#save').disabled=saving||conflict;}
@@ -58,7 +58,74 @@ function editTile(d,t){
 }
 function appearance(){const n=box('Wygląd i język'),f=el('div',undefined,'fields');n.append(f);select(f,'Język interfejsu',config.language,[['pl','Polski'],['en','English'],['de','Deutsch']],v=>config.language=v);select(f,'Motyw',config.theme,[['graphite','Grafit'],['midnight','Nocny']],v=>config.theme=v);field(f,'Kolor akcentu','#'+config.accent.toString(16).padStart(6,'0'),v=>config.accent=parseInt(v.slice(1),16),'color');return n;}
 function system(){const n=box('Aktualizacja OTA');n.append(el('p','Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.'));const f=el('input');f.type='file';f.accept='.bin';n.append(f,button('Sprawdź i zainstaluj OTA',async()=>{if(!f.files[0])return;try{const data=await f.files[0].arrayBuffer();notice('Wysyłanie obrazu do nieaktywnej partycji…');const r=await request('ota',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SHA256':sha256(new Uint8Array(data))},body:data});const result=await r.json();if(result.installed){notice('Obraz zweryfikowany. Uruchom ponownie pilot, aby go zastosować.');n.append(button('Uruchom ponownie',async()=>{await request('restart',{method:'POST'});notice('Pilot uruchamia się ponownie…');}));}}catch(e){notice(e.message);}},'primary'));n.append(el('p','Najpierw zweryfikuj źródło pliku. Suma SHA256 sprawdza przesyłanie, a nie podpis wydawcy. To rozwojowy instalator lokalny.','muted'));return n;}
-function render(){if(!config)return;$('#title').textContent=titles[page];document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===page?'page':'false'));const target=$('#editor');target.replaceChildren(page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene})[page]));}
+let lanMode='start',lanSelected=null,lanCredentials=null,lanSnapshot=null,lanGeneration=0;
+const lanError=code=>({4:'Błąd logowania. Sprawdź dane.',5:'Shelly offline lub brak Wi-Fi.',9:'Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.',10:'Limit logowań Shelly. Poczekaj przed ponowieniem.'}[code]||'Nie udało się zweryfikować urządzenia.');
+function lanInput(parent,label,value='',type='text'){
+ const l=el('label',label),i=el('input');i.type=type;i.value=value;i.setAttribute('aria-label',label);i.maxLength=type==='password'?64:47;l.append(i);parent.append(l);return i;
+}
+function lanSelect(parent,label,items){const l=el('label',label),s=el('select');s.setAttribute('aria-label',label);for(const [value,name]of items){const o=el('option',name);o.value=value;s.append(o);}l.append(s);parent.append(l);return s;}
+function openDiscovery(){if(dirty||saving)return notice('Zapisz szkic konfiguracji przed dodaniem połączenia.');page='discovery';lanMode='start';lanCredentials=null;lanGeneration++;render();}
+async function scanLan(){
+ try{await request('discovery/scan',{method:'POST'});notice('Wyszukiwanie urządzeń…');lanMode='scan';render();pollLan(++lanGeneration);}catch(e){notice(e.message);}
+}
+async function inspectLan(device,credentials){
+ lanSelected=device;
+ if(device.auth_required&&!credentials){lanMode='credentials';render();return;}
+ lanCredentials=credentials||{username:'',password:''};
+ try{await request('discovery/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:device.host,id:device.id,...lanCredentials})});notice('Sprawdzanie urządzenia…');lanMode='inspect';render();pollLan(++lanGeneration);}catch(e){notice(e.message);}
+}
+async function pollLan(generation){
+ if(page!=='discovery'||generation!==lanGeneration)return;
+ try{
+  lanSnapshot=await(await request('discovery')).json();const s=lanSnapshot;
+  if(s.phase===1||s.phase===5){const progress=$('#lan-progress');if(progress)progress.textContent=s.phase===1?`Weryfikacja API: ${s.probed} / ${s.total}`:'Odczyt możliwości urządzenia…';setTimeout(()=>pollLan(generation),800);return;}
+  if(lanMode==='scan'){lanMode='results';render();if(s.phase===4)notice('Najpierw połącz Wi-Fi.');}
+  else if(lanMode==='inspect'){
+   if(s.phase===6&&s.selected.id===lanSelected.id){lanMode='components';render();notice('Możliwości urządzenia potwierdzone odpowiedzią API.');}
+   else{lanMode='credentials';render();notice(lanError(s.result));}
+  }
+ }catch(e){notice(e.message);}
+}
+async function bindLan(name,room,channel,button){
+ button.disabled=true;const body={host:lanSelected.host,expected_id:lanSelected.id,name,room:Number(room),channel:Number(channel),...lanCredentials};
+ try{
+  await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});notice('Sprawdzanie tożsamości i zapisywanie połączenia…');
+  for(let i=0;i<100;i++){
+   await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();
+   if(s.device_busy||s.busy)continue;
+   if(s.device_result!==0){if(s.device_result===4){lanMode='credentials';render();}throw Error(lanError(s.device_result));}
+   const current=await(await request('config')).json();const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&d.room===body.room&&d.name===body.name);
+   page='devices';lanCredentials=null;lanGeneration++;await load();notice(saved?'Połączenie, nazwa i pomieszczenie zapisane.':'Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.');return;
+  }
+  throw Error('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.');
+ }catch(e){notice(e.message);}finally{body.password='';button.disabled=false;}
+}
+function discoveryView(){
+ const n=box('Dodaj urządzenie Shelly');n.append(button('← Urządzenia',()=>{lanCredentials=null;lanGeneration++;page='devices';render();}));
+ if(lanMode==='scan'||lanMode==='inspect'){
+  const p=el('p',lanMode==='scan'?'Wyszukiwanie mDNS i weryfikacja API…':'Sprawdzanie wybranego urządzenia…');p.id='lan-progress';n.append(p,button('Przerwij',async()=>{try{await request('discovery/cancel',{method:'POST'});}catch(e){notice(e.message);}}));return n;
+ }
+ if(lanMode==='start'){
+  n.append(el('p','Wyszukaj urządzenia w tej samej sieci lokalnej. Lista zawiera wyłącznie tożsamości potwierdzone odpowiedzią API.'),button('Skanuj sieć Wi-Fi',scanLan,'primary'));
+  for(const name of ['Wi-Fi AP — niewdrożone','Bluetooth LE — niewdrożone']){const b=button(name,()=>{});b.disabled=true;n.append(b);}return n;
+ }
+ if(lanMode==='results'){
+  n.append(button('Skanuj ponownie',scanLan));if(!lanSnapshot?.devices.length)empty(n,'Nie znaleziono Shelly. Sprawdź Wi-Fi, mDNS i izolację klientów.');
+  for(const d of lanSnapshot?.devices||[]){const row=el('div',undefined,'row'),text=el('div',undefined,'grow');text.append(el('h3',d.model),el('p',`${d.host} · Gen ${d.generation} · ${d.auth_required?'Wymaga hasła':'Bez hasła'}`),el('p',d.id,'muted'));row.append(text,button('Sprawdź urządzenie',()=>inspectLan(d)));n.append(row);}return n;
+ }
+ n.append(el('h3',lanSelected.model),el('p',`${lanSelected.host} · Gen ${lanSelected.generation} · ${lanSelected.id}`,'muted'));
+ const form=el('div',undefined,'fields');n.append(form);
+ if(lanMode==='credentials'){
+  const u=lanInput(form,'Login','admin'),p=lanInput(form,'Hasło Shelly','','password');n.append(button('Sprawdź urządzenie',()=>inspectLan(lanSelected,{username:u.value,password:p.value}),'primary'));return n;
+ }
+ const name=lanInput(form,'Nazwa urządzenia',lanSelected.name),room=lanSelect(form,'Pomieszczenie',[[0,'Nieprzypisane'],...config.rooms.map(r=>[r.id,r.name])]);
+ const channels=[];for(let i=0;i<16;i++)if(lanSnapshot.capabilities.switches&(1<<i))channels.push([i,String(i)]);
+ const channel=lanSelect(form,'Kanał z odpowiedzi API',channels.length?channels:[['','Brak obsługiwanego kanału']]);
+ n.append(el('p','Obecny transport obsługuje jedno aktywne połączenie przekaźnika. Zapis zastąpi wcześniejsze powiązanie dopiero po poprawnej weryfikacji.'));
+ const save=button('Sprawdź i zapisz połączenie',()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
+ if(!channels.length)n.append(el('p','Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.','muted'));return n;
+}
+function render(){if(!config)return;if(page!=='discovery'){lanCredentials=null;lanGeneration++;}$('#title').textContent=titles[page];document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene})[page]);if(page==='devices')view.prepend(button('Wyszukaj Shelly w LAN',openDiscovery,'primary'));target.replaceChildren(view);}
 async function save(){if(!dirty||saving||conflict)return;saving=true;$('#save').disabled=true;try{await request('config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});notice('Zapisywanie konfiguracji…');for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();if(!s.busy){if(s.revision===config.revision+1){await load();notice('Zapisano. Ekran pilota korzysta z tej samej konfiguracji.');}else throw Error(s.message||'Nie zapisano zmian');break;}}}catch(e){notice(e.message);}finally{saving=false;$('#save').disabled=!dirty||conflict;}}
 async function poll(){if(!config||$('#workspace').hidden)return;try{const s=await(await request('status')).json();$('#connection').textContent='● Połączono lokalnie';$('#firmware').textContent=s.firmware||'';if(s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.');}else await load();}const r=await request('preview.raw');if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);$('#preview-status').textContent='Obraz pobrany z zadania LVGL pilota.';}}}catch(e){$('#connection').textContent='Brak połączenia';}}
 async function uploadPhoto(file,room){
