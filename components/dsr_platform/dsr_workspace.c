@@ -56,6 +56,13 @@ esp_err_t dsr_workspace_start(void)
  bool found=false;char error[96]={0};current=dsr_config_store_load("/dsr",&found,error);
  if(!found){if(error[0])return ESP_FAIL;current=dsr_config_default();if(!current)return ESP_ERR_NO_MEM;
   if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;return ESP_FAIL;}}
+ /* Refresh the older checkpoint with the already verified boot document.
+  * Power loss retains the newest record. Readback must succeed before GC.
+  * This also retires old photo references without requiring a second edit. */
+ if(found)dsr_config_store_save("/dsr",current,error);
+ /* Boot-time GC precedes cache/LVGL construction; immutable live pointers are
+  * never freed. Any remaining corrupt checkpoint conservatively skips GC. */
+ unsigned removed=0;dsr_config_store_collect_photos("/dsr",&removed,error);
  dsr_photos_load();revision=dsr_config_revision(current);mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(request_t));
  if(!mutex||!queue)return ESP_ERR_NO_MEM;
  return xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)==pdPASS?ESP_OK:ESP_ERR_NO_MEM;

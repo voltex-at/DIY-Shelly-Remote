@@ -20,6 +20,9 @@ uint32_t dsr_config_revision(const char *json);
  * record. No format/erase on corruption. Paths are fixed, not user supplied. */
 char *dsr_config_store_load(const char *directory, bool *found, char error[96]);
 bool dsr_config_store_save(const char *directory, const char *json, char error[96]);
+/* Boot only, before any LVGL photo pointers exist. Keep the union of both
+ * checkpoints. Any present invalid/future checkpoint disables deletion. */
+bool dsr_config_store_collect_photos(const char *directory,unsigned *removed,char error[96]);
 uint32_t dsr_config_crc32(const void *data, size_t size);
 bool dsr_config_json_depth(const char *json);
 #endif

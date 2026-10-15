@@ -1,10 +1,10 @@
 'use strict';
 const $=s=>document.querySelector(s), el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
-let config=null,page='dashboards',dirty=false,saving=false,conflict=false,dragId=null;
+let config=null,page='dashboards',dirty=false,saving=false,conflict=false,dragId=null,editSerial=0;
 const titles={dashboards:'Pulpity',rooms:'Pomieszczenia',devices:'Urządzenia Shelly',discovery:'Dodaj urządzenie Shelly',scenes:'Sceny',appearance:'Wygląd i język',system:'System i aktualizacje'};
 const kinds={light:'Oświetlenie',relay:'Przekaźnik',plug:'Gniazdko',cover:'Roleta',contact:'Czujnik otwarcia',sensor:'Czujnik'};
 function notice(s){$('#notice').textContent=s;}
-function changed(){dirty=true;$('#dirty').textContent='Niezapisane zmiany';$('#save').disabled=saving||conflict;}
+function changed(){editSerial++;dirty=true;$('#dirty').textContent='Niezapisane zmiany';$('#save').disabled=saving||conflict;}
 function button(text,fn,cls){const b=el('button',text,cls);b.type='button';b.addEventListener('click',fn);return b;}
 function field(parent,label,value,fn,type='text'){const l=el('label',label),i=el('input');i.type=type;i.value=value;i.addEventListener('input',()=>{fn(type==='number'?Number(i.value):i.value);changed();});l.append(i);parent.append(l);return i;}
 function select(parent,label,value,options,fn){const l=el('label',label),s=el('select');s.setAttribute('aria-label',label);for(const [v,t]of options){const o=el('option',t);o.value=v;s.append(o);}s.value=String(value);s.addEventListener('change',()=>{fn(s.value);changed();});l.append(s);parent.append(l);return s;}
@@ -126,8 +126,25 @@ function discoveryView(){
  if(!channels.length)n.append(el('p','Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.','muted'));return n;
 }
 function render(){if(!config)return;if(page!=='discovery'){lanCredentials=null;lanGeneration++;}$('#title').textContent=titles[page];document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene})[page]);if(page==='devices')view.prepend(button('Wyszukaj Shelly w LAN',openDiscovery,'primary'));target.replaceChildren(view);}
-async function save(){if(!dirty||saving||conflict)return;saving=true;$('#save').disabled=true;try{await request('config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});notice('Zapisywanie konfiguracji…');for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();if(!s.busy){if(s.revision===config.revision+1){await load();notice('Zapisano. Ekran pilota korzysta z tej samej konfiguracji.');}else throw Error(s.message||'Nie zapisano zmian');break;}}}catch(e){notice(e.message);}finally{saving=false;$('#save').disabled=!dirty||conflict;}}
-async function poll(){if(!config||$('#workspace').hidden)return;try{const s=await(await request('status')).json();$('#connection').textContent='● Połączono lokalnie';$('#firmware').textContent=s.firmware||'';if(s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.');}else await load();}const r=await request('preview.raw');if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);$('#preview-status').textContent='Obraz pobrany z zadania LVGL pilota.';}}}catch(e){$('#connection').textContent='Brak połączenia';}}
+function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
+async function save(){
+ if(!dirty||saving||conflict)return;
+ const submitted=structuredClone(config),serial=editSerial;saving=true;$('#save').disabled=true;
+ try{
+  await request('config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(submitted)});notice('Zapisywanie konfiguracji…');let acknowledged=false;
+  for(let i=0;i<40;i++){
+   await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();if(s.busy)continue;
+   if(s.revision!==submitted.revision+1)throw Error('Zapis nie powiódł się. Zmiany pozostają w edytorze.');
+   const published=await(await request('config')).json(),expected={...submitted,revision:s.revision};
+   if(JSON.stringify(canonical(published))!==JSON.stringify(canonical(expected))){conflict=true;throw Error('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję.');}
+   config.revision=s.revision;$('#revision').textContent=s.revision;acknowledged=true;
+   if(editSerial===serial){dirty=false;$('#dirty').textContent='Wszystkie zmiany zapisane';notice('Zapisano. Ekran pilota korzysta z tej samej konfiguracji.');}
+   else{dirty=true;$('#dirty').textContent='Niezapisane zmiany';notice('Zapisano wcześniejszą wersję. Późniejsze zmiany pozostają niezapisane.');}break;
+  }
+  if(!acknowledged)throw Error('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.');
+ }catch(e){notice(e.message);}finally{saving=false;$('#save').disabled=!dirty||conflict;}
+}
+async function poll(){if(!config||$('#workspace').hidden)return;try{const s=await(await request('status')).json();$('#connection').textContent='● Połączono lokalnie';$('#firmware').textContent=s.firmware||'';if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.');}else await load();}const r=await request('preview.raw');if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);$('#preview-status').textContent='Obraz pobrany z zadania LVGL pilota.';}}}catch(e){$('#connection').textContent='Brak połączenia';}}
 async function uploadPhoto(file,room){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw Error('Wybierz JPG, PNG lub WebP do 15 MB.');
  const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw Error('Zbyt duże zdjęcie.');}

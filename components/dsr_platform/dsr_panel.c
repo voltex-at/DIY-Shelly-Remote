@@ -222,7 +222,7 @@ static esp_err_t api(httpd_req_t *r)
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){
   const char *id=r->uri+15;if(strlen(id)!=32||r->content_len!=DSR_PHOTO_BYTES)return json(r,"400 Bad Request","{\"error\":\"Expected a 320x180 RGB565 room photo\"}");
   unsigned char *data=malloc(r->content_len);if(!data)return json(r,"503 Service Unavailable","{}");size_t at=0;while(at<r->content_len){int n=httpd_req_recv(r,(char *)data+at,r->content_len-at);if(n<=0)break;at+=(unsigned)n;}
-  bool ok=at==r->content_len&&dsr_photo_save(id,data,at);free(data);return json(r,ok?"200 OK":"400 Bad Request",ok?"{\"saved\":true}":"{\"error\":\"Photo checksum, storage or 16-photo limit\"}");
+  bool ok=at==r->content_len&&dsr_photo_save(id,data,at);free(data);return json(r,ok?"200 OK":"400 Bad Request",ok?"{\"saved\":true}":"{\"error\":\"Nie zapisano zdjęcia: suma kontrolna, pamięć lub limit 16 zdjęć. Zapisz usunięcie nieużywanych zdjęć i uruchom pilot ponownie, aby odzyskać miejsce.\"}");
  }
  if(!strcmp(r->uri,"/api/v1/ota")&&r->method==HTTP_POST)return ota(r);
  if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST){esp_err_t e=json(r,"200 OK","{\"restarting\":true}");vTaskDelay(pdMS_TO_TICKS(500));esp_restart();return e;}

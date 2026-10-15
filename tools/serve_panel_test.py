@@ -47,6 +47,7 @@ lan_device={key:(bytes(getattr(device,key)).decode() if key not in ['generation'
 raw=lib.cJSON_Parse(b'{"switch:1":{"id":1,"output":false},"switch:4":{"id":4,"output":true}}');caps=LanCaps();assert lib.dsr_lan_parse_capabilities(raw,2,ctypes.byref(caps))==0;lib.cJSON_Delete(raw)
 lan={'phase':0,'serial':0,'result':0,'devices':[],'selected':{},'capabilities':{}}
 lan_ready_at=0
+save_delay=0
 rendered=None
 def frame():
     global rendered
@@ -68,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
         if cookie:self.send_header('Set-Cookie','dsr_session=TEST_ONLY; Path=/; HttpOnly; SameSite=Strict')
         self.end_headers();self.wfile.write(data)
     def route(self):
-        global config,lan_ready_at
+        global config,lan_ready_at,save_delay
         if not self.path.startswith('/api/'):
             files={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css'}
             if self.path not in files:return self.send(404,{})
@@ -79,6 +80,8 @@ class Handler(BaseHTTPRequestHandler):
         if 'dsr_session=TEST_ONLY' not in self.headers.get('Cookie',''):return self.send(401,{'error':'TEST fixture: pair using code 0123456789abcdef'})
         if self.path=='/api/v1/config' and self.command=='GET':return self.send(200,config)
         if self.path=='/api/v1/config' and self.command=='PUT':
+            # Test-only delayed acknowledgement exercises edits made in flight.
+            if save_delay:time.sleep(save_delay)
             with mutex:
                 revision=json.loads(config)['revision'];e=ctypes.create_string_buffer(96);next_config=take(lib.dsr_config_replace(config,body,revision,e))
                 if not next_config:return self.send(409,{'error':e.value.decode()})
@@ -86,6 +89,7 @@ class Handler(BaseHTTPRequestHandler):
                 config=next_config
             return self.send(202,{'saving':True})
         if self.path=='/api/v1/status':return self.send(200,{'revision':json.loads(config)['revision'],'busy':False,'message':'Saved','device_busy':False,'device_result':0,'firmware':'HOST TEST · DEMO'})
+        if self.path=='/api/v1/test/save-delay':save_delay=float(body or b'0');return self.send(200,{})
         if self.path=='/api/v1/discovery/scan':
             lan.update(phase=1,devices=[],serial=lan['serial']+1,probed=0,total=1);lan_ready_at=time.monotonic()+.2
             return self.send(202,{'scanning':True})

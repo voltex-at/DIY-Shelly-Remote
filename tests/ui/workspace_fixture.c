@@ -4,13 +4,17 @@
 #include <string.h>
 /* Disabled for the original Wi-Fi fixture until explicitly enabled. */
 static char *stored;
+static char *pending;
+static bool defer_save;
+void test_workspace_defer(bool enabled){defer_save=enabled;}
+void test_workspace_finish(bool success){if(success){free(stored);stored=pending;}else free(pending);pending=NULL;}
 void test_workspace_enable(void){stored=dsr_config_default();}
-void test_workspace_disable(void){free(stored);stored=NULL;}
+void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;defer_save=false;}
 char *dsr_workspace_snapshot(void){if(!stored)return NULL;char *copy=malloc(strlen(stored)+1);if(copy)strcpy(copy,stored);return copy;}
 uint32_t dsr_workspace_revision(void){return stored?dsr_config_revision(stored):0;}
 bool dsr_workspace_submit(const char *json,uint32_t revision)
-{char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;free(stored);stored=next;return true;}
-void dsr_workspace_status(bool *busy,char message[96]){*busy=false;message[0]=0;}
+{if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;}return true;}
+void dsr_workspace_status(bool *busy,char message[96]){*busy=pending!=NULL;message[0]=0;}
 void dsr_panel_pair_begin(char code[17]){strcpy(code,"0123456789abcdef");}
 void dsr_panel_pair_cancel(void){}
 void dsr_panel_allow_ota(void){}

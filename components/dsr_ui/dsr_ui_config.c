@@ -39,6 +39,9 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
 
 #ifndef DSR_UI_REVIEW_DEMO
 static cJSON *draft;
+/* A pending write owns an immutable snapshot; later edits remain in draft. */
+static cJSON *submitted_draft,*saved_baseline;
+static bool save_failed,save_confirmed;
 static uint32_t draft_revision;
 static char collection_name[16];
 static cJSON *editing;
@@ -48,7 +51,9 @@ static bool own_save;
 static bool dashboard_picker;
 static unsigned tile_page;
 static cJSON *fields_tile;
-void dsr_ui_workspace_hide(void){editor_active=false;body=keyboard=status_label=NULL;}
+static void clear_draft(void)
+{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;}
+void dsr_ui_workspace_hide(void){editor_active=false;body=keyboard=status_label=NULL;clear_draft();}
 static void show_menu(void);
 static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
@@ -67,11 +72,15 @@ static lv_obj_t *screen(const char *title)
  keyboard=lv_keyboard_create(root);lv_obj_set_size(keyboard,320,210);lv_obj_align(keyboard,LV_ALIGN_BOTTOM_MID,0,0);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  return root;
 }
-static void return_home(lv_event_t *e){(void)e;editor_active=false;cJSON_Delete(draft);draft=NULL;editing=NULL;body=keyboard=status_label=NULL;dsr_network_home(NULL);}
+static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_network_home(NULL);}
 static void save(lv_event_t *event)
 {
- (void)event;char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,error);return;}
- char *json=cJSON_PrintUnformatted(draft);bool ok=json&&dsr_workspace_submit(json,draft_revision);free(json);own_save=ok;dsr_sc_label_set_text(status_label,ok?"Zapisywanie…":"Konflikt lub zapis w toku. Wczytaj z pilota.");
+ (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
+ char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
+ cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
+ bool ok=json&&dsr_workspace_submit(json,draft_revision);free(json);
+ if(ok){cJSON_Delete(submitted_draft);submitted_draft=snapshot;own_save=true;save_failed=false;}else{cJSON_Delete(snapshot);save_failed=true;}
+ dsr_sc_label_set_text(status_label,ok?"Zapisywanie…":"Konflikt lub zapis w toku. Wczytaj z pilota.");
 }
 static void actions(lv_obj_t *root,lv_event_cb_t back)
 {dsr_ui_button(root,"Wstecz",12,420,140,back,NULL);dsr_ui_button(root,"Zapisz",168,420,140,save,NULL);}
@@ -202,7 +211,7 @@ static void show_entity(cJSON *entity)
   for(cJSON *t=tiles->child;t;t=t->next,i++){
    if((unsigned)i/3!=tile_page)continue;
    const char *type=string(t,"type");const cJSON *a=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":"scenes"),*target=cJSON_GetArrayItem(a,(int)object_index(a,integer(t,"ref")));
-   int y=80+visible++*182;char text[100];snprintf(text,sizeof(text),"%s • %s",string(target,"name"),integer(t,"height")==2?"duża":"standard");
+   int y=80+visible++*182;char text[100];snprintf(text,sizeof(text),"%s • %s",string(target,"name"),dsr_sc_tr(integer(t,"height")==2?"duża":"standard"));
    dsr_sc_text(body,text,0,y,280,&dsr_roboto_14,DSR_SC_TEXT);
    dsr_ui_button(body,"Obiekt",0,y+22,87,tile_next,t);dsr_ui_button(body,"Układ",96,y+22,87,tile_span,t);dsr_ui_button(body,"Typ",192,y+22,87,tile_type,t);
    dsr_ui_button(body,"Wys.",0,y+74,87,tile_size,t);dsr_ui_button(body,"Dane",96,y+74,87,tile_fields,t);dsr_ui_button(body,"Usuń",192,y+74,87,tile_remove,(void *)(uintptr_t)i);
@@ -234,7 +243,7 @@ static const choice_t language_choice={"language","pl\nen\nde",false},theme_choi
 static const uint32_t colors[]={DSR_SC_BLUE,0x34cbb5,0x8c9dff,0xe4a858};
 static void color_selected(lv_event_t *event){unsigned at=lv_dropdown_get_selected(lv_event_get_target(event));if(at<4)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"accent"),colors[at]);}
 static void appearance(lv_event_t *event)
-{(void)event;editing=draft;lv_obj_t *root=screen("Wygląd i język");add_choice("Język: Polski / English / Deutsch",&language_choice,0);add_choice("Motyw",&theme_choice,80);dsr_sc_text(body,"Kolor akcentu",2,160,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *color=lv_dropdown_create(body);lv_obj_set_pos(color,0,181);lv_obj_set_size(color,284,44);lv_dropdown_set_options(color,"Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu");unsigned chosen=4;for(unsigned i=0;i<4;i++)if((uint32_t)integer(draft,"accent")==colors[i])chosen=i;lv_dropdown_set_selected(color,chosen);lv_obj_add_event_cb(color,color_selected,LV_EVENT_VALUE_CHANGED,NULL);object_choice("Pulpit startowy","active_dashboard",240);actions(root,menu_event);}
+{(void)event;editing=draft;lv_obj_t *root=screen("Wygląd i język");add_choice("Język: Polski / English / Deutsch",&language_choice,0);add_choice("Motyw",&theme_choice,80);dsr_sc_text(body,"Kolor akcentu",2,160,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *color=lv_dropdown_create(body);lv_obj_set_pos(color,0,181);lv_obj_set_size(color,284,44);lv_dropdown_set_options(color,dsr_sc_tr("Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu"));unsigned chosen=4;for(unsigned i=0;i<4;i++)if((uint32_t)integer(draft,"accent")==colors[i])chosen=i;lv_dropdown_set_selected(color,chosen);lv_obj_add_event_cb(color,color_selected,LV_EVENT_VALUE_CHANGED,NULL);object_choice("Pulpit startowy","active_dashboard",240);actions(root,menu_event);}
 static void pair_browser(lv_event_t *event)
 {
  (void)event;char code[17];dsr_panel_pair_begin(code);lv_obj_t *root=screen("Parowanie Web Panelu");
@@ -251,13 +260,13 @@ static void show_menu(void)
 }
 void dsr_ui_edit_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;cJSON_Delete(draft);draft=cJSON_Parse(json);free(json);if(!draft)return;draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=false;tile_page=0;show_menu();
+ char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
 }
 static void pick_dashboard(lv_event_t *event)
 {cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),(unsigned)(uintptr_t)lv_event_get_user_data(event));save(NULL);}
 void dsr_ui_select_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;cJSON_Delete(draft);draft=cJSON_Parse(json);free(json);if(!draft)return;
+ char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);
  draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
@@ -267,8 +276,24 @@ void dsr_ui_workspace_tick(void)
 {
  if(!editor_active||!draft||!status_label)return;
  bool busy;char message[96];dsr_workspace_status(&busy,message);uint32_t revision=dsr_workspace_revision();
- if(revision!=draft_revision){if(own_save&&revision==draft_revision+1){draft_revision=revision;own_save=false;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);if(dashboard_picker){dashboard_picker=false;return_home(NULL);return;}dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");}else dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");}
- else if(busy||message[0])dsr_sc_label_set_text(status_label,message);
+ if(revision!=draft_revision){
+  bool acknowledged=false;
+  if(own_save&&submitted_draft&&revision==draft_revision+1){
+   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(submitted_draft,"revision"),revision);
+   char *json=dsr_workspace_snapshot();cJSON *published=json?cJSON_Parse(json):NULL;free(json);
+   acknowledged=published&&cJSON_Compare(published,submitted_draft,true);cJSON_Delete(published);
+  }
+  if(!acknowledged){dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");return;}
+  draft_revision=revision;own_save=false;save_confirmed=true;save_failed=false;
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);
+  cJSON_Delete(saved_baseline);saved_baseline=submitted_draft;submitted_draft=NULL;
+ }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
+ bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
+ if(dashboard_picker&&save_confirmed&&!dirty){dashboard_picker=false;return_home(NULL);return;}
+ if(own_save)dsr_sc_label_set_text(status_label,"Zapisywanie…");
+ else if(save_failed)dsr_sc_label_set_text(status_label,"Zapis nie powiódł się. Zmiany pozostają w edytorze.");
+ else if(dirty)dsr_sc_label_set_text(status_label,save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany");
+ else if(save_confirmed)dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");
 }
 void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t room,const char *previous_host)
 {

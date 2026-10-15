@@ -1,5 +1,27 @@
 # Project status
 
+## PR #5 review fixes — durable acknowledgement and photo reclamation
+
+Branch `work/config-save-photo-fixes`, stacked on PR #10. Native and browser
+editors retain an immutable submitted snapshot A and preserve edits B made
+while A is being saved. Only a matching, published durable document confirms
+A; B stays visibly unsaved and can be submitted against the new revision.
+Failure keeps the draft. A second Save while pending does not lose tracking.
+Native messages, tile size and accent choices use PL/EN/DE; Polish glyphs and
+symbol fallback are covered by the Issue #7 font correction.
+
+At boot, the verified current document refreshes the older checkpoint. Then
+unused content-addressed photos are removed before the immutable photo cache
+or LVGL is created. Both retained checkpoint references are protected; any
+remaining corrupt/future checkpoint disables deletion. Live LVGL photo pointers
+are never freed. Save removals and restart to reclaim Flash/cache slots.
+
+Local UBSan: 265 configuration checks (real checkpoint files/GC), 378 integrated
+LVGL checks, 94 core, 545 HTTP/parser/NVS and 222 Wi-Fi checks pass. Browser
+regression edits B during delayed A acknowledgement. Target CI is required for
+this commit. [Acceptance procedure and limits](docs/REVIEW_FIXES.md).
+No physical ESP32 validation or main merge is claimed.
+
 ## Issue #7 A — real LAN discovery and wizard
 
 Dedicated branch `work/issue-7-lan-discovery`, stacked on the visual PR #9.
@@ -15,7 +37,8 @@ configuration entry for the same saved physical ID. Unsupported covers/sensors
 are identified but cannot be falsely bound as a relay. AP/BLE stay disabled.
 Native LVGL: 362 checks and 19 frames including no-Wi-Fi, discovery, auth error,
 nonconsecutive channels and room binding. The service checkpoint `efe4db2` passed
-all five jobs in run 38748844770; integrated UI/API receives its own build.
+all five jobs in run 38748844770. Integrated UI/API `8a83628` passed all five
+jobs in [run 38752429842](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38752429842).
 Browser onboarding tests use explicit radio fixtures plus the actual C parser;
 they do not establish physical LAN operation. [Physical procedure](docs/ISSUE7_LAN.md).
 

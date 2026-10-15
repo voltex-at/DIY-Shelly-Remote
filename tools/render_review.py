@@ -23,7 +23,13 @@ if not args.no_run:
     subprocess.run(["python3", str(ROOT / "tools/test_ui.py"), "--review"], check=True)
 out = args.out.resolve()
 out.mkdir(parents=True, exist_ok=True)
-source = ROOT / "build-ui/review-native/screenshots"
+def latest_frames(names):
+    directories=[ROOT / 'build-ui' / name / 'screenshots' for name in names]
+    directories=[d for d in directories if list(d.glob('*.ppm'))]
+    assert directories, 'Run the native LVGL tests before exporting'
+    return max(directories,key=lambda d:max(p.stat().st_mtime_ns for p in d.glob('*.ppm')))
+
+source = latest_frames(['review-native','review-ubsan','review-asan'])
 
 def chunk(kind, data):
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
@@ -43,10 +49,8 @@ for path in sorted(source.glob("*.ppm")):
     frames[path.stem] = rgb
     png(out / (path.stem + ".png"), 320, 480, rgb)
 assert len(frames) >= 13
-onboarding = ROOT / "build-ui/native/screenshots"
-if not onboarding.exists():
-    onboarding = ROOT / "build-ui/asan/screenshots"
-for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-password-keyboard", "21-fixture-wifi-keyboard"), ("14-add-device-wizard", "22-fixture-add-wizard"), ("15-lan-scanning", "23-fixture-lan-scanning"), ("16-lan-results", "24-fixture-lan-results"), ("17-lan-auth-error", "25-fixture-lan-auth-error"), ("18-lan-components", "26-fixture-lan-components"), ("19-lan-no-wifi", "27-fixture-lan-no-wifi")]:
+onboarding = latest_frames(['native','ubsan','asan'])
+for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-password-keyboard", "21-fixture-wifi-keyboard"), ("14-add-device-wizard", "22-fixture-add-wizard"), ("15-lan-scanning", "23-fixture-lan-scanning"), ("16-lan-results", "24-fixture-lan-results"), ("17-lan-auth-error", "25-fixture-lan-auth-error"), ("18-lan-components", "26-fixture-lan-components"), ("19-lan-no-wifi", "27-fixture-lan-no-wifi"), ("20-workspace-save-race", "28-fixture-save-a-edited-b")]:
     path = onboarding / (original + ".ppm")
     if path.exists():
         _, size, _, rgb = path.read_bytes().split(b"\n", 3)
