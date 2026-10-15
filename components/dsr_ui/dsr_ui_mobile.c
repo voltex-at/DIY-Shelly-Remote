@@ -55,12 +55,7 @@ static lv_obj_t *icon_button(lv_obj_t *p,dsr_ui_icon_t icon,int x,int y,int size
 
 static void header(lv_obj_t *root,const char *title,bool back)
 {
-    if(back)icon_button(root,DSR_ICON_BACK,0,0,44,DSR_SC_BG,navigate,(void *)(uintptr_t)98);
-    lv_obj_t *name=dsr_sc_text(root,title,back?42:12,9,back?204:207,&dsr_roboto_18,DSR_SC_TEXT);truncate(name,24);
-    if(!back)dsr_sc_icon(root,DSR_ICON_CHEVRON,116,12,15,DSR_SC_MUTED);
-    if(model.demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);edge(badge,0xe1bb70,1);
-        center(dsr_sc_text(badge,"DEMO",0,4,54,&dsr_roboto_12,0xffd68a));}
-    else dsr_sc_icon(root,DSR_ICON_WIFI,280,10,22,model.wifi?DSR_SC_BLUE:DSR_SC_OFF);
+    dsr_sc_header(root,title,model.demo,model.wifi,back?navigate:NULL,(void *)(uintptr_t)98);
 }
 static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event_cb_t cb,void *ctx)
 {
@@ -80,24 +75,16 @@ static void tabs(lv_obj_t *root)
     tab(root,"Grupy",103,55,false,NULL,NULL);tab(root,"Sceny",160,55,false,NULL,NULL);
     tab(root,"Urządzenia",217,103,page==DSR_MOBILE_DEVICES,navigate,(void *)(uintptr_t)DSR_MOBILE_DEVICES);
 }
+static void bottom_action(lv_event_t *event)
+{
+ unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);
+ if(i==0)dsr_mobile_show(DSR_MOBILE_HOME,0);else if(i==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);
+ else if(i==3&&actions.open_settings)actions.open_settings();else if(i==4&&actions.add_device)actions.add_device();
+}
 static void bottom(lv_obj_t *root)
 {
-    lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);edge(bar,0x60646b,1);
-    lv_obj_set_style_bg_grad_color(bar,lv_color_hex(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
-    int current=page==DSR_MOBILE_HOME?0:1;
-    dsr_sc_panel(bar,11+current*53,0,32,3,DSR_SC_BLUE,2);
-    const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_ENERGY,DSR_ICON_SETTINGS,DSR_ICON_SCENES,DSR_ICON_PLUS};
-    const unsigned targets[]={DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,99,10,12,11};
-    for(unsigned i=0;i<6;i++){
-        int x=(int)i*320/6,w=(int)(i+1)*320/6-x;
-        lv_obj_t *b=dsr_sc_button(bar,x,4,w,47,DSR_SC_NAV,0,
-            targets[i]==99?NULL:navigate,(void *)(uintptr_t)targets[i]);
-        lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-        if(i==5){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);
-            dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
-        else dsr_sc_icon_centered(b,icons[i],26,i==(unsigned)current?DSR_SC_TEXT:0xbec5cd);
-        if((i==3&&!actions.open_settings)||(i==4&&!actions.edit_dashboard)||(i==5&&!actions.add_device)||i==2)lv_obj_add_state(b,LV_STATE_DISABLED);
-    }
+ unsigned enabled=3u|(actions.open_settings?8u:0u)|(actions.add_device?16u:0u);
+ dsr_sc_navigation(root,page==DSR_MOBILE_HOME?0:1,enabled,bottom_action);
 }
 static void toolbar(lv_obj_t *root,const char *title)
 {
@@ -158,7 +145,6 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
      card_control(card,i,DSR_ICON_DOWN,width-54,44,valid,cover_control,i*2);
     }else if(!sensor)card_control(card,i,DSR_ICON_POWER,width-58,48,d->online&&!d->busy&&d->can_switch,control,i);
     if(!fields)return;
-    lv_obj_t *strip=dsr_sc_panel(card,68,height-26,width-78,20,0x292d30,6);
     char values[128]={0},part[40];
     if(!d->online)snprintf(values,sizeof(values),"Offline • odczyty niedostępne");
     else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"%s   %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else snprintf(values,sizeof(values),"%s   —",dsr_sc_tr("Pozycja"));}
@@ -171,7 +157,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
       if(fields&1){if(d->has_power)snprintf(values,sizeof(values),"%.1f W",d->power_w);else snprintf(values,sizeof(values),"— W");}
       if(fields&2){if(d->has_voltage)snprintf(part,sizeof(part),"    %.1f V",d->voltage_v);else snprintf(part,sizeof(part),"    — V");strncat(values,part,sizeof(values)-strlen(values)-1);}
     }
-    dsr_sc_text(strip,values,7,3,width-92,&dsr_roboto_12,d->online?DSR_SC_TEXT:0xffc18c);
+    if(values[0])dsr_sc_chip(card,values,68,height-26,width-78,d->online?DSR_SC_TEXT:0xffc18c);
 }
 static dsr_ui_icon_t room_icon(unsigned i)
 {

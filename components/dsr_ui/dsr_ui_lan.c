@@ -13,6 +13,7 @@ static dsr_lan_device_t selected;
 static dsr_lan_capabilities_t capabilities;
 static dsr_credentials_t credentials;
 static lv_obj_t *notice,*username,*password,*name,*room,*channel,*save_button;
+static lv_obj_t *form_body;
 static uint32_t room_ids[9];
 static uint8_t channels[16];
 static void show_results(void);
@@ -22,7 +23,7 @@ bool dsr_ui_lan_active(void){return active;}
 
 void dsr_ui_lan_reset(void)
 {
-    active=false;notice=username=password=name=room=channel=save_button=NULL;
+    active=false;notice=username=password=name=room=channel=save_button=form_body=NULL;
     if(!building){memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;}
 }
 static lv_obj_t *screen(const char *title)
@@ -38,15 +39,18 @@ static lv_obj_t *field(lv_obj_t *root,const char *caption,int y,const char *text
     dsr_sc_text(root,caption,16,y,288,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *f=lv_textarea_create(root);dsr_ui_textarea(f);
     lv_obj_set_pos(f,16,y+18);lv_obj_set_size(f,288,44);lv_textarea_set_one_line(f,true);lv_textarea_set_max_length(f,secret?64:47);lv_textarea_set_password_mode(f,secret);lv_textarea_set_text(f,text);return f;
 }
-static void keyboard_close(lv_event_t *event){lv_obj_t *kb=lv_event_get_user_data(event);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_keyboard_set_textarea(kb,NULL);}
+static void keyboard_close(lv_event_t *event){lv_obj_t *kb=lv_event_get_user_data(event);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_keyboard_set_textarea(kb,NULL);if(form_body)lv_obj_set_height(form_body,214);}
 static void focus(lv_event_t *event)
-{lv_obj_t *kb=lv_event_get_user_data(event);lv_keyboard_set_textarea(kb,lv_event_get_target(event));lv_obj_remove_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(kb);}
+{lv_obj_t *kb=lv_event_get_user_data(event);if(form_body)lv_obj_set_height(form_body,82);dsr_ui_keyboard_focus(kb,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
 static void keyboard(lv_obj_t *root,lv_obj_t *a,lv_obj_t *b)
 {
-    lv_obj_t *kb=lv_keyboard_create(root);dsr_ui_keyboard(kb);lv_obj_set_size(kb,320,210);lv_obj_align(kb,LV_ALIGN_BOTTOM_MID,0,0);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t *kb=lv_keyboard_create(root);dsr_ui_keyboard(kb);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(kb,keyboard_close,LV_EVENT_READY,kb);lv_obj_add_event_cb(kb,keyboard_close,LV_EVENT_CANCEL,kb);
-    lv_obj_add_event_cb(a,focus,LV_EVENT_CLICKED,kb);if(b)lv_obj_add_event_cb(b,focus,LV_EVENT_CLICKED,kb);
+    lv_obj_add_event_cb(a,focus,LV_EVENT_CLICKED,kb);lv_obj_add_event_cb(a,focus,LV_EVENT_FOCUSED,kb);if(b){lv_obj_add_event_cb(b,focus,LV_EVENT_CLICKED,kb);lv_obj_add_event_cb(b,focus,LV_EVENT_FOCUSED,kb);}
 }
+static void toggle_secret(lv_event_t *event){if(password)lv_textarea_set_password_mode(password,!lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED));}
+static lv_obj_t *form(lv_obj_t *root)
+{form_body=dsr_sc_panel(root,0,154,320,214,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);return form_body;}
 static void identity(lv_obj_t *root)
 {
     lv_obj_t *card=dsr_sc_panel(root,12,83,296,64,DSR_SC_CARD,12);dsr_sc_icon(card,DSR_ICON_PLUG,10,16,32,DSR_SC_TEXT);
@@ -94,8 +98,9 @@ static void show_results(void)
 static void show_credentials(void)
 {
     lv_obj_t *root=screen("Sprawdź urządzenie");identity(root);
-    username=field(root,"Login",158,selected.generation>=2?"admin":"admin",false);password=field(root,"Hasło Shelly",226,"",true);
-    notice=dsr_sc_text(root,"Dane logowania służą tylko wybranemu urządzeniu.",16,306,288,&dsr_roboto_12,DSR_SC_MUTED);
+    lv_obj_t *body=form(root);username=field(body,"Login",0,"admin",false);password=field(body,"Hasło Shelly",76,"",true);
+    lv_obj_t *show=lv_checkbox_create(body);lv_obj_set_pos(show,16,152);lv_checkbox_set_text(show,dsr_sc_tr("Show"));lv_obj_add_event_cb(show,toggle_secret,LV_EVENT_VALUE_CHANGED,NULL);
+    notice=dsr_sc_text(root,"Dane logowania służą tylko wybranemu urządzeniu.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
     dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);dsr_ui_button(root,"Sprawdź",168,420,140,inspect,NULL);keyboard(root,username,password);
 }
 static void bind(lv_event_t *event)
@@ -112,18 +117,18 @@ void dsr_ui_lan_bind_result(dsr_result_t result)
 static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie");identity(root);
-    name=field(root,"Nazwa",154,selected.name,false);dsr_sc_text(root,"Pomieszczenie",16,222,288,&dsr_roboto_12,DSR_SC_MUTED);
+    lv_obj_t *body=form(root);name=field(body,"Nazwa",0,selected.name,false);dsr_sc_text(body,"Pomieszczenie",16,76,288,&dsr_roboto_12,DSR_SC_MUTED);
     char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));room_ids[0]=0;unsigned count=1;
     char *configuration=dsr_workspace_snapshot();if(configuration){cJSON *r=cJSON_Parse(configuration);free(configuration);const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(r,"rooms")){
         if(count>=9)break;
         const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*label=cJSON_GetObjectItemCaseSensitive(v,"name");if(!cJSON_IsNumber(id)||!cJSON_IsString(label))continue;
         strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,label->valuestring,sizeof(options)-strlen(options)-1);room_ids[count++]=(uint32_t)id->valueint;
     }cJSON_Delete(r);}
-    room=lv_dropdown_create(root);lv_obj_set_pos(room,16,240);lv_obj_set_size(room,288,44);lv_dropdown_set_options(room,options);
-    dsr_sc_text(root,"Kanał z odpowiedzi API",16,292,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
+    room=lv_dropdown_create(body);lv_obj_set_pos(room,16,94);lv_obj_set_size(room,288,44);lv_dropdown_set_options(room,options);
+    dsr_sc_text(body,"Kanał z odpowiedzi API",16,146,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
     for(unsigned i=0;i<16;i++)if(capabilities.switches&(1u<<i)){char text[16];snprintf(text,sizeof(text),"%s%u",count?"\n":"",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)i;}
-    channel=lv_dropdown_create(root);lv_obj_set_pos(channel,16,310);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
-    notice=dsr_sc_text(root,count?"Jedno aktywne połączenie. Zapis zastąpi poprzednie.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,365,288,&dsr_roboto_12,DSR_SC_MUTED);
+    channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
+    notice=dsr_sc_text(root,count?"Jedno aktywne połączenie. Zapis zastąpi poprzednie.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
     dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);save_button=dsr_ui_button(root,"Zapisz",168,420,140,bind,NULL);if(!count)lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
 }
 void dsr_ui_lan_tick(void)

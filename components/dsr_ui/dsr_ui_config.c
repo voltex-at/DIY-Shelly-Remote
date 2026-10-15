@@ -59,7 +59,7 @@ static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
 static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);if(body)lv_obj_set_height(body,292);}
 static void focus(lv_event_t *event)
-{if(!keyboard)return;lv_obj_set_height(body,132);lv_obj_remove_flag(keyboard,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(keyboard);lv_keyboard_set_textarea(keyboard,lv_event_get_target(event));}
+{if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
 static void set_text(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
 static void set_number(lv_event_t *event)
@@ -67,9 +67,10 @@ static void set_number(lv_event_t *event)
 static lv_obj_t *screen(const char *title)
 {
  dsr_network_reset_view();dsr_mobile_hide();lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);lv_obj_set_style_bg_color(root,lv_color_hex(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);lv_obj_set_style_text_font(root,&dsr_roboto_14,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
- dsr_sc_text(root,title,14,12,290,&dsr_roboto_18,DSR_SC_TEXT);status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,42,292,&dsr_roboto_11,DSR_SC_MUTED);
- body=dsr_sc_panel(root,12,74,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
- keyboard=lv_keyboard_create(root);lv_obj_set_size(keyboard,320,210);lv_obj_align(keyboard,LV_ALIGN_BOTTOM_MID,0,0);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
+ dsr_sc_header(root,"Mój dom",false,dsr_wifi_connected(),NULL,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
+ status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,82,292,&dsr_roboto_11,DSR_SC_MUTED);
+ body=dsr_sc_panel(root,12,106,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ keyboard=lv_keyboard_create(root);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  return root;
 }
 static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_network_home(NULL);}
@@ -90,6 +91,7 @@ static void add_field(const char *caption,const char *key,int y,bool numeric)
  dsr_sc_text(body,caption,2,y,280,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *f=lv_textarea_create(body);dsr_ui_textarea(f);lv_obj_set_pos(f,0,y+21);lv_obj_set_size(f,284,44);lv_textarea_set_one_line(f,true);
  lv_textarea_set_max_length(f,!strcmp(key,"name")?47:!strcmp(key,"host")?15:40);
  char text[32];if(numeric){snprintf(text,sizeof(text),"%d",integer(editing,key));lv_textarea_set_accepted_chars(f,"0123456789");lv_textarea_set_text(f,text);}else lv_textarea_set_text(f,string(editing,key));
+ if(!strcmp(key,"host"))lv_textarea_set_accepted_chars(f,"0123456789.");
  lv_obj_add_event_cb(f,focus,LV_EVENT_FOCUSED,NULL);lv_obj_add_event_cb(f,focus,LV_EVENT_CLICKED,NULL);lv_obj_add_event_cb(f,numeric?set_number:set_text,LV_EVENT_VALUE_CHANGED,(void *)key);
 }
 typedef struct {const char *key,*options;bool numeric;} choice_t;

@@ -1,8 +1,12 @@
-# Konfiguracja dotykowa i lokalny Web Panel — 0.5.1-review-fixes
+# Konfiguracja dotykowa i lokalny Web Panel — 0.6.0-ui-dev
 
-Wersja rozwojowa do oceny w PR #9–#11, oparta na PR #5, nie scalona z main. Render HOME i panel są
+Wersja rozwojowa oparta na PR #5 i stosie #9–#11, nie scalona z main. Render HOME i panel są
 wygenerowane z kodu projektu. Kompilacja i testy na komputerze przeszły; ta wersja
 nie ma jeszcze potwierdzenia działania HTTPS, zapisu i OTA na fizycznym ES3C35P.
+
+Nowy wspólny wygląd i większa klawiatura: UNIFIED_UI.md. Użytkownik potwierdził
+Wi-Fi, LAN, dodanie i ON/OFF Shelly 1PM Mini Gen3 w poprzednim pakiecie.
+Nowa wersja wymaga ponownego testu tych działań; wizualny odbiór pozostaje otwarty.
 
 ## Pierwsze wgranie z 0.2.0
 

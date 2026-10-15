@@ -81,21 +81,21 @@ static void show_password(const char *error)
         lv_obj_t *connect = dsr_ui_button(root, "Connect", 16, 284, 288, join, NULL); dsr_ui_primary(connect);
         dsr_ui_button(root, "Back to networks", 16, 348, 288, back_to_list, NULL); return;
     }
-    dsr_ui_label(root, "Password", 16, 112, 190);
+    dsr_ui_label(root, "Password", 16, 108, 190);
     lv_obj_t *show = lv_checkbox_create(root); lv_checkbox_set_text(show, dsr_sc_tr("Show"));
-    lv_obj_set_pos(show, 217, 106); lv_obj_set_style_text_color(show, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_set_pos(show, 217, 104); lv_obj_set_style_text_color(show, dsr_sc_color(DSR_SC_TEXT), 0);
     lv_obj_add_event_cb(show, toggle_password, LV_EVENT_VALUE_CHANGED, NULL);
     password = lv_textarea_create(root); dsr_ui_textarea(password);
-    lv_obj_set_pos(password, 16, 138); lv_obj_set_size(password, 288, 44);
+    lv_obj_set_pos(password, 16, 130); lv_obj_set_size(password, 288, 44);
     lv_textarea_set_one_line(password, true); lv_textarea_set_max_length(password, 64);
     lv_textarea_set_password_mode(password, true); lv_textarea_set_text(password, candidate.password);
-    notice = dsr_ui_label(root, error ? error : "", 16, 187, 288);
-    lv_obj_set_height(notice, 32); lv_obj_set_style_text_color(notice, lv_color_hex(0xffc077), 0);
-    lv_obj_t *back = dsr_ui_button(root, "Back", 16, 222, 136, back_to_list, NULL);
-    lv_obj_t *connect = dsr_ui_button(root, "Connect", 168, 222, 136, join, NULL);
+    notice = dsr_sc_text(root,error ? error : "",16,177,288,&dsr_roboto_12,0xffc077);
+    lv_obj_set_height(notice, 18);lv_label_set_long_mode(notice,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+    lv_obj_t *back = dsr_ui_button(root, "Back", 16, 196, 136, back_to_list, NULL);
+    lv_obj_t *connect = dsr_ui_button(root, "Connect", 168, 196, 136, join, NULL);
     lv_obj_set_height(back, 44); lv_obj_set_height(connect, 44); dsr_ui_primary(connect);
     lv_obj_t *keyboard = lv_keyboard_create(root); dsr_ui_keyboard(keyboard);
-    lv_obj_set_size(keyboard, 320, 208); lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER); lv_keyboard_set_textarea(keyboard, password);
     lv_obj_add_event_cb(keyboard, join, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(keyboard, back_to_list, LV_EVENT_CANCEL, NULL);
@@ -122,7 +122,7 @@ static void show_networks(void)
     lv_obj_set_style_text_color(caption, lv_color_hex(0x9db5d1), 0);
     lv_obj_t *list = lv_obj_create(root); lv_obj_set_pos(list, 12, 115); lv_obj_set_size(list, 296, 287);
     lv_obj_set_style_pad_all(list, 0, 0); lv_obj_set_style_border_width(list, 0, 0);
-    lv_obj_set_style_bg_color(list, lv_color_hex(0x10141c), 0);
+    lv_obj_set_style_bg_color(list, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER);
     if (!networks.count) dsr_ui_label(list, "No networks found.\nTap Refresh to scan again.\nOnly 2.4 GHz Wi-Fi is supported.", 8, 40, 272);
     for (unsigned i = 0; i < networks.count; i++) {
@@ -134,7 +134,7 @@ static void show_networks(void)
         lv_obj_t *details = dsr_ui_label(row, "", 12, 39, 254);
         dsr_sc_label_set_text_fmt(details, "%s  |  %d dBm", dsr_sc_tr(security_name(ap->security)), ap->rssi);
         lv_obj_set_style_text_color(details, lv_color_hex(0xa8bbd3), 0);
-        dsr_ui_label(row, LV_SYMBOL_WIFI, 246, 11, 22);
+        dsr_sc_icon(row,DSR_ICON_WIFI,246,11,22,DSR_SC_MUTED);
         if (ap->security == DSR_WIFI_UNSUPPORTED) lv_obj_add_state(row, LV_STATE_DISABLED);
     }
     dsr_ui_button(root, "Refresh", 12, 420, 140, dsr_network_wifi, NULL);

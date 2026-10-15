@@ -1,5 +1,34 @@
 # Project status
 
+## 0.6.0 — shared UI shell and readable keyboard (Issues #6 / #8)
+
+Branch `work/issue-6-8-unified-ui`, stacked on the retained 0.5.1 PR #11.
+Five equally spaced navigation targets replace the misleading sparkle shortcut;
+scene icons/editor functionality remain available. Device parameter backgrounds
+are measured from the actual translated text, with padding and a width cap.
+HOME and native Wi-Fi/Shelly/settings/editor screens share header, graphite
+button/card tokens, fonts and active colors. Forms scroll the focused field
+above the keyboard; native password inputs remain masked with a show toggle.
+
+The shared 240px keyboard uses 22px Roboto glyphs, QWERTY (PL/EN), QWERTZ (DE),
+all printable ASCII, separate PL/DE diacritics and numeric/IP mode. The bottom
+row is 123 / cursor left / compact space / cursor right / localized Done.
+Actual LVGL pointer tests cover insertion/deletion inside hidden UTF-8 text,
+cursor limits, all ASCII keys, numeric mode, dimensions and single submission.
+Local UBSan: 986 integrated UI checks/29 frames and 2496 design-review checks
+(including 576 icon raster cases) pass. Target/browser/ASan CI follows in the PR.
+Real screenshots cover the complete Wi-Fi/Shelly flow and settings/editor.
+[Visual comparison and hardware regression procedure](docs/UNIFIED_UI.md).
+
+User-reported physical results received 2026-10-15 via the independent reviewer:
+Wi-Fi scan, three real Gen2/Gen3 LAN results, binding a Shelly 1PM Mini Gen3
+(`S3SW-001P8EU`), roughly 4.0–4.1 W and explicit ON/OFF control work. This is
+evidence for the previously delivered build, not a controlled test of 0.6.0.
+Private footage, SSIDs and addresses are not published. Visual acceptance is
+still open; new hardware regression is pending. Communication/drivers/OTA are
+unchanged. Optional real V/A and visible command errors follow separately in
+Issue #12. No main merge or stable release is authorized.
+
 ## PR #5 review fixes — durable acknowledgement and photo reclamation
 
 Branch `work/config-save-photo-fixes`, stacked on PR #10. Native and browser

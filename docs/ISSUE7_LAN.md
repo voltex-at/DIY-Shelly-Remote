@@ -71,7 +71,16 @@ real wizard; these fixture providers are not part of the ESP32 build. Playwright
 uses the shipped panel with the same C parsers/store and an explicitly simulated
 radio provider. CI separately compiles the real mDNS/ARP/HTTP implementation.
 
-**Physically tested Shelly models for 0.5.0: none yet.** Record the exact source
+**User-reported physical evidence, 2026-10-15:** the independent reviewer relayed
+real Wi-Fi scanning, three Gen2/Gen3 LAN results, successful binding of a Shelly
+1PM Mini Gen3 (`S3SW-001P8EU`) and actual power around 4.0–4.1 W. The user then
+explicitly confirmed that ON/OFF control works. These observations concern the
+previously delivered build; its exact installed SHA was not recorded. They are
+not controlled DHCP/auth/recovery tests or validation of subsequent UI changes.
+Private footage and network/device addresses are not published. Optional V/A
+and command-error presentation remain Issue #12; visual acceptance remains #6.
+
+For each new controlled run, record the exact source
 SHA, ES3C35P revision, real Shelly model/generation/firmware/auth mode and free
 heap/PSRAM. Do not report the host fixtures as a physical result.
 

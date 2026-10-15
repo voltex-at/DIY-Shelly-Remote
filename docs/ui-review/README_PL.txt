@@ -1,31 +1,28 @@
-DIY SHELLY REMOTE — HOME v3 / konfiguracja — 320 × 480
+DIY SHELLY REMOTE — 0.6.0-ui-dev — rzeczywisty LVGL 320 × 480
 
-To rzeczywiste rendery kodu LVGL 9.3.0, nie ilustracje ani makieta HTML.
-Gałąź: work/config-web-panel, wersja 0.4.0-config-dev, draft PR #5.
-Nie scalono zmian z main. Oczekujemy oceny nowego HOME.
+Gałąź: work/issue-6-8-unified-ui, osobny draft PR. Bez scalenia do main.
+To wynik kodu C/LVGL 9.3.0 i bufora RGB565, nie makieta HTML ani ilustracja.
+Manifest opisuje gałąź, renderer i SHA-256 każdego PNG.
 
-01-home.png: światło, czujnik otwarcia i roleta. Szerokie karty, duże
-okrągłe ikony po lewej, nazwa/status pośrodku, jasne sterowanie po prawej,
-ciemne paski W/V, baterii/temperatury i pozycji. Dane oznaczono DEMO.
-Pozostałe pliki pokazują wspólne komponenty, pomieszczenia w dwóch kolumnach,
-szczegóły, offline, pusty tryb rzeczywisty i centrowanie ikon.
+01-home / 10-home-room-photos: poziome karty i fotografie pomieszczeń.
+20–28: prawdziwe formularze z testowym dostawcą radia/konfiguracji.
+30–35: klawiatura PL/EN/DE i IP, z literami 22 px i ruchem kursora.
+36: aktywne hasło Shelly nad klawiaturą. 40–41: menu i ustawienia.
+before-*: zachowane rendery 0.5.1 do porównania przed/po.
 
-Porównanie ze wzorcem użytkownika (Shelly Smart Control 3.77.26):
-- Zachowane: ciemna paleta, grafitowe zaokrąglone karty, niebieski akcent,
-  aktywna druga zakładka, pasek edycji pulpitu i sześć ikon dolnej nawigacji.
-- Pomieszczenia pozostają w dwóch kolumnach, ze zdjęciem i ciemnym polem danych.
-- Urządzenia mają pełną szerokość, zgodnie z korektą użytkownika. Nie są
-  domyślnie układane jak dwukolumnowe karty pomieszczeń ze zrzutu telefonu.
-- Zamiast logo/zasobów Shelly użyto własnych ikon i niezależnej czcionki Roboto.
-- Ekran 320×480 wymaga skróconych nagłówków i przewijanej listy. Brak danych
-  nie jest zastępowany zerami; offline ma własny czytelny status.
+Poprawiono 5-pozycyjną nawigację bez asystenta, dynamiczne chipy pomiarów,
+wspólne nagłówki/przyciski/typografię formularzy, większą klawiaturę i fokus.
+Dolny rząd: 123 | ← | Spacja | → | Gotowe. PL/EN: QWERTY, DE: QWERTZ.
+Shift, symbole, polskie/niemieckie znaki i numery/IP są funkcjonalne.
 
-Kod firmware nie zawiera danych demonstracyjnych. Aktualny transport obsługuje
-jedno rzeczywiste połączenie relay/switch. Roleta, czujnik i sceny mają model
-oraz UI, ale nowe protokoły i wykonawca scen nie są jeszcze wdrożone.
+Kompozycja odnosi się do prywatnego zrzutu Shelly Smart Control użytkownika:
+grafitowe karty, niebieski akcent, poziome urządzenia, 2 kolumny pomieszczeń,
+górne zakładki i dolne ikony. Nie publikujemy zdjęć/filmów użytkownika.
+Ikony: Material Symbols Rounded, Apache-2.0; font: niezależnie licencjonowany
+Roboto. Zdjęcia: Nenad Stojković / Shixart1985, CC BY 2.0; dokładne źródła,
+licencje i zmiany: tests/ui/photos/SOURCES.json w repozytorium.
 
-Dodano wspólny model i edytory dotykowy/Web, trwały zapis i podgląd LVGL.
-Web Panel wymaga parowania na ekranie i HTTPS. Lokalny instalator OTA wymaga
-osobnego zezwolenia dotykiem; to wersja rozwojowa bez podpisów wydawcy.
-Instrukcja i dokładne granice: docs/CONFIG_WEB_PL.md w repozytorium.
-Nie potwierdzono jeszcze tej wersji na fizycznym ES3C35P.
+Dane DEMO oraz testowy dostawca radia nie wchodzą do firmware. Rzeczywisty
+transport nadal obsługuje jedno połączenie relay/switch; AP/BLE są wyłączone.
+Dotychczas użytkownik potwierdził prawdziwy LAN, dodanie i ON/OFF 1PM Mini Gen3.
+Nowe UI nadal wymaga fizycznej regresji i akceptacji. Instrukcja: UNIFIED_UI.md.

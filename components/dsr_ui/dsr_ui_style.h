@@ -18,6 +18,7 @@
 #define DSR_SC_TOUCH_MIN 44
 extern const lv_font_t dsr_roboto_11, dsr_roboto_12, dsr_roboto_14;
 extern const lv_font_t dsr_roboto_16, dsr_roboto_18, dsr_roboto_28;
+extern const lv_font_t dsr_roboto_22;
 
 typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETTINGS,
     DSR_ICON_PLUS, DSR_ICON_POWER, DSR_ICON_BACK, DSR_ICON_EDIT, DSR_ICON_INFO,
@@ -37,4 +38,8 @@ const char *dsr_sc_tr(const char *text);
 void dsr_sc_label_set_text(lv_obj_t *label,const char *text);
 void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...);
 lv_color_t dsr_sc_color(uint32_t color);
+unsigned dsr_sc_language(void);
+void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
+void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
+lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
 #endif

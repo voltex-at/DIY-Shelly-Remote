@@ -9,6 +9,7 @@
 #include <string.h>
 
 static unsigned checks,commands;
+static unsigned edits,settings_opens,add_opens;
 static bool photo_enabled;
 static uint16_t photo_pixels[4][DSR_PHOTO_BYTES/2];
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
@@ -30,6 +31,9 @@ static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=
 
 static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands++;}
 static void noop(void){}
+static void edit_dashboard(void){edits++;}
+static void open_settings(void){settings_opens++;}
+static void add_device(void){add_opens++;}
 const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]>='1'&&id[0]<='4'?photo_pixels[id[0]-'1']:NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
@@ -130,6 +134,19 @@ static void click_power(int size)
   }
  }CHECK(done);
 }
+static void navigation_and_chips(void)
+{
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *bar=NULL;
+ for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);if(lv_obj_get_width(o)==320&&lv_obj_get_height(o)==52)bar=o;}
+ CHECK(bar);unsigned count=0;
+ for(unsigned i=0;i<lv_obj_get_child_count(bar);i++){lv_obj_t *b=lv_obj_get_child(bar,(int)i);if(!lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))continue;CHECK(lv_obj_get_width(b)==64);CHECK(lv_obj_get_height(b)>=44);CHECK(lv_obj_has_state(b,LV_STATE_DISABLED)==(count==2));lv_area_t area;lv_obj_get_coords(b,&area);CHECK(area.x1==(int)count*64&&area.x2==(int)(count+1)*64-1);count++;}CHECK(count==5);
+ lv_obj_t *power=find(lv_screen_active(),"18.6 W    230.1 V");CHECK(power);lv_obj_t *chip=lv_obj_get_parent(power);
+ CHECK(lv_obj_get_width(chip)<160);CHECK(lv_obj_get_width(chip)>=lv_obj_get_width(power)+14);
+ lv_obj_t *position=find(lv_screen_active(),"Pozycja   65%");if(!position)position=find(lv_screen_active(),"Position   65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<120);
+ unsigned before=edits;tap(236,116);CHECK(edits==before+1);
+ before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
+ tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2||argc==3);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -148,9 +165,10 @@ int main(int argc,char **argv)
  check_icon_alignment();save_icon_atlas();
  const uint32_t letters[]={0x105,0x119,0x142,0x144,0x15b,0x17a,0x17c,0xf3,0xe4,0xf6,0xfc,0xdf,0xf00c};
  for(unsigned i=0;i<sizeof(letters)/sizeof(letters[0]);i++){lv_font_glyph_dsc_t glyph;CHECK(lv_font_get_glyph_dsc(&dsr_roboto_14,&glyph,letters[i],0));}
- const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
+ const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=open_settings,.add_device=add_device,.edit_dashboard=edit_dashboard,.select_dashboard=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
+ navigation_and_chips();
  tap(226,358);CHECK(find(lv_screen_active(),"Pozycja   100%"));CHECK(commands==0);
  tap(276,358);CHECK(find(lv_screen_active(),"Pozycja   0%"));CHECK(commands==0);
  dsr_mobile_update(&fixture);
@@ -181,7 +199,9 @@ int main(int argc,char **argv)
  dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");CHECK(find(lv_screen_active(),"65%"));
  fixture.configured_layout=false;fixture.tile_count=0;fixture.dashboard_name[0]=0;fixture.dashboard_id=1;
  dsr_mobile_update(&fixture);dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_HOME,0);save("12-home-english");CHECK(find(lv_screen_active(),"My dashboard"));
+ navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
+ navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
  printf("PASS: %u review checks, 13 real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
  lv_deinit();return 0;

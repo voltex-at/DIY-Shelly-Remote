@@ -98,7 +98,7 @@ jobs:
           cp build-board/partition_table/partition-table.bin build-board/package/partition_table/
           cp dependencies.lock build-board/package/
           cp docs/CONFIG_WEB_PL.md build-board/package/INSTALL_AND_TEST.md
-          cp docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md build-board/package/
+          cp docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md docs/UNIFIED_UI.md build-board/package/
           cp boards/lcdwiki-es3c35p/README.md build-board/package/BOARD_REFERENCE.md
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/package/licenses/
           cp third_party/material-symbols/LICENSE build-board/package/licenses/Material-Symbols-Apache-2.0.txt

@@ -11,7 +11,6 @@ static lv_obj_t *touch_status;
 static lv_obj_t *brightness_text;
 static unsigned touches;
 static uint8_t brightness = 70;
-static const uint32_t BG = 0x10141c, CARD = 0x1b2330, ACCENT = 0x39a7ff;
 void dsr_ui_home(lv_event_t *event);
 static void menu(lv_event_t *event);
 
@@ -22,7 +21,7 @@ lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int wid
     lv_obj_set_pos(obj, x, y);
     lv_obj_set_width(obj, width);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_WRAP);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(DSR_SC_TEXT), 0);
     lv_obj_set_style_text_font(obj, &dsr_roboto_14, 0);
     return obj;
 }
@@ -30,63 +29,40 @@ lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int wid
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
                         lv_event_cb_t callback, void *context)
 {
-    lv_obj_t *obj = lv_button_create(parent);
-    lv_obj_set_pos(obj, x, y);
-    lv_obj_set_size(obj, width, 48);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(CARD), 0);
-    lv_obj_set_style_bg_grad_dir(obj, LV_GRAD_DIR_NONE, 0);
-    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
-    lv_obj_set_style_border_width(obj, 1, 0);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0x40516a), 0);
-    lv_obj_set_style_shadow_width(obj, 0, 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x365578), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x202c3c), LV_STATE_DISABLED);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0x8f9fb5), LV_STATE_DISABLED);
-    lv_obj_set_style_opa(obj, LV_OPA_COVER, LV_STATE_DISABLED);
-    lv_obj_set_style_color_filter_opa(obj, LV_OPA_TRANSP, LV_STATE_DISABLED);
-    lv_obj_set_style_radius(obj, 12, 0);
+    lv_obj_t *obj = dsr_sc_button(parent,x,y,width,48,DSR_SC_CARD,DSR_SC_RADIUS,callback,context);
+    lv_obj_set_style_text_color(obj,dsr_sc_color(DSR_SC_TEXT),0);
     lv_obj_t *caption = lv_label_create(obj);
-    lv_obj_set_style_text_font(caption, &dsr_roboto_14, 0);
+    lv_obj_set_style_text_font(caption, &dsr_roboto_16, 0);
+    lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
     dsr_sc_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
-    if (callback) lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, context);
     return obj;
 }
 
 void dsr_ui_primary(lv_obj_t *obj)
 {
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x1b6dca), 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x24578c), LV_STATE_PRESSED);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0x478fdf), 0);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_BLUE), 0);
+    lv_obj_set_style_bg_color(obj, lv_color_hex(0x287ec7), LV_STATE_PRESSED);
 }
 
 void dsr_ui_textarea(lv_obj_t *obj)
 {
-    lv_obj_set_style_text_font(obj, &dsr_roboto_14, 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x152132), 0);
+    lv_obj_set_style_text_font(obj, &dsr_roboto_18, 0);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_PANEL), 0);
     lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
     lv_obj_set_style_text_color(obj, lv_color_hex(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0x5a708c), 0);
-    lv_obj_set_style_border_color(obj, lv_color_hex(0x57b2ff), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_EDGE), 0);
+    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_BLUE), LV_STATE_FOCUSED);
     lv_obj_set_style_border_width(obj, 1, 0);
     lv_obj_set_style_radius(obj, 10, 0);
     lv_obj_set_style_bg_color(obj, lv_color_hex(0xf0f4fb), LV_PART_CURSOR);
 }
 
-void dsr_ui_keyboard(lv_obj_t *obj)
+static void shell_navigation(lv_event_t *event)
 {
-    lv_obj_set_style_text_font(obj, &dsr_roboto_14, LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x111b29), 0);
-    lv_obj_set_style_pad_all(obj, 3, 0);
-    lv_obj_set_style_pad_gap(obj, 4, 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x2b3e57), LV_PART_ITEMS);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0xffffff), LV_PART_ITEMS);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x226fc1), LV_PART_ITEMS | LV_STATE_PRESSED);
-    lv_obj_set_style_bg_grad_dir(obj, LV_GRAD_DIR_NONE, LV_PART_ITEMS);
-    lv_obj_set_style_border_width(obj, 0, LV_PART_ITEMS);
-    lv_obj_set_style_shadow_width(obj, 0, LV_PART_ITEMS);
-    lv_obj_set_style_radius(obj, 5, LV_PART_ITEMS);
+ unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);
+ if(index<2){dsr_network_home(NULL);if(index==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);}
+ else if(index==3)menu(NULL);else if(index==4)dsr_network_device(NULL);
 }
 
 lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
@@ -97,18 +73,18 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     touch_status = brightness_text = NULL;
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
-    lv_obj_set_style_bg_color(root, lv_color_hex(BG), 0);
+    lv_obj_remove_style_all(root);
+    lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
+    lv_obj_set_style_bg_color(root, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_style_text_color(root, lv_color_hex(0xf0f4fb), 0);
     lv_obj_set_style_text_font(root, &dsr_roboto_14, 0);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
-    dsr_ui_label(root, "DIY SHELLY REMOTE", 16, 14, 288);
-    lv_obj_t *heading = dsr_ui_label(root, title, 16, 49, 288);
-    lv_obj_set_style_text_color(heading, lv_color_hex(ACCENT), 0);
-    if (navigation) {
-        dsr_ui_button(root, "Home", 12, 420, 140, dsr_ui_home, NULL);
-        dsr_ui_button(root, "Menu", 168, 420, 140, menu, NULL);
-    }
+    dsr_sc_header(root,"Mój dom",false,dsr_wifi_connected(),dsr_ui_home,NULL);
+    lv_obj_t *heading=dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);
+    lv_obj_set_height(heading,24);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
+    dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
+    if(navigation)dsr_sc_navigation(root,3,27,shell_navigation);
     return root;
 }
 
@@ -191,7 +167,7 @@ static void settings(lv_event_t *event)
     dsr_ui_label(root, "Ekran gaśnie po 60 sekundach.\nJasność jest ustawieniem tymczasowym.", 16, 346, 288);
 }
 
-void dsr_ui_open_settings(void) { settings(NULL); }
+void dsr_ui_open_settings(void) { menu(NULL); }
 
 static void hardware(lv_event_t *event);
 static void menu(lv_event_t *event)

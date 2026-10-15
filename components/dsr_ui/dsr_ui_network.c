@@ -126,10 +126,8 @@ static void focus_field(lv_event_t *event)
 {
     lv_obj_t *field = lv_event_get_target(event);
     if (!keyboard || !form) return;
-    lv_obj_set_height(form, 145);
-    lv_obj_remove_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
-    lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
-    lv_keyboard_set_textarea(keyboard, field);
+    lv_obj_set_height(form, 121);
+    dsr_ui_keyboard_focus(keyboard,field);
     lv_obj_scroll_to_view(field, LV_ANIM_OFF);
 }
 
@@ -156,7 +154,7 @@ static void form_start(const char *title)
     message = dsr_ui_label(root, "Enter the device address and login.", 16, 77, 288);
     form = lv_obj_create(root); lv_obj_set_pos(form, 12, 115); lv_obj_set_size(form, 296, 300);
     lv_obj_set_style_pad_all(form, 8, 0); lv_obj_set_style_border_width(form, 0, 0);
-    lv_obj_set_style_bg_color(form, lv_color_hex(0x10141c), 0);
+    lv_obj_set_style_bg_color(form, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_style_text_color(form, lv_color_hex(0xf0f4fb), 0);
     keyboard = lv_keyboard_create(root); lv_obj_set_size(keyboard, 320, 210);
     dsr_ui_keyboard(keyboard);

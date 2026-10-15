@@ -13,6 +13,7 @@ import struct
 import subprocess
 import zipfile
 import zlib
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
@@ -56,6 +57,14 @@ for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-passwor
         _, size, _, rgb = path.read_bytes().split(b"\n", 3)
         assert size == b"320 480"
         png(out / (name + ".png"), 320, 480, rgb)
+for path in sorted(onboarding.glob('*.ppm')):
+    if int(path.name.split('-')[0])<30:continue
+    _,size,_,rgb=path.read_bytes().split(b'\n',3)
+    assert size==b'320 480'
+    png(out / (path.stem+'.png'),320,480,rgb)
+before=ROOT / 'docs/ui-review/before-0.5.1'
+for path in sorted(before.glob('*.png')):
+    shutil.copyfile(path,out / ('before-'+path.name))
 sheet = bytearray(bytes((235, 237, 240)) * (648 * 1456))
 for index, name in enumerate(["10-home-room-photos", "01-home", "04-room-salon", "05-device-details-on", "11-cover-details", "07-device-offline"]):
     frame = frames[name]
@@ -76,8 +85,13 @@ guide = ROOT / "docs/ui-review/README_PL.txt"
 if guide.exists():
     shutil.copyfile(guide, out / "README_PL.txt")
 archive = out.parent / f"{out.name}.zip"
-with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+with tempfile.NamedTemporaryFile(prefix='review-',suffix='.tmp',dir=out.parent,delete=False) as temp:
+    temporary=Path(temp.name)
+with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as z:
     for path in sorted(out.iterdir()):
         if path.is_file():
             z.write(path, path.name)
+with zipfile.ZipFile(temporary) as z:
+    assert z.testzip() is None
+os.replace(temporary,archive)
 print(f"Exported {len(frames)} native frames, contact_sheet.png, manifest; package: {archive}")

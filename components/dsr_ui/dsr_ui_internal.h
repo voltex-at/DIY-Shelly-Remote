@@ -10,6 +10,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation);
 void dsr_ui_primary(lv_obj_t *obj);
 void dsr_ui_textarea(lv_obj_t *obj);
 void dsr_ui_keyboard(lv_obj_t *obj);
+void dsr_ui_keyboard_focus(lv_obj_t *keyboard,lv_obj_t *field);
 void dsr_ui_home(lv_event_t *event);
 void dsr_ui_open_settings(void);
 void dsr_network_init(void);
