@@ -186,6 +186,6 @@ int main(int argc,char **argv)
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
     dsr_ui_lan_reset();test_workspace_disable();
-    printf("PASS: %u real LVGL UI checks; 19 screenshots; LAN no-Wi-Fi, scan, verified results, auth error, actual channels and room binding; 60 navigation cycles\n",checks);
+    printf("PASS: %u real LVGL UI checks; 20 screenshots; LAN onboarding and async save regression; 60 navigation cycles\n",checks);
     lv_deinit();return 0;
 }

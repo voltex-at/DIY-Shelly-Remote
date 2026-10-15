@@ -1,6 +1,6 @@
-# Konfiguracja dotykowa i lokalny Web Panel — 0.4.0-config-dev
+# Konfiguracja dotykowa i lokalny Web Panel — 0.5.1-review-fixes
 
-Wersja rozwojowa do oceny w PR #5, nie scalona z main. Render HOME i panel są
+Wersja rozwojowa do oceny w PR #9–#11, oparta na PR #5, nie scalona z main. Render HOME i panel są
 wygenerowane z kodu projektu. Kompilacja i testy na komputerze przeszły; ta wersja
 nie ma jeszcze potwierdzenia działania HTTPS, zapisu i OTA na fizycznym ES3C35P.
 
@@ -40,7 +40,9 @@ Usunięcie obiektu używanego przez kartę/scenę wymaga najpierw usunięcia odw
 Zapis jest wspólny z panelem i nie restartuje pilota. Bieżące połączenie Wi-Fi
 zachowuje wcześniejszy proces zapisu i restartu. Edytor nie nadpisuje po cichu
 nowszej zmiany z drugiego interfejsu: przy konflikcie odczytaj aktualną wersję
-i ponów swoją edycję. Przed wyjściem zapisz robocze zmiany.
+i ponów swoją edycję. Zmiany wpisane podczas zapisu pozostają oznaczone jako
+niezapisane; potwierdzenie wcześniejszej wersji ich nie nadpisuje. Przed wyjściem
+zapisz robocze zmiany.
 
 ## Parowanie panelu
 
@@ -66,8 +68,10 @@ i konfiguracji odbywa się automatycznie; niezapisany szkic nie jest zastępowan
 Panel kadruje JPG/PNG/WebP do 320×180 i konwertuje do RGB565 w przeglądarce.
 Do ESP trafia gotowy obraz 115200 bajtów, oznaczony skrótem treści. Obrazy są
 lokalne, bez chmury/CDN. Ekran dotykowy może wybrać już przesłane zdjęcie.
-Limit wynosi 16 obrazów, z dodatkową rezerwą miejsca Flash. Bieżąca wersja
-nie ma automatycznego usuwania osieroconych zdjęć. Karta SD nie jest używana;
+Limit wynosi 16 obrazów, z dodatkową rezerwą miejsca Flash. Po usunięciu lub
+zastąpieniu zdjęć zapisz konfigurację i uruchom pilot ponownie: podczas startu
+odzyska miejsce po nieużywanych zdjęciach, zanim LVGL otrzyma ich bufory.
+Uszkodzone kopie konfiguracji wstrzymują sprzątanie. Karta SD nie jest używana;
 nie dodano niepotwierdzonego sterownika. Bufory obrazów zajmują do 1,76 MiB PSRAM.
 
 ## Urządzenia i sceny — granica obecnego etapu
@@ -81,8 +85,13 @@ do eksportowanej konfiguracji ani logów. NVS nie jest szyfrowane.
 Karty rolet i czujników są gotowe wizualnie i konfiguracyjnie; nie dodano ich
 nowych protokołów komunikacji ani wykonawcy scen. Bez rzeczywistych danych
 urządzenia są offline, a odczyty niedostępne. Liczby na renderach testowych są
-oznaczone DEMO i nie wchodzą do firmware. PL/EN/DE obejmuje podstawowe UI;
-panel oraz część opisów edytora i dawnych narzędzi nie są jeszcze w pełni tłumaczone.
+oznaczone DEMO i nie wchodzą do firmware. Natywne formularze, kreator i stany
+zapisu mają PL/EN/DE i polskie znaki; Web Panel pozostaje w języku polskim.
+
+Przycisk + otwiera kreator z rzeczywistym wykrywaniem LAN. Wybierz urządzenie,
+podaj jego hasło, sprawdź kanały z odpowiedzi API i przypisz nazwę/pomieszczenie.
+Wi-Fi AP i BLE są jawnie niedostępne. Ręczne IP pozostaje opcją zaawansowaną.
+Ograniczenia skanowania i test prawdziwego Shelly opisuje ISSUE7_LAN.md.
 
 ## Aktualizacja lokalna OTA
 
