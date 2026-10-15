@@ -65,6 +65,7 @@ jobs:
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE build-board/package/licenses/
           cp "$IDF_PATH/LICENSE" build-board/package/licenses/ESP-IDF-Apache-2.0.txt
           cp managed_components/lvgl__lvgl/LICENCE.txt build-board/package/licenses/LVGL-MIT.txt
+          python3 tools/package_licenses.py --idf "$IDF_PATH" --managed managed_components --out build-board/package/licenses/vendor
           printf 'Source commit: %s\nTested commit: %s\n' '${{ github.event.pull_request.head.sha || github.sha }}' "$GITHUB_SHA" > build-board/package/BUILD_COMMIT.txt
       - name: Retain local switch development firmware
         uses: actions/upload-artifact@v4
