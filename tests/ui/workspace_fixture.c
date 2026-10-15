@@ -15,3 +15,4 @@ void dsr_panel_pair_cancel(void){}
 void dsr_panel_allow_ota(void){}
 const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
 const char *dsr_photo_id(unsigned index){(void)index;return NULL;}
+const char *dsr_tls_fingerprint(void){return "TEST FIXTURE";}

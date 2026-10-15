@@ -24,4 +24,8 @@ void dsr_photos_load(void);
 const void *dsr_photo_pixels(const char *id);
 bool dsr_photo_save(const char *id,const void *pixels,size_t size);
 const char *dsr_photo_id(unsigned index);
+esp_err_t dsr_tls_identity(void);
+const unsigned char *dsr_tls_certificate(void);
+const unsigned char *dsr_tls_key(void);
+const char *dsr_tls_fingerprint(void);
 #endif

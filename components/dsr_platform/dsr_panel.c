@@ -1,6 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_platform.h"
 #include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_app_desc.h"
@@ -33,6 +34,7 @@ static char pairing[17];static int64_t pair_until,ota_until;static unsigned atte
 static unsigned char token_hash[32];static bool has_token,need_preview;
 static unsigned char *preview;static bool preview_ready;
 static httpd_handle_t server;
+static httpd_handle_t redirect_server;
 
 static void random_hex(char *out,size_t bytes)
 {uint8_t raw[32];esp_fill_random(raw,bytes);for(size_t i=0;i<bytes;i++)sprintf(out+i*2,"%02x",raw[i]);out[bytes*2]=0;memset(raw,0,sizeof(raw));}
@@ -64,7 +66,7 @@ static bool local_request(httpd_req_t *r)
  if(httpd_req_get_hdr_value_str(r,"Sec-Fetch-Site",site,sizeof(site))==ESP_OK&&!strcmp(site,"cross-site"))return false;
  if(r->method!=HTTP_GET){
   if(httpd_req_get_hdr_value_str(r,"Origin",origin,sizeof(origin))==ESP_OK){
-   char expected[100];snprintf(expected,sizeof(expected),"http://%s",host);if(strcmp(origin,expected))return false;
+   char expected[100];snprintf(expected,sizeof(expected),"https://%s",host);if(strcmp(origin,expected))return false;
   }
   char request[4]={0};if(httpd_req_get_hdr_value_str(r,"X-DSR-Request",request,sizeof(request))!=ESP_OK||strcmp(request,"1"))return false;
  }
@@ -101,7 +103,7 @@ static esp_err_t pair(httpd_req_t *r)
  xSemaphoreGive(lock);memset(data,0,strlen(data));free(data);
  if(!valid)return json(r,"401 Unauthorized","{\"error\":\"Pairing expired, locked or invalid; reopen pairing on the remote\"}");
  if(result!=ESP_OK)return json(r,"503 Service Unavailable","{\"error\":\"Pairing could not be saved\"}");
- char cookie[160];snprintf(cookie,sizeof(cookie),"dsr_session=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000",token);memset(token,0,sizeof(token));
+ char cookie[160];snprintf(cookie,sizeof(cookie),"dsr_session=%s; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000",token);memset(token,0,sizeof(token));
  httpd_resp_set_hdr(r,"Set-Cookie",cookie);return json(r,"200 OK","{\"paired\":true}");
 }
 static esp_err_t ota(httpd_req_t *r)
@@ -183,16 +185,27 @@ static esp_err_t asset(httpd_req_t *r)
  httpd_resp_set_hdr(r,"Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  httpd_resp_set_hdr(r,"X-Content-Type-Options","nosniff");httpd_resp_set_hdr(r,"Referrer-Policy","no-referrer");httpd_resp_set_hdr(r,"Cache-Control","no-cache");return httpd_resp_send(r,(const char *)start,end-start-1);
 }
+static esp_err_t redirect_https(httpd_req_t *r)
+{
+ if(!local_request(r))return json(r,"403 Forbidden","{}");
+ char host[80]={0},location[96];if(httpd_req_get_hdr_value_str(r,"Host",host,sizeof(host))!=ESP_OK)return ESP_FAIL;
+ char *port=strchr(host,':');if(port)*port=0;snprintf(location,sizeof(location),"https://%s/",host);
+ httpd_resp_set_status(r,"308 Permanent Redirect");httpd_resp_set_hdr(r,"Location",location);return httpd_resp_sendstr(r,"");
+}
 esp_err_t dsr_panel_start(void)
 {
+ esp_err_t identity_error=dsr_tls_identity();if(identity_error!=ESP_OK)return identity_error;
  lock=xSemaphoreCreateMutex();if(!lock)return ESP_ERR_NO_MEM;preview=malloc(320*480*2);
  nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READONLY,&n)==ESP_OK){size_t size=32;has_token=nvs_get_blob(n,"token_hash",token_hash,&size)==ESP_OK&&size==32;nvs_close(n);}
- httpd_config_t config=HTTPD_DEFAULT_CONFIG();config.stack_size=16384;config.max_uri_handlers=7;config.max_open_sockets=3;config.lru_purge_enable=true;config.uri_match_fn=httpd_uri_match_wildcard;config.recv_wait_timeout=5;config.send_wait_timeout=5;
- esp_err_t error=httpd_start(&server,&config);if(error!=ESP_OK)return error;
+ httpd_ssl_config_t tls=HTTPD_SSL_CONFIG_DEFAULT();tls.httpd.stack_size=16384;tls.httpd.max_uri_handlers=7;tls.httpd.max_open_sockets=2;tls.httpd.lru_purge_enable=true;tls.httpd.uri_match_fn=httpd_uri_match_wildcard;tls.httpd.recv_wait_timeout=5;tls.httpd.send_wait_timeout=5;
+ tls.servercert=dsr_tls_certificate();tls.servercert_len=strlen((const char *)tls.servercert)+1;tls.prvtkey_pem=dsr_tls_key();tls.prvtkey_len=strlen((const char *)tls.prvtkey_pem)+1;
+ esp_err_t error=httpd_ssl_start(&server,&tls);if(error!=ESP_OK)return error;
  const httpd_method_t methods[]={HTTP_GET,HTTP_POST,HTTP_PUT,HTTP_DELETE};
  for(unsigned i=0;i<4;i++){httpd_uri_t route={.uri="/api/v1/*",.method=methods[i],.handler=api};error=httpd_register_uri_handler(server,&route);if(error!=ESP_OK)return error;}
  httpd_uri_t root={.uri="/*",.method=HTTP_GET,.handler=asset};error=httpd_register_uri_handler(server,&root);if(error!=ESP_OK)return error;
- if(mdns_init()==ESP_OK){mdns_hostname_set("shelly-remote");mdns_instance_name_set("DIY Shelly Remote");mdns_service_add(NULL,"_http","_tcp",80,NULL,0);}
+ httpd_config_t plain=HTTPD_DEFAULT_CONFIG();plain.max_open_sockets=1;plain.max_uri_handlers=1;plain.uri_match_fn=httpd_uri_match_wildcard;
+ if(httpd_start(&redirect_server,&plain)==ESP_OK){httpd_uri_t redirect={.uri="/*",.method=HTTP_GET,.handler=redirect_https};httpd_register_uri_handler(redirect_server,&redirect);}
+ if(mdns_init()==ESP_OK){mdns_hostname_set("shelly-remote");mdns_instance_name_set("DIY Shelly Remote");mdns_service_add(NULL,"_https","_tcp",443,NULL,0);mdns_service_add(NULL,"_http","_tcp",80,NULL,0);}
  return ESP_OK;
 }
 void dsr_ota_boot_confirm(void)

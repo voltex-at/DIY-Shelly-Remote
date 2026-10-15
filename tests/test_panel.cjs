@@ -4,9 +4,11 @@ const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+let activePage;
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1050}}),page=await context.newPage();let checks=0;
+ activePage=page;
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));});
  await page.goto('http://127.0.0.1:8765/');await page.locator('#pairing').waitFor({state:'visible'});checks++;
  await page.locator('#pair-code').fill('0123456789abcdef');await page.locator('#pair-form button').click();await page.locator('#workspace').waitFor({state:'visible'});checks++;
@@ -26,4 +28,4 @@ const path=require('node:path');
  const sha=await page.evaluate(()=>sha256(new TextEncoder().encode('abc')));assert.equal(sha,'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');checks++;
  await page.locator('#reload').click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'build-ui/panel-review/panel-mobile.png',fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));checks++;
  assert.deepEqual(errors,[]);checks++;await browser.close();console.log(`PASS: ${checks} browser checks; shipped assets, pairing UI, CRUD, drag order, C persistence/reboot, sync/conflict and real LVGL preview`);
-})().catch(e=>{console.error(e);process.exit(1)});
+})().catch(async e=>{console.error(e);if(activePage){fs.mkdirSync('build-ui/panel-review',{recursive:true});await activePage.screenshot({path:'build-ui/panel-review/failure.png',fullPage:true}).catch(()=>{});console.error(await activePage.locator('body').innerText().catch(()=>''));}process.exit(1)});

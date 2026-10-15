@@ -1,4 +1,15 @@
 <!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DIY Shelly Remote · Panel lokalny</title><link rel="stylesheet" href="/panel.css"><script src="/panel.js" defer></script></head>
 <body><aside><a class="brand" href="/">DIY <strong>Shelly Remote</strong></a><span class="local">● Panel lokalny</span><nav aria-label="Konfiguracja"><button data-page="dashboards">Pulpity</button><button data-page="rooms">Pomieszczenia</button><button data-page="devices">Urządzenia</button><button data-page="scenes">Sceny</button><button data-page="appearance">Wygląd i język</button><button data-page="system">System i OTA</button></nav><p class="aside-note">Konfiguracja zapisana w pilocie.<br>Bez konta i bez chmury.</p></aside>
-<main><header><div><p class="eyebrow">TWÓJ DOM · TWÓJ PILOT</p><h1 id="title">Pulpity</h1></div><span id="connection">Łączenie…</span></header><div id="notice" role="status" aria-live="polite"></div><section id="pairing" hidden><h2>Połącz tę przeglądarkę</h2><p>Na pilocie wybierz Edycja → Web Panel → Paruj przeglądarkę. Wpisz jednorazowy kod widoczny na ekranie. Kod wygasa po 2 minutach.</p><form id="pair-form"><label>Kod parowania<input id="pair-code" autocomplete="off" maxlength="16" required pattern="[0-9a-f]{16}"></label><button class="primary">Połącz lokalnie</button></form><p class="muted">Panel HTTP jest przeznaczony do zaufanej sieci lokalnej. Nie przekierowuj jego portu do internetu.</p></section>
+<main>
+  <header><div><p class="eyebrow">TWÓJ DOM · TWÓJ PILOT</p><h1 id="title">Pulpity</h1></div><span id="connection">Łączenie…</span></header>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <section id="pairing" hidden>
+    <h2>Połącz tę przeglądarkę</h2>
+    <p>Na pilocie wybierz Edycja → Web Panel → Paruj przeglądarkę. Porównaj odcisk certyfikatu z ekranem pilota, a następnie wpisz jednorazowy kod. Kod wygasa po 2 minutach.</p>
+    <form id="pair-form">
+      <label>Kod parowania<input id="pair-code" autocomplete="off" maxlength="16" required pattern="[0-9a-f]{16}"></label>
+      <button class="primary">Połącz lokalnie</button>
+    </form>
+    <p class="muted">Panel korzysta z HTTPS i indywidualnego certyfikatu pilota. Przy pierwszym połączeniu sprawdź jego zgodność z odciskiem na ekranie. Panel przeznaczony jest do sieci lokalnej.</p>
+  </section>
 <div id="workspace" hidden><div class="workspace-grid"><section id="editor"></section><section class="preview-panel"><div class="section-head"><div><h2>Ekran pilota</h2><p>Rzeczywisty obraz LVGL · 320 × 480</p></div><span class="tag">LIVE</span></div><div class="remote"><canvas id="preview" width="320" height="480" aria-label="Rzeczywisty podgląd ekranu pilota"></canvas></div><p class="muted" id="preview-status">Oczekiwanie na klatkę z pilota…</p><div class="revision">Rewizja <strong id="revision">—</strong><span id="firmware"></span></div></section></div><footer class="savebar"><span id="dirty">Wszystkie zmiany zapisane</span><div><button id="reload">Wczytaj z pilota</button><button id="save" class="primary" disabled>Zapisz w pilocie</button></div></footer></div></main></body></html>

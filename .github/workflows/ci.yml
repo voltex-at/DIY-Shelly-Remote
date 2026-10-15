@@ -33,6 +33,7 @@ jobs:
           python3 -c 'import socket,time; [(time.sleep(.2)) for _ in range(50) if socket.socket().connect_ex(("127.0.0.1",8765)) != 0]'
           node tests/test_panel.cjs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: real-lvgl-ui-review-NOT-FIRMWARE
           path: |

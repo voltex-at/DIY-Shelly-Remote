@@ -32,5 +32,9 @@ int main(int argc,char **argv)
  CHECK(dsr_config_store_save(argv[1],next,error));loaded=dsr_config_store_load(argv[1],&found,error);CHECK(found&&dsr_config_revision(loaded)==2);free(loaded);
  snprintf(path,sizeof(path),"%s/config0.dat",argv[1]);f=fopen(path,"wb");CHECK(f);fclose(f);snprintf(path,sizeof(path),"%s/config1.dat",argv[1]);f=fopen(path,"wb");CHECK(f);fclose(f);
  loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&error[0]);
+ CHECK(dsr_config_store_save(argv[1],initial,error));
+ cJSON_ReplaceItemInObjectCaseSensitive(r,"schema",cJSON_CreateNumber(2));char *future=cJSON_PrintUnformatted(r);uint32_t header[]={0x44535231,(uint32_t)strlen(future),dsr_config_crc32(future,strlen(future)),1};
+ snprintf(path,sizeof(path),"%s/config1.dat",argv[1]);f=fopen(path,"wb");CHECK(f);CHECK(fwrite(header,sizeof(header),1,f)==1);CHECK(fwrite(future,1,strlen(future),f)==strlen(future));CHECK(!fclose(f));free(future);
+ loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&strstr(error,"Newer"));CHECK(!dsr_config_store_save(argv[1],initial,error));
  cJSON_Delete(r);free(initial);free(next);free(candidate);printf("PASS: %u configuration checks; CAS, schema, references, partial-write recovery and dual corruption preservation\n",checks);return 0;
 }

@@ -130,7 +130,18 @@ static void scene_action_add(lv_event_t *event)
  cJSON *a=cJSON_CreateObject();cJSON_AddNumberToObject(a,"device",integer(devices->child,"id"));cJSON_AddStringToObject(a,"command","on");cJSON_AddItemToArray(actions,a);show_entity(editing);
 }
 static void delete_entity(lv_event_t *event)
-{(void)event;cJSON *a=cJSON_GetObjectItemCaseSensitive(draft,collection_name);int at=0;for(cJSON *v=a->child;v;v=v->next,at++)if(v==editing){cJSON_DeleteItemFromArray(a,at);break;}editing=NULL;show_collection(NULL);}
+{
+ (void)event;cJSON *a=cJSON_GetObjectItemCaseSensitive(draft,collection_name);int id=integer(editing,"id");const cJSON *v,*t;bool referenced=false;
+ const char *type=!strcmp(collection_name,"devices")?"device":!strcmp(collection_name,"rooms")?"room":"scene";
+ cJSON_ArrayForEach(v,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(v,"tiles"))if(!strcmp(string(t,"type"),type)&&integer(t,"ref")==id)referenced=true;
+ if(!strcmp(collection_name,"devices"))cJSON_ArrayForEach(v,item(draft,"scenes"))cJSON_ArrayForEach(t,item(v,"actions"))if(integer(t,"device")==id)referenced=true;
+ if(!strcmp(collection_name,"rooms"))cJSON_ArrayForEach(v,item(draft,"devices"))if(integer(v,"room")==id)referenced=true;
+ if(strcmp(collection_name,"dashboards")&&referenced){lv_label_set_text(status_label,"Najpierw usuń powiązane karty lub działania.");return;}
+ if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)==1){lv_label_set_text(status_label,"Zachowaj przynajmniej jeden pulpit.");return;}
+ int at=0;for(cJSON *entry=a->child;entry;entry=entry->next,at++)if(entry==editing){cJSON_DeleteItemFromArray(a,at);break;}
+ if(!strcmp(collection_name,"dashboards")&&integer(draft,"active_dashboard")==id)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),integer(a->child,"id"));
+ editing=NULL;show_collection(NULL);
+}
 static void edit_event(lv_event_t *event){show_entity(lv_event_get_user_data(event));}
 static void reorder(lv_event_t *event)
 {
@@ -219,7 +230,8 @@ static void appearance(lv_event_t *event)
 static void pair_browser(lv_event_t *event)
 {
  (void)event;char code[17];dsr_panel_pair_begin(code);lv_obj_t *root=screen("Parowanie Web Panelu");
- dsr_sc_text(body,"http://shelly-remote.local",0,4,284,&dsr_roboto_16,DSR_SC_BLUE);dsr_sc_text(body,"Jednorazowy kod • ważny 2 minuty",0,43,284,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_text(body,code[0]?code:"Panel niedostępny",0,83,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(body,"Wpisz kod w przeglądarce w tej samej sieci Wi-Fi. Nowe parowanie unieważni poprzednią sesję.",0,128,284,&dsr_roboto_14,DSR_SC_MUTED);actions(root,menu_event);
+ dsr_sc_text(body,"https://shelly-remote.local",0,4,284,&dsr_roboto_16,DSR_SC_BLUE);dsr_sc_text(body,"Jednorazowy kod • ważny 2 minuty",0,43,284,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_text(body,code[0]?code:"Panel niedostępny",0,83,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",0,128,284,&dsr_roboto_14,DSR_SC_MUTED);
+ char digest[80];const char *fp=dsr_tls_fingerprint();snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp,strlen(fp)>32?fp+32:"");dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",0,200,284,&dsr_roboto_11,DSR_SC_MUTED);dsr_sc_text(body,digest,0,223,284,&dsr_roboto_11,DSR_SC_TEXT);actions(root,menu_event);
 }
 static void allow_ota(lv_event_t *event)
 {(void)event;dsr_panel_allow_ota();lv_label_set_text(status_label,"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.");}

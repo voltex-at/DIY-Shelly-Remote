@@ -60,6 +60,7 @@ static void render(void)
         snprintf(d->host, sizeof(d->host), "%s", saved.device.host);
         snprintf(d->model, sizeof(d->model), "Shelly • kanał %u", saved.device.channel);
         d->room = DSR_UI_NO_ROOM; d->kind = DSR_DEVICE_RELAY;
+        d->channel=saved.device.channel;
         }
         d->online = mobile_model.wifi && saved.device.online;
         d->output = saved.device.output; d->busy = busy;
