@@ -1,5 +1,34 @@
 # Project status
 
+## 0.7.2 — boot SRAM regression fix; physical acceptance pending
+
+Branch `work/fix-071-boot-memory`, stacked on draft PR #27. The user confirmed
+that 0.6.3 boots on the same ES3C35P and 0.7.1 does not (2026-10-16,
+Europe/Vienna). Their USB log establishes the fatal failure, not an offset guess:
+`dsr_board_start_ui_task()` returns `ESP_ERR_NO_MEM`, then `ESP_ERROR_CHECK`
+aborts before the backlight is enabled. Flash=16 MiB, PSRAM=8 MiB/test OK,
+ST77922 and five-point touch initialization all precede the failure.
+**0.7.1 failed physical boot and must not be treated as accepted firmware.**
+
+The 128 KiB built-in LVGL pool is now linked into PSRAM with an exact-object
+linker fragment. Its size and allocator stay unchanged. The 8192-byte UI stack
+and TCB are statically reserved in internal BSS before optional services can
+consume their space; no external task stack or reduced UI stack is used.
+Target CI must check actual ELF symbols/section bounds, not just sdkconfig.
+Startup logs report internal free/largest and PSRAM at each service boundary.
+LCD/touch/QSPI/PWM pins, BLE scanner, relay/LAN transport and OTA partitions are
+retained. No extra UI features or visual redesign are included in this repair.
+
+The same log also reports SPIFFS mount failure. That is a separate observation,
+not proof of corruption or a reason to erase. Mounting now retains the real
+provisioning/read error, never formats on allocation/state errors, and provisions
+only a fully read, entirely erased data partition. Regression fixtures exercise
+static UI creation and storage failure paths (15938 local UBSan checks pass).
+Core 94, platform 847, Wi-Fi 222, BLE 2138 and config 265 checks also pass locally.
+Full target/sanitizer/browser CI
+and the new ELF check follow on the exact commit; **no physical pass is claimed**.
+See [BOOT_MEMORY_FIX_PL.md](docs/BOOT_MEMORY_FIX_PL.md) for recovery and acceptance.
+
 ## 0.7.1 — feature audit and working dashboard information (Issue #25)
 
 Branch `work/issue-25-feature-audit`, stacked on BLE PR #26. The versioned

@@ -1,5 +1,6 @@
 /* LCDWiki ES3C35P board port. See boards/lcdwiki-es3c35p/README.md. */
 #include "dsr_board.h"
+#include "dsr_ui_task.h"
 #include "st77922_init.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -147,22 +148,13 @@ static void idle_check(lv_timer_t *timer)
 }
 
 static void tick(void *arg) { (void)arg; lv_tick_inc(5); }
-static void ui_task(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        uint32_t delay = lv_timer_handler();
-        if (delay < 10) delay = 10;
-        if (delay > 20) delay = 20;
-        vTaskDelay(pdMS_TO_TICKS(delay));
-    }
-}
-
 esp_err_t dsr_board_start_ui_task(void)
 {
     if (!display || ui_started) return ESP_ERR_INVALID_STATE;
-    lv_timer_create(idle_check, 500, NULL);
-    if (xTaskCreate(ui_task, "dsr_ui", 8192, NULL, 4, NULL) != pdPASS) return ESP_ERR_NO_MEM;
+    lv_timer_t *idle = lv_timer_create(idle_check, 500, NULL);
+    if (!idle) return ESP_ERR_NO_MEM;
+    esp_err_t error = dsr_ui_task_start();
+    if (error != ESP_OK) { lv_timer_delete(idle); return error; }
     ui_started = true;
     return ESP_OK;
 }

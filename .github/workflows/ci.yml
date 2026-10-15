@@ -86,6 +86,8 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p set-target esp32s3
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p build
+          idf.py -B build-board size
+          python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -112,6 +114,8 @@ jobs:
           cp docs/STABLE_POLLING.md build-board/package/
           cp docs/BLE_PLAN.md build-board/package/
           cp docs/FEATURE_MATRIX.md build-board/package/
+          cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
+          cp build-board/BOOT_MEMORY.json build-board/package/
           cp boards/lcdwiki-es3c35p/README.md build-board/package/BOARD_REFERENCE.md
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/package/licenses/
           cp third_party/material-symbols/LICENSE build-board/package/licenses/Material-Symbols-Apache-2.0.txt
@@ -124,4 +128,14 @@ jobs:
         with:
           name: es3c35p-local-switch-NOT-STABLE
           path: build-board/package/
+          if-no-files-found: error
+      - name: Retain target debug symbols and effective configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: es3c35p-debug-symbols-NOT-FIRMWARE
+          path: |
+            build-board/diy_shelly_remote.elf
+            build-board/diy_shelly_remote.map
+            build-board/BOOT_MEMORY.json
+            sdkconfig
           if-no-files-found: error

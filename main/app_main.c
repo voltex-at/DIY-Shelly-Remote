@@ -9,6 +9,14 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
+#include "esp_heap_caps.h"
+static void boot_memory(const char *stage)
+{
+    ESP_LOGI("dsr_boot", "%s internal_free=%u largest=%u psram_free=%u", stage,
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+}
 #endif
 
 void app_main(void)
@@ -33,20 +41,29 @@ void app_main(void)
         return;
     }
 #ifdef DSR_BOARD_ES3C35P
+    boot_memory("board_ready");
     dsr_settings_t settings;
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));
     ESP_ERROR_CHECK(dsr_worker_start());
+    boot_memory("worker_ready");
     error = dsr_wifi_start(error == ESP_OK ? &settings : NULL);
     if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
+    boot_memory("wifi_ready");
     esp_err_t workspace_error=dsr_workspace_start();
     if(workspace_error!=ESP_OK)ESP_LOGE(tag,"Configuration storage unavailable; existing data preserved: %s",esp_err_to_name(workspace_error));
     else if(error==ESP_OK&&dsr_panel_start()!=ESP_OK)ESP_LOGE(tag,"Local Web Panel startup failed");
+    boot_memory("storage_panel_ready");
     if(dsr_lan_init()!=ESP_OK)ESP_LOGE(tag,"LAN discovery unavailable");
     if(dsr_ble_init()!=ESP_OK)ESP_LOGE(tag,"BLE scanner unavailable");
+    boot_memory("discovery_ready");
     dsr_ui_init();
-    ESP_ERROR_CHECK(dsr_board_start_ui_task());
+    boot_memory("ui_constructed");
+    error = dsr_board_start_ui_task();
+    if (error != ESP_OK) ESP_LOGE(tag,"UI task failed: %s (reserved internal stack)",esp_err_to_name(error));
+    ESP_ERROR_CHECK(error);
     ESP_ERROR_CHECK(dsr_board_set_backlight(70));
+    boot_memory("ui_started");
     ESP_LOGI(tag, "UI started. Configure Wi-Fi, then add one Shelly switch.");
 #endif
 }

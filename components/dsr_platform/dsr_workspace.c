@@ -1,6 +1,5 @@
 #include "dsr_workspace.h"
-#include "esp_spiffs.h"
-#include "esp_partition.h"
+#include "dsr_storage.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -38,21 +37,7 @@ static void config_task(void *argument)
 esp_err_t dsr_workspace_start(void)
 {
  if(mutex)return ESP_ERR_INVALID_STATE;
- const esp_vfs_spiffs_conf_t conf={.base_path="/dsr",.partition_label="dsrdata",.max_files=8,.format_if_mount_failed=false};
- esp_err_t err=esp_vfs_spiffs_register(&conf);
- if(err!=ESP_OK){
-  /* Only an entirely erased data partition may be provisioned automatically.
-   * A corrupt/nonempty filesystem must be recovered explicitly, never erased. */
-  const esp_partition_t *part=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_DATA_SPIFFS,"dsrdata");
-  if(!part)return err;
-  uint8_t data[1024];bool erased=true;
-  for(size_t at=0;at<part->size&&erased;at+=sizeof(data)){
-   if(esp_partition_read(part,at,data,sizeof(data))!=ESP_OK)return err;
-   for(unsigned i=0;i<sizeof(data);i++)if(data[i]!=255){erased=false;break;}
-  }
-  if(!erased||esp_spiffs_format("dsrdata")!=ESP_OK)return err;
-  err=esp_vfs_spiffs_register(&conf);if(err!=ESP_OK)return err;
- }
+ esp_err_t err=dsr_storage_mount();if(err!=ESP_OK)return err;
  bool found=false;char error[96]={0};current=dsr_config_store_load("/dsr",&found,error);
  if(!found){if(error[0])return ESP_FAIL;current=dsr_config_default();if(!current)return ESP_ERR_NO_MEM;
   if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;return ESP_FAIL;}}

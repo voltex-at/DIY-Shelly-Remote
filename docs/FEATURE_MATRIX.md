@@ -1,4 +1,14 @@
-# Matryca funkcji — 0.7.1, rewizja 1
+# Matryca funkcji — 0.7.2, rewizja 2
+
+## Bramka regresji sprzętowej — 2026-10-16
+
+Start 0.6.3 jest potwierdzony przez użytkownika. 0.7.1 **nie startuje na płytce**:
+`ESP_ERR_NO_MEM` przy tworzeniu `dsr_ui`; zielony CI nie jest odbiorem sprzętowym.
+0.7.2 poprawia rozmieszczenie pamięci i rezerwację wewnętrznego stosu UI oraz
+dodaje kontrolę rzeczywistego ELF i testy błędów startu/magazynu. Start,
+Wi-Fi/LAN/przekaźnik, BLE, HTTPS/OTA i trwałość danych wymagają ponownego testu
+według [BOOT_MEMORY_FIX_PL.md](BOOT_MEMORY_FIX_PL.md). Nie oznaczaj tej wersji
+ani BLE jako sprawdzonych fizycznie na podstawie hostowych fixture lub kompilacji.
 
 Zakres: LCDWiki ES3C35P N16R8, LVGL 320×480 i lokalny HTTPS Web Panel.
 Obowiązek utrzymania: Issue #25. Zmiana callbacku, transportu, capability albo
