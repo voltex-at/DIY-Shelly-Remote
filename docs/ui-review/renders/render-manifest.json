@@ -1,5 +1,5 @@
 {
-  "branch": "work/config-web-panel",
+  "branch": "work/issue-6-visual-system",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -7,16 +7,24 @@
   ],
   "renderer": "native C project source, LVGL software draw, RGB565 framebuffer",
   "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
+  "onboarding_fixture": "tests/ui/test_ui.c (host radio fixture, not hardware evidence)",
   "frames": {
-    "01-home.png": "aa2a65b1cfcc8fdcebb02038a4c24c2a81b8173e377140ef9d2b9b9cc3332c02",
-    "02-rooms.png": "d148581ef732d763240daa133d07718800290ef05c4182e539ecf1524e42c0a9",
-    "03-devices.png": "aa41f1cc9e4e97a6c5cb03393b7352a85935164a7529c76afd176c96c90bc49f",
-    "04-room-salon.png": "439e7ebb1fd821eedb7884e526999e9a30a5b4475f5bd3404779ae53555491f9",
-    "05-device-details-on.png": "c0669a0ee3999b9d2de3606b52f2f51a9dd2f800285a2f1c95b18d3c2764cce7",
-    "06-device-details-off.png": "539e21cf0fabd3ce972786750e091853429526d22750b109bbc395ec397ffafc",
-    "07-device-offline.png": "94e1952de2971cd9d7e1b21ad276c31c3622e26817adb12baa7f205e1dc087a6",
-    "08-live-empty.png": "f1bc9b17f62b6747a2398696462f1cdd7830192f31b5586ee44bac382e27d1f6",
-    "09-icon-alignment.png": "4ff9df3ffbf9aac80460396cceff91edabe085e47637c04144b24019c7e2639f",
-    "contact_sheet.png": "b26cbf4a7ef8617b8075d72180479d58859828912d439c5470e79e28c9125133"
+    "01-home.png": "0bdf81ddf69393f5761b1a5626bf428cb48c76356ee05907d458087e4718307d",
+    "02-rooms.png": "b6c20b108674a664e16990f25aca74d1bbd3f44265f5ab6ede1dacc11315d2a4",
+    "03-devices.png": "ecbed5776ed2452b5ae654837264d1133f6c4dd683041c4c36e27a9e7fbdc0b3",
+    "04-room-salon.png": "76eda159b417a314a22ef32662473850d594bfaaf6cef25cd0e6ef8c1633fa89",
+    "05-device-details-on.png": "a35fcec0ea01159ca9c8ec85083424c2e686f2d9f75c8e77b88473cc04c1cec9",
+    "06-device-details-off.png": "6380f43ccd4841bcb777f9beef74d5c8eb1b20d1bd3548bcddff399a6cb1d6bf",
+    "07-device-offline.png": "5a35916141a60bb253b2497f17ff87ef1e310fa384abb8d9836bb0696c395505",
+    "08-live-empty.png": "ead9e9cdca5de1c5d80150bf1890c2cf45a679752914547f64e258694e2f6a6a",
+    "09-icon-alignment.png": "dcf3a7b38277a6b66fbab876edc73c497f5bf2bc36c7bfa88dea784152d181c9",
+    "10-home-room-photos.png": "e93bc1745a16de35fef8bc292f12fc9d3f6be3f449ae3e27019205de5dac7182",
+    "11-cover-details.png": "58152c5f76996852560453aac2ee87cf965bdb9380094ab26963e576a0444f83",
+    "12-home-english.png": "ff572ee1f3a8f2e876e2ee6f0a4acfce2bf76c012c5e62d31898fe849867d4f3",
+    "13-home-german.png": "10d737c8ae7a08c4a460585f900eec10af952d587c2dd910509dc116cb0a08ee",
+    "20-fixture-wifi-list.png": "0770577c303f368165277934be7d2040621df02c0ebb7b6ff97a1f37140bd64d",
+    "21-fixture-wifi-keyboard.png": "f4bab984d0ec6a107f8576f0b60571b82d87cb3c10c160c2db05ad93ca95bfbd",
+    "22-fixture-add-wizard.png": "1e480edf6f384fd38a1f9a1b0862f7bedb87c8dd7cbf3ffd85729277bd8b4982",
+    "contact_sheet.png": "322c3c5d339144b3b599a5d4ec8097f124acdf058e048169a2c986fad677d85c"
   }
 }

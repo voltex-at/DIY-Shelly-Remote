@@ -1,5 +1,24 @@
 # Project status
 
+## Issue #6 — rounded icon family and configurable photographic HOME
+
+2026-10-15: branch `work/issue-6-visual-system`, based on PR #5's reviewed
+`5f6a653`. Source version `0.4.1-ui-review`. Dedicated draft PR; no main merge.
+Replaced the diagnostic line/arc icon renderer with 24 Apache-2.0 Material
+Symbols Rounded masks, filtered at build time and during LVGL scaling. Added
+44px toolbar/tab targets, graphite tokens, room photo headers and a dashboard
+picker. Device cards remain horizontal; four photographic room cards fit two
+columns on HOME. Added a distinct cover detail view and PL/EN/DE strings for
+Wi-Fi, manual onboarding, diagnostics and editor forms.
+
+13 real review frames include both HOME variants, cover/light details, offline
+and EN/DE. Licensed CC-BY-2.0 test photos are kept outside firmware. Native
+review and integrated navigation tests pass; target CI evidence belongs to the
+dedicated PR. Physical appearance/photograph persistence is **pending user test**,
+not established by these host renders. [Exact test procedure](docs/ISSUE6_UI.md).
+The save race/photo reclamation review items remain separate tracked fixes;
+AP/BLE are explicitly disabled, LAN discovery follows in Issue #7.
+
 ## Current: shared configuration and local panel review
 
 2026-10-15, `0.4.0-config-dev`, branch `work/config-web-panel`, draft PR #5

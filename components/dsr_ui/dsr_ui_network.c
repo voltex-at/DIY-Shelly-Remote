@@ -173,8 +173,8 @@ static bool copy_field(char *dest, size_t capacity, unsigned index)
 static void bind_device(lv_event_t *event)
 {
     (void)event;
-    if (busy) { lv_label_set_text(message, result_text(DSR_BUSY)); return; }
-    if (!dsr_wifi_connected()) { lv_label_set_text(message, "Connect Wi-Fi first"); return; }
+    if (busy) { dsr_sc_label_set_text(message, result_text(DSR_BUSY)); return; }
+    if (!dsr_wifi_connected()) { dsr_sc_label_set_text(message, "Connect Wi-Fi first"); return; }
     memset(&pending, 0, sizeof(pending));
     const char *channel = lv_textarea_get_text(fields[1]);
     char *end = NULL; long value = strtol(channel, &end, 10);
@@ -183,16 +183,16 @@ static void bind_device(lv_event_t *event)
         !copy_field(pending.device.name, sizeof(pending.device.name), 2) ||
         !copy_field(pending.credentials.username, sizeof(pending.credentials.username), 3) ||
         !copy_field(pending.credentials.password, sizeof(pending.credentials.password), 4)) {
-        lv_label_set_text(message, "Invalid details. Channel range: 0-15"); return;
+        dsr_sc_label_set_text(message, "Invalid details. Channel range: 0-15"); return;
     }
     pending.device.channel = (uint8_t)value;
     dsr_result_t result = submit(DSR_JOB_BIND, false);
-    lv_label_set_text(message, result == DSR_OK ? "Checking device before saving..." : result_text(result));
+    dsr_sc_label_set_text(message, result == DSR_OK ? "Checking device before saving..." : result_text(result));
 }
 
-void dsr_network_device(lv_event_t *event)
+static void manual_device(lv_event_t *event)
 {
-    (void)event; form_start("Add / replace Shelly"); view = VIEW_DEVICE;
+    (void)event; form_start("Zaawansowane • adres IP"); view = VIEW_DEVICE;
     char channel[4]; snprintf(channel, sizeof(channel), "%u", saved.device.channel);
     lv_obj_t *ip = field(0, "IPv4 address (same LAN)", saved.device.host, 15, false);
     lv_textarea_set_accepted_chars(ip, "0123456789.");
@@ -203,6 +203,16 @@ void dsr_network_device(lv_event_t *event)
     field(4, "Shelly password (optional)", saved.credentials.password, 64, true);
     dsr_ui_button(form, "Check & save device", 0, 420, 268, bind_device, NULL);
     dsr_ui_label(form, "Supports one relay/switch.\nA successful check replaces the saved device.\nLocal HTTP; Gen1 Basic / Gen2+ Digest.\nCredentials in unencrypted NVS.", 0, 484, 268);
+}
+
+void dsr_network_device(lv_event_t *event)
+{
+    (void)event;lv_obj_t *root=dsr_ui_screen("Dodaj urządzenie Shelly",true);
+    lv_obj_t *scan=dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,NULL,NULL);lv_obj_add_state(scan,LV_STATE_DISABLED);
+    lv_obj_t *ap=dsr_ui_button(root,"Wi-Fi AP",12,152,296,NULL,NULL);lv_obj_add_state(ap,LV_STATE_DISABLED);
+    lv_obj_t *ble=dsr_ui_button(root,"Bluetooth LE",12,208,296,NULL,NULL);lv_obj_add_state(ble,LV_STATE_DISABLED);
+    dsr_ui_button(root,"Dodaj ręcznie (IP)",12,264,296,manual_device,NULL);
+    dsr_ui_label(root,"Wyszukiwanie LAN w kolejnym etapie.\nWi-Fi AP i Bluetooth nie są jeszcze obsługiwane.",16,329,288);
 }
 
 static void poll(lv_timer_t *timer)
@@ -230,7 +240,7 @@ static void poll(lv_timer_t *timer)
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
         if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT)
-            lv_label_set_text(message, result_text(event.result));
+            dsr_sc_label_set_text(message, result_text(event.result));
         render();
     }
     bool wifi = dsr_wifi_connected();
@@ -261,7 +271,7 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;

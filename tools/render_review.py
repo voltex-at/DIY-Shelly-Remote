@@ -6,6 +6,7 @@ No concept art, browser imitation, UI bitmap overlays or external app images.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -41,9 +42,18 @@ for path in sorted(source.glob("*.ppm")):
     assert len(rgb) == 320 * 480 * 3
     frames[path.stem] = rgb
     png(out / (path.stem + ".png"), 320, 480, rgb)
-assert len(frames) == 9
+assert len(frames) >= 13
+onboarding = ROOT / "build-ui/native/screenshots"
+if not onboarding.exists():
+    onboarding = ROOT / "build-ui/asan/screenshots"
+for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-password-keyboard", "21-fixture-wifi-keyboard"), ("14-add-device-wizard", "22-fixture-add-wizard")]:
+    path = onboarding / (original + ".ppm")
+    if path.exists():
+        _, size, _, rgb = path.read_bytes().split(b"\n", 3)
+        assert size == b"320 480"
+        png(out / (name + ".png"), 320, 480, rgb)
 sheet = bytearray(bytes((235, 237, 240)) * (648 * 1456))
-for index, name in enumerate(list(frames)[:6]):
+for index, name in enumerate(["10-home-room-photos", "01-home", "04-room-salon", "05-device-details-on", "11-cover-details", "07-device-offline"]):
     frame = frames[name]
     ox, oy = (index % 2) * 328, (index // 2) * 488
     for y in range(480):
@@ -51,9 +61,10 @@ for index, name in enumerate(list(frames)[:6]):
         sheet[start:start + 960] = frame[y * 960:(y + 1) * 960]
 png(out / "contact_sheet.png", 648, 1456, bytes(sheet))
 manifest = {
-    "branch": "work/config-web-panel", "lvgl": "9.3.0", "display": [320, 480],
+    "branch": os.environ.get("GITHUB_HEAD_REF") or subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip(), "lvgl": "9.3.0", "display": [320, 480],
     "renderer": "native C project source, LVGL software draw, RGB565 framebuffer", 
     "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
+    "onboarding_fixture": "tests/ui/test_ui.c (host radio fixture, not hardware evidence)",
     "frames": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.glob("*.png"))},
 }
 (out / "render-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

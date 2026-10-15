@@ -2,17 +2,20 @@
 #define DSR_UI_STYLE_H
 #include "lvgl.h"
 
-/* Shared tokens, sampled by visual comparison to the manufacturer's published
- * app screenshots. Original implementation and original geometric icons. */
-#define DSR_SC_BG 0x121a23
-#define DSR_SC_PANEL 0x20272e
-#define DSR_SC_CARD 0x45494f
-#define DSR_SC_EDGE 0x5a6169
+/* Shared graphite design tokens. Material Symbols Rounded (Apache-2.0). */
+#define DSR_SC_BG 0x101a22
+#define DSR_SC_PANEL 0x20272b
+#define DSR_SC_CARD 0x323638
+#define DSR_SC_EDGE 0x535a5f
 #define DSR_SC_TEXT 0xf5f6f7
 #define DSR_SC_MUTED 0xc3c8ce
-#define DSR_SC_BLUE 0x4c9bf5
-#define DSR_SC_NAV 0x30373f
+#define DSR_SC_BLUE 0x3999f6
+#define DSR_SC_NAV 0x303638
 #define DSR_SC_OFF 0x81878e
+#define DSR_SC_GAP 8
+#define DSR_SC_MARGIN 12
+#define DSR_SC_RADIUS 14
+#define DSR_SC_TOUCH_MIN 44
 extern const lv_font_t dsr_roboto_11, dsr_roboto_12, dsr_roboto_14;
 extern const lv_font_t dsr_roboto_16, dsr_roboto_18, dsr_roboto_28;
 
@@ -31,5 +34,7 @@ lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint
 void dsr_sc_icon_color(lv_obj_t *icon,uint32_t color);
 void dsr_sc_appearance(uint32_t accent,bool midnight,unsigned language);
 const char *dsr_sc_tr(const char *text);
+void dsr_sc_label_set_text(lv_obj_t *label,const char *text);
+void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...);
 lv_color_t dsr_sc_color(uint32_t color);
 #endif

@@ -2,6 +2,7 @@
 #define DSR_UI_INTERNAL_H
 #include "lvgl.h"
 #include "dsr_platform.h"
+#include "dsr_ui_style.h"
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width);
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
                        lv_event_cb_t callback, void *context);
@@ -25,6 +26,7 @@ void dsr_network_home(lv_event_t *event);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_edit_dashboard(void);
+void dsr_ui_select_dashboard(void);
 void dsr_ui_workspace_tick(void);
 void dsr_ui_workspace_hide(void);
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection);

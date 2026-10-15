@@ -43,6 +43,7 @@ typedef struct {
     void (*add_device)(void);
     void (*edit_dashboard)(void);
     void (*set_cover)(unsigned index,int direction);
+    void (*select_dashboard)(void);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

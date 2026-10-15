@@ -18,7 +18,7 @@ static void menu(lv_event_t *event);
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width)
 {
     lv_obj_t *obj = lv_label_create(parent);
-    lv_label_set_text(obj, text);
+    dsr_sc_label_set_text(obj, text);
     lv_obj_set_pos(obj, x, y);
     lv_obj_set_width(obj, width);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_WRAP);
@@ -46,7 +46,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_style_color_filter_opa(obj, LV_OPA_TRANSP, LV_STATE_DISABLED);
     lv_obj_set_style_radius(obj, 12, 0);
     lv_obj_t *caption = lv_label_create(obj);
-    lv_label_set_text(caption, dsr_sc_tr(text));
+    dsr_sc_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
     if (callback) lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, context);
     return obj;
@@ -111,7 +111,7 @@ static void touch_hit(lv_event_t *event)
 {
     unsigned corner = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     touches++;
-    lv_label_set_text_fmt(touch_status, "Corner %u detected\nTouch count: %u", corner, touches);
+    dsr_sc_label_set_text_fmt(touch_status, "Corner %u detected\nTouch count: %u", corner, touches);
 }
 
 static void touch_test(lv_event_t *event)
@@ -143,7 +143,7 @@ static void colors(lv_event_t *event)
         lv_obj_set_style_border_width(bar, 0, 0);
         lv_obj_set_style_radius(bar, 8, 0);
         lv_obj_t *caption = lv_label_create(bar);
-        lv_label_set_text(caption, names[i]);
+        dsr_sc_label_set_text(caption, names[i]);
         lv_obj_set_style_text_color(caption, lv_color_hex(i == 2 ? 0xffffff : 0x000000), 0);
         lv_obj_center(caption);
     }
@@ -154,7 +154,7 @@ static void change_brightness(lv_event_t *event)
     uint8_t percent = (uint8_t)lv_slider_get_value(lv_event_get_target(event));
     if (dsr_board_set_backlight(percent) == ESP_OK) {
         brightness = percent;
-        lv_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
+        dsr_sc_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
     }
 }
 
@@ -166,7 +166,7 @@ static void firmware(lv_event_t *event)
     lv_obj_t *root = dsr_ui_screen("Firmware Update", true);
     dsr_ui_label(root, "Current version", 16, 100, 288);
     dsr_ui_label(root, esp_app_get_description()->version, 16, 133, 288);
-    dsr_ui_label(root, "Local switch development build.\nOnline updates are not available yet.", 16, 200, 288);
+    dsr_ui_label(root, "Lokalna aktualizacja OTA jest dostępna w sparowanym Web Panelu. Wymaga zgody na ekranie pilota.", 16, 200, 288);
 }
 
 static void settings(lv_event_t *event)
@@ -174,7 +174,7 @@ static void settings(lv_event_t *event)
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Settings", true);
     brightness_text = dsr_ui_label(root, "", 16, 92, 288);
-    lv_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
+    dsr_sc_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
     lv_obj_t *slider = lv_slider_create(root);
     lv_obj_set_pos(slider, 24, 144);
     lv_obj_set_size(slider, 272, 18);
@@ -183,7 +183,7 @@ static void settings(lv_event_t *event)
     lv_obj_add_event_cb(slider, change_brightness, LV_EVENT_VALUE_CHANGED, NULL);
     dsr_ui_button(root, "Screen off / touch to wake", 16, 204, 288, sleep_display, NULL);
     dsr_ui_button(root, "Firmware Update", 16, 270, 288, firmware, NULL);
-    dsr_ui_label(root, "Auto screen off: 60 seconds\nBrightness is temporary; BLE pending", 16, 346, 288);
+    dsr_ui_label(root, "Ekran gaśnie po 60 sekundach.\nJasność jest ustawieniem tymczasowym.", 16, 346, 288);
 }
 
 void dsr_ui_open_settings(void) { settings(NULL); }
@@ -194,10 +194,10 @@ static void menu(lv_event_t *event)
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Menu", true);
     dsr_ui_button(root, "Wi-Fi setup", 16, 91, 288, dsr_network_wifi, NULL);
-    dsr_ui_button(root, "Add / replace Shelly", 16, 150, 288, dsr_network_device, NULL);
+    dsr_ui_button(root, "Dodaj urządzenie Shelly", 16, 150, 288, dsr_network_device, NULL);
     dsr_ui_button(root, "Hardware tests", 16, 209, 288, hardware, NULL);
     dsr_ui_button(root, "Settings", 16, 268, 288, settings, NULL);
-    dsr_ui_label(root, "One switch in this version.\nRooms, scenes, BLE and OTA: planned.", 16, 340, 288);
+    dsr_ui_label(root, "Jedno aktywne połączenie Shelly.\nEdycja pulpitów i lokalny panel są dostępne.", 16, 340, 288);
 }
 
 void dsr_ui_home(lv_event_t *event) { dsr_network_home(event); }

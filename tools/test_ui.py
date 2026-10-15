@@ -24,6 +24,7 @@ screens = build / "screenshots"
 screens.mkdir(exist_ok=True)
 cc = os.environ.get("CC", "cc")
 flags = ["-std=c11", "-O1", "-g", "-DLV_KCONFIG_IGNORE", "-DDSR_BOARD_ES3C35P=1",
+         f'-DDSR_TEST_PHOTO_DIR="{ROOT / "tests/ui/photos"}"',
          f'-DLV_CONF_PATH="{ROOT / "tests/ui/lv_conf.h"}"']
 if args.review:
     flags += ["-DDSR_UI_REVIEW_DEMO=1"]
@@ -40,11 +41,11 @@ sources = list(sorted((lvgl / "src").rglob("*.c")))
 sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c",
             "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
-sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c"]
+sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_icons.c"]
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
 if args.review:
-    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_mobile.c","dsr_ui_config.c","dsr_config.c","dsr_core.c"]]
+    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_mobile.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c"]]
 config_hash = hashlib.sha256((ROOT / "tests/ui/lv_conf.h").read_bytes() + repr(flags).encode()).hexdigest()
 def compile_source(source):
     obj = build / (hashlib.sha256(str(source).encode()).hexdigest()[:20] + ".o")

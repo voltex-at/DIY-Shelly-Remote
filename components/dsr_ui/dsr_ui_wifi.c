@@ -40,24 +40,24 @@ static void toggle_password(lv_event_t *event)
 static void cancel_connect(lv_event_t *event)
 {
     (void)event; dsr_wifi_cancel_connect();
-    if (notice) lv_label_set_text(notice, "Cancelling...\nKeeping previous settings.");
+    if (notice) dsr_sc_label_set_text(notice, "Cancelling...\nKeeping previous settings.");
     if (cancel_button) lv_obj_add_state(cancel_button, LV_STATE_DISABLED);
 }
 
 static void join(lv_event_t *event)
 {
     (void)event;
-    if (dsr_network_busy()) { lv_label_set_text(notice, "Please wait for the current operation."); return; }
+    if (dsr_network_busy()) { dsr_sc_label_set_text(notice, "Please wait for the current operation."); return; }
     const char *text = password ? lv_textarea_get_text(password) : "";
     if (strlen(text) >= sizeof(candidate.password)) {
-        lv_label_set_text(notice, "Password is too long (byte limit)."); return;
+        dsr_sc_label_set_text(notice, "Password is too long (byte limit)."); return;
     }
     snprintf(candidate.password, sizeof(candidate.password), "%s", text);
     if (!dsr_wifi_settings_valid(&candidate)) {
-        lv_label_set_text(notice, candidate.wifi_security == DSR_WIFI_WPA3 ? "Enter a password (1-63 bytes)." : "Use 8-63 characters or a 64-digit hex key."); return;
+        dsr_sc_label_set_text(notice, candidate.wifi_security == DSR_WIFI_WPA3 ? "Enter a password (1-63 bytes)." : "Use 8-63 characters or a 64-digit hex key."); return;
     }
     if (dsr_network_request_wifi(DSR_JOB_WIFI_CONNECT, &candidate) != DSR_OK) {
-        lv_label_set_text(notice, "Cannot start. Please try again."); return;
+        dsr_sc_label_set_text(notice, "Cannot start. Please try again."); return;
     }
     lv_obj_t *root = dsr_ui_screen("Connecting to Wi-Fi", false); page = CONNECTING;
     lv_obj_t *ssid = dsr_ui_label(root, selected.ssid, 16, 101, 288);
@@ -82,7 +82,7 @@ static void show_password(const char *error)
         dsr_ui_button(root, "Back to networks", 16, 348, 288, back_to_list, NULL); return;
     }
     dsr_ui_label(root, "Password", 16, 112, 190);
-    lv_obj_t *show = lv_checkbox_create(root); lv_checkbox_set_text(show, "Show");
+    lv_obj_t *show = lv_checkbox_create(root); lv_checkbox_set_text(show, dsr_sc_tr("Show"));
     lv_obj_set_pos(show, 217, 106); lv_obj_set_style_text_color(show, lv_color_hex(0xf0f4fb), 0);
     lv_obj_add_event_cb(show, toggle_password, LV_EVENT_VALUE_CHANGED, NULL);
     password = lv_textarea_create(root); dsr_ui_textarea(password);
@@ -132,7 +132,7 @@ static void show_networks(void)
         lv_obj_t *ssid = dsr_ui_label(row, ap->ssid, 12, 10, 218);
         lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, 20);
         lv_obj_t *details = dsr_ui_label(row, "", 12, 39, 254);
-        lv_label_set_text_fmt(details, "%s  |  %d dBm", security_name(ap->security), ap->rssi);
+        dsr_sc_label_set_text_fmt(details, "%s  |  %d dBm", dsr_sc_tr(security_name(ap->security)), ap->rssi);
         lv_obj_set_style_text_color(details, lv_color_hex(0xa8bbd3), 0);
         dsr_ui_label(row, LV_SYMBOL_WIFI, 246, 11, 22);
         if (ap->security == DSR_WIFI_UNSUPPORTED) lv_obj_add_state(row, LV_STATE_DISABLED);
@@ -180,7 +180,7 @@ void dsr_wifi_ui_result(const dsr_event_t *event, dsr_job_kind_t kind)
         lv_obj_t *success = dsr_ui_label(root, LV_SYMBOL_OK "  Connected", 16, 115, 288);
         lv_obj_set_style_text_color(success, lv_color_hex(0x76e2b6), 0);
         dsr_ui_label(root, candidate.ssid, 16, 168, 288);
-        lv_obj_t *ip = dsr_ui_label(root, "", 16, 220, 288); lv_label_set_text_fmt(ip, "IP address: %s", info.ip);
+        lv_obj_t *ip = dsr_ui_label(root, "", 16, 220, 288); dsr_sc_label_set_text_fmt(ip, "IP address: %s", info.ip);
         dsr_ui_label(root, "Network saved on this remote.\nIt will reconnect automatically.", 16, 269, 288);
         lv_obj_t *done = dsr_ui_button(root, "Continue", 16, 350, 288, dsr_ui_home, NULL); dsr_ui_primary(done);
         dsr_ui_button(root, "Other network", 16, 414, 288, dsr_network_wifi, NULL);

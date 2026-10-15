@@ -1,5 +1,10 @@
 # UI review v3 — wide HOME cards, actual LVGL 320×480
 
+Issue #6 revision: [design tokens, licensed icon system and physical test](../ISSUE6_UI.md).
+The current dedicated branch is `work/issue-6-visual-system` (`0.4.1-ui-review`).
+
+![Configurable photographic HOME](renders/10-home-room-photos.png)
+
 Current branch: `work/config-web-panel`, draft PR #5, version
 `0.4.0-config-dev`. The next visual approval concerns **HOME**: a light,
 contact sensor and cover in full-width cards, clearly DEMO. Room cards remain

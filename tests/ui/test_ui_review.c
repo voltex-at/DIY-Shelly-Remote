@@ -10,7 +10,7 @@
 
 static unsigned checks,commands;
 static bool photo_enabled;
-static uint16_t photo_pixels[DSR_PHOTO_BYTES/2];
+static uint16_t photo_pixels[4][DSR_PHOTO_BYTES/2];
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static unsigned char pixels[320*480*3];
 static uint16_t buffer[320*40];
@@ -30,7 +30,7 @@ static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=
 
 static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands++;}
 static void noop(void){}
-const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]?photo_pixels:NULL;}
+const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]>='1'&&id[0]<='4'?photo_pixels[id[0]-'1']:NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y)
@@ -53,7 +53,7 @@ static lv_obj_t *find(lv_obj_t *o,const char *text)
 }
 static unsigned count_cards(lv_obj_t *o)
 {
- unsigned count=lv_obj_get_width(o)==296&&lv_obj_get_height(o)==90;
+ unsigned count=lv_obj_get_width(o)==296&&lv_obj_get_height(o)==84;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++)count+=count_cards(lv_obj_get_child(o,(int)i));
  return count;
 }
@@ -71,7 +71,7 @@ static void check_icon_alignment(void)
   * 40px / 2px-border and 86px / 3px-border circular power buttons. */
  static const int sizes[]={18,20,22,30,35,56};
  unsigned failures=0;
- for(unsigned kind=0;kind<=DSR_ICON_CHEVRON;kind++)for(unsigned at=0;at<sizeof(sizes)/sizeof(sizes[0]);at++){
+ for(unsigned kind=0;kind<=DSR_ICON_SCENES;kind++)for(unsigned at=0;at<sizeof(sizes)/sizeof(sizes[0]);at++){
   int size=sizes[at],side=size==22?40:size==35?86:size+18;
   for(int border=0;border<=3;border++){
    lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);
@@ -105,14 +105,14 @@ static void save_icon_atlas(void)
  lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);
  lv_obj_set_style_bg_color(root,lv_color_hex(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
  dsr_sc_text(root,"IKONY / LVGL 320 x 480",12,10,296,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(root,"Wspólne centrowanie • oryginalne symbole",12,33,296,&dsr_roboto_11,DSR_SC_MUTED);
- static const char *names[]={"Pulpit","Dom","Energia","Ustawienia","Dodaj","ON / OFF","Wstecz","Edytuj","Informacja","Wtyczka","Światło","Salon","Sypialnia","Kuchnia","Łazienka","Wi-Fi","Siatka","Rozwiń"};
- for(unsigned i=0;i<=DSR_ICON_CHEVRON;i++){
-  int x=15+(int)(i%3)*104,y=58+(int)(i/3)*68;
+ dsr_sc_text(root,"Material Symbols Rounded • Apache 2.0",12,33,296,&dsr_roboto_11,DSR_SC_MUTED);
+ static const char *names[]={"Pulpit","Dom","Energia","Ustawienia","Dodaj","ON / OFF","Wstecz","Edytuj","Informacja","Wtyczka","Światło","Salon","Sypialnia","Kuchnia","Łazienka","Wi-Fi","Siatka","Rozwiń","Góra","Dół","Drzwi","Roleta","Bateria","Sceny"};
+ for(unsigned i=0;i<=DSR_ICON_SCENES;i++){
+  int x=-3+(int)(i%4)*80,y=58+(int)(i/4)*68;
   lv_obj_t *circle=dsr_sc_panel(root,x+18,y,48,48,DSR_SC_PANEL,LV_RADIUS_CIRCLE);
   lv_obj_set_style_border_color(circle,lv_color_hex(DSR_SC_BLUE),0);lv_obj_set_style_border_width(circle,2,0);
   dsr_sc_icon_centered(circle,(dsr_ui_icon_t)i,26,DSR_SC_TEXT);
-  lv_obj_t *label=dsr_sc_text(root,names[i],x-3,y+49,90,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+  lv_obj_t *label=dsr_sc_text(root,names[i],x+1,y+49,78,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
  }
  save("09-icon-alignment");
 }
@@ -140,6 +140,11 @@ int main(int argc,char **argv)
   FILE *f=fopen(argv[2],"rb");CHECK(f);char text[DSR_CONFIG_MAX_JSON+1];size_t length=fread(text,1,DSR_CONFIG_MAX_JSON,f);fclose(f);text[length]=0;
   dsr_mobile_model_t model={.demo=true};CHECK(dsr_mobile_configure(&model,text));dsr_mobile_update(&model);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");lv_deinit();return 0;
  }
+ const char *files[]={"salon","kuchnia","sypialnia","lazienka"};
+ for(unsigned i=0;i<4;i++){
+  char path[512];snprintf(path,sizeof(path),"%s/%s.rgb",DSR_TEST_PHOTO_DIR,files[i]);FILE *f=fopen(path,"rb");CHECK(f);CHECK(fread(photo_pixels[i],1,DSR_PHOTO_BYTES,f)==DSR_PHOTO_BYTES);fclose(f);
+  memset(fixture.rooms[i].photo,(int)('1'+i),32);fixture.rooms[i].photo[32]=0;
+ }photo_enabled=true;
  check_icon_alignment();save_icon_atlas();
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
@@ -168,12 +173,14 @@ int main(int argc,char **argv)
  fixture.configured_layout=true;fixture.tile_count=24;for(unsigned i=0;i<24;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.index=0,.span=2,.height=1,.fields=255};
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
  CHECK(count_cards(lv_screen_active())==24);lv_mem_monitor(&after);CHECK(after.free_size>2048);
- fixture.configured_layout=false;fixture.tile_count=0;photo_enabled=true;strcpy(fixture.rooms[0].photo,"11111111111111111111111111111111");
- for(unsigned i=0;i<sizeof(photo_pixels)/sizeof(photo_pixels[0]);i++)photo_pixels[i]=(uint16_t)(((i/DSR_PHOTO_WIDTH)%32)<<11|((i%DSR_PHOTO_WIDTH)%64)<<5);
- dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_ROOMS,0);lv_refr_now(display);CHECK(find(lv_screen_active(),"Salon"));
- dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(find(lv_screen_active(),"My dashboard"));
- dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(find(lv_screen_active(),"Mein Dashboard"));
+ fixture.configured_layout=true;fixture.dashboard_id=2;strcpy(fixture.dashboard_name,"Pomieszczenia");fixture.tile_count=4;
+ for(unsigned i=0;i<4;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.type=1,.index=i,.span=1,.height=1,.fields=255};
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("10-home-room-photos");CHECK(find(lv_screen_active(),"Salon"));
+ dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");CHECK(find(lv_screen_active(),"65%"));
+ fixture.configured_layout=false;fixture.tile_count=0;fixture.dashboard_name[0]=0;fixture.dashboard_id=1;
+ dsr_mobile_update(&fixture);dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_HOME,0);save("12-home-english");CHECK(find(lv_screen_active(),"My dashboard"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
- printf("PASS: %u review checks, 9 real LVGL frames at 320x480, 432 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
+ printf("PASS: %u review checks, 13 real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
  lv_deinit();return 0;
 }

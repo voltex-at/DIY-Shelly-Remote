@@ -63,7 +63,7 @@ static void screenshot(const char *name)
 }
 static lv_obj_t *find_label(lv_obj_t *root,const char *text)
 {
-    if(lv_obj_check_type(root,&lv_label_class)&&!strcmp(lv_label_get_text(root),text))return root;
+    if(lv_obj_check_type(root,&lv_label_class)&&!strcmp(lv_label_get_text(root),dsr_sc_tr(text)))return root;
     for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *f=find_label(lv_obj_get_child(root,(int)i),text);if(f)return f;}
     return NULL;
 }
@@ -112,10 +112,10 @@ int main(int argc,char **argv)
     deliver(DSR_OFFLINE,DSR_WIFI_BAD_PASSWORD);CHECK(find_type(lv_screen_active(),&lv_keyboard_class)!=NULL);
     CHECK(find_label(lv_screen_active(),"Authentication failed. Check the password.")!=NULL);screenshot("05-password-error");
     click("Connect");wifi=(dsr_wifi_info_t){.connected=true,.status=DSR_WIFI_CONNECTED,.ssid="Home Wi-Fi",.ip="192.168.1.42"};
-    deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(find_label(lv_screen_active(),"IP address: 192.168.1.42")!=NULL);screenshot("06-connected");
+    deliver(DSR_OK,DSR_WIFI_CONNECTED);char ip_label[64];snprintf(ip_label,sizeof(ip_label),dsr_sc_tr("IP address: %s"),"192.168.1.42");CHECK(find_label(lv_screen_active(),ip_label)!=NULL);screenshot("06-connected");
     click("Continue");CHECK(find_label(lv_screen_active(),"Brak urządzeń")!=NULL);
     CHECK(find_label(lv_screen_active(),"ON")==NULL);screenshot("07-home");
-    dsr_network_device(NULL);screenshot("08-device-form");
+    dsr_network_device(NULL);screenshot("14-add-device-wizard");click("Dodaj ręcznie (IP)");screenshot("08-device-form");
     password=find_type(lv_screen_active(),&lv_textarea_class);CHECK(password!=NULL);
     foreground=lv_obj_get_style_text_color(password,LV_PART_MAIN);CHECK(foreground.red>200);
     dsr_network_wifi(NULL);tick();deliver(DSR_OK,DSR_WIFI_IDLE);click("Guest network");
@@ -134,7 +134,7 @@ int main(int argc,char **argv)
     tick();lv_mem_monitor(&after);
     printf("UI heap before=%u after=%u largest=%u\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
     fflush(stdout);CHECK(after.free_size+1024>=before.free_size);
-    dsr_network_device(NULL);password=find_type(lv_screen_active(),&lv_textarea_class);
+    dsr_network_device(NULL);click("Dodaj ręcznie (IP)");password=find_type(lv_screen_active(),&lv_textarea_class);
     lv_textarea_set_text(password,"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
     response.device=(dsr_device_t){.host="192.168.1.77",.name="Desk lamp",.device_id="shellyplus1-AABBCCDDEEFF",
         .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true};
@@ -155,6 +155,6 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
     dsr_network_home(NULL);dsr_ui_workspace_tick();
     test_workspace_disable();
-    printf("PASS: %u real LVGL UI checks; thirteen 320x480 screenshots; touch editor shares versioned configuration; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
+    printf("PASS: %u real LVGL UI checks; fourteen 320x480 screenshots; touch editor shares versioned configuration; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
     lv_deinit();return 0;
 }
