@@ -24,4 +24,7 @@ void dsr_network_reset_view(void);
 void dsr_network_home(lv_event_t *event);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
+void dsr_ui_edit_dashboard(void);
+void dsr_ui_workspace_tick(void);
+void dsr_ui_workspace_migrate(const dsr_connection_t *connection);
 #endif

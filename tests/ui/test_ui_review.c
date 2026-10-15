@@ -19,13 +19,14 @@ static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=
  .rooms={{.name="Salon",.icon=0},{.name="Kuchnia",.icon=1},{.name="Sypialnia",.icon=2},{.name="Łazienka",.icon=3}},
  .devices={
  {.name="Światło w salonie",.model="Shelly Plus 1PM",.room=0,.kind=DSR_DEVICE_LIGHT,.online=true,.output=true,.can_switch=true,.has_power=true,.power_w=18.6,.has_voltage=true,.voltage_v=230.1,.has_current=true,.current_a=.081},
- {.name="Lampa podłogowa",.model="Shelly 1 Mini",.room=0,.kind=DSR_DEVICE_LIGHT,.online=true,.can_switch=true,.has_power=true},
+ {.name="Drzwi wejściowe",.model="Shelly BLU Door/Window",.room=0,.kind=DSR_DEVICE_CONTACT,.online=true,.has_contact=true,.contact_open=true,.has_battery=true,.battery_pct=92,.has_temperature=true,.temperature_c=22.4},
+ {.name="Roleta w salonie",.model="Shelly Plus 2PM",.room=0,.kind=DSR_DEVICE_COVER,.online=true,.has_position=true,.position_pct=65,.can_cover=true},
  {.name="Gniazdko kuchnia",.model="Shelly Plug S",.room=1,.kind=DSR_DEVICE_PLUG,.online=true,.output=true,.can_switch=true,.has_power=true,.power_w=68.4},
- {.name="Lampka nocna",.model="Shelly Plus 1",.room=2,.kind=DSR_DEVICE_LIGHT,.online=true,.can_switch=true},
  {.name="Oświetlenie lustra",.model="Shelly 1PM",.room=3,.kind=DSR_DEVICE_RELAY,.can_switch=true}}};
 
 static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands++;}
 static void noop(void){}
+const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y)

@@ -1,6 +1,7 @@
 #include "dsr_ui_internal.h"
 #include "dsr_platform.h"
 #include "dsr_ui_mobile.h"
+#include "dsr_workspace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,13 +47,20 @@ static void render(void)
     memset(&mobile_model, 0, sizeof(mobile_model));
     mobile_model.wifi = dsr_wifi_connected();
     snprintf(mobile_model.home_name, sizeof(mobile_model.home_name), "Mój dom");
+    char *configuration=dsr_workspace_snapshot();
+    bool layout=configuration&&dsr_mobile_configure(&mobile_model,configuration);free(configuration);
     if (configured) {
-        mobile_model.device_count = 1;
-        dsr_mobile_device_t *d = &mobile_model.devices[0];
+        unsigned index=0;
+        if(layout){for(;index<mobile_model.device_count;index++)if(!strcmp(mobile_model.devices[index].host,saved.device.host)&&mobile_model.devices[index].channel==saved.device.channel)break;}
+        else mobile_model.device_count = 1;
+        if(index>=mobile_model.device_count){dsr_mobile_update(&mobile_model);return;}
+        dsr_mobile_device_t *d = &mobile_model.devices[index];
+        if(!layout){
         snprintf(d->name, sizeof(d->name), "%s", saved.device.name);
         snprintf(d->host, sizeof(d->host), "%s", saved.device.host);
         snprintf(d->model, sizeof(d->model), "Shelly • kanał %u", saved.device.channel);
         d->room = DSR_UI_NO_ROOM; d->kind = DSR_DEVICE_RELAY;
+        }
         d->online = mobile_model.wifi && saved.device.online;
         d->output = saved.device.output; d->busy = busy;
         d->can_switch = saved.device.has_switch && !blocked;
@@ -94,7 +102,7 @@ void dsr_network_home(lv_event_t *event)
 
 static void mobile_output(unsigned index, bool on)
 {
-    if (index || busy || blocked || !saved.device.online || !dsr_wifi_connected()) return;
+    if (index>=mobile_model.device_count||strcmp(mobile_model.devices[index].host,saved.device.host)||mobile_model.devices[index].channel!=saved.device.channel||busy||blocked||!saved.device.online||!dsr_wifi_connected()) return;
     (void)submit(DSR_JOB_SET_OUTPUT, on);
 }
 static void mobile_add(void) { dsr_network_device(NULL); }
@@ -209,6 +217,7 @@ static void poll(lv_timer_t *timer)
         } else if (operation == DSR_JOB_BIND) {
             if (event.result == DSR_OK) {
                 saved = pending; saved.device = event.device; configured = true; blocked = false;
+                dsr_ui_workspace_migrate(&saved);
                 last_result = DSR_OK; dsr_network_home(NULL);
             }
             memset(&pending, 0, sizeof(pending));
@@ -227,6 +236,10 @@ static void poll(lv_timer_t *timer)
         render();
     }
     dsr_wifi_ui_tick();
+    dsr_ui_workspace_tick();dsr_panel_tick();
+    static uint32_t config_revision;
+    uint32_t next_revision=dsr_workspace_revision();
+    if(config_revision!=next_revision){config_revision=next_revision;render();}
     if (configured && wifi && !busy && !blocked && !dsr_wifi_ui_active() && now - last_poll >= 5000) {
         last_poll = now; (void)submit(DSR_JOB_PROBE, false);
     }
@@ -240,12 +253,13 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;
     if (dsr_connection_load(&saved, &found) != ESP_OK) storage_error = true;
     configured = found;
+    if(configured)dsr_ui_workspace_migrate(&saved);
     last_poll = lv_tick_get() - 5000;
     lv_timer_create(poll, 200, NULL);
 }

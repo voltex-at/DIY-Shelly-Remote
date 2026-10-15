@@ -79,6 +79,11 @@ static void icon_draw(lv_event_t *e)
     case DSR_ICON_BATH: LINE(2,12,22,12);LINE(3,12,5,20);LINE(5,20,19,20);LINE(19,20,21,12);LINE(6,20,6,23);LINE(18,20,18,23);LINE(5,12,5,4);ARC(8,4,3,180,359);break;
     case DSR_ICON_WIFI: ARC(12,20,17,232,308);ARC(12,20,11,230,310);ARC(12,20,5,225,315);DOT(12,20);break;
     case DSR_ICON_GRID: for(int y=3;y<=14;y+=11)for(int x=3;x<=14;x+=11){LINE(x,y,x+7,y);LINE(x+7,y,x+7,y+7);LINE(x+7,y+7,x,y+7);LINE(x,y+7,x,y);}break;
+    case DSR_ICON_UP: LINE(4,15,12,7);LINE(12,7,20,15);break;
+    case DSR_ICON_DOWN: LINE(4,9,12,17);LINE(12,17,20,9);break;
+    case DSR_ICON_CONTACT: LINE(4,3,15,3);LINE(4,3,4,21);LINE(4,21,15,21);LINE(15,3,15,21);LINE(19,5,21,5);LINE(21,5,21,12);LINE(21,12,19,12);DOT(11,12);break;
+    case DSR_ICON_COVER: LINE(3,3,21,3);LINE(3,3,3,21);LINE(21,3,21,21);LINE(3,21,21,21);for(int y=7;y<=17;y+=5)LINE(4,y,20,y);break;
+    case DSR_ICON_BATTERY: LINE(2,6,20,6);LINE(2,6,2,18);LINE(2,18,20,18);LINE(20,6,20,18);LINE(22,10,22,14);LINE(6,9,6,15);LINE(10,9,10,15);break;
     }
 #undef LINE
 #undef ARC

@@ -6,6 +6,7 @@
 #ifdef DSR_BOARD_ES3C35P
 #include "dsr_ui.h"
 #include "dsr_platform.h"
+#include "dsr_workspace.h"
 #endif
 
 void app_main(void)
@@ -36,6 +37,9 @@ void app_main(void)
     ESP_ERROR_CHECK(dsr_worker_start());
     error = dsr_wifi_start(error == ESP_OK ? &settings : NULL);
     if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
+    esp_err_t workspace_error=dsr_workspace_start();
+    if(workspace_error!=ESP_OK)ESP_LOGE(tag,"Configuration storage unavailable; existing data preserved: %s",esp_err_to_name(workspace_error));
+    else if(dsr_panel_start()!=ESP_OK)ESP_LOGE(tag,"Local Web Panel startup failed");
     dsr_ui_init();
     ESP_ERROR_CHECK(dsr_board_start_ui_task());
     ESP_ERROR_CHECK(dsr_board_set_backlight(70));

@@ -32,7 +32,8 @@ if args.sanitize:
 elif args.ubsan_only:
     flags += ["-fsanitize=undefined", "-fno-omit-frame-pointer"]
 includes = [lvgl, ROOT / "tests/ui", ROOT / "tests/support",
-            *[ROOT / f"components/{name}/include" for name in ["dsr_core", "dsr_platform", "dsr_ui", "dsr_board"]],
+            *[ROOT / f"components/{name}/include" for name in ["dsr_core", "dsr_config", "dsr_platform", "dsr_ui", "dsr_board"]],
+            ROOT / ".test-deps", Path("/usr/include/cjson"),
             ROOT / "components/dsr_ui"]
 flags += [item for folder in includes for item in ["-I", str(folder)]]
 sources = list(sorted((lvgl / "src").rglob("*.c")))
@@ -40,9 +41,10 @@ sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review 
             "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
 sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c"]
+sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
 if args.review:
-    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_mobile.c"]]
+    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_mobile.c","dsr_ui_config.c","dsr_config.c","dsr_core.c"]]
 config_hash = hashlib.sha256((ROOT / "tests/ui/lv_conf.h").read_bytes() + repr(flags).encode()).hexdigest()
 def compile_source(source):
     obj = build / (hashlib.sha256(str(source).encode()).hexdigest()[:20] + ".o")
@@ -58,6 +60,6 @@ def compile_source(source):
 with ThreadPoolExecutor(max_workers=6) as pool:
     objects = list(pool.map(compile_source, sources))
 binary = build / "test_ui"
-subprocess.run([cc, *flags, *map(str, objects), "-lm", "-o", str(binary)], check=True,
+subprocess.run([cc, *flags, *map(str, objects), "-lm", "-l:libcjson.so.1", "-o", str(binary)], check=True,
                env=dict(os.environ, TMPDIR=str(build)))
 subprocess.run([str(binary), str(screens)], check=True, cwd=build)

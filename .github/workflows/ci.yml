@@ -10,11 +10,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install JSON parser for shared configuration and UI fixtures
+        run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - name: Fetch exact LVGL source used by firmware
         run: git clone --depth 1 --branch v9.3.0 https://github.com/lvgl/lvgl.git .test-deps/lvgl
       - name: Render real 320x480 UI and verify DEMO separation
         run: |
           python3 tools/test_ui.py --review --sanitize
+          python3 tools/test_ui.py --sanitize
           python3 tools/test_ui.py --review
           python3 tools/render_review.py --no-run
       - uses: actions/upload-artifact@v4
@@ -31,7 +34,9 @@ jobs:
       - name: Install real JSON parser for protocol fixtures
         run: sudo apt-get update && sudo apt-get install -y libcjson-dev
       - name: Portable C tests with address and undefined behavior sanitizers
-        run: python3 tools/test.py --sanitize
+        run: |
+          python3 tools/test.py --sanitize
+          python3 tools/test_config.py --sanitize
   diagnostic:
     runs-on: ubuntu-24.04
     strategy:
