@@ -50,18 +50,22 @@ jobs:
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p merge-bin -o "$GITHUB_WORKSPACE/build-board/DIY-Shelly-Remote-es3c35p-bringup.bin"
           cd build-board
           sha256sum DIY-Shelly-Remote-es3c35p-bringup.bin diy_shelly_remote.bin > SHA256SUMS.txt
+      - name: Package USB image, instructions and license notices
+        shell: bash
+        run: |
+          mkdir -p build-board/package/bootloader build-board/package/partition_table build-board/package/licenses
+          cp build-board/DIY-Shelly-Remote-es3c35p-bringup.bin build-board/diy_shelly_remote.bin build-board/SHA256SUMS.txt build-board/flasher_args.json build-board/ota_data_initial.bin build-board/package/
+          cp build-board/bootloader/bootloader.bin build-board/package/bootloader/
+          cp build-board/partition_table/partition-table.bin build-board/package/partition_table/
+          cp dependencies.lock build-board/package/
+          cp boards/lcdwiki-es3c35p/README.md build-board/package/INSTALL_AND_TEST.md
+          cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE build-board/package/licenses/
+          cp "$IDF_PATH/LICENSE" build-board/package/licenses/ESP-IDF-Apache-2.0.txt
+          cp managed_components/lvgl__lvgl/LICENCE.txt build-board/package/licenses/LVGL-MIT.txt
+          printf 'Source commit: %s\nTested commit: %s\n' '${{ github.event.pull_request.head.sha || github.sha }}' "$GITHUB_SHA" > build-board/package/BUILD_COMMIT.txt
       - name: Retain unvalidated hardware test firmware
         uses: actions/upload-artifact@v4
         with:
           name: es3c35p-hardware-test-NOT-STABLE
-          path: |
-            build-board/DIY-Shelly-Remote-es3c35p-bringup.bin
-            build-board/diy_shelly_remote.bin
-            build-board/bootloader/bootloader.bin
-            build-board/partition_table/partition-table.bin
-            build-board/ota_data_initial.bin
-            build-board/flasher_args.json
-            build-board/SHA256SUMS.txt
-            build-board/diy_shelly_remote.elf
-            dependencies.lock
+          path: build-board/package/
           if-no-files-found: error
