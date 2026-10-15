@@ -34,3 +34,5 @@ python3 tools/test.py --sanitize
 See [BUILD.md](docs/BUILD.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [UI.md](docs/UI.md), [OTA.md](docs/OTA.md), [COMPATIBILITY.md](docs/COMPATIBILITY.md) and [ROADMAP.md](docs/ROADMAP.md).
 
 Original project code is [MIT](LICENSE). The panel initialization data derives from a separately attributed MIT project; driver/framework dependencies retain their own licenses. See [NOTICE.md](NOTICE.md). No official Shelly application code, graphics or logos are included.
+
+Current development firmware: [verified CI/artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38662049616/artifacts/11939312624), 94 + 371 checks with ASan/UBSan and all three ESP-IDF builds passed. See [validation record](docs/VALIDATION.md) for exact source/tested commits and hashes.

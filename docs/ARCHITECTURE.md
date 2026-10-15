@@ -14,7 +14,7 @@
 
 The ES3C35P build creates LVGL objects before starting its sole UI owner task. DMA completion only signals flush-ready; the tick timer only increments LVGL time. The touch polling task publishes a synchronized sample and makes no LVGL calls. All subsequent UI object calls belong to the UI task. The UI submits a copied `dsr_job_t` without waiting for network I/O and consumes a copied `dsr_event_t`. A single outstanding job deliberately limits memory use in this foundation; `DSR_BUSY` prevents command loss. The UI must consume results regularly to release the slot.
 
-No ambiguous control commands are retried. ON/OFF uses an explicit desired state rather than toggle. A successful request is followed by a readback; if the readback disagrees, report failure and show the observed state. A timeout may occur after a device has acted, so report uncertain state and refresh rather than claim success or blindly replay.
+No ambiguous control commands are retried. ON/OFF uses an explicit desired state rather than toggle. A successful request is followed by a readback; if the readback disagrees, report failure and refresh before enabling another action. A timeout may occur after a device has acted, so report uncertain state and refresh rather than claim success or blindly replay.
 
 The portable registry is an unused IPv4+channel collection. Current control uses a separate saved binding to Gen1 MAC / Gen2+ ID plus channel; it verifies identity before read/write. Discovery and automatic address relocation remain future work. Use explicit units and measurement validity; missing power must not be represented as a measured zero.
 
