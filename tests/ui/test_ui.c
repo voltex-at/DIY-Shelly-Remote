@@ -20,6 +20,7 @@ void test_workspace_enable(void);
 void test_workspace_disable(void);
 void test_workspace_defer(bool enabled);
 void test_workspace_finish(bool success);
+void test_workspace_photos(bool enabled);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
@@ -82,9 +83,11 @@ static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 static void tick(void) {lv_tick_inc(250);lv_timer_handler();lv_refr_now(display);}
 static void screenshot(const char *name)
 {
+    lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
-    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_screen_active(),226,8,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
+    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,8,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
+    if(badge){unsigned at=(20*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
     char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);
     FILE *f=fopen(path,"wb");CHECK(f!=NULL);fprintf(f,"P6\n320 480\n255\n");
     CHECK(fwrite(canvas,1,sizeof(canvas),f)==sizeof(canvas));fclose(f);screenshots++;if(badge)lv_obj_delete(badge);
@@ -103,7 +106,7 @@ static lv_obj_t *find_type(lv_obj_t *root,const lv_obj_class_t *type)
 }
 static void click(const char *text)
 {
-    lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label!=NULL);
+    lv_obj_t *label=find_label(lv_screen_active(),text);if(!label)fprintf(stderr,"Missing UI label: %s\n",text);CHECK(label!=NULL);
     (void)lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);
     lv_obj_update_layout(lv_screen_active());
 }
@@ -119,6 +122,85 @@ static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *sk
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
 {response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();}
+static cJSON *room_document(void)
+{char *json=dsr_workspace_snapshot();CHECK(json);cJSON *r=cJSON_Parse(json);free(json);CHECK(r);return r;}
+static void publish_document(cJSON *r)
+{char *json=cJSON_PrintUnformatted(r);CHECK(json);CHECK(dsr_workspace_submit(json,dsr_workspace_revision()));free(json);cJSON_Delete(r);}
+static void room_name(const char *name)
+{lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,name);}
+static void room_delete_button(void)
+{
+ lv_obj_t *label=find_label(lv_screen_active(),"Usuń pomieszczenie");CHECK(label);
+ lv_obj_t *button=lv_obj_get_parent(label);lv_obj_scroll_to_view(button,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());
+ lv_area_t a;lv_obj_get_coords(button,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=118&&a.y2<420);CHECK(lv_obj_get_height(button)>=44);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
+}
+static void rooms_regression(void)
+{
+ /* The network connection stays intact; only shared layout starts empty. */
+ wifi.connected=false;tick();unsigned before=requests;dsr_connection_t bound=submitted.connection;
+ test_workspace_disable();test_workspace_enable();test_workspace_photos(true);dsr_network_rooms();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);CHECK(find_label(lv_screen_active(),"Brak pomieszczeń"));screenshot("90-rooms-empty");
+ tap(160,380);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));screenshot("91-room-new");
+ click("Zapisz");CHECK(find_label(lv_screen_active(),"Podaj nazwę pomieszczenia."));
+ room_name("Salon");tap(236,442);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));tap(78,442);
+ CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);CHECK(find_label(lv_screen_active(),"Salon"));screenshot("92-rooms-created");
+ /* Real pointer on the card's 44x44 edit target; it must not open the room. */
+ tap(134,168);CHECK(!dsr_mobile_active());CHECK(find_label(lv_screen_active(),"Edytuj pomieszczenie"));room_name("Salon 2");
+ lv_obj_t *icon=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(icon);lv_dropdown_set_selected(icon,2);lv_obj_send_event(icon,LV_EVENT_VALUE_CHANGED,NULL);
+ click("Wybierz zdjęcie z pamięci");test_workspace_defer(true);tap(236,442);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisywanie…"));screenshot("93-room-saving");
+ tap(78,442);CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));
+ cJSON *r=room_document();CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name")->valuestring,"Salon"));cJSON_Delete(r);
+ test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));screenshot("94-room-save-failed");
+ click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));test_workspace_defer(false);click("Wstecz");
+ tap(160,116);room_name("Łazienka Küche");click("Wybierz zdjęcie z pamięci");click("Zmień zdjęcie z pamięci");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");screenshot("95-rooms-photos");
+ r=room_document();cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");CHECK(cJSON_GetArraySize(rooms)==2);
+ CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child,"name")->valuestring,"Salon 2"));CHECK(cJSON_GetObjectItemCaseSensitive(rooms->child,"icon")->valueint==2);
+ CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child,"photo")->valuestring,dsr_photo_id(0)));
+ /* Reordering from Web changes list positions, not which ID gets edited. */
+ cJSON *moved=cJSON_DetachItemFromArray(rooms,0);cJSON_AddItemToArray(rooms,moved);publish_document(r);dsr_network_rooms();tap(134,168);
+ CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Łazienka Küche"));room_name("Pokój 2");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");
+ r=room_document();rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");CHECK(cJSON_GetObjectItemCaseSensitive(rooms->child,"id")->valueint==2);CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child->next,"name")->valuestring,"Salon 2"));cJSON_Delete(r);
+ /* An already-open room also follows ID when a Web reorder is published. */
+ tap(60,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);r=room_document();rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");moved=cJSON_DetachItemFromArray(rooms,0);cJSON_AddItemToArray(rooms,moved);publish_document(r);
+ char *json=dsr_workspace_snapshot();dsr_mobile_model_t view_model={0};CHECK(dsr_mobile_configure(&view_model,json));free(json);dsr_mobile_update(&view_model);CHECK(find_label(lv_screen_active(),"Pokój 2"));tap(160,116);CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Pokój 2"));click("Wstecz");
+ /* Single-room contextual entry and unsaved-change protection. */
+ tap(215,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);tap(160,116);room_name("Nie zapisuj");click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));screenshot("96-room-discard");click("Zostań");CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Nie zapisuj"));click("Wstecz");click("Odrzuć");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ /* Pending save A / later edit B, followed by an external Web edit. */
+ dsr_ui_edit_room(2);room_name("Wersja A");test_workspace_defer(true);click("Zapisz");room_name("Wersja B");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));
+ test_workspace_defer(false);r=room_document();publish_document(r);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));screenshot("97-room-conflict");click("Zapisz");click("Wstecz");click("Odrzuć");
+ /* A Web write may supersede our completed write before the next LCD tick.
+  * It must neither report our draft as saved nor trap Back in pending state. */
+ dsr_ui_edit_room(2);room_name("Zapis LCD");test_workspace_defer(true);click("Zapisz");test_workspace_finish(true);test_workspace_defer(false);r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child->next,"name",cJSON_CreateString("Zapis Web"));publish_document(r);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));click("Odrzuć");
+ /* Deleted IDs cannot accidentally edit whichever room occupies that index. */
+ dsr_ui_edit_room(999);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ dsr_ui_edit_room(2);room_name("ąąąąąąąąąąąąąąąąąąąąąąąą");click("Zapisz");CHECK(find_label(lv_screen_active(),"Podaj krótszą nazwę pomieszczenia."));click("Wstecz");click("Odrzuć");
+ /* Reference protection includes a real binding-shaped definition and scene. */
+ r=room_document();cJSON *devices=cJSON_GetObjectItemCaseSensitive(r,"devices");cJSON *d=cJSON_CreateObject();cJSON_AddNumberToObject(d,"id",7);cJSON_AddStringToObject(d,"name","TEST Shelly");cJSON_AddStringToObject(d,"host",bound.device.host);cJSON_AddNumberToObject(d,"channel",bound.device.channel);cJSON_AddStringToObject(d,"kind","relay");cJSON_AddNumberToObject(d,"room",2);cJSON_AddItemToArray(devices,d);
+ cJSON *scene=cJSON_Parse("{\"id\":1,\"name\":\"TEST scene\",\"actions\":[{\"device\":7,\"command\":\"on\"}]}");cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"scenes"),scene);
+ cJSON *tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");cJSON_AddItemToArray(tiles,cJSON_Parse("{\"id\":1,\"type\":\"room\",\"ref\":2,\"span\":1,\"height\":1,\"fields\":255}"));publish_document(r);
+ dsr_ui_edit_room(2);room_delete_button();CHECK(find_label(lv_screen_active(),"Pomieszczenie jest używane"));screenshot("98-room-delete-blocked");tap(160,329);click("Wstecz");
+ /* Removing dashboard refs alone still leaves the device/scene protected. */
+ r=room_document();cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles"),0);publish_document(r);dsr_ui_edit_room(2);room_delete_button();CHECK(find_label(lv_screen_active(),"Pomieszczenie jest używane"));tap(160,329);click("Wstecz");
+ /* Explicitly move the device first, then confirm deletion, then durable Save. */
+ r=room_document();cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"devices")->child,"room"),1);publish_document(r);
+ dsr_ui_edit_room(2);room_delete_button();CHECK(find_label(lv_screen_active(),"Usunąć pomieszczenie?"));screenshot("99-room-delete-confirm");click("Anuluj");room_delete_button();click("Usuń");CHECK(find_label(lv_screen_active(),"Usunięcie pomieszczenia"));
+ r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==2);cJSON_Delete(r);click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Pomieszczenie usunięte"));CHECK(!find_label(lv_screen_active(),"Zapisz"));click("Wstecz");
+ r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"scenes"))==1);d=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"host")->valuestring,bound.device.host));CHECK(cJSON_GetObjectItemCaseSensitive(d,"channel")->valueint==bound.device.channel);cJSON_Delete(r);
+ /* New rooms appear in the existing LAN wizard and dashboard tile selector. */
+ dsr_ui_edit_dashboard();click("Pulpity");click("Mój pulpit");click("+ Pomieszczenie");click("Zapisz");dsr_ui_workspace_tick();r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(tiles->child&&cJSON_GetObjectItemCaseSensitive(tiles->child,"ref")->valueint==1);cJSON_Delete(r);
+ wifi.connected=true;dsr_ui_lan_open(NULL);test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-test\",\"mac\":\"aabbccddeeff\",\"model\":\"TEST model\",\"auth_en\":false}","192.168.1.88");dsr_ui_lan_tick();click("TEST model");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();lv_obj_t *room=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(room);CHECK(strstr(lv_dropdown_get_options(room),"Salon 2"));CHECK(lv_dropdown_get_option_count(room)==2);dsr_ui_lan_reset();wifi.connected=false;
+ dsr_network_rooms();for(unsigned i=1;i<8;i++){dsr_ui_add_room();room_name("Pokój TEST");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");}
+ dsr_ui_add_room();CHECK(find_label(lv_screen_active(),"Limit: 8 pomieszczeń. Edytuj lub usuń istniejący pokój."));screenshot("100-rooms-limit");click("Wstecz");
+ /* PL/EN/DE use the same production form and reference warning. */
+ for(unsigned language=1;language<3;language++){
+  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);dsr_network_rooms();screenshot(language==1?"101-rooms-english":"103-rooms-german");dsr_ui_edit_room(1);screenshot(language==1?"102-room-edit-english":"104-room-edit-german");room_delete_button();screenshot(language==1?"105-room-blocked-english":"106-room-blocked-german");tap(160,329);click("Wstecz");
+ }
+ CHECK(requests==before);CHECK(!memcmp(&submitted.connection,&bound,sizeof(bound)));
+ dsr_network_rooms();dsr_ui_edit_room(1);click("Wstecz");lv_refr_now(display);lv_mem_monitor_t memory_before,memory_after;lv_mem_monitor(&memory_before);
+ for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
+ printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
+ test_workspace_photos(false);dsr_network_home(NULL);tap(188,116);CHECK(find_label(lv_screen_active(),"Bluetooth LE"));dsr_network_home(NULL);
+}
 static void polling_regression(void)
 {
  dsr_network_home(NULL);lv_obj_update_layout(lv_screen_active());
@@ -312,7 +394,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();test_workspace_disable();
-    printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard cursor/UTF-8/ASCII, shared shell, LAN and async save regression; 60 navigation cycles\n",checks,screenshots);
+    dsr_ui_lan_reset();rooms_regression();test_workspace_disable();
+    printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

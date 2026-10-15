@@ -116,6 +116,11 @@ void dsr_network_home(lv_event_t *event)
     dsr_network_reset_view(); view = VIEW_HOME;
     render(); dsr_mobile_show(DSR_MOBILE_HOME, 0);
 }
+void dsr_network_rooms(void)
+{
+    dsr_network_home(NULL); /* Re-read the published shared configuration first. */
+    dsr_mobile_show(DSR_MOBILE_ROOMS,0);
+}
 
 static void mobile_output(unsigned index, bool on)
 {
@@ -328,7 +333,7 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;

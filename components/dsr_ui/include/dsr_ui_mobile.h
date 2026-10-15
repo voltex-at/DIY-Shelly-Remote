@@ -57,6 +57,8 @@ typedef struct {
     void (*refresh)(void);
     void (*edit_device)(unsigned index);
     void (*stop_cover)(unsigned index);
+    void (*add_room)(void);
+    void (*edit_room)(uint32_t id);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

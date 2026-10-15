@@ -49,14 +49,17 @@ static lv_obj_t *body,*keyboard,*status_label;
 static bool editor_active;
 static bool own_save;
 static bool dashboard_picker;
+static bool room_editor,room_new,room_deleted;
+static lv_obj_t *room_dialog;
 static unsigned tile_page;
 static cJSON *fields_tile;
 static void clear_draft(void)
 {cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;}
-void dsr_ui_workspace_hide(void){editor_active=false;body=keyboard=status_label=NULL;clear_draft();}
+void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;body=keyboard=status_label=NULL;clear_draft();}
 static void show_menu(void);
 static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
+static void show_room_form(void);
 static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);if(body)lv_obj_set_height(body,292);}
 static void focus(lv_event_t *event)
 {if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
@@ -77,6 +80,9 @@ static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_netwo
 static void save(lv_event_t *event)
 {
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
+ if(room_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+  dsr_sc_label_set_text(status_label,!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
+ }
  char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
  cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
  bool ok=json&&dsr_workspace_submit(json,draft_revision);free(json);
@@ -131,6 +137,74 @@ static void choose_photo(lv_event_t *event)
  if(!string(editing,"photo")[0])index=0;
  id=dsr_photo_id(index);
  cJSON_ReplaceItemInObjectCaseSensitive(editing,"photo",cJSON_CreateString(id?id:""));show_entity(editing);
+}
+/* Contextual rooms use the same draft, CAS submission and durable acknowledgement
+ * as the full editor. Only their entry points and navigation differ. */
+static bool room_dirty(void){return draft&&(!saved_baseline||!cJSON_Compare(draft,saved_baseline,true));}
+static void room_leave(lv_event_t *event){(void)event;dsr_network_rooms();}
+static void room_dialog_close(lv_event_t *event)
+{(void)event;if(room_dialog){lv_obj_delete(room_dialog);room_dialog=NULL;}}
+static lv_obj_t *room_modal(const char *title,const char *text)
+{
+ close_keyboard(NULL);room_dialog_close(NULL);
+ room_dialog=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);lv_obj_set_style_bg_opa(room_dialog,180,0);lv_obj_add_flag(room_dialog,LV_OBJ_FLAG_CLICKABLE);
+ lv_obj_t *panel=dsr_sc_panel(room_dialog,12,117,296,246,DSR_SC_PANEL,14);
+ dsr_sc_text(panel,title,14,16,268,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(panel,text,14,53,268,&dsr_roboto_14,DSR_SC_MUTED);return panel;
+}
+static void room_back(lv_event_t *event)
+{
+ (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ if(!room_dirty()){room_leave(NULL);return;}
+ lv_obj_t *panel=room_modal("Odrzucić zmiany?","Niezapisane zmiany tego formularza zostaną utracone.");
+ dsr_ui_button(panel,"Zostań",12,188,130,room_dialog_close,NULL);dsr_ui_button(panel,"Odrzuć",154,188,130,room_leave,NULL);
+}
+static void room_delete_confirm(lv_event_t *event)
+{
+ (void)event;room_dialog_close(NULL);
+ cJSON *rooms=cJSON_GetObjectItemCaseSensitive(draft,"rooms");
+ int at=0;for(cJSON *v=rooms->child;v;v=v->next,at++)if(v==editing){cJSON_DeleteItemFromArray(rooms,at);break;}
+ editing=NULL;room_deleted=true;show_room_form(); /* No deletion is published until Save succeeds. */
+}
+static void room_delete(lv_event_t *event)
+{
+ (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ unsigned devices=0,tiles=0;const cJSON *d,*t;int id=integer(editing,"id");
+ cJSON_ArrayForEach(d,item(draft,"devices"))if(integer(d,"room")==id)devices++;
+ cJSON_ArrayForEach(d,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(d,"tiles"))if(!strcmp(string(t,"type"),"room")&&integer(t,"ref")==id)tiles++;
+ if(devices||tiles){
+  char text[224];snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • karty pomieszczenia: %u. Przenieś urządzenia i usuń te karty z pulpitów. Sceny i urządzenia pozostaną zachowane."),devices,tiles);
+  lv_obj_t *panel=room_modal("Pomieszczenie jest używane",text);dsr_ui_button(panel,"Wstecz",12,188,272,room_dialog_close,NULL);return;
+ }
+ lv_obj_t *panel=room_modal("Usunąć pomieszczenie?","Po potwierdzeniu wybierz Zapisz. Zdjęcie może być używane przez inne pokoje.");
+ dsr_ui_button(panel,"Anuluj",12,188,130,room_dialog_close,NULL);dsr_ui_button(panel,"Usuń",154,188,130,room_delete_confirm,NULL);
+}
+static void room_photo(void)
+{
+ lv_obj_t *button=dsr_sc_button(body,0,160,284,64,DSR_SC_CARD,12,choose_photo,NULL);
+ lv_obj_t *thumb=dsr_sc_panel(button,8,8,64,48,DSR_SC_PANEL,6);lv_obj_set_style_clip_corner(thumb,true,0);
+ const void *pixels=dsr_photo_pixels(string(editing,"photo"));
+ if(pixels){
+  static lv_image_dsc_t photo;photo=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,.w=DSR_PHOTO_WIDTH,.h=DSR_PHOTO_HEIGHT,.stride=DSR_PHOTO_WIDTH*2},.data_size=DSR_PHOTO_BYTES,.data=pixels};
+  lv_obj_t *image=lv_image_create(thumb);lv_image_set_src(image,&photo);lv_image_set_scale(image,48*256/DSR_PHOTO_HEIGHT);lv_image_set_antialias(image,true);lv_obj_center(image);
+ }else dsr_sc_icon_centered(thumb,DSR_ICON_HOME,32,DSR_SC_MUTED);
+ dsr_sc_text(button,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",84,15,188,&dsr_roboto_14,DSR_SC_TEXT);
+}
+static void show_room_form(void)
+{
+ bool deleted_saved=room_deleted&&save_confirmed&&!room_dirty();
+ lv_obj_t *root=screen(deleted_saved?"Pomieszczenie usunięte":room_deleted?"Usunięcie pomieszczenia":room_new?"Nowe pomieszczenie":"Edytuj pomieszczenie");room_dialog=NULL;
+ lv_obj_set_y(body,118);lv_obj_set_height(body,280);
+ if(room_deleted){
+  dsr_sc_icon(body,DSR_ICON_HOME,118,18,52,DSR_SC_MUTED);
+  dsr_sc_text(body,deleted_saved?"Zapisano • zsynchronizowano":"Zapisz, aby trwale usunąć pomieszczenie. Wstecz pozwala odrzucić zmianę.",6,94,284,&dsr_roboto_16,DSR_SC_TEXT);
+ }else{
+  add_field("Nazwa","name",0,false);add_choice("Ikona",&icon_choice,80);
+  room_photo();
+  if(!room_new)dsr_ui_button(body,"Usuń pomieszczenie",0,232,284,room_delete,NULL);
+  dsr_sc_text(body,dsr_photo_id(0)?"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.":"Brak zdjęć w pamięci. Dodaj zdjęcia w Web Panelu.",2,room_new?236:292,280,&dsr_roboto_12,DSR_SC_MUTED);
+ }
+ if(deleted_saved)dsr_ui_button(root,"Wstecz",12,420,296,room_back,NULL);else actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)
 {
@@ -200,6 +274,7 @@ static void tile_fields(lv_event_t *event)
 static void tiles_page(lv_event_t *event){tile_page=(unsigned)(uintptr_t)lv_event_get_user_data(event);show_entity(editing);}
 static void show_entity(cJSON *entity)
 {
+ if(room_editor){editing=entity;show_room_form();return;}
  editing=entity;lv_obj_t *root=screen("Edytuj konfigurację");add_field("Nazwa","name",0,false);
  if(!strcmp(collection_name,"rooms")){add_choice("Ikona",&icon_choice,80);dsr_ui_button(body,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",0,168,284,choose_photo,NULL);dsr_sc_text(body,"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.",0,228,284,&dsr_roboto_12,DSR_SC_MUTED);}
  if(!strcmp(collection_name,"devices")){add_choice("Typ",&kind_choice,80);add_field("Adres IPv4 Shelly","host",160,false);add_field("Kanał (0–15)","channel",240,true);object_choice("Pomieszczenie","room",320);}
@@ -262,7 +337,35 @@ static void show_menu(void)
 }
 void dsr_ui_edit_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
+ char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();room_editor=room_new=room_deleted=false;room_dialog=NULL;draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
+}
+static bool room_begin(void)
+{
+ char *json=dsr_workspace_snapshot();if(!json)return false;
+ cJSON *next=cJSON_Parse(json);free(json);if(!next)return false;
+ cJSON *baseline=cJSON_Duplicate(next,true);if(!baseline){cJSON_Delete(next);return false;}
+ clear_draft();draft=next;saved_baseline=baseline;draft_revision=(uint32_t)integer(draft,"revision");
+ editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=false;room_dialog=NULL;
+ snprintf(collection_name,sizeof(collection_name),"rooms");return true;
+}
+void dsr_ui_add_room(void)
+{
+ if(!room_begin())return;
+ const cJSON *rooms=item(draft,"rooms");
+ if(cJSON_GetArraySize(rooms)>=DSR_UI_MAX_ROOMS){
+  lv_obj_t *root=screen("Pomieszczenia");dsr_sc_text(body,"Limit: 8 pomieszczeń. Edytuj lub usuń istniejący pokój.",4,32,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,room_leave,NULL);return;
+ }
+ int id=1;while(object_index(rooms,id)!=255)id++;
+ cJSON *room=cJSON_CreateObject();if(!room){room_leave(NULL);return;}
+ cJSON_AddNumberToObject(room,"id",id);cJSON_AddStringToObject(room,"name","");cJSON_AddNumberToObject(room,"icon",0);cJSON_AddStringToObject(room,"photo","");cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(draft,"rooms"),room);
+ room_new=true;editing=room;show_room_form();
+}
+void dsr_ui_edit_room(uint32_t id)
+{
+ if(!room_begin())return;
+ cJSON *room;cJSON_ArrayForEach(room,cJSON_GetObjectItemCaseSensitive(draft,"rooms"))if((uint32_t)integer(room,"id")==id){editing=room;show_room_form();return;}
+ /* A Web edit may remove/reorder rooms before the LCD click is handled. */
+ room_leave(NULL);
 }
 void dsr_ui_edit_device(uint32_t id)
 {
@@ -276,7 +379,7 @@ static void pick_dashboard(lv_event_t *event)
 void dsr_ui_select_dashboard(void)
 {
  char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);
- draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;
+ draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=false;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
  dsr_ui_button(root,"Wstecz",12,420,296,return_home,NULL);
@@ -292,10 +395,14 @@ void dsr_ui_workspace_tick(void)
    char *json=dsr_workspace_snapshot();cJSON *published=json?cJSON_Parse(json):NULL;free(json);
    acknowledged=published&&cJSON_Compare(published,submitted_draft,true);cJSON_Delete(published);
   }
-  if(!acknowledged){dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");return;}
+  if(!acknowledged){
+   if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
+   dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");return;
+  }
   draft_revision=revision;own_save=false;save_confirmed=true;save_failed=false;
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);
   cJSON_Delete(saved_baseline);saved_baseline=submitted_draft;submitted_draft=NULL;
+  if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
  if(dashboard_picker&&save_confirmed&&!dirty){dashboard_picker=false;return_home(NULL);return;}

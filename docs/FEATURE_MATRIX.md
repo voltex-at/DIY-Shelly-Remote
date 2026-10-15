@@ -1,11 +1,14 @@
-# Matryca funkcji — 0.7.3, rewizja 3
+# Matryca funkcji — 0.7.4, rewizja 4
+
+0.7.4 dodaje kontekstowe Dodaj/Edytuj/Usuń pomieszczenie (#28), z istniejącym
+modelem, asynchronicznym potwierdzeniem zapisu, CAS i ochroną zależności.
+[Opis i test fizyczny](ROOM_EDITOR_PL.md). Nowy edytor wymaga odbioru na płytce.
 
 0.7.3 dodaje zatrzask diagnostyczny startu po uwadze recenzji PR #30: zwrócony
 błąd krytyczny nie wywołuje abort/restart/erase; LVGL i API administracyjne
 czekają na gotowość, a OTA nie potwierdza błędnego startu. Test rzeczywistego
 app_main z błędami wymuszonymi jest hostowy; nie oznacza odbioru fizycznego.
-[Polityka i testy](STARTUP_RECOVERY_PL.md). Pomieszczenia #28 nadal oczekują
-realizacji — ten PR ich nie aktywuje.
+[Polityka i testy](STARTUP_RECOVERY_PL.md). Odbiór fault recovery nadal otwarty.
 
 ## Bramka regresji sprzętowej — 2026-10-16
 
@@ -16,6 +19,10 @@ dodaje kontrolę rzeczywistego ELF i testy błędów startu/magazynu. Start,
 Wi-Fi/LAN/przekaźnik, BLE, HTTPS/OTA i trwałość danych wymagają ponownego testu
 według [BOOT_MEMORY_FIX_PL.md](BOOT_MEMORY_FIX_PL.md). Nie oznaczaj tej wersji
 ani BLE jako sprawdzonych fizycznie na podstawie hostowych fixture lub kompilacji.
+Nowsze zgłoszenie właściciela (16.10): płytka startuje, skan BLE odbiera reklamy
+(10 wyników na zdjęciu). Exact wersja/SHA nie zostały podane w potwierdzeniu.
+To dowód startu i odbioru RF tej instalacji, bez odbioru parowania, recovery,
+OTA/rollback lub nowego edytora 0.7.4. Nie publikujemy prywatnych identyfikatorów.
 
 Zakres: LCDWiki ES3C35P N16R8, LVGL 320×480 i lokalny HTTPS Web Panel.
 Obowiązek utrzymania: Issue #25. Zmiana callbacku, transportu, capability albo
@@ -46,7 +53,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Pasek pulpitu — nazwa / rozwinięcie | Pulpit startowy | Do 4 pulpitów | CI tested: wybór zapisuje shared config | PR #5/#13; zapis, konflikt, restart |
 | Pasek + / ołówek | Dodaj / Edytuj | Lokalny kreator / edytor | CI tested: rzeczywiste przejścia | #6/#7; brak regresji źródeł danych |
 | Pasek Info | Stan konfiguracji + podgląd | Liczby z aktualnego modelu | CI tested: modal z rzeczywistą nazwą, definicjami i online; Zamknij | #25, ten PR; pointer hit-test, aktualizacja modelu, PL/EN/DE |
-| Pomieszczenie / zdjęcie / powrót | Edycja pomieszczenia / preview | Lokalne dane | CI tested: dwie kolumny, filtr urządzeń, przewijanie | #6; LCD, fotografie i listy po restarcie |
+| Pomieszczenie / zdjęcie / powrót | Edycja pomieszczenia / preview | Lokalne dane | CI tested: dwie kolumny, filtr urządzeń, przewijanie | #6/#28; LCD, fotografie i listy po restarcie |
+| Pomieszczenia: Dodaj / ołówek / Edytuj pokój / Usuń | Wspólny CRUD i rewizja | Do 8 pokojów, trwałe ID | Host tested: formularz, foto, CAS, błędy, potwierdzenie usuwania i zależności; target CI wymagane | #28; [test płytki](ROOM_EDITOR_PL.md), restart/OTA i sync |
 | Karta urządzenia → szczegóły | Konfiguracja wpisu, LCD preview | Obsługiwany stan bieżącego modelu | CI tested: nawigacja, stable ID, offline | #6/#12; realne dane po zmianie konfiguracji |
 | ON/OFF karty i szczegółów | Bezpośredniego SET w WWW brak; podgląd jest read-only | Jeden Gen1 relay lub Gen2+ switch | CI tested: identity/auth/SET/readback; wcześniejsze ON/OFF Gen3 potwierdzone fizycznie | #12, PR #14/#17; ponowny test 1PM Mini Gen3 |
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
@@ -65,7 +73,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Ponów / Anuluj LAN | Skanuj ponownie / Przerwij | Radio Wi-Fi / LAN | CI tested: oddzielne zadanie i stan | #7; realny timeout i odłączenie Wi-Fi |
 | Dodaj ręcznie IP / klawiatura / sprawdź | Edycja hosta jest definicją; operacyjny binding przez LAN | Wspierany relay/switch | CI tested: lokalny bind, walidacja IPv4/kanału/identity | #7/#8; ręczny IP i błędne dane |
 | Wi-Fi AP | Wi-Fi AP — niewdrożone | Gen1/Gen2+ zgodne z lokalnym provisioningiem | Not implemented: jawnie disabled | #19; AP → domowy LAN, rollback i zachowanie bindingu |
-| Bluetooth LE → Szukaj / Anuluj / Ponów | Bluetooth LE • skan, wspólne `/api/v1/ble*` | ESP32-S3 observer + faktyczne legacy ADV | CI tested: rzeczywisty adapter/parsing/UI; **RF untested** | #18, PR #26; prawdziwa reklama i >=10 cykli coexistence |
+| Bluetooth LE → Szukaj / Anuluj / Ponów | Bluetooth LE • skan, wspólne `/api/v1/ble*` | ESP32-S3 observer + faktyczne legacy ADV | CI tested: rzeczywisty adapter/parsing/UI; właściciel potwierdza odbiór RF, exact SHA niepodany | #18, PR #26; nadal >=10 cykli coexistence i porównanie payloadu |
 | Wynik BLE / szczegóły / RSSI / ostatnia reklama | Grupy i wyniki skanera | RPC UUID, Shelly manufacturer, BTHome v2 | CI tested: bez zgadywania generacji/modelu; wykryto ≠ sparowano | #18; model Wi-Fi i BLU jeśli dostępne, pusty skan, brak radia |
 | Wynik BLE RPC → Szukaj w LAN | Powrót do metod i LAN | Urządzenie faktycznie obecne w LAN | CI tested: przejście do istniejącego kreatora | #7/#18; BLE nie dodaje sam do Wi-Fi |
 | BLE pairing / provisioning / stałe BLU | Wyłącznie tekst o ograniczeniu, bez atrapy Add | Zgodny GATT/RPC/bonding/BTHome | Not implemented | #18 B1/B2/B3; osobny test modelu, autoryzacji i kluczy |

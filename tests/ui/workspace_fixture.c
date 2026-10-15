@@ -4,6 +4,7 @@
 #include "lvgl.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 /* Disabled for the original Wi-Fi fixture until explicitly enabled. */
 static char *stored;
 static char *pending;
@@ -20,8 +21,17 @@ void dsr_workspace_status(bool *busy,char message[96]){*busy=pending!=NULL;messa
 void dsr_panel_pair_begin(char code[17]){strcpy(code,"0123456789abcdef");}
 void dsr_panel_pair_cancel(void){}
 void dsr_panel_allow_ota(void){}
-const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
-const char *dsr_photo_id(unsigned index){(void)index;return NULL;}
+/* Licensed review photos, available only in the explicit native fixture. */
+static bool photos_enabled;
+static uint16_t photos[2][DSR_PHOTO_BYTES/2];
+void test_workspace_photos(bool enabled)
+{
+ photos_enabled=enabled;if(!enabled)return;
+ const char *names[]={"salon","kuchnia"};
+ for(unsigned i=0;i<2;i++){char path[512];snprintf(path,sizeof(path),"%s/%s.rgb",DSR_TEST_PHOTO_DIR,names[i]);FILE *f=fopen(path,"rb");if(!f)abort();if(fread(photos[i],1,DSR_PHOTO_BYTES,f)!=DSR_PHOTO_BYTES)abort();fclose(f);}
+}
+const void *dsr_photo_pixels(const char *id){return photos_enabled&&id&&strlen(id)==32&&id[0]>='1'&&id[0]<='2'?photos[id[0]-'1']:NULL;}
+const char *dsr_photo_id(unsigned index){static const char *ids[]={"11111111111111111111111111111111","22222222222222222222222222222222"};return photos_enabled&&index<2?ids[index]:NULL;}
 const char *dsr_tls_fingerprint(void){return "TEST FIXTURE";}
 bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *c,uint32_t *room){(void)c;(void)room;return false;}

@@ -56,6 +56,9 @@ static void navigate(lv_event_t *e)
 }
 static void open_device(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_DETAILS,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
 static void open_room(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_ROOM,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
+static void add_room(lv_event_t *e){(void)e;if(!model.demo&&actions.add_room)actions.add_room();}
+static void edit_room(lv_event_t *e)
+{uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(e);if(!model.demo&&id&&actions.edit_room)actions.edit_room(id);}
 static void refresh(lv_event_t *event){(void)event;if(actions.refresh)actions.refresh();}
 static void edit_device(lv_event_t *event){(void)event;if(!cover_preview&&!model.demo&&actions.edit_device)actions.edit_device(selected);}
 static const char *device_error(dsr_result_t result)
@@ -122,15 +125,24 @@ static void bottom_action(lv_event_t *event)
 {
  unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);
  if(i==0)dsr_mobile_show(DSR_MOBILE_HOME,0);else if(i==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);
- else if(i==3&&actions.open_settings)actions.open_settings();else if(i==4&&actions.add_device)actions.add_device();
+ else if(i==3&&actions.open_settings)actions.open_settings();else if(i==4){if(page==DSR_MOBILE_ROOMS)add_room(NULL);else if(actions.add_device)actions.add_device();}
 }
 static void bottom(lv_obj_t *root)
 {
- unsigned enabled=3u|(actions.open_settings?8u:0u)|(actions.add_device?16u:0u);
+ unsigned enabled=3u|(actions.open_settings?8u:0u)|((page==DSR_MOBILE_ROOMS?!model.demo&&actions.add_room!=NULL:actions.add_device!=NULL)?16u:0u);
  dsr_sc_navigation(root,page==DSR_MOBILE_HOME?0:1,enabled,bottom_action);
 }
 static void toolbar(lv_obj_t *root,const char *title)
 {
+    if(page==DSR_MOBILE_ROOMS||page==DSR_MOBILE_ROOM){
+        bool list=page==DSR_MOBILE_ROOMS;
+        uint32_t id=!list&&selected<model.room_count?model.rooms[selected].id:0;
+        lv_obj_t *button=dsr_sc_button(root,12,94,296,44,DSR_SC_PANEL,10,list?add_room:edit_room,(void *)(uintptr_t)id);
+        edge(button,DSR_SC_EDGE,1);dsr_sc_icon(button,list?DSR_ICON_PLUS:DSR_ICON_EDIT,12,10,24,DSR_SC_BLUE);
+        dsr_sc_text(button,list?"Dodaj pomieszczenie":"Edytuj pomieszczenie",48,13,240,&dsr_roboto_14,DSR_SC_TEXT);
+        if(model.demo||(list?!actions.add_room:!actions.edit_room||!id))lv_obj_add_state(button,LV_STATE_DISABLED);
+        return;
+    }
     lv_obj_t *bar=dsr_sc_panel(root,10,94,300,44,DSR_SC_PANEL,10);edge(bar,DSR_SC_EDGE,1);
     lv_obj_t *choose=dsr_sc_button(bar,0,0,152,44,DSR_SC_PANEL,8,page==DSR_MOBILE_HOME&&actions.select_dashboard?navigate:NULL,(void *)(uintptr_t)13);
     lv_obj_t *name=dsr_sc_text(choose,title,9,12,122,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
@@ -224,6 +236,10 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int heig
     lv_obj_t *badge=dsr_sc_panel(card,(width-82)/2,height-32,82,26,0x262a2d,10);
     char text[32];if(count&&complete)snprintf(text,sizeof(text),"%.1f W",power);else snprintf(text,sizeof(text),"%u %s",count,dsr_sc_tr("urz."));
     dsr_sc_icon(badge,DSR_ICON_ENERGY,5,5,16,DSR_SC_TEXT);center(dsr_sc_text(badge,text,23,6,55,&dsr_roboto_12,DSR_SC_TEXT));
+    if(page==DSR_MOBILE_ROOMS){
+        lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-44,0,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
+        if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
+    }
 }
 static void scene_card(unsigned index,int y,int height)
 {
@@ -348,7 +364,12 @@ static void render(void)
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);
         if(page==DSR_MOBILE_ROOMS){
             for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*138,144,130);
-            if(!model.room_count)empty("Brak pomieszczeń","Nie utworzono jeszcze pomieszczeń.\nUrządzenia pozostają dostępne w zakładce Urządzenia.");
+            if(!model.room_count){
+                empty("Brak pomieszczeń","Utwórz pierwszy pokój, aby uporządkować urządzenia.");
+                lv_obj_t *add=dsr_sc_button(content,12,210,272,48,DSR_SC_PANEL,10,add_room,NULL);
+                center(dsr_sc_text(add,"Dodaj pomieszczenie",4,15,264,&dsr_roboto_14,DSR_SC_TEXT));
+                if(model.demo||!actions.add_room)lv_obj_add_state(add,LV_STATE_DISABLED);
+            }
         } else {
             unsigned at=0;
             if(page==DSR_MOBILE_HOME&&model.configured_layout){

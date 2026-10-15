@@ -1,5 +1,48 @@
 # Project status
 
+## 0.7.4 — contextual room editor (Issue #28)
+
+Branch `work/rooms-context-editor`, stacked on draft PR #31. Rooms now has a
+labelled Add room action in its toolbar and empty state; its bottom + has the
+same context. Each room card has a separate 44×44 edit target, and the room's
+device view has Edit room. Other pages retain the device wizard. Editing opens
+the existing shared configuration by persistent room ID, with name, icon and
+selection of stored photos. File upload remains in the authenticated Web Panel.
+There is no second configuration model or schema/partition migration.
+
+The focused form reuses the existing immutable async submission, CAS revision
+and durable acknowledgement. Pending saves prevent premature Back; unsaved
+changes require explicit discard. Errors retain the draft, and superseding Web
+changes cannot be reported as successful LCD saves or trap Back indefinitely.
+Deletion requires confirmation followed by Save. Device and dashboard references
+block deletion; devices/scenes/binding are never silently removed or unassigned.
+Existing dual-checkpoint boot-only photo GC is retained. Published rooms are
+re-read on return, so LCD, LAN wizard, dashboard editor and Web share the result
+without restart. PL/EN/DE and the existing two-column photo cards are retained.
+
+Local UBSan: 1476 integrated LVGL checks / 64 frames, plus 2635 review checks /
+24 frames. Pointer regression covers empty Add, two rooms, IDs after Web reorder,
+UTF-8 length, icon/photo selection, async failure/retry, immutable A vs later B,
+concurrent Web publication, discard/cancel, deletion/reference preservation,
+limit 8, LAN/dashboard selectors and other-page +. Forty edit/Back cycles at
+eight rooms retain the exact warmed LVGL free heap (66872 bytes; largest block
+66768 in the host fixture). Core 94/platform 847/Wi-Fi 222/BLE 2138/config 265,
+boot/storage 15943 and startup 163 checks pass. Actual 320×480 software-rendered
+frames are exported to the CI UI artifact; populated host-fixture captures carry
+TEST / DEMO. Full target build/sanitizer/browser CI apply to the exact PR head.
+[Hardware procedure and limits](docs/ROOM_EDITOR_PL.md). No physical acceptance
+of this editor or merge into main is claimed.
+
+### Owner's physical feedback — 2026-10-16 (Europe/Vienna)
+
+The owner reports that their board now boots and BLE searching works. The photos
+show a real scan with ten results and a received advertiser. The installed exact
+version/SHA was not supplied with this confirmation; it is not an exact-head
+acceptance of 0.7.3/0.7.4, forced-fault recovery, OTA health or rollback. Record
+boot and BLE reception as observed, with pairing/provisioning still absent.
+Repeated coexistence, LAN/relay, HTTPS, persistence and fault tests stay open.
+Private photos and advertiser identifiers are not included in this repository.
+
 ## 0.7.3 — controlled startup diagnostics after PR #30 review
 
 Branch `work/fix-startup-recovery`, stacked on PR #30, not a replacement for
