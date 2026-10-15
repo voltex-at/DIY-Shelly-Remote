@@ -1,5 +1,6 @@
 #include "dsr_ui_internal.h"
 #include "dsr_workspace.h"
+#include "dsr_board.h"
 #include <stdlib.h>
 
 void dsr_panel_tick(void)
@@ -9,7 +10,7 @@ void dsr_panel_tick(void)
  static uint32_t started;
  if(!started)started=lv_tick_get();
  static bool confirmed;
- if(!confirmed&&lv_tick_get()-started>5000&&dsr_workspace_revision()){
+ if(!confirmed&&lv_tick_get()-started>5000&&dsr_workspace_revision()&&dsr_panel_ready()&&dsr_board_touch_available()){
   dsr_ota_boot_confirm();confirmed=true;
  }
  if(!dsr_panel_preview_requested())return;

@@ -14,6 +14,7 @@ static dsr_result_t last_result = DSR_OK;
 static dsr_job_kind_t operation;
 static uint32_t serial, outstanding, last_poll;
 static bool storage_error;
+static bool external_bind;
 static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5];
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
@@ -220,9 +221,10 @@ static void poll(lv_timer_t *timer)
             if (event.result == DSR_OK) {
                 saved = pending; saved.device = event.device; configured = true; blocked = false;
                 dsr_ui_workspace_migrate(&saved);
-                last_result = DSR_OK; dsr_network_home(NULL);
+                last_result = DSR_OK; if(!external_bind)dsr_network_home(NULL);
             }
             memset(&pending, 0, sizeof(pending));
+            if(external_bind){dsr_workspace_bind_result(event.result);external_bind=false;}
         } else {
             saved.device = event.device; last_result = event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
@@ -239,6 +241,10 @@ static void poll(lv_timer_t *timer)
     }
     dsr_wifi_ui_tick();
     dsr_ui_workspace_tick();dsr_panel_tick();
+    if(!busy){dsr_connection_t connection;if(dsr_workspace_take_bind(&connection)){
+        pending=connection;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
+        if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
+    }}
     static uint32_t config_revision;
     uint32_t next_revision=dsr_workspace_revision();
     if(config_revision!=next_revision){config_revision=next_revision;render();}

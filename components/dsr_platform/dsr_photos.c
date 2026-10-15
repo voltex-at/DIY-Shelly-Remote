@@ -8,9 +8,9 @@
 #include <unistd.h>
 #include <stdatomic.h>
 
-#define PHOTO_BYTES (160*90*2)
+#define PHOTO_BYTES DSR_PHOTO_BYTES
 /* Immutable, content-addressed cache. No pointer is freed while LVGL can use
- * it. At most 16 photos = 450 KiB of the confirmed 8 MiB PSRAM. */
+ * it. At most 16 photos = 1.76 MiB of the confirmed 8 MiB PSRAM. */
 static struct {char id[33];void *pixels;} photos[16];
 static atomic_uint count;
 static bool valid_id(const char *id)

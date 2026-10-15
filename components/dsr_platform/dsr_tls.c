@@ -18,13 +18,12 @@ esp_err_t dsr_tls_identity(void)
  nvs_handle_t handle;esp_err_t error=nvs_open("dsr_tls",NVS_READWRITE,&handle);if(error!=ESP_OK)return error;
  size_t length=sizeof(identity);error=nvs_get_blob(handle,"identity",&identity,&length);
  if(error==ESP_ERR_NVS_NOT_FOUND){
-  mbedtls_pk_context key;mbedtls_pk_init(&key);mbedtls_x509write_cert cert;mbedtls_x509write_crt_init(&cert);mbedtls_mpi serial;mbedtls_mpi_init(&serial);
+  mbedtls_pk_context key;mbedtls_pk_init(&key);mbedtls_x509write_cert cert;mbedtls_x509write_crt_init(&cert);
   uint8_t bytes[16];esp_fill_random(bytes,sizeof(bytes));bytes[0]=(bytes[0]&0x7f)|1;
   int result=mbedtls_pk_setup(&key,mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
   if(!result)result=mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1,mbedtls_pk_ec(key),random_bytes,NULL);
-  if(!result)result=mbedtls_mpi_read_binary(&serial,bytes,sizeof(bytes));
   mbedtls_x509write_crt_set_version(&cert,MBEDTLS_X509_CRT_VERSION_3);mbedtls_x509write_crt_set_md_alg(&cert,MBEDTLS_MD_SHA256);mbedtls_x509write_crt_set_subject_key(&cert,&key);mbedtls_x509write_crt_set_issuer_key(&cert,&key);
-  if(!result)result=mbedtls_x509write_crt_set_serial(&cert,&serial);
+  if(!result)result=mbedtls_x509write_crt_set_serial_raw(&cert,bytes,sizeof(bytes));
   if(!result)result=mbedtls_x509write_crt_set_subject_name(&cert,"CN=shelly-remote.local,O=DIY Shelly Remote");
   if(!result)result=mbedtls_x509write_crt_set_issuer_name(&cert,"CN=shelly-remote.local,O=DIY Shelly Remote");
   if(!result)result=mbedtls_x509write_crt_set_validity(&cert,"20240101000000","20491231235959");
@@ -34,9 +33,9 @@ esp_err_t dsr_tls_identity(void)
   if(!result)result=mbedtls_x509write_crt_set_extension(&cert,MBEDTLS_OID_SUBJECT_ALT_NAME,MBEDTLS_OID_SIZE(MBEDTLS_OID_SUBJECT_ALT_NAME),0,san,sizeof(san));
   if(!result)result=mbedtls_pk_write_key_pem(&key,identity.key,sizeof(identity.key));
   if(!result)result=mbedtls_x509write_crt_pem(&cert,identity.certificate,sizeof(identity.certificate),random_bytes,NULL);
-  mbedtls_mpi_free(&serial);mbedtls_x509write_crt_free(&cert);mbedtls_pk_free(&key);
+  mbedtls_x509write_crt_free(&cert);mbedtls_pk_free(&key);
   if(result){nvs_close(handle);return ESP_FAIL;}
-  identity.schema=1;error=nvs_set_blob(handle,"identity",&identity,sizeof(identity));if(error==ESP_OK)error=nvs_commit(handle);
+  identity.schema=1;length=sizeof(identity);error=nvs_set_blob(handle,"identity",&identity,sizeof(identity));if(error==ESP_OK)error=nvs_commit(handle);
  }
  nvs_close(handle);
  if(error!=ESP_OK||length!=sizeof(identity)||identity.schema!=1||!memchr(identity.certificate,0,sizeof(identity.certificate))||!memchr(identity.key,0,sizeof(identity.key)))return ESP_FAIL;

@@ -20,7 +20,7 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
  const char *locale=string(r,"language");dsr_sc_appearance(m->accent,m->midnight,!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);
  snprintf(m->home_name,sizeof(m->home_name),"%s",dsr_sc_tr("Mój dom"));
  const cJSON *v;cJSON_ArrayForEach(v,item(r,"rooms")){
-  dsr_mobile_room_t *room=&m->rooms[m->room_count++];snprintf(room->name,sizeof(room->name),"%s",string(v,"name"));room->icon=(uint8_t)integer(v,"icon");snprintf(room->photo,sizeof(room->photo),"%.32s",string(v,"photo"));
+  dsr_mobile_room_t *room=&m->rooms[m->room_count++];snprintf(room->name,sizeof(room->name),"%s",string(v,"name"));room->icon=(uint8_t)integer(v,"icon");snprintf(room->photo,sizeof(room->photo),"%.32s",string(v,"photo"));room->id=(uint32_t)integer(v,"id");
  }
  m->scene_count=0;cJSON_ArrayForEach(v,item(r,"scenes")){dsr_mobile_scene_t *s=&m->scenes[m->scene_count++];snprintf(s->name,sizeof(s->name),"%s",string(v,"name"));s->actions=(uint8_t)cJSON_GetArraySize(item(v,"actions"));}
  cJSON_ArrayForEach(v,item(r,"devices")){
@@ -28,6 +28,7 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
   const char *kind=string(v,"kind");d->kind=!strcmp(kind,"light")?DSR_DEVICE_LIGHT:!strcmp(kind,"cover")?DSR_DEVICE_COVER:!strcmp(kind,"contact")?DSR_DEVICE_CONTACT:!strcmp(kind,"sensor")?DSR_DEVICE_SENSOR:!strcmp(kind,"plug")?DSR_DEVICE_PLUG:DSR_DEVICE_RELAY;d->fields=255;
  }
  const cJSON *dashboard=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard")));
+ m->dashboard_id=(uint32_t)integer(dashboard,"id");
  snprintf(m->dashboard_name,sizeof(m->dashboard_name),"%s",string(dashboard,"name"));
  cJSON_ArrayForEach(v,item(dashboard,"tiles")){
   dsr_mobile_tile_t *t=&m->tiles[m->tile_count++];const char *type=string(v,"type");t->type=!strcmp(type,"device")?0:!strcmp(type,"room")?1:2;

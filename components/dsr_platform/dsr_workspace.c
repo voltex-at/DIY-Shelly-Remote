@@ -15,6 +15,9 @@ static char *current;
 static uint32_t revision;
 static bool busy;
 static char status[96];
+static dsr_connection_t bind_request;
+static bool bind_waiting,bind_busy;
+static char bind_message[64];
 typedef struct {char *json;uint32_t revision;} request_t;
 static void config_task(void *argument)
 {
@@ -74,3 +77,19 @@ bool dsr_workspace_submit(const char *json,uint32_t expected)
 }
 void dsr_workspace_status(bool *pending,char message[96])
 {if(!mutex){*pending=false;snprintf(message,96,"Configuration storage unavailable");return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=busy;snprintf(message,96,"%s",status);xSemaphoreGive(mutex);}
+bool dsr_workspace_bind(const dsr_connection_t *connection)
+{
+ if(!mutex||!dsr_connection_valid(connection,false))return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);
+ bool ok=!bind_busy;if(ok){bind_request=*connection;bind_waiting=bind_busy=true;snprintf(bind_message,sizeof(bind_message),"Checking Shelly identity…");}xSemaphoreGive(mutex);return ok;
+}
+bool dsr_workspace_take_bind(dsr_connection_t *connection)
+{
+ if(!mutex)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool found=bind_waiting;
+ if(found){*connection=bind_request;memset(&bind_request,0,sizeof(bind_request));bind_waiting=false;}xSemaphoreGive(mutex);return found;
+}
+void dsr_workspace_bind_result(dsr_result_t result)
+{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bind_busy=false;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);}
+void dsr_workspace_bind_status(bool *pending,char message[64])
+{if(!mutex){*pending=false;message[0]=0;return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=bind_busy;snprintf(message,64,"%s",bind_message);xSemaphoreGive(mutex);}

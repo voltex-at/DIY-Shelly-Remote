@@ -26,9 +26,9 @@ static bool text(const cJSON *o,const char *k,size_t maximum,bool empty)
  return true;
 }
 static bool choice(const cJSON *o,const char *k,const char *choices)
-{const cJSON *v=get(o,k);if(!cJSON_IsString(v))return false;char wanted[48];snprintf(wanted,sizeof(wanted),"|%s|",v->valuestring);return strstr(choices,wanted)!=NULL;}
+{const cJSON *v=get(o,k);if(!cJSON_IsString(v)||strlen(v->valuestring)>31||strchr(v->valuestring,'|'))return false;char wanted[48];snprintf(wanted,sizeof(wanted),"|%s|",v->valuestring);return strstr(choices,wanted)!=NULL;}
 static bool keys(const cJSON *o,const char *allowed)
-{const cJSON *v;cJSON_ArrayForEach(v,o){char key[80];if(!v->string||strlen(v->string)>70)return false;snprintf(key,sizeof(key),"|%s|",v->string);if(!strstr(allowed,key))return false;}return true;}
+{const cJSON *v;cJSON_ArrayForEach(v,o){char key[80];if(!v->string||strlen(v->string)>70||strchr(v->string,'|'))return false;snprintf(key,sizeof(key),"|%s|",v->string);if(!strstr(allowed,key))return false;}return true;}
 static bool unique_keys(const cJSON *o,unsigned depth)
 {
  if(depth>16)return false;

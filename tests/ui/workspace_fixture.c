@@ -16,3 +16,5 @@ void dsr_panel_allow_ota(void){}
 const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
 const char *dsr_photo_id(unsigned index){(void)index;return NULL;}
 const char *dsr_tls_fingerprint(void){return "TEST FIXTURE";}
+bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
+void dsr_workspace_bind_result(dsr_result_t r){(void)r;}

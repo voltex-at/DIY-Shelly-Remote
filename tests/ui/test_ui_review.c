@@ -3,11 +3,14 @@
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
 #include "dsr_config.h"
+#include "dsr_workspace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static unsigned checks,commands;
+static bool photo_enabled;
+static uint16_t photo_pixels[DSR_PHOTO_BYTES/2];
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static unsigned char pixels[320*480*3];
 static uint16_t buffer[320*40];
@@ -20,14 +23,14 @@ static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=
  .rooms={{.name="Salon",.icon=0},{.name="Kuchnia",.icon=1},{.name="Sypialnia",.icon=2},{.name="Łazienka",.icon=3}},
  .devices={
  {.name="Światło w salonie",.model="Shelly Plus 1PM",.room=0,.kind=DSR_DEVICE_LIGHT,.online=true,.output=true,.can_switch=true,.has_power=true,.power_w=18.6,.has_voltage=true,.voltage_v=230.1,.has_current=true,.current_a=.081},
- {.name="Drzwi wejściowe",.model="Shelly BLU Door/Window",.room=0,.kind=DSR_DEVICE_CONTACT,.online=true,.has_contact=true,.contact_open=true,.has_battery=true,.battery_pct=92,.has_temperature=true,.temperature_c=22.4},
+ {.name="Drzwi wejściowe",.model="DEMO contact sensor",.room=0,.kind=DSR_DEVICE_CONTACT,.online=true,.has_contact=true,.contact_open=true,.has_battery=true,.battery_pct=92,.has_temperature=true,.temperature_c=22.4},
  {.name="Roleta w salonie",.model="Shelly Plus 2PM",.room=0,.kind=DSR_DEVICE_COVER,.online=true,.has_position=true,.position_pct=65,.can_cover=true},
  {.name="Gniazdko kuchnia",.model="Shelly Plug S",.room=1,.kind=DSR_DEVICE_PLUG,.online=true,.output=true,.can_switch=true,.has_power=true,.power_w=68.4},
  {.name="Oświetlenie lustra",.model="Shelly 1PM",.room=3,.kind=DSR_DEVICE_RELAY,.can_switch=true}}};
 
 static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands++;}
 static void noop(void){}
-const void *dsr_photo_pixels(const char *id){(void)id;return NULL;}
+const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]?photo_pixels:NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y)
@@ -47,6 +50,12 @@ static lv_obj_t *find(lv_obj_t *o,const char *text)
 {
  if(lv_obj_check_type(o,&lv_label_class)&&!strcmp(lv_label_get_text(o),text))return o;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *f=find(lv_obj_get_child(o,(int)i),text);if(f)return f;}return NULL;
+}
+static unsigned count_cards(lv_obj_t *o)
+{
+ unsigned count=lv_obj_get_width(o)==296&&lv_obj_get_height(o)==90;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++)count+=count_cards(lv_obj_get_child(o,(int)i));
+ return count;
 }
 static void save(const char *name)
 {
@@ -135,6 +144,9 @@ int main(int argc,char **argv)
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
+ tap(226,358);CHECK(find(lv_screen_active(),"Pozycja   100%"));CHECK(commands==0);
+ tap(276,358);CHECK(find(lv_screen_active(),"Pozycja   0%"));CHECK(commands==0);
+ dsr_mobile_update(&fixture);
  dsr_mobile_show(DSR_MOBILE_ROOMS,0);save("02-rooms");CHECK(find(lv_screen_active(),"Łazienka"));
  tap(84,176);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);save("04-room-salon");
  tap(84,166);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);save("05-device-details-on");
@@ -153,6 +165,15 @@ int main(int argc,char **argv)
  lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<80;i++){fixture.demo=true;dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_ROOMS,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);dsr_mobile_update(&empty);dsr_mobile_show(DSR_MOBILE_HOME,0);}
  lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);
+ fixture.configured_layout=true;fixture.tile_count=24;for(unsigned i=0;i<24;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.index=0,.span=2,.height=1,.fields=255};
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
+ CHECK(count_cards(lv_screen_active())==24);lv_mem_monitor(&after);CHECK(after.free_size>2048);
+ fixture.configured_layout=false;fixture.tile_count=0;photo_enabled=true;strcpy(fixture.rooms[0].photo,"11111111111111111111111111111111");
+ for(unsigned i=0;i<sizeof(photo_pixels)/sizeof(photo_pixels[0]);i++)photo_pixels[i]=(uint16_t)(((i/DSR_PHOTO_WIDTH)%32)<<11|((i%DSR_PHOTO_WIDTH)%64)<<5);
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_ROOMS,0);lv_refr_now(display);CHECK(find(lv_screen_active(),"Salon"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(find(lv_screen_active(),"My dashboard"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(find(lv_screen_active(),"Mein Dashboard"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);
  printf("PASS: %u review checks, 9 real LVGL frames at 320x480, 432 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
  lv_deinit();return 0;
 }

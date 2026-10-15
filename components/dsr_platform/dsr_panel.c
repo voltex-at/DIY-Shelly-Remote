@@ -35,6 +35,8 @@ static unsigned char token_hash[32];static bool has_token,need_preview;
 static unsigned char *preview;static bool preview_ready;
 static httpd_handle_t server;
 static httpd_handle_t redirect_server;
+static bool panel_ready;
+bool dsr_panel_ready(void){return panel_ready;}
 
 static void random_hex(char *out,size_t bytes)
 {uint8_t raw[32];esp_fill_random(raw,bytes);for(size_t i=0;i<bytes;i++)sprintf(out+i*2,"%02x",raw[i]);out[bytes*2]=0;memset(raw,0,sizeof(raw));}
@@ -54,10 +56,25 @@ static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {httpd_resp_set_status(r,status);httpd_resp_set_type(r,"application/json");httpd_resp_set_hdr(r,"Cache-Control","no-store");return httpd_resp_sendstr(r,body);}
 static bool local_request(httpd_req_t *r)
 {
- struct sockaddr_in peer;socklen_t size=sizeof(peer);
+ struct sockaddr_storage peer;socklen_t size=sizeof(peer);bool local=false;
  if(getpeername(httpd_req_to_sockfd(r),(struct sockaddr *)&peer,&size))return false;
- uint32_t ip=ntohl(peer.sin_addr.s_addr);
- if(!((ip>>24)==10||(ip>>16)==0xc0a8||(ip>>20)==0xac1||(ip>>16)==0xa9fe))return false;
+ uint32_t ip=0;
+ if(peer.ss_family==AF_INET)ip=ntohl(((struct sockaddr_in *)&peer)->sin_addr.s_addr);
+#ifdef CONFIG_LWIP_IPV6
+ else if(peer.ss_family==AF_INET6){
+  const uint8_t *address=(const uint8_t *)&((struct sockaddr_in6 *)&peer)->sin6_addr;
+  static const uint8_t mapped[12]={0,0,0,0,0,0,0,0,0,0,255,255};
+  if(!memcmp(address,mapped,12)){uint32_t raw;memcpy(&raw,address+12,4);ip=ntohl(raw);}
+  else{
+   local=(address[0]&0xfe)==0xfc||(address[0]==0xfe&&(address[1]&0xc0)==0x80);
+   struct sockaddr_storage own;socklen_t own_size=sizeof(own);
+   if(!local&&getsockname(httpd_req_to_sockfd(r),(struct sockaddr *)&own,&own_size)==0&&own.ss_family==AF_INET6)
+    local=!memcmp(address,&((struct sockaddr_in6 *)&own)->sin6_addr,8);
+  }
+ }
+#endif
+ local=local||(ip>>24)==10||(ip>>16)==0xc0a8||(ip>>20)==0xac1||(ip>>16)==0xa9fe;
+ if(!local)return false;
  char host[80]={0},origin[100]={0},site[32]={0};
  if(httpd_req_get_hdr_value_str(r,"Host",host,sizeof(host))!=ESP_OK)return false;
  char *port=strchr(host,':');if(port)*port=0;
@@ -158,7 +175,15 @@ static esp_err_t api(httpd_req_t *r)
  }
  if(!strcmp(r->uri,"/api/v1/status")&&r->method==HTTP_GET){
   bool busy;char message[96];dsr_workspace_status(&busy,message);cJSON *o=cJSON_CreateObject();cJSON_AddNumberToObject(o,"revision",dsr_workspace_revision());cJSON_AddBoolToObject(o,"busy",busy);cJSON_AddStringToObject(o,"message",message);
+  bool device_busy;char device_message[64];dsr_workspace_bind_status(&device_busy,device_message);cJSON_AddBoolToObject(o,"device_busy",device_busy);cJSON_AddStringToObject(o,"device_message",device_message);
   cJSON_AddStringToObject(o,"firmware",esp_app_get_description()->version);char *s=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t e=json(r,"200 OK",s?s:"{}");free(s);return e;
+ }
+ if(!strcmp(r->uri,"/api/v1/devices/bind")&&r->method==HTTP_POST){
+  char *data=body(r,512);cJSON *input=data&&dsr_config_json_depth(data)?cJSON_Parse(data):NULL;dsr_connection_t connection={0};
+  const cJSON *host=cJSON_GetObjectItemCaseSensitive(input,"host"),*name=cJSON_GetObjectItemCaseSensitive(input,"name"),*username=cJSON_GetObjectItemCaseSensitive(input,"username"),*password=cJSON_GetObjectItemCaseSensitive(input,"password"),*channel=cJSON_GetObjectItemCaseSensitive(input,"channel");
+  bool valid=cJSON_IsString(host)&&strlen(host->valuestring)<sizeof(connection.device.host)&&cJSON_IsString(name)&&strlen(name->valuestring)<sizeof(connection.device.name)&&cJSON_IsString(username)&&strlen(username->valuestring)<sizeof(connection.credentials.username)&&cJSON_IsString(password)&&strlen(password->valuestring)<sizeof(connection.credentials.password)&&cJSON_IsNumber(channel)&&channel->valuedouble==channel->valueint&&channel->valueint>=0&&channel->valueint<=15;
+  if(valid){strcpy(connection.device.host,host->valuestring);strcpy(connection.device.name,name->valuestring);strcpy(connection.credentials.username,username->valuestring);strcpy(connection.credentials.password,password->valuestring);connection.device.channel=(uint8_t)channel->valueint;valid=dsr_workspace_bind(&connection);}
+  memset(&connection,0,sizeof(connection));if(data){memset(data,0,strlen(data));free(data);}cJSON_Delete(input);return json(r,valid?"202 Accepted":"400 Bad Request",valid?"{\"checking\":true}":"{\"error\":\"Invalid details or another device check is running\"}");
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){
   unsigned char *copy=malloc(320*480*2);if(!copy)return json(r,"503 Service Unavailable","{}");
@@ -166,7 +191,7 @@ static esp_err_t api(httpd_req_t *r)
   esp_err_t e;if(ready){httpd_resp_set_type(r,"application/octet-stream");httpd_resp_set_hdr(r,"Cache-Control","no-store");e=httpd_resp_send(r,(const char *)copy,320*480*2);}else e=json(r,"202 Accepted","{\"waiting\":true}");free(copy);return e;
  }
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){
-  const char *id=r->uri+15;if(strlen(id)!=32||r->content_len!=160*90*2)return json(r,"400 Bad Request","{\"error\":\"Expected a 160x90 RGB565 room photo\"}");
+  const char *id=r->uri+15;if(strlen(id)!=32||r->content_len!=DSR_PHOTO_BYTES)return json(r,"400 Bad Request","{\"error\":\"Expected a 320x180 RGB565 room photo\"}");
   unsigned char *data=malloc(r->content_len);if(!data)return json(r,"503 Service Unavailable","{}");size_t at=0;while(at<r->content_len){int n=httpd_req_recv(r,(char *)data+at,r->content_len-at);if(n<=0)break;at+=(unsigned)n;}
   bool ok=at==r->content_len&&dsr_photo_save(id,data,at);free(data);return json(r,ok?"200 OK":"400 Bad Request",ok?"{\"saved\":true}":"{\"error\":\"Photo checksum, storage or 16-photo limit\"}");
  }
@@ -203,6 +228,7 @@ esp_err_t dsr_panel_start(void)
  const httpd_method_t methods[]={HTTP_GET,HTTP_POST,HTTP_PUT,HTTP_DELETE};
  for(unsigned i=0;i<4;i++){httpd_uri_t route={.uri="/api/v1/*",.method=methods[i],.handler=api};error=httpd_register_uri_handler(server,&route);if(error!=ESP_OK)return error;}
  httpd_uri_t root={.uri="/*",.method=HTTP_GET,.handler=asset};error=httpd_register_uri_handler(server,&root);if(error!=ESP_OK)return error;
+ panel_ready=true;
  httpd_config_t plain=HTTPD_DEFAULT_CONFIG();plain.max_open_sockets=1;plain.max_uri_handlers=1;plain.uri_match_fn=httpd_uri_match_wildcard;
  if(httpd_start(&redirect_server,&plain)==ESP_OK){httpd_uri_t redirect={.uri="/*",.method=HTTP_GET,.handler=redirect_https};httpd_register_uri_handler(redirect_server,&redirect);}
  if(mdns_init()==ESP_OK){mdns_hostname_set("shelly-remote");mdns_instance_name_set("DIY Shelly Remote");mdns_service_add(NULL,"_https","_tcp",443,NULL,0);mdns_service_add(NULL,"_http","_tcp",80,NULL,0);}

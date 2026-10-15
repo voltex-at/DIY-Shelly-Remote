@@ -180,8 +180,8 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int heig
     dsr_sc_text(card,"Pomieszczenie",7,5,130,&dsr_roboto_11,DSR_SC_MUTED);
     const void *pixels=dsr_photo_pixels(model.rooms[i].photo);
     if(pixels){
-        static lv_image_dsc_t photos[DSR_UI_MAX_ROOMS];photos[i]=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,.w=160,.h=90,.stride=320},.data_size=160*90*2,.data=pixels};
-        lv_obj_t *window=dsr_sc_panel(card,0,0,width-2,height-65,DSR_SC_CARD,0);lv_obj_t *image=lv_image_create(window);lv_image_set_src(image,&photos[i]);lv_image_set_scale(image,(uint32_t)(width-2)*256/160);lv_obj_center(image);
+        static lv_image_dsc_t photos[DSR_UI_MAX_ROOMS];photos[i]=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,.w=DSR_PHOTO_WIDTH,.h=DSR_PHOTO_HEIGHT,.stride=DSR_PHOTO_WIDTH*2},.data_size=DSR_PHOTO_BYTES,.data=pixels};
+        lv_obj_t *window=dsr_sc_panel(card,0,0,width-2,height-65,DSR_SC_CARD,0);lv_obj_t *image=lv_image_create(window);lv_image_set_src(image,&photos[i]);lv_image_set_scale(image,(uint32_t)(width-2)*256/DSR_PHOTO_WIDTH);lv_obj_center(image);
     }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-52)/2,24,52,52,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),30,0xe8edf2);}
     lv_obj_t *name=dsr_sc_text(card,model.rooms[i].name,6,height-56,width-12,&dsr_roboto_14,DSR_SC_TEXT);center(name);truncate(name,18);
     double power=0;unsigned count=0;bool complete=true;
@@ -275,6 +275,15 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
 {
     if(!m||m->device_count>DSR_UI_MAX_DEVICES||m->room_count>DSR_UI_MAX_ROOMS||m->tile_count>24||m->scene_count>8)return;
     if(!memcmp(&model,m,sizeof(model)))return;
+    if(page==DSR_MOBILE_HOME&&model.dashboard_id!=m->dashboard_id)content=NULL;
+    if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].id){
+        uint32_t id=model.devices[selected].id;unsigned next=0;while(next<m->device_count&&m->devices[next].id!=id)next++;
+        if(next==m->device_count){page=DSR_MOBILE_HOME;selected=0;content=NULL;}else selected=next;
+    }
+    if(page==DSR_MOBILE_ROOM&&selected<model.room_count&&model.rooms[selected].id){
+        uint32_t id=model.rooms[selected].id;unsigned next=0;while(next<m->room_count&&m->rooms[next].id!=id)next++;
+        if(next==m->room_count){page=DSR_MOBILE_ROOMS;selected=0;content=NULL;}else selected=next;
+    }
     model=*m;
 #ifndef DSR_UI_REVIEW_DEMO
     model.demo=false;
