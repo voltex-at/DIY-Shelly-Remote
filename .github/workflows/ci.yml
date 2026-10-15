@@ -36,3 +36,32 @@ jobs:
             build/diy_shelly_remote.elf
             build/diy_shelly_remote.map
           if-no-files-found: error
+  es3c35p:
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v5.5.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build LCDWiki ES3C35P hardware test
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p set-target esp32s3
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p build
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p merge-bin -o "$GITHUB_WORKSPACE/build-board/DIY-Shelly-Remote-es3c35p-bringup.bin"
+          cd build-board
+          sha256sum DIY-Shelly-Remote-es3c35p-bringup.bin diy_shelly_remote.bin > SHA256SUMS.txt
+      - name: Retain unvalidated hardware test firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: es3c35p-hardware-test-NOT-STABLE
+          path: |
+            build-board/DIY-Shelly-Remote-es3c35p-bringup.bin
+            build-board/diy_shelly_remote.bin
+            build-board/bootloader/bootloader.bin
+            build-board/partition_table/partition-table.bin
+            build-board/ota_data_initial.bin
+            build-board/flasher_args.json
+            build-board/SHA256SUMS.txt
+            build-board/diy_shelly_remote.elf
+            dependencies.lock
+          if-no-files-found: error

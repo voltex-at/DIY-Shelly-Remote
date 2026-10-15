@@ -1,26 +1,13 @@
-# Hardware confirmation / Dane naszej płytki
+# Hardware identification
 
-Known: a custom remote uses an ESP32-family board with a nominal 3.5-inch touchscreen. No working firmware for this board was provided. The screen diagonal and project name do not identify the PCB.
+The user selected the [LCDWiki 3.5-inch ESP32-S3 display](https://www.lcdwiki.com/3.5inch_ESP32-S3_Display), SKU **ES3C35P**, on 2026-10-15. Its no-speaker variant is ES3C35P-NS. This is distinct from the earlier 2.8-inch remote.
 
-| Required item | Current value | Evidence needed |
-| --- | --- | --- |
-| Manufacturer, exact board/PCB model and revision | Unknown | Product link, board markings and vendor schematic |
-| SoC and module variant | Unknown | Module marking or vendor BOM |
-| LCD resolution and usable orientation | Unknown | Panel specification and enclosure orientation |
-| LCD controller and interface | Unknown | Vendor schematic and working example |
-| Touch controller, bus, reset/interrupt | Unknown | Schematic and example |
-| GPIO map and shared buses | Unknown | Schematic including strapping/Flash/PSRAM pins |
-| Flash capacity/mode | Unknown | Module spec and boot log/esptool output |
-| PSRAM capacity/mode | Unknown | Module spec and vendor sdkconfig |
-| Backlight enable/PWM polarity and range | Unknown | Schematic |
-| Power management, battery ADC and charge detection | Unknown | Schematic and electrical values |
-| Buttons, LED type/polarity, USB pins | Unknown | Schematic |
-| Pogo accessory pin assignments | Unknown | Electrical specification, not enclosure geometry |
+The board profile and complete pin map are in [boards/lcdwiki-es3c35p/README.md](../boards/lcdwiki-es3c35p/README.md). Vendor documentation confirms ESP32-S3, N16R8 memory, ST77922 QSPI display, capacitive I2C touch and USB Serial/JTAG connectivity. Native portrait orientation is used first; no hardware X/Y swap is assumed.
 
-**Prośba do właściciela:** prześlij link do dokładnej płytki lub dokumentację producenta. Jeśli oznaczenie jest niepewne, zdjęcia obu stron PCB i napisów na module pomogą je ustalić. Nie wnioskujemy parametrów z samego rozmiaru ekranu.
+The source-level port is prepared. Physical PCB revision, observed Flash/PSRAM sizes, display colors and touch orientation still require validation on the user's unit. The boot code checks memory sizes before proceeding with the display. The controller protocol is supported by a cited upstream implementation for this exact board; its success on the user's physical unit remains untested.
 
-## Board port acceptance
+Pins for the display, touch, backlight, battery ADC, LED, SD, audio and expansion are documented rather than inferred from enclosure geometry. Pogo accessories have no confirmed electrical assignment in this project and are not driven.
 
-Store a reviewed profile in `boards/<vendor-model-revision>/` with source links, MCU target, sdkconfig defaults, schematic-derived pin table and initialization sequence. Implement the `dsr_board` boundary, then confirm display/backlight/touch, power and reset behavior on the actual board. Validate any vendor pin conflict or boot strap before driving pins.
+The production Flash layout is no longer guessed: the ES3C35P profile reserves NVS, otadata, PHY initialization and two 6 MiB application slots within the documented 16 MiB. It leaves the rest of Flash unused for now. The layout must be physically validated before stable release. No automatic eFuse programming or flash encryption is enabled.
 
-Do not implement OTA partition sizes until Flash capacity is confirmed. Reserve NVS, otadata, two suitably sized app slots and any required assets; document USB recovery and whether the first installation needs a layout migration. A chip target alone is not a board profile.
+Additional board profiles must provide their own vendor evidence, pin map, memory configuration, initialization sequence and physical test record.

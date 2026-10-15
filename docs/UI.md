@@ -2,7 +2,7 @@
 
 Reference reviewed: [Shelly Smart Control](https://www.shelly.com/pages/shelly-app) and the [My Home guide](https://kb.shelly.cloud/knowledge-base/my-home-page), 2026-10-15. The official material organizes devices by rooms, presents device states and allows scenes and consumption views. This informs navigation; it does not imply pixel-for-pixel equivalence to any app version. No official artwork or logo will be copied.
 
-The UI has not been implemented. Final resolution, orientation, font metrics and touch targets depend on the real display and enclosure. A 3.5-inch diagonal alone does not determine a layout. Use an original dark theme, scrollable content, clear offline states and large controls. Layout must scale from actual dimensions; do not assume 320x480 or 480x320.
+The first LVGL UI is implemented for the documented 320x480 native portrait display. It has an original dark Home/Menu shell, clearly labeled hardware-test scope, four-corner touch test, primary-color test, brightness, full backlight off and first-touch wake. Rooms, Devices, Scenes and Energy are navigation shells with explicit empty/future states, not completed control features. No fabricated devices or measurements are shown. Physical rendering has not been validated yet. The table below describes the full intended UI beyond this bring-up milestone.
 
 | View | Required content | Interaction rules |
 | --- | --- | --- |

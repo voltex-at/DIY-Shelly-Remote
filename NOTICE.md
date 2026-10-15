@@ -1,10 +1,12 @@
 # Third-party notices
 
-The source in this archive is original project code under MIT. Third-party sources and firmware binaries are not vendored or distributed in it.
+Original project code is under MIT. The module-specific ST77922 initialization table in `components/dsr_board/st77922_init.h` is adapted from the MIT-licensed `78/xiaozhi-esp32` exact-board port (upstream blob `138be5c01b9cb98ba8bec62e899c60ab72af010c`). The full upstream copyright and license are preserved in `third_party/xiaozhi-esp32-LICENSE`. The touch protocol implementation was informed by that source; its register mapping is attributed in the board guide.
+
+Pinned managed dependencies are LVGL 9.3.0 (MIT) and Espressif ST77922 driver 2.1.1 (Apache-2.0). They are downloaded by the build, not vendored. The resolved lockfile is retained with hardware-test artifacts.
 
 ESP-IDF is fetched separately by the build environment. Its main license is Apache-2.0, with separately licensed bundled components. cJSON and FreeRTOS are MIT; lwIP uses a BSD-style license. Final distributions must preserve the relevant upstream notices. Review the exact resolved dependency tree and licenses before publishing binaries.
 
-Planned LVGL is MIT; planned NimBLE derives from Apache Mynewt (Apache-2.0). Neither has been integrated yet. Board vendor drivers must also be reviewed before inclusion.
+LVGL is now integrated. Planned NimBLE derives from Apache Mynewt (Apache-2.0) and is not integrated yet. Final board/driver dependency notices must accompany binary distributions.
 
 Upstream license sources:
 
