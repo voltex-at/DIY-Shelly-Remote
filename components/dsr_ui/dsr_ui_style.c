@@ -4,7 +4,7 @@
 lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius)
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);
-    lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
     lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_pad_all(o,0,0);
     lv_obj_set_style_text_color(o,lv_color_hex(DSR_SC_TEXT),0);

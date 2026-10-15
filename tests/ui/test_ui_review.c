@@ -11,6 +11,9 @@ static unsigned checks,commands;
 static unsigned char pixels[320*480*3];
 static uint16_t buffer[320*40];
 static lv_display_t *display;
+static lv_indev_t *pointer;
+static bool pressed;
+static lv_point_t touch;
 static const char *output;
 static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=4,.device_count=5,
  .rooms={{.name="Salon",.icon=0},{.name="Kuchnia",.icon=1},{.name="Sypialnia",.icon=2},{.name="Łazienka",.icon=3}},
@@ -23,6 +26,13 @@ static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=
 
 static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands++;}
 static void noop(void){}
+static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
+{(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
+static void tap(int x,int y)
+{
+ lv_obj_update_layout(lv_screen_active());touch=(lv_point_t){x,y};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);
+ pressed=false;lv_tick_inc(20);lv_indev_read(pointer);lv_timer_handler();lv_obj_update_layout(lv_screen_active());
+}
 static void flush(lv_display_t *d,const lv_area_t *a,uint8_t *data)
 {
  const uint16_t *src=(const uint16_t *)data;
@@ -43,8 +53,6 @@ static void save(const char *name)
  char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);FILE *f=fopen(path,"wb");CHECK(f);
  fprintf(f,"P6\n320 480\n255\n");CHECK(fwrite(pixels,1,sizeof(pixels),f)==sizeof(pixels));fclose(f);
 }
-static void label_click(const char *name)
-{lv_obj_t *o=find(lv_screen_active(),name);CHECK(o);(void)lv_obj_send_event(lv_obj_get_parent(o),LV_EVENT_CLICKED,NULL);lv_obj_update_layout(lv_screen_active());}
 static void click_power(int size)
 {
  lv_obj_update_layout(lv_screen_active());
@@ -64,14 +72,18 @@ int main(int argc,char **argv)
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
  lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);
  lv_display_set_buffers(display,buffer,NULL,sizeof(buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
+ pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
  dsr_mobile_show(DSR_MOBILE_ROOMS,0);save("02-rooms");CHECK(find(lv_screen_active(),"Łazienka"));
- label_click("Salon");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);save("04-room-salon");
- label_click("Światło w salonie");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);save("05-device-details-on");
+ tap(84,176);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);save("04-room-salon");
+ tap(84,166);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);save("05-device-details-on");
  CHECK(find(lv_screen_active(),"18.6 W"));CHECK(find(lv_screen_active(),"230.1 V"));CHECK(find(lv_screen_active(),"0.081 A"));
- click_power(86);CHECK(commands==0);CHECK(find(lv_screen_active(),"Wyłączone • Online"));save("06-device-details-off");
+ tap(160,262);CHECK(commands==0);CHECK(find(lv_screen_active(),"Wyłączone • Online"));CHECK(find(lv_screen_active(),"0.000 A"));save("06-device-details-off");
+ tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);
+ tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_DEVICES,0);save("03-devices");
  fixture.devices[0].online=false;dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_DETAILS,0);save("07-device-offline");
  CHECK(find(lv_screen_active(),"Offline • stan niepotwierdzony"));CHECK(!find(lv_screen_active(),"18.6 W"));
@@ -82,6 +94,6 @@ int main(int argc,char **argv)
  lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<80;i++){fixture.demo=true;dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_ROOMS,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);dsr_mobile_update(&empty);dsr_mobile_show(DSR_MOBILE_HOME,0);}
  lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);
- printf("PASS: %u review checks, 8 real LVGL frames at 320x480, 80 navigation cycles; demo never sends commands\n",checks);
+ printf("PASS: %u review checks, 8 real LVGL frames at 320x480, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
  lv_deinit();return 0;
 }

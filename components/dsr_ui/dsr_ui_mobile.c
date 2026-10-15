@@ -39,7 +39,7 @@ static void control(lv_event_t *e)
     dsr_mobile_device_t *d=&model.devices[i];
     if(!d->online||d->busy||!d->can_switch)return;
     bool desired=!d->output;
-    if(model.demo){d->output=desired;if(!desired&&d->has_power)d->power_w=0;render();}
+    if(model.demo){d->output=desired;if(!desired&&d->has_power)d->power_w=0;if(!desired&&d->has_current)d->current_a=0;render();}
     else if(actions.set_output)actions.set_output(i,desired);
 }
 
@@ -195,7 +195,7 @@ static void render(void)
     else {
         toolbar(root,page==DSR_MOBILE_HOME?"Mój pulpit":page==DSR_MOBILE_ROOMS?"Pomieszczenia":"Urządzenia");
         content=dsr_sc_panel(root,12,126,296,290,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
-        lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);
+        lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);
         if(page==DSR_MOBILE_ROOMS){
             for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*146);
