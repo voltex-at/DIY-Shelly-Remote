@@ -86,6 +86,15 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p set-target esp32s3
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p build
+          python3 - <<'PY'
+          from pathlib import Path
+          sdk=Path('sdkconfig').read_text()
+          for option in ['CONFIG_BT_ENABLED=y','CONFIG_BT_NIMBLE_ENABLED=y','CONFIG_BT_NIMBLE_ROLE_OBSERVER=y','CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y','CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y','CONFIG_BT_NIMBLE_PINNED_TO_CORE_1=y','CONFIG_BT_CTRL_PINNED_TO_CORE_1=y']:
+              assert option in sdk, option
+          for option in ['CONFIG_BT_NIMBLE_ROLE_CENTRAL=y','CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y','CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y']:
+              assert option not in sdk, option
+          print('PASS: real SDK NimBLE observer-only, PSRAM and coexistence configuration')
+          PY
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p merge-bin -o "$GITHUB_WORKSPACE/build-board/DIY-Shelly-Remote-es3c35p-local.bin"
           cd build-board
           sha256sum DIY-Shelly-Remote-es3c35p-local.bin diy_shelly_remote.bin > SHA256SUMS.txt
@@ -101,6 +110,7 @@ jobs:
           cp docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md docs/UNIFIED_UI.md docs/ISSUE12_TELEMETRY.md build-board/package/
           cp docs/ISSUE15_COVER.md build-board/package/
           cp docs/STABLE_POLLING.md build-board/package/
+          cp docs/BLE_PLAN.md build-board/package/
           cp boards/lcdwiki-es3c35p/README.md build-board/package/BOARD_REFERENCE.md
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/package/licenses/
           cp third_party/material-symbols/LICENSE build-board/package/licenses/Material-Symbols-Apache-2.0.txt

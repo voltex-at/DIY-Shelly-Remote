@@ -1,5 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
+#include "dsr_ble.h"
+#include "lvgl.h"
 #include <stdlib.h>
 #include <string.h>
 /* Disabled for the original Wi-Fi fixture until explicitly enabled. */
@@ -37,3 +39,13 @@ void test_lan_found(const char *identity,const char *host)
 {cJSON *r=cJSON_Parse(identity);dsr_lan_device_t d;if(dsr_lan_parse_identity(r,host,&d)==DSR_OK)dsr_lan_upsert(&lan,&d);cJSON_Delete(r);lan.phase=DSR_LAN_DONE;lan.serial++;}
 void test_lan_inspected(dsr_result_t result,const char *components)
 {cJSON *r=cJSON_Parse(components);if(result==DSR_OK)result=dsr_lan_parse_capabilities(r,lan.selected.generation,&lan.capabilities);cJSON_Delete(r);lan.result=result;lan.phase=result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR;lan.serial++;}
+
+/* Explicit host BLE provider; the production NimBLE adapter is never replaced
+ * in the board build. Advertisement bytes still pass the real C parser. */
+static dsr_ble_snapshot_t ble;
+void dsr_ble_snapshot(dsr_ble_snapshot_t *out){*out=ble;out->snapshot_ms=lv_tick_get();}
+bool dsr_ble_scan(void){if(ble.busy)return false;dsr_ble_begin(&ble,lv_tick_get());ble.phase=DSR_BLE_SCANNING;return true;}
+void dsr_ble_cancel(void){if(ble.busy)dsr_ble_finish(&ble,ble.generation,DSR_BLE_CANCELLED,lv_tick_get());}
+void test_ble_finish(dsr_ble_phase_t phase){dsr_ble_finish(&ble,ble.generation,phase,lv_tick_get());}
+void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address)
+{uint8_t addr[6]={(uint8_t)address,2,3,4,5,6};dsr_ble_ingest(&ble,ble.generation,addr,0,-48,bytes,length,lv_tick_get());}

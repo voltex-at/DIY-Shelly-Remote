@@ -1,5 +1,35 @@
 # Project status
 
+## 0.7.0 — real NimBLE scanner, first BLE milestone (Issue #18 / #7B)
+
+Branch `work/issue-18-ble-scan`, stacked on verified PR #17. Actual ESP-NimBLE
+legacy active discovery runs for <=20 s in a separate manager/host task, with
+software coexistence, cancel, retry, generation fencing and a 16-row cap. LCD
+and authenticated local HTTPS use the same bounded snapshot. RF/GATT callbacks
+never touch LVGL. NimBLE starts lazily and retains a fixed host baseline after
+completion; there is no perpetual scan or repeated init/deinit churn.
+
+Manufacturer/UUID evidence separates Shelly-advertised RPC, known Shelly BLU
+and unverified BTHome/other advertisements. Optional manufacturer model IDs use
+the documented table. Names never establish authenticated identity or generation.
+Generic BTHome is not mislabelled Shelly. Scan response merges by address/type;
+malformed/truncated AD, stale generations and overflow are bounded. MACs and
+secrets are not logged or returned by the new authenticated scan API.
+
+This is discovery only: **BLE bonding, Wi-Fi provisioning, persistent BLU sensors
+and BLE RPC control are not implemented**. Production results come only from the
+NimBLE radio; host radio providers are test-only and renders have TEST / DEMO.
+Local UBSan passes: 2138 BLE parser/adapter checks (including 2000 deterministic
+AD inputs), 1176 integrated LVGL checks/47 frames, 2615 review checks/23 frames.
+BLE UI heap is 100352 -> 100352 B after ten scan/cancel/exit cycles; host figures
+are not ESP32/PSRAM measurements. Core 94, platform 847, Wi-Fi 222 and config 265
+regressions remain retained. Real 320x480 frames accompany the PR.
+Target, sanitizer and browser CI follows on the exact source commit. Physical
+RF, coexistence, touch/FPS, heap/PSRAM and >=10 cycles remain unverified; the user
+must supply an actual board result before acceptance. [Full scope and test](docs/BLE_PLAN.md).
+Existing LCD/touch/backlight, Wi-Fi, relay HTTP/auth/NVS and OTA partitions are
+preserved. No merge/main/stable or physical-test claim.
+
 ## 0.6.3 — stable background reads and one deferred user command (Issue #12)
 
 Branch `work/issue-12-stable-polling`, stacked on cover PR #16. A periodic PROBE

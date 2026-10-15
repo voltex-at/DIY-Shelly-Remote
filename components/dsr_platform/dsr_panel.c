@@ -1,5 +1,6 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
+#include "dsr_ble.h"
 #include "dsr_platform.h"
 #include "esp_http_server.h"
 #include "esp_https_server.h"
@@ -185,11 +186,24 @@ static esp_err_t lan_api(httpd_req_t *r)
  }
  return json(r,"404 Not Found","{}");
 }
+static esp_err_t ble_api(httpd_req_t *r)
+{
+ if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/ble/scan")){bool ok=dsr_ble_scan();return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"scanning\":true}":"{\"error\":\"BLE niedostępne lub skan trwa\"}");}
+ if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/ble/cancel")){dsr_ble_cancel();return json(r,"202 Accepted","{\"cancelling\":true}");}
+ if(r->method==HTTP_GET&&!strcmp(r->uri,"/api/v1/ble")){
+  dsr_ble_snapshot_t s;dsr_ble_snapshot(&s);cJSON *o=cJSON_CreateObject(),*devices=cJSON_AddArrayToObject(o,"devices");
+  cJSON_AddNumberToObject(o,"phase",s.phase);cJSON_AddBoolToObject(o,"busy",s.busy);cJSON_AddNumberToObject(o,"elapsed_ms",s.elapsed_ms);cJSON_AddNumberToObject(o,"packets",s.packets);cJSON_AddNumberToObject(o,"dropped",s.dropped);cJSON_AddNumberToObject(o,"malformed",s.malformed);
+  for(unsigned i=0;i<s.count;i++){const dsr_ble_device_t *d=&s.devices[i];cJSON *row=cJSON_CreateObject();cJSON_AddStringToObject(row,"name",d->name);cJSON_AddStringToObject(row,"model",dsr_ble_model_name(d));cJSON_AddNumberToObject(row,"kind",d->kind);cJSON_AddNumberToObject(row,"rssi",d->rssi);cJSON_AddNumberToObject(row,"age_ms",s.snapshot_ms-d->seen_ms);cJSON_AddBoolToObject(row,"bthome",(d->evidence&DSR_BLE_BTHOME)!=0);cJSON_AddBoolToObject(row,"encrypted",d->encrypted);cJSON_AddBoolToObject(row,"paired",false);cJSON_AddItemToArray(devices,row);}
+  char *text=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t result=json(r,"200 OK",text?text:"{}");free(text);return result;
+ }
+ return json(r,"404 Not Found","{}");
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
  if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
  if(!strcmp(r->uri,"/api/v1/config")){
   if(r->method==HTTP_GET){char *config=dsr_workspace_snapshot();if(!config)return json(r,"503 Service Unavailable","{}");esp_err_t e=json(r,"200 OK",config);free(config);return e;}

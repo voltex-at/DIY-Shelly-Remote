@@ -20,7 +20,7 @@ args=p.parse_args()
 (ROOT/'build-ui').mkdir(exist_ok=True)
 work=Path(tempfile.mkdtemp(prefix='panel-fixture-',dir=ROOT/'build-ui'))
 include=Path('/usr/include/cjson') if Path('/usr/include/cjson/cJSON.h').exists() else ROOT/'.test-deps'
-subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c']],'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
+subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_platform/dsr_ble_model.c']],'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
 lib=ctypes.CDLL(str(work/'config.so'));libc=ctypes.CDLL(None);libc.free.argtypes=[ctypes.c_void_p]
 lib.dsr_config_default.restype=ctypes.c_void_p
 lib.dsr_config_replace.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_uint32,ctypes.c_char_p];lib.dsr_config_replace.restype=ctypes.c_void_p
@@ -47,6 +47,16 @@ lan_device={key:(bytes(getattr(device,key)).decode() if key not in ['generation'
 raw=lib.cJSON_Parse(b'{"switch:1":{"id":1,"output":false},"switch:4":{"id":4,"output":true}}');caps=LanCaps();assert lib.dsr_lan_parse_capabilities(raw,2,ctypes.byref(caps))==0;lib.cJSON_Delete(raw)
 lan={'phase':0,'serial':0,'result':0,'devices':[],'selected':{},'capabilities':{}}
 lan_ready_at=0
+class BleDevice(ctypes.Structure):
+    _fields_=[('address',ctypes.c_uint8*6),('address_type',ctypes.c_uint8),('evidence',ctypes.c_uint8),('bthome_version',ctypes.c_uint8),('rssi',ctypes.c_int8),('name',ctypes.c_char*32),('model_id',ctypes.c_uint16),('has_model',ctypes.c_bool),('encrypted',ctypes.c_bool),('kind',ctypes.c_int),('seen_ms',ctypes.c_uint32)]
+lib.dsr_ble_parse.argtypes=[ctypes.c_char_p,ctypes.c_size_t,ctypes.POINTER(BleDevice)];lib.dsr_ble_parse.restype=ctypes.c_bool
+lib.dsr_ble_model_name.argtypes=[ctypes.POINTER(BleDevice)];lib.dsr_ble_model_name.restype=ctypes.c_char_p
+ble_devices=[]
+for data in [bytes.fromhex('06ffa90b0b0200'),bytes.fromhex('11075f44495f4356535f4350525f534f6d5f')]:
+    d=BleDevice();assert lib.dsr_ble_parse(data,len(data),ctypes.byref(d))
+    ble_devices.append(dict(model=lib.dsr_ble_model_name(ctypes.byref(d)).decode(),name='TEST / DEMO radio fixture',kind=d.kind,rssi=-48,paired=False,bthome=False,encrypted=False,age_ms=0))
+ble=dict(phase=0,busy=False,devices=[],elapsed_ms=0)
+ble_ready_at=0
 save_delay=0
 rendered=None
 def frame():
@@ -69,7 +79,7 @@ class Handler(BaseHTTPRequestHandler):
         if cookie:self.send_header('Set-Cookie','dsr_session=TEST_ONLY; Path=/; HttpOnly; SameSite=Strict')
         self.end_headers();self.wfile.write(data)
     def route(self):
-        global config,lan_ready_at,save_delay
+        global config,lan_ready_at,save_delay,ble_ready_at
         if not self.path.startswith('/api/'):
             files={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css'}
             if self.path not in files:return self.send(404,{})
@@ -90,6 +100,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(202,{'saving':True})
         if self.path=='/api/v1/status':return self.send(200,{'revision':json.loads(config)['revision'],'busy':False,'message':'Saved','device_busy':False,'device_result':0,'firmware':'HOST TEST · DEMO'})
         if self.path=='/api/v1/test/save-delay':save_delay=float(body or b'0');return self.send(200,{})
+        if self.path=='/api/v1/ble/scan':
+            if ble['busy']:return self.send(409,{'error':'scan busy'})
+            ble.update(phase=2,busy=True,devices=[],elapsed_ms=0);ble_ready_at=time.monotonic()+1.2;return self.send(202,{})
+        if self.path=='/api/v1/ble/cancel':ble.update(phase=4,busy=False);return self.send(202,{})
+        if self.path=='/api/v1/ble':
+            if ble['busy'] and time.monotonic()>=ble_ready_at:ble.update(phase=3,busy=False,devices=ble_devices,elapsed_ms=1200)
+            return self.send(200,ble)
         if self.path=='/api/v1/discovery/scan':
             lan.update(phase=1,devices=[],serial=lan['serial']+1,probed=0,total=1);lan_ready_at=time.monotonic()+.2
             return self.send(202,{'scanning':True})

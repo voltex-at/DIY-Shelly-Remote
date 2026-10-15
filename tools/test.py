@@ -57,3 +57,11 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     str(ROOT / "tests/test_wifi.c"), "-o", str(wifi_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(wifi_binary)], check=True, cwd=temp_root, env=test_env)
+    ble_binary=temp_root / "test_ble"
+    subprocess.run([os.environ.get("CC","cc"),*flags,
+                    "-I",str(ROOT / "tests/ble"),"-I",str(ROOT / "tests/support"),
+                    "-I",str(ROOT / "components/dsr_platform/include"),
+                    str(ROOT / "components/dsr_platform/dsr_ble_model.c"),
+                    str(ROOT / "components/dsr_platform/dsr_ble.c"),
+                    str(ROOT / "tests/test_ble.c"),"-o",str(ble_binary)],check=True,cwd=temp_root,env=test_env)
+    subprocess.run([str(ble_binary)],check=True,cwd=temp_root,env=test_env)

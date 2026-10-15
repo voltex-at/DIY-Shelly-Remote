@@ -59,6 +59,28 @@ function editTile(d,t){
 function appearance(){const n=box('Wygląd i język'),f=el('div',undefined,'fields');n.append(f);select(f,'Język interfejsu',config.language,[['pl','Polski'],['en','English'],['de','Deutsch']],v=>config.language=v);select(f,'Motyw',config.theme,[['graphite','Grafit'],['midnight','Nocny']],v=>config.theme=v);field(f,'Kolor akcentu','#'+config.accent.toString(16).padStart(6,'0'),v=>config.accent=parseInt(v.slice(1),16),'color');return n;}
 function system(){const n=box('Aktualizacja OTA');n.append(el('p','Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.'));const f=el('input');f.type='file';f.accept='.bin';n.append(f,button('Sprawdź i zainstaluj OTA',async()=>{if(!f.files[0])return;try{const data=await f.files[0].arrayBuffer();notice('Wysyłanie obrazu do nieaktywnej partycji…');const r=await request('ota',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SHA256':sha256(new Uint8Array(data))},body:data});const result=await r.json();if(result.installed){notice('Obraz zweryfikowany. Uruchom ponownie pilot, aby go zastosować.');n.append(button('Uruchom ponownie',async()=>{await request('restart',{method:'POST'});notice('Pilot uruchamia się ponownie…');}));}}catch(e){notice(e.message);}},'primary'));n.append(el('p','Najpierw zweryfikuj źródło pliku. Suma SHA256 sprawdza przesyłanie, a nie podpis wydawcy. To rozwojowy instalator lokalny.','muted'));return n;}
 let lanMode='start',lanSelected=null,lanCredentials=null,lanSnapshot=null,lanGeneration=0;
+let bleGeneration=0;
+async function pollBle(generation){
+ if(page!=='discovery'||lanMode!=='ble'||generation!==bleGeneration)return;
+ try{
+  const s=await(await request('ble')).json();if(generation!==bleGeneration)return;
+  const status=$('#ble-status'),list=$('#ble-results');if(!status||!list)return;
+  status.textContent=s.busy?`Odbieranie reklam: ${Math.floor(s.elapsed_ms/1000)} / 20 s` : s.phase===5?'Bluetooth niedostępny':s.phase===4?'Skan przerwany':s.devices.length?'Wykryto — nie sparowano':'Nie znaleziono urządzeń BLE';
+  $('#ble-start').disabled=s.busy;$('#ble-cancel').disabled=!s.busy;list.replaceChildren();
+  for(const [kind,heading] of [[0,'Shelly • RPC / konfiguracja'],[1,'Shelly BLU'],[2,'Pozostałe reklamy']]){
+   const rows=s.devices.filter(d=>d.kind===kind);if(!rows.length)continue;list.append(el('h3',heading));
+   for(const d of rows){const card=el('div',undefined,'row');card.append(el('strong',d.model||d.name||'Nieznany model'),el('span',`${d.rssi} dBm · Wykryto, nie sparowano`));list.append(card);}
+  }
+ }catch(e){notice(e.message);}
+ if(generation===bleGeneration)setTimeout(()=>pollBle(generation),800);
+}
+function bleView(){
+ const n=box('Bluetooth LE • skan'),generation=++bleGeneration;
+ n.append(button('← Metody dodawania',()=>{bleGeneration++;lanMode='start';render();}),el('p','Skan reklam BLE działa na pilocie. Nie paruje, nie przekazuje danych Wi-Fi i nie zapisuje fikcyjnych urządzeń. Nazwa i typ reklamy nie są uwierzytelnioną tożsamością.'));
+ const start=button('Szukaj BLE',async()=>{try{await request('ble/scan',{method:'POST'});}catch(e){notice(e.message);}},'primary');start.id='ble-start';
+ const cancel=button('Anuluj skan BLE',async()=>{try{await request('ble/cancel',{method:'POST'});}catch(e){notice(e.message);}});cancel.id='ble-cancel';
+ const status=el('p','Odczyt stanu skanera…');status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p','BLU może wymagać krótkiego naciśnięcia przycisku. Urządzenie Wi-Fi musi reklamować BLE; konfiguracja RPC może wymagać pairing i włączonego okna konfiguracji.','muted'));setTimeout(()=>pollBle(generation),0);return n;
+}
 const lanError=code=>({4:'Błąd logowania. Sprawdź dane.',5:'Shelly offline lub brak Wi-Fi.',9:'Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.',10:'Limit logowań Shelly. Poczekaj przed ponowieniem.'}[code]||'Nie udało się zweryfikować urządzenia.');
 function lanInput(parent,label,value='',type='text'){
  const l=el('label',label),i=el('input');i.type=type;i.value=value;i.setAttribute('aria-label',label);i.maxLength=type==='password'?64:47;l.append(i);parent.append(l);return i;
@@ -101,13 +123,14 @@ async function bindLan(name,room,channel,button){
  }catch(e){notice(e.message);}finally{body.password='';button.disabled=false;}
 }
 function discoveryView(){
+ if(lanMode==='ble')return bleView();
  const n=box('Dodaj urządzenie Shelly');n.append(button('← Urządzenia',()=>{lanCredentials=null;lanGeneration++;page='devices';render();}));
  if(lanMode==='scan'||lanMode==='inspect'){
   const p=el('p',lanMode==='scan'?'Wyszukiwanie mDNS i weryfikacja API…':'Sprawdzanie wybranego urządzenia…');p.id='lan-progress';n.append(p,button('Przerwij',async()=>{try{await request('discovery/cancel',{method:'POST'});}catch(e){notice(e.message);}}));return n;
  }
  if(lanMode==='start'){
   n.append(el('p','Wyszukaj urządzenia w tej samej sieci lokalnej. Lista zawiera wyłącznie tożsamości potwierdzone odpowiedzią API.'),button('Skanuj sieć Wi-Fi',scanLan,'primary'));
-  for(const name of ['Wi-Fi AP — niewdrożone','Bluetooth LE — niewdrożone']){const b=button(name,()=>{});b.disabled=true;n.append(b);}return n;
+  const ap=button('Wi-Fi AP — niewdrożone',()=>{});ap.disabled=true;n.append(ap,button('Bluetooth LE • skan',()=>{lanCredentials=null;lanGeneration++;lanMode='ble';render();}));return n;
  }
  if(lanMode==='results'){
   n.append(button('Skanuj ponownie',scanLan));if(!lanSnapshot?.devices.length)empty(n,'Nie znaleziono Shelly. Sprawdź Wi-Fi, mDNS i izolację klientów.');

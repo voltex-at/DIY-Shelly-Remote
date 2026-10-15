@@ -6,6 +6,7 @@
 #include "dsr_ui_mobile.h"
 #include "dsr_board.h"
 #include "dsr_workspace.h"
+#include "dsr_ble.h"
 #include "esp_app_desc.h"
 #include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"
 #include <assert.h>
@@ -21,6 +22,8 @@ void test_workspace_defer(bool enabled);
 void test_workspace_finish(bool success);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
+void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
+void test_ble_finish(dsr_ble_phase_t phase);
 #define CHECK(x) do {checks++; if (!(x)) {fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort();}} while(0)
 static dsr_job_t submitted;
 static dsr_event_t response;
@@ -149,6 +152,27 @@ static void polling_regression(void)
  wifi.connected=true;tick();CHECK(submitted.kind==DSR_JOB_PROBE);click("Odśwież stan");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!find_label(lv_screen_active(),"Brak odpowiedzi"));
  dsr_network_home(NULL);
 }
+static void ble_regression(void)
+{
+ dsr_network_device(NULL);click("Bluetooth LE");CHECK(find_label(lv_screen_active(),"Wyszukaj urządzenia w pobliżu"));screenshot("80-ble-start");click("Szukaj");tick();CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("81-ble-scanning");
+ const uint8_t rpc[]={17,7,0x5f,0x44,0x49,0x5f,0x43,0x56,0x53,0x5f,0x43,0x50,0x52,0x5f,0x53,0x4f,0x6d,0x5f};
+ const uint8_t blu[]={6,0xff,0xa9,0x0b,0x0b,2,0},bthome[]={6,0x16,0xd2,0xfc,0x40,1,92};
+ /* The native worker may keep polling the relay while BLE owns its own task. */
+ wifi.connected=true;tick();if(in_flight){response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
+ lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(dsr_ui_ble_active());
+ test_ble_packet(rpc,sizeof(rpc),1);test_ble_packet(blu,sizeof(blu),2);test_ble_packet(bthome,sizeof(bthome),3);test_ble_finish(DSR_BLE_DONE);tick();
+ CHECK(find_label(lv_screen_active(),"Shelly • RPC / konfiguracja"));CHECK(find_label(lv_screen_active(),"Shelly BLU DoorWindow"));CHECK(find_label(lv_screen_active(),"Pozostałe reklamy"));screenshot("82-ble-results");
+ click("Shelly BLU DoorWindow");tick();CHECK(find_label(lv_screen_active(),"Wykryto • nie sparowano"));screenshot("83-ble-detail");click("Wstecz");click("Ponów");click("Anuluj");tick();CHECK(find_label(lv_screen_active(),"Skan przerwany"));screenshot("84-ble-cancelled");
+ click("Ponów");test_ble_finish(DSR_BLE_DONE);tick();CHECK(find_label(lv_screen_active(),"Nie znaleziono urządzeń BLE"));screenshot("85-ble-empty");
+ click("Ponów");test_ble_finish(DSR_BLE_UNAVAILABLE);tick();CHECK(find_label(lv_screen_active(),"Bluetooth niedostępny"));screenshot("86-ble-unavailable");
+ for(unsigned language=1;language<3;language++){dsr_sc_appearance(DSR_SC_BLUE,false,language);dsr_ui_ble_open(NULL);click("Ponów");test_ble_packet(blu,sizeof(blu),2);test_ble_finish(DSR_BLE_DONE);tick();screenshot(language==1?"87-ble-english":"88-ble-german");}
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_network_home(NULL);lv_mem_monitor_t a,b;lv_mem_monitor(&a);
+ for(unsigned i=0;i<10;i++){dsr_ui_ble_open(NULL);click("Ponów");click("Anuluj");tick();click("Wstecz");dsr_network_home(NULL);tick();}
+ lv_mem_monitor(&b);CHECK(b.free_size+1024>=a.free_size);CHECK(!dsr_ui_ble_active());
+ if(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
+ wifi.connected=false;tick();
+ printf("BLE UI heap before=%u after=%u; 10 scan/cancel/exit cycles; host radio fixture only\n",(unsigned)a.free_size,(unsigned)b.free_size);
+}
 static void bounds(lv_obj_t *obj,int max_y)
 {lv_area_t a;lv_obj_get_coords(obj,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=0&&a.y2<max_y);}
 static void keyboard_regression(void)
@@ -248,6 +272,7 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Desk lamp")!=NULL);
     click("Desk lamp");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
     CHECK(find_label(lv_screen_active(),"Offline • stan niepotwierdzony")!=NULL);
+    ble_regression();
     dsr_ui_open_settings();screenshot("40-settings-menu");
     click("Podgląd rolety • DEMO");CHECK(find_label(lv_screen_active(),"Pozycja 65%"));CHECK(find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("42-cover-preview-on-device");
     unsigned before_preview=submitted.id;click("Otwórz");CHECK(find_label(lv_screen_active(),"Otwarte 100%"));click("Zamknij");CHECK(find_label(lv_screen_active(),"Zamknięte 0%"));click("Stop");CHECK(submitted.id==before_preview);tap(20,20);CHECK(!find_label(lv_screen_active(),"DEMO • dane przykładowe"));CHECK(find_label(lv_screen_active(),"Desk lamp"));

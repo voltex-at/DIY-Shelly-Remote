@@ -46,6 +46,7 @@ void dsr_network_reset_view(void)
 {
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
+    dsr_ui_ble_reset();
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
 }
@@ -235,9 +236,9 @@ void dsr_network_device(lv_event_t *event)
     (void)event;lv_obj_t *root=dsr_ui_screen("Dodaj urządzenie Shelly",true);
     dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,dsr_ui_lan_open,NULL);
     lv_obj_t *ap=dsr_ui_button(root,"Wi-Fi AP",12,152,296,NULL,NULL);lv_obj_add_state(ap,LV_STATE_DISABLED);
-    lv_obj_t *ble=dsr_ui_button(root,"Bluetooth LE",12,208,296,NULL,NULL);lv_obj_add_state(ble,LV_STATE_DISABLED);
+    dsr_ui_button(root,"Bluetooth LE",12,208,296,dsr_ui_ble_open,NULL);
     dsr_ui_button(root,"Dodaj ręcznie (IP)",12,264,296,manual_device,NULL);
-    dsr_ui_label(root,"LAN wyszukuje urządzenia w tej samej sieci.\nWi-Fi AP i Bluetooth nie są jeszcze obsługiwane.",16,329,288);
+    dsr_ui_label(root,"LAN i skan BLE są dostępne.\nWi-Fi AP i parowanie BLE nie są jeszcze wdrożone.",16,329,288);
 }
 dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room)
 {
@@ -305,6 +306,7 @@ static void poll(lv_timer_t *timer)
     }
     dsr_wifi_ui_tick();
     dsr_ui_lan_tick();
+    dsr_ui_ble_tick();
     dsr_ui_workspace_tick();dsr_panel_tick();
     if(!busy){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
         pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
