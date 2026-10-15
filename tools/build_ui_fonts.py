@@ -20,3 +20,5 @@ for size, weight in [(11,"Regular"),(12,"Regular"),(14,"Regular"),(16,"Medium"),
                     "--size", str(size), "--bpp", "4", "--format", "lvgl", "--no-compress",
                     "--range", "0x20-0x7e", "--symbols", symbols, "--lv-include", "lvgl.h",
                     "--lv-font-name", name, "-o", str(dest / f"{name}.c")], check=True, env=env)
+    file = dest / f"{name}.c"
+    file.write_text(file.read_text().replace(".fallback = NULL", ".fallback = LV_FONT_DEFAULT"))

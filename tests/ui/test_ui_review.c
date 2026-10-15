@@ -146,6 +146,8 @@ int main(int argc,char **argv)
   memset(fixture.rooms[i].photo,(int)('1'+i),32);fixture.rooms[i].photo[32]=0;
  }photo_enabled=true;
  check_icon_alignment();save_icon_atlas();
+ const uint32_t letters[]={0x105,0x119,0x142,0x144,0x15b,0x17a,0x17c,0xf3,0xe4,0xf6,0xfc,0xdf,0xf00c};
+ for(unsigned i=0;i<sizeof(letters)/sizeof(letters[0]);i++){lv_font_glyph_dsc_t glyph;CHECK(lv_font_get_glyph_dsc(&dsr_roboto_14,&glyph,letters[i],0));}
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
