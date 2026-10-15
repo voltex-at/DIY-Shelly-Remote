@@ -47,7 +47,7 @@ static lv_obj_t *icon_button(lv_obj_t *p,dsr_ui_icon_t icon,int x,int y,int size
                              lv_event_cb_t cb,void *ctx)
 {
     lv_obj_t *b=dsr_sc_button(p,x,y,size,size,bg,7,cb,ctx);
-    dsr_sc_icon(b,icon,(size-18)/2,(size-18)/2,18,DSR_SC_TEXT);return b;
+    dsr_sc_icon_centered(b,icon,18,DSR_SC_TEXT);return b;
 }
 
 static void header(lv_obj_t *root,const char *title,bool back)
@@ -88,9 +88,9 @@ static void bottom(lv_obj_t *root)
         lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,
             targets[i]==99?NULL:navigate,(void *)(uintptr_t)targets[i]);
         lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-        if(i==4){lv_obj_t *circle=dsr_sc_panel(b,14,5,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);
-            dsr_sc_icon(circle,icons[i],8,8,20,DSR_SC_TEXT);}
-        else dsr_sc_icon(b,icons[i],21,12,22,i==(unsigned)current?DSR_SC_TEXT:0xbec5cd);
+        if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);
+            dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
+        else dsr_sc_icon_centered(b,icons[i],22,i==(unsigned)current?DSR_SC_TEXT:0xbec5cd);
         if((i==3&&!actions.open_settings)||(i==4&&!actions.add_device)||i==2)lv_obj_add_state(b,LV_STATE_DISABLED);
     }
 }
@@ -109,7 +109,7 @@ static lv_obj_t *power_button(lv_obj_t *parent,unsigned index,int x,int y,int si
     lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,0x252a2e,LV_RADIUS_CIRCLE,control,(void *)(uintptr_t)index);
     edge(b,valid&&d->output?DSR_SC_BLUE:DSR_SC_OFF,size>=70?3:2);
     int icon=size>=70?35:22;
-    dsr_sc_icon(b,DSR_ICON_POWER,(size-icon)/2,(size-icon)/2,icon,valid?DSR_SC_TEXT:DSR_SC_OFF);
+    dsr_sc_icon_centered(b,DSR_ICON_POWER,icon,valid?DSR_SC_TEXT:DSR_SC_OFF);
     if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
     return b;
 }
@@ -122,7 +122,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     edge(card,0x5b5f65,1);
     dsr_sc_text(card,d->kind==DSR_DEVICE_LIGHT?"Światło":"Przekaźnik",7,5,width-14,&dsr_roboto_11,DSR_SC_MUTED);
     lv_obj_t *thumb=dsr_sc_panel(card,(width-38)/2,21,38,38,0x2c343e,LV_RADIUS_CIRCLE);
-    dsr_sc_icon(thumb,kind_icon(d->kind),8,8,22,DSR_SC_TEXT);
+    dsr_sc_icon_centered(thumb,kind_icon(d->kind),22,DSR_SC_TEXT);
     lv_obj_t *name=dsr_sc_text(card,d->name,6,64,width-12,&dsr_roboto_14,DSR_SC_TEXT);center(name);truncate(name,32);
     lv_obj_t *room=dsr_sc_text(card,room_name(d),6,94,width-12,&dsr_roboto_11,DSR_SC_MUTED);center(room);truncate(room,14);
     char value[32];
@@ -143,7 +143,7 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y)
     lv_obj_t *card=dsr_sc_button(parent,x,y,144,138,DSR_SC_CARD,9,open_room,(void *)(uintptr_t)i);edge(card,0x5b5f65,1);
     dsr_sc_text(card,"Pomieszczenie",7,5,130,&dsr_roboto_11,DSR_SC_MUTED);
     lv_obj_t *thumb=dsr_sc_panel(card,46,24,52,52,0x303943,LV_RADIUS_CIRCLE);
-    dsr_sc_icon(thumb,room_icon(i),11,11,30,0xe8edf2);
+    dsr_sc_icon_centered(thumb,room_icon(i),30,0xe8edf2);
     lv_obj_t *name=dsr_sc_text(card,model.rooms[i].name,6,82,132,&dsr_roboto_14,DSR_SC_TEXT);center(name);truncate(name,18);
     double power=0;unsigned count=0;bool complete=true;
     for(unsigned d=0;d<model.device_count;d++)if(model.devices[d].room==i){count++;complete&=model.devices[d].online&&model.devices[d].has_power;power+=model.devices[d].power_w;}

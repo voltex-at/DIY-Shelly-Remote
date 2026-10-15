@@ -8,14 +8,15 @@
   "renderer": "native C project source, LVGL software draw, RGB565 framebuffer",
   "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
   "frames": {
-    "01-home.png": "55b6951a1de26324e462639f8f67668ac5c991278dd921dbe612eff2706136c8",
-    "02-rooms.png": "666350908a8b98990734e0cafd5eb6228a3f722c6d063bfc1ec4af05183a1ee2",
-    "03-devices.png": "8b1de8450bd523b046ace1d842751f4f0140ba0a8ad89121b31f7016a7faf68c",
-    "04-room-salon.png": "8046e75984f88fd129b2a33d008ad45e0d07aa3a54e521e12c8cfb03c2685918",
-    "05-device-details-on.png": "a9640f26359b63c740bb4a06b3c5bb85b9edea73daf7c0186984ee07cd63ba81",
-    "06-device-details-off.png": "d3283222e5268e3c6bd8a32af63e61ce34a4c6f6069d1e7c3e2e2597737017cd",
-    "07-device-offline.png": "87189be02397fe9497081a25b531331908ebcd48c93fcd4f46539c16d03307d9",
-    "08-live-empty.png": "6aed61d0bb224c3845c9a6565424daa1a3565672ed3f4b7d0cbc984f4777a308",
-    "contact_sheet.png": "c15479f1b21171488aa3ba7a44b20c84b901de66b936f92a757db7c0b0623986"
+    "01-home.png": "d8c899ea5ac94d9070b60a05b9e96266fdfb0809df477f2e8cddc33a782383d8",
+    "02-rooms.png": "d06551523fd3ebe96061449b30a88cf3c40bcf0fa4161124e617de4eb1b15e70",
+    "03-devices.png": "81d62ba14cea92886af3d2d6ab63db9f17ebbe0f6cab80615a347656296440fd",
+    "04-room-salon.png": "8405d7da3bc2e488269cb479e9696e644f7453e9bfb1f279f11ac54914cb534d",
+    "05-device-details-on.png": "6da37f6f607fdce29bbfb5beafd4f9bbf5615a6fe71df1f75b895f717df15806",
+    "06-device-details-off.png": "0626bab07cb987f57cb6e764a3b0cb12c2863af2ba19f91775c4c58d521dbdeb",
+    "07-device-offline.png": "5df8c448228e4921c3b6f727cd551bc8c72aa3905cab057f79c6711b1688d828",
+    "08-live-empty.png": "3a34ecba57e9d4999a7811172a9b34852dccac9d20fa0d062ea03623e94a4078",
+    "09-icon-alignment.png": "4ff9df3ffbf9aac80460396cceff91edabe085e47637c04144b24019c7e2639f",
+    "contact_sheet.png": "7211f011fa9e8a07a40a91b16f5f52791b94485fe50631eb34006a6bdc80bcc0"
   }
 }

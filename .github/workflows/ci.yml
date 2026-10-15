@@ -22,7 +22,7 @@ jobs:
           name: real-lvgl-ui-review-NOT-FIRMWARE
           path: |
             build-ui/review-export/
-            build-ui/DIY_Shelly_UI_Review_v1.zip
+            build-ui/review-export.zip
           if-no-files-found: error
   native:
     runs-on: ubuntu-24.04

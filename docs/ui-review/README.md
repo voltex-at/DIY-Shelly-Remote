@@ -1,4 +1,4 @@
-# UI review v1 — actual LVGL, 320×480
+# UI review v2 — actual LVGL, 320×480
 
 Branch: `ui/shelly-smart-control`. Reference: `reference/0.2.0-local-dev`.
 The pending Wi-Fi work is separately preserved in `work/wifi-onboarding`.
@@ -18,10 +18,35 @@ All populated frames are visibly **DEMO**. Test data lives in `tests/ui/test_ui_
 | Device details / OFF | [06-device-details-off.png](renders/06-device-details-off.png) |
 | Offline / unconfirmed measurements | [07-device-offline.png](renders/07-device-offline.png) |
 | Empty real mode | [08-live-empty.png](renders/08-live-empty.png) |
+| Original icon alignment proof | [09-icon-alignment.png](renders/09-icon-alignment.png) |
+
+## Icon correction requested on 2026-10-15
+
+The user's zoomed review exposed a real alignment bug: manually positioning a
+child at `(parent_size-icon_size)/2` ignores the parent's LVGL border inset.
+This shifted the glyph inside the 40px/2px-border and 86px/3px-border power
+buttons. All circular/button icon placements now share `dsr_sc_icon_centered`,
+which aligns against the actual content box. The navigation's plus circle also
+uses the same layout alignment rather than a separate vertical offset.
+
+Bulb, plug, room, back and chevron geometry has been balanced in the original
+24-unit viewbox. Power and small asymmetrical outlines have explicit optical
+corrections; strokes are 2px at small sizes and 3px at 32px and above. Tiny dots
+are filled circles instead of software-renderer-degenerate one-pixel arc rings.
+The native fixture checks actual anti-aliased RGB565 glyph bounds (not only
+object bounds): all 18 icons, six sizes, and border widths 0–3px, 432 cases.
+Every visible glyph's bounding-box centre is within 1px of the circle centre;
+the centred object boxes are within 0.5px, the unavoidable odd/even pixel case.
+The 320×480 icon sheet is also a real LVGL render, not an image-editor overlay.
+
+The user also requested a persisted PL/EN/DE language selector and OTA.
+These are explicitly pending functional work, not implemented by this icon
+correction; no OTA installation button or working-update claim is introduced.
+This visual revision does not merge the draft or expand further screens.
 
 ## Shared implementation
 
-- `dsr_ui_style.h/.c`: palette, typography, panels, text, buttons and original vector icons.
+- `dsr_ui_style.h/.c`: palette, typography, panels, text, buttons and original vector icons with shared border-aware centring.
 - `dsr_ui_mobile.c`: app shell, top tabs, context toolbar, room/device cards, details, circular power control and fixed bottom navigation.
 - `dsr_ui_mobile.h`: bounded snapshot model and existing command callbacks. No UI-owned network calls.
 - Roboto at 11/12/14/16/18/28px, including Polish glyphs; RGB565 rendering; 128 KiB LVGL heap.

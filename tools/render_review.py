@@ -41,7 +41,7 @@ for path in sorted(source.glob("*.ppm")):
     assert len(rgb) == 320 * 480 * 3
     frames[path.stem] = rgb
     png(out / (path.stem + ".png"), 320, 480, rgb)
-assert len(frames) == 8
+assert len(frames) == 9
 sheet = bytearray(bytes((235, 237, 240)) * (648 * 1456))
 for index, name in enumerate(list(frames)[:6]):
     frame = frames[name]
@@ -60,7 +60,7 @@ manifest = {
 guide = ROOT / "docs/ui-review/README_PL.txt"
 if guide.exists():
     shutil.copyfile(guide, out / "README_PL.txt")
-archive = out.parent / "DIY_Shelly_UI_Review_v1.zip"
+archive = out.parent / f"{out.name}.zip"
 with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
     for path in sorted(out.iterdir()):
         if path.is_file():

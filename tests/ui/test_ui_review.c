@@ -49,9 +49,61 @@ static lv_obj_t *find(lv_obj_t *o,const char *text)
 static void save(const char *name)
 {
  lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
- CHECK(find(lv_screen_active(),"DEMO")!=NULL||!strcmp(name,"08-live-empty"));
+ CHECK(find(lv_screen_active(),"DEMO")!=NULL||!strcmp(name,"08-live-empty")||!strcmp(name,"09-icon-alignment"));
  char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);FILE *f=fopen(path,"wb");CHECK(f);
  fprintf(f,"P6\n320 480\n255\n");CHECK(fwrite(pixels,1,sizeof(pixels),f)==sizeof(pixels));fclose(f);
+}
+static void check_icon_alignment(void)
+{
+ /* Check the actual RGB565 raster, not just object coordinates. Blue borders
+  * are excluded from the white glyph's bounding box. Include the production
+  * 40px / 2px-border and 86px / 3px-border circular power buttons. */
+ static const int sizes[]={18,20,22,30,35,56};
+ unsigned failures=0;
+ for(unsigned kind=0;kind<=DSR_ICON_CHEVRON;kind++)for(unsigned at=0;at<sizeof(sizes)/sizeof(sizes[0]);at++){
+  int size=sizes[at],side=size==22?40:size==35?86:size+18;
+  for(int border=0;border<=3;border++){
+   lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);
+   lv_obj_set_style_bg_color(root,lv_color_hex(0),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
+   lv_obj_t *circle=dsr_sc_panel(root,20,20,side,side,0,LV_RADIUS_CIRCLE);
+   lv_obj_set_style_border_color(circle,lv_color_hex(0x0000ff),0);lv_obj_set_style_border_width(circle,border,0);
+   lv_obj_t *icon=dsr_sc_icon_centered(circle,(dsr_ui_icon_t)kind,size,0xffffff);
+   lv_obj_update_layout(root);lv_obj_invalidate(root);lv_refr_now(display);lv_area_t area,art;lv_obj_get_coords(circle,&area);lv_obj_get_coords(icon,&art);
+   CHECK(abs((area.x1+area.x2)-(art.x1+art.x2))<=1);
+   CHECK(abs((area.y1+area.y2)-(art.y1+art.y2))<=1);
+   CHECK(!lv_obj_has_flag(icon,LV_OBJ_FLAG_CLICKABLE));
+   int left=320,right=-1,top=480,bottom=-1;
+   for(int y=area.y1;y<=area.y2;y++)for(int x=area.x1;x<=area.x2;x++){
+    unsigned p=(unsigned)(y*320+x)*3;
+    if(pixels[p]>64&&pixels[p+1]>64&&pixels[p+2]>64){
+     if(x<left)left=x;
+     if(x>right)right=x;
+     if(y<top)top=y;
+     if(y>bottom)bottom=y;
+    }
+   }
+   CHECK(right>=left&&bottom>=top);
+   int dx=(left+right)-(area.x1+area.x2),dy=(top+bottom)-(area.y1+area.y2);
+   if(abs(dx)>2||abs(dy)>2){if(border==0)fprintf(stderr,"Icon %u size %d: pixel centre offset %.1f,%.1f\n",kind,size,dx/2.,dy/2.);failures++;}
+  }
+ }
+ CHECK(failures==0);
+}
+static void save_icon_atlas(void)
+{
+ lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);
+ lv_obj_set_style_bg_color(root,lv_color_hex(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
+ dsr_sc_text(root,"IKONY / LVGL 320 x 480",12,10,296,&dsr_roboto_16,DSR_SC_TEXT);
+ dsr_sc_text(root,"Wspólne centrowanie • oryginalne symbole",12,33,296,&dsr_roboto_11,DSR_SC_MUTED);
+ static const char *names[]={"Pulpit","Dom","Energia","Ustawienia","Dodaj","ON / OFF","Wstecz","Edytuj","Informacja","Wtyczka","Światło","Salon","Sypialnia","Kuchnia","Łazienka","Wi-Fi","Siatka","Rozwiń"};
+ for(unsigned i=0;i<=DSR_ICON_CHEVRON;i++){
+  int x=15+(int)(i%3)*104,y=58+(int)(i/3)*68;
+  lv_obj_t *circle=dsr_sc_panel(root,x+18,y,48,48,DSR_SC_PANEL,LV_RADIUS_CIRCLE);
+  lv_obj_set_style_border_color(circle,lv_color_hex(DSR_SC_BLUE),0);lv_obj_set_style_border_width(circle,2,0);
+  dsr_sc_icon_centered(circle,(dsr_ui_icon_t)i,26,DSR_SC_TEXT);
+  lv_obj_t *label=dsr_sc_text(root,names[i],x-3,y+49,90,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
+ }
+ save("09-icon-alignment");
 }
 static void click_power(int size)
 {
@@ -73,6 +125,7 @@ int main(int argc,char **argv)
  lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);
  lv_display_set_buffers(display,buffer,NULL,sizeof(buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
+ check_icon_alignment();save_icon_atlas();
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=noop,.add_device=noop};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
@@ -94,6 +147,6 @@ int main(int argc,char **argv)
  lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<80;i++){fixture.demo=true;dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_ROOMS,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);dsr_mobile_update(&empty);dsr_mobile_show(DSR_MOBILE_HOME,0);}
  lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);
- printf("PASS: %u review checks, 8 real LVGL frames at 320x480, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
+ printf("PASS: %u review checks, 9 real LVGL frames at 320x480, 432 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
  lv_deinit();return 0;
 }

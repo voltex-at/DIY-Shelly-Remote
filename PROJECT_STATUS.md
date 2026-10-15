@@ -6,6 +6,14 @@
 
 Five core views, shared styles/original icons/Roboto fonts, and actual LVGL RGB565 rendering are implemented. Eight 320×480 review states include clearly marked DEMO data and a genuinely empty real-mode view. Transport and board code are unchanged from the frozen Wi-Fi checkpoint. Review source/data separation and no-demo-command behavior are tested; target compilation is tracked separately. Details: [UI review](docs/ui-review/README.md).
 
+2026-10-15 icon review v2: fixed border-aware alignment of circular power,
+thumbnail, toolbar and navigation icons, balanced the original glyph geometry,
+and added a ninth actual LVGL frame showing all 18 icons. Native raster checks
+cover 432 size/border combinations, with visible glyph centres within 1px of
+their containers. The user's additional PL/EN/DE language selector and OTA
+installer requests are recorded as pending, not working features. No merge,
+stable release, firmware-install request or physical UI result is implied.
+
 The historical record below describes the previously delivered 0.2.0 firmware; it is not a claim that the new UI has passed physical testing.
 
 Checkpoint: 2026-10-15, Europe/Vienna. Current source version: `0.2.0-local-dev`.
