@@ -1,5 +1,5 @@
 {
-  "branch": "work/issue-18-ble-scan",
+  "branch": "work/issue-25-feature-audit",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -23,6 +23,7 @@
     "11-cover-details.png": "899ab7a8864f0e50d3b2c9335b49829e9672d910a40324c0e59319e68077e831",
     "12-home-english.png": "b5a118f77c89afe078aa73fad355e7314f375c75d82f219324d875797299a4e7",
     "13-home-german.png": "ebf2f7b37890b2d795549b3499c7b222f7119493af4acf3090a03c9ca3f77a1c",
+    "14-dashboard-info.png": "75201a7e978a4c9eda20035a3cb5b129f655705c8b79496654bd353f6669ff76",
     "20-fixture-wifi-list.png": "16d377886fc91d031f696376b5a370ede4bf0377578c43e56745564465523e63",
     "21-fixture-wifi-keyboard.png": "4dad340c05d912e570e39582ccc11513a3c1d941d82bd5f478737873433afb3e",
     "22-fixture-add-wizard.png": "23fa8a8c2ce852bc9e4dd1edc2ee98cccc45a549198799c6aeb2b49a69ce2038",

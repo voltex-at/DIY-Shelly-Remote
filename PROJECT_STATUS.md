@@ -1,5 +1,29 @@
 # Project status
 
+## 0.7.1 — feature audit and working dashboard information (Issue #25)
+
+Branch `work/issue-25-feature-audit`, stacked on BLE PR #26. The versioned
+[FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) traces visible LCD/Web interactions
+through workers/API/state, lists supported types, implementation/test status,
+issues and required hardware evidence. It explicitly separates configuration
+entries, one active relay, BLE discovery, pairing, sensor data and true Cover.
+The audit does not mark the unfinished global quality gate complete.
+
+The previously inert toolbar Info now opens actual dashboard/device/room/online
+counts with a close action and explicit DEMO label in test models. Current tabs
+without callbacks are static selection indicators, no longer inert touch targets.
+Other unavailable features retain disabled affordances and their tracked issues.
+Local UBSan passes 2635 review checks/24 frames and 1176 integrated UI checks/47
+frames. Pointer/language/raster checks cover open/close and live update of the
+Info action. Drivers, transports,
+OTA, NVS and BLE scanner are unchanged by this isolated audit patch. Target CI
+and physical acceptance remain separate; no main merge or stable publication.
+
+BLE PR #26 (`c4ca872`) completed 5/5 CI jobs in
+[run 38807134240](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38807134240):
+actual ES3C35P firmware, effective NimBLE observer/PSRAM/coexistence configuration,
+native ASan/UBSan, LVGL and 28 browser checks. Physical RF remains pending.
+
 ## 0.7.0 — real NimBLE scanner, first BLE milestone (Issue #18 / #7B)
 
 Branch `work/issue-18-ble-scan`, stacked on verified PR #17. Actual ESP-NimBLE

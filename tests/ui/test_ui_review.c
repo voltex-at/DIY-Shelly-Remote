@@ -150,6 +150,9 @@ static void navigation_and_chips(void)
  lv_obj_t *position=find(lv_screen_active(),"Pozycja   65%");if(!position)position=find(lv_screen_active(),"Position   65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<120);
  unsigned before=edits;tap(236,116);CHECK(edits==before+1);
  before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
+ tap(284,116);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
+ dsr_mobile_model_t update=fixture;update.devices[4].online=true;dsr_mobile_update(&update);lv_obj_update_layout(lv_screen_active());CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,5u);CHECK(find(lv_screen_active(),counts));dsr_mobile_update(&fixture);
+ tap(160,324);CHECK(!find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));
  tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
 }
 static lv_obj_t *parent_of(const char *text)
@@ -263,6 +266,7 @@ int main(int argc,char **argv)
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
  navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);tap(284,116);save("14-dashboard-info");CHECK(find(lv_screen_active(),"Informacje o pulpicie"));tap(160,324);
  printf("PASS: %u review checks, %u real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks,frames_saved);
  lv_deinit();return 0;
 }

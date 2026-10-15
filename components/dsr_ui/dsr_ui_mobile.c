@@ -21,6 +21,8 @@ static unsigned previous_selected;
 static bool active;
 static lv_obj_t *content;
 static lv_obj_t *sample_age;
+static lv_obj_t *info_overlay;
+static bool info_open;
 static lv_timer_t *age_timer;
 static void render(void);
 static void update_sample_age(void)
@@ -37,7 +39,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){end_preview();active=false;content=sample_age=NULL;}
+void dsr_mobile_hide(void){end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -82,6 +84,21 @@ static void header(lv_obj_t *root,const char *title,bool back)
 {
     dsr_sc_header(root,title,model.demo,model.wifi,back?navigate:NULL,(void *)(uintptr_t)98);
 }
+static void close_info(lv_event_t *event){info_open=false;info_overlay=NULL;lv_obj_delete(lv_event_get_user_data(event));}
+static void dashboard_info(lv_event_t *event)
+{
+ (void)event;if(info_overlay)return;info_open=true;lv_obj_t *overlay=info_overlay=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);
+ lv_obj_set_style_bg_opa(overlay,170,0);lv_obj_add_flag(overlay,LV_OBJ_FLAG_CLICKABLE);
+ lv_obj_t *panel=dsr_sc_panel(overlay,12,108,296,252,DSR_SC_CARD,14);
+ dsr_sc_text(panel,"Informacje o pulpicie",12,14,272,&dsr_roboto_18,DSR_SC_TEXT);
+ lv_obj_t *name=dsr_sc_text(panel,model.dashboard_name[0]?model.dashboard_name:"Mój pulpit",12,47,272,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
+ unsigned online=0;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].online)online++;
+ char text[96];snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),model.device_count,online);dsr_sc_text(panel,text,12,87,272,&dsr_roboto_14,DSR_SC_MUTED);
+ snprintf(text,sizeof(text),dsr_sc_tr("Pomieszczenia: %u"),model.room_count);dsr_sc_text(panel,text,12,114,272,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(panel,model.demo?"DEMO • dane przykładowe":"Stan online dotyczy ostatnich odczytów.",12,149,272,&dsr_roboto_12,model.demo?0xe1bb70:DSR_SC_MUTED);
+ lv_obj_t *close=dsr_sc_button(panel,12,193,272,44,DSR_SC_PANEL,10,close_info,overlay);
+ center(dsr_sc_text(close,"Zamknij",4,12,264,&dsr_roboto_16,DSR_SC_TEXT));
+}
 static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event_cb_t cb,void *ctx)
 {
     lv_obj_t *b=dsr_sc_button(root,x,44,w,44,DSR_SC_BG,7,cb,ctx);
@@ -89,6 +106,7 @@ static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event
     lv_obj_t *s=dsr_sc_text(b,text,0,14,w,&dsr_roboto_14,chosen?DSR_SC_TEXT:DSR_SC_MUTED);center(s);
     truncate(s,18);
     if(!cb&&!chosen){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,LV_STATE_DISABLED);}
+    if(!cb&&chosen)lv_obj_remove_flag(b,LV_OBJ_FLAG_CLICKABLE);
 }
 static void tabs(lv_obj_t *root)
 {
@@ -120,7 +138,7 @@ static void toolbar(lv_obj_t *root,const char *title)
     lv_obj_t *plus=icon_button(bar,DSR_ICON_PLUS,156,0,44,0x287ec7,navigate,(void *)(uintptr_t)11);
     if(!actions.add_device)lv_obj_add_state(plus,LV_STATE_DISABLED);
     lv_obj_t *edit=icon_button(bar,DSR_ICON_EDIT,204,0,44,0x287ec7,navigate,(void *)(uintptr_t)12);if(!actions.edit_dashboard)lv_obj_add_state(edit,LV_STATE_DISABLED);
-    lv_obj_t *info=icon_button(bar,DSR_ICON_INFO,252,0,44,DSR_SC_PANEL,NULL,NULL);lv_obj_remove_flag(info,LV_OBJ_FLAG_CLICKABLE);
+    icon_button(bar,DSR_ICON_INFO,252,0,44,DSR_SC_PANEL,dashboard_info,NULL);
 }
 static lv_obj_t *power_button(lv_obj_t *parent,unsigned index,int x,int y,int size)
 {
@@ -313,7 +331,7 @@ static void details(lv_obj_t *root)
 static void render(void)
 {
     int scroll=content?lv_obj_get_scroll_y(content):0;
-    lv_obj_t *root=lv_screen_active();content=sample_age=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
+    lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
@@ -348,12 +366,14 @@ static void render(void)
     }
     if(model.demo){lv_obj_t *caption=dsr_sc_text(root,"DEMO • dane przykładowe",12,415,296,&dsr_roboto_11,0xe1bb70);center(caption);}
     bottom(root);
+    if(info_open)dashboard_info(NULL);
     /* A horizontal metrics drag must never displace the whole screen. */
     lv_obj_update_layout(root);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
 }
 void dsr_mobile_show(dsr_mobile_page_t p,unsigned index)
 {
     if(p>DSR_MOBILE_DETAILS)return;
+    info_open=false;
     if(cover_preview&&p!=DSR_MOBILE_DETAILS)end_preview();
     if(p==DSR_MOBILE_DETAILS&&page!=DSR_MOBILE_DETAILS){previous_page=page;previous_selected=selected;}
     content=NULL;page=p;selected=index;active=true;render();
