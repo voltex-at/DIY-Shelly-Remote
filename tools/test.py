@@ -26,3 +26,21 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     str(ROOT / "tests/test_core.c"), "-o", str(binary)], check=True,
                    cwd=temp_root, env=test_env)
     subprocess.run([str(binary)], check=True, cwd=temp_root, env=test_env)
+
+    json_include = Path("/usr/include/cjson")
+    if not (json_include / "cJSON.h").exists():
+        json_include = ROOT / ".test-deps"
+    if not (json_include / "cJSON.h").exists():
+        raise SystemExit("Install libcjson-dev to run platform fixtures")
+    platform_binary = temp_root / "test_platform"
+    subprocess.run([os.environ.get("CC", "cc"), *flags,
+                    "-I", str(ROOT / "tests/support"), "-I", str(json_include),
+                    "-I", str(ROOT / "components/dsr_core/include"),
+                    "-I", str(ROOT / "components/dsr_platform/include"),
+                    *[str(ROOT / source) for source in [
+                        "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c",
+                        "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_settings.c",
+                        "tests/test_platform.c"]],
+                    "-l:libcjson.so.1", "-lm", "-o", str(platform_binary)],
+                   check=True, cwd=temp_root, env=test_env)
+    subprocess.run([str(platform_binary)], check=True, cwd=temp_root, env=test_env)

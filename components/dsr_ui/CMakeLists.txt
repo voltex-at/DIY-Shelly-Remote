@@ -1,10 +1,10 @@
 set(ui_source "")
 if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
-    set(ui_source "dsr_ui.c")
+    set(ui_source "dsr_ui.c" "dsr_ui_network.c")
 endif()
 if(IDF_TARGET STREQUAL "esp32s3")
     idf_component_register(SRCS ${ui_source} INCLUDE_DIRS "include"
-        REQUIRES dsr_board lvgl__lvgl esp_app_format)
+        REQUIRES dsr_platform esp_system dsr_board lvgl__lvgl esp_app_format)
 else()
     idf_component_register()
 endif()

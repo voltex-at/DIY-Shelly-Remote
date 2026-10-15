@@ -13,12 +13,24 @@ static void network_task(void *arg)
     dsr_job_t job;
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
-        dsr_event_t event = {.id = job.id, .device = job.device};
-        if (!dsr_wifi_connected()) { event.result = DSR_OFFLINE; event.device.online = false; }
-        else if (job.kind == DSR_JOB_PROBE) event.result = dsr_http_probe(job.device.host, job.device.channel, &event.device);
-        else if (job.kind == DSR_JOB_REFRESH) event.result = dsr_http_refresh(&event.device);
-        else event.result = dsr_http_set_output(&event.device, job.on);
-        /* There can be only one in-flight job, so this queue cannot be full. */
+        dsr_event_t event = {.id = job.id, .device = job.connection.device};
+        if (job.kind == DSR_JOB_SAVE_WIFI) {
+            event.result = dsr_settings_save(&job.settings) == ESP_OK ? DSR_OK : DSR_IO;
+        } else if (!dsr_wifi_connected()) {
+            event.result = DSR_OFFLINE; event.device.online = false;
+        } else if (job.kind == DSR_JOB_BIND) {
+            event.result = dsr_http_probe(&job.connection, &event.device);
+            if (event.result == DSR_OK) {
+                job.connection.device = event.device;
+                if (dsr_connection_save(&job.connection) != ESP_OK) event.result = DSR_IO;
+            }
+        } else {
+            event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :
+                dsr_http_set_output(&job.connection, job.on);
+            event.device = job.connection.device;
+        }
+        /* No secrets in events or task-local memory between operations. */
+        memset(&job, 0, sizeof(job));
         xQueueSend(events, &event, portMAX_DELAY);
     }
 }
@@ -37,16 +49,17 @@ fail:
     if (jobs) vQueueDelete(jobs);
     if (events) vQueueDelete(events);
     if (available) vSemaphoreDelete(available);
-    jobs = events = NULL;
-    available = NULL;
+    jobs = events = NULL; available = NULL;
     return ESP_ERR_NO_MEM;
 }
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || (job->kind != DSR_JOB_PROBE && job->kind != DSR_JOB_REFRESH && job->kind != DSR_JOB_SET_OUTPUT) ||
-        !memchr(job->device.host, '\0', sizeof(job->device.host)) ||
-        !dsr_ipv4_valid(job->device.host) || job->device.channel > DSR_MAX_CHANNEL) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_SAVE_WIFI) return DSR_INVALID;
+    if (job->kind == DSR_JOB_SAVE_WIFI) {
+        if (!memchr(job->settings.ssid, 0, sizeof(job->settings.ssid)) || !job->settings.ssid[0] ||
+            !memchr(job->settings.password, 0, sizeof(job->settings.password))) return DSR_INVALID;
+    } else if (!dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (xQueueSend(jobs, job, 0) != pdTRUE) { xSemaphoreGive(available); return DSR_BUSY; }
     return DSR_OK;

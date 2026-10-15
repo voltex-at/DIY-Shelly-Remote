@@ -17,3 +17,5 @@ Upstream license sources:
 - https://github.com/apache/mynewt-nimble/blob/master/LICENSE
 
 Shelly is a third-party trademark. No official logo, app graphics or proprietary application code is included. Network API documentation is used as a protocol reference.
+
+Binary development packages also retain license/notice files from the pinned ESP-IDF components (including cJSON, lwIP and radio libraries) and managed components in `licenses/vendor/`. This is an intentionally inclusive SDK notice collection; it does not imply every component is linked or that its license is MIT.
