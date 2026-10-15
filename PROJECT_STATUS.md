@@ -1,5 +1,34 @@
 # Project status
 
+## 0.6.2 — Shelly-inspired vertical cover details (Issue #15)
+
+Branch `work/issue-15-cover-details`, stacked on PR #14. The existing cover view
+now uses a name/edit header, compact scrolling position/W/V/Hz chips, a dominant
+vertical blue opening indicator, explicit percentage, 148x64 Open/Close targets
+and a separate 64x64 Stop. Unknown/offline/failed samples hide stale position and
+measurements. Opening, closing, stopped and pending command are separate model
+states; background reads do not replace the cover status. PL/EN/DE are covered.
+
+The production menu includes an explicit isolated Cover DEMO preview for visual
+review on ES3C35P. Preview controls never invoke network/edit callbacks or persist
+fake data; current live updates survive exiting the preview. Ordinary production
+models still reject injected demo flags. Real cover commands require capabilities
+and callbacks, which the current relay adapter does not provide. Cover transport,
+calibration and physical cover control are NOT implemented by this visual PR.
+The informational indicator never sends GoToPosition.
+
+Native regression/raster tests cover 0/65/100%, unknown/offline/motion/error,
+metrics overflow, PL/EN/DE, actual pointer geometry, transport gating, preview
+isolation and 80 repeated preview/control/exit cycles. Local UBSan passes: 2615
+review checks/23 frames (cover cycle heap 89368 -> 89368), 1039 integrated UI
+checks/35 frames, 94 core, 847 HTTP/NVS, 222 Wi-Fi and 265 configuration checks.
+Target/ASan/browser checks
+run in the new draft PR; physical ES3C35P visual, heap/PSRAM and regression tests
+remain pending. [Comparison, exact renders and physical test](docs/ISSUE15_COVER.md).
+Drivers, relay HTTP/NVS schema, discovery, OTA partitions and main are unchanged.
+The separate HOME polling/queued SET correction requested in Issue #12 remains
+the next functional stage. No merge/stable or visual acceptance is claimed.
+
 ## 0.6.1 — optional V/A and visible command outcomes (Issue #12)
 
 Branch `work/issue-12-telemetry-errors`, a small isolated change on UI PR #13.

@@ -7,8 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
-static unsigned checks,commands;
+static unsigned checks,commands,frames_saved,cover_commands,stop_commands,device_edits;
 static unsigned edits,settings_opens,add_opens;
 static bool photo_enabled;
 static uint16_t photo_pixels[4][DSR_PHOTO_BYTES/2];
@@ -34,6 +35,9 @@ static void noop(void){}
 static void edit_dashboard(void){edits++;}
 static void open_settings(void){settings_opens++;}
 static void add_device(void){add_opens++;}
+static void set_cover(unsigned index,int direction){CHECK(index==2);CHECK(direction==1||direction==-1);cover_commands++;}
+static void stop_cover(unsigned index){CHECK(index==2);stop_commands++;}
+static void edit_device(unsigned index){CHECK(index==2);device_edits++;}
 const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]>='1'&&id[0]<='4'?photo_pixels[id[0]-'1']:NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
@@ -63,10 +67,11 @@ static unsigned count_cards(lv_obj_t *o)
 }
 static void save(const char *name)
 {
- lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
- CHECK(find(lv_screen_active(),"DEMO")!=NULL||!strcmp(name,"08-live-empty")||!strcmp(name,"09-icon-alignment"));
+ lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
+ CHECK(lv_obj_get_scroll_x(lv_screen_active())==0&&lv_obj_get_scroll_y(lv_screen_active())==0);
+ CHECK(find(lv_screen_active(),"DEMO")!=NULL||find(lv_screen_active(),dsr_sc_tr("DEMO • dane przykładowe"))!=NULL||!strcmp(name,"08-live-empty")||!strcmp(name,"09-icon-alignment"));
  char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);FILE *f=fopen(path,"wb");CHECK(f);
- fprintf(f,"P6\n320 480\n255\n");CHECK(fwrite(pixels,1,sizeof(pixels),f)==sizeof(pixels));fclose(f);
+ fprintf(f,"P6\n320 480\n255\n");CHECK(fwrite(pixels,1,sizeof(pixels),f)==sizeof(pixels));fclose(f);frames_saved++;
 }
 static void check_icon_alignment(void)
 {
@@ -147,6 +152,61 @@ static void navigation_and_chips(void)
  before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
  tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
 }
+static lv_obj_t *parent_of(const char *text)
+{lv_obj_t *label=find(lv_screen_active(),dsr_sc_tr(text));CHECK(label);return lv_obj_get_parent(label);}
+static unsigned blue_pixels(void)
+{
+ unsigned n=0;for(int y=166;y<294;y++)for(int x=122;x<198;x++){
+  unsigned p=(unsigned)(y*320+x)*3;if(pixels[p+2]>90&&pixels[p+2]>pixels[p]*2&&pixels[p+1]>pixels[p])n++;
+ }return n;
+}
+static void cover_views(void)
+{
+ dsr_mobile_model_t m=fixture;m.demo=true;dsr_mobile_device_t *d=&m.devices[2];
+ *d=(dsr_mobile_device_t){.name="Roleta w salonie",.kind=DSR_DEVICE_COVER,.online=true,.room=0,.has_position=true,.position_pct=65,.has_power=true,.power_w=4.1,.has_voltage=true,.voltage_v=230.4,.has_frequency=true,.frequency_hz=50,.can_cover=true,.can_stop_cover=true,.cover_state=DSR_COVER_STOPPED};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");
+ CHECK(find(lv_screen_active(),"Pozycja 65%"));CHECK(find(lv_screen_active(),"4.1 W"));CHECK(find(lv_screen_active(),"230.4 V"));CHECK(find(lv_screen_active(),"50.0 Hz"));
+ unsigned middle=blue_pixels();CHECK(middle>4000);
+ lv_obj_t *open=parent_of("Otwórz"),*close=parent_of("Zamknij"),*stop=parent_of("Stop");lv_area_t a,b;
+ CHECK(lv_obj_get_width(open)==148&&lv_obj_get_height(open)==64);CHECK(lv_obj_get_width(close)==148&&lv_obj_get_height(close)==64);CHECK(lv_obj_get_width(stop)>=44&&lv_obj_get_height(stop)>=44);
+ lv_obj_get_coords(open,&a);lv_obj_get_coords(close,&b);CHECK(a.x2<b.x1);CHECK(a.y1==345&&a.y2<415);CHECK(b.x2<320);
+ lv_obj_t *metrics=lv_obj_get_parent(lv_obj_get_parent(find(lv_screen_active(),"50.0 Hz")));CHECK(lv_obj_get_width(metrics)==296);
+ lv_obj_get_coords(find(lv_screen_active(),"4.1 W"),&a);lv_obj_get_coords(find(lv_screen_active(),"230.4 V"),&b);CHECK(a.x2<b.x1);
+ d->power_w=123456;d->voltage_v=12345.6;d->frequency_hz=1234.5;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());metrics=lv_obj_get_parent(lv_obj_get_parent(find(lv_screen_active(),"1234.5 Hz")));CHECK(lv_obj_get_scroll_right(metrics)>0);
+ lv_obj_scroll_to_x(metrics,lv_obj_get_scroll_right(metrics),LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());lv_obj_get_coords(find(lv_screen_active(),"1234.5 Hz"),&a);CHECK(a.x2<=307);
+ d->power_w=4.1;d->voltage_v=230.4;d->frequency_hz=50;dsr_mobile_update(&m);
+ tap(75,377);CHECK(find(lv_screen_active(),"Otwarte 100%"));CHECK(cover_commands==0);
+ tap(231,377);CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(cover_commands==0);
+ tap(274,255);CHECK(find(lv_screen_active(),"Zatrzymano"));CHECK(stop_commands==0);
+ d->position_pct=0;dsr_mobile_update(&m);save("60-cover-closed");CHECK(blue_pixels()==0);CHECK(find(lv_screen_active(),"Zamknięte 0%"));
+ d->position_pct=100;dsr_mobile_update(&m);save("61-cover-open");CHECK(blue_pixels()>middle);CHECK(find(lv_screen_active(),"Otwarte 100%"));
+ d->position_pct=65;d->cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);save("62-cover-opening");CHECK(find(lv_screen_active(),"Otwieranie"));
+ /* A background sample never overrides confirmed position/state with busy. */
+ d->busy=true;dsr_mobile_update(&m);CHECK(find(lv_screen_active(),"Otwieranie"));CHECK(find(lv_screen_active(),"Pozycja 65%"));CHECK(!find(lv_screen_active(),"Odczyt stanu…"));d->busy=false;
+ d->cover_state=DSR_COVER_CLOSING;dsr_mobile_update(&m);save("63-cover-closing");
+ d->cover_state=DSR_COVER_STOPPED;d->has_position=false;dsr_mobile_update(&m);save("64-cover-position-unknown");CHECK(find(lv_screen_active(),"Nieznana pozycja"));CHECK(blue_pixels()==0);CHECK(!find(lv_screen_active(),"Pozycja 65%"));
+ d->has_position=true;d->online=false;dsr_mobile_update(&m);save("65-cover-offline");CHECK(!find(lv_screen_active(),"230.4 V"));CHECK(blue_pixels()==0);CHECK(lv_obj_has_state(parent_of("Otwórz"),LV_STATE_DISABLED));
+ tap(75,377);tap(231,377);tap(274,255);CHECK(cover_commands==0&&stop_commands==0);
+ d->online=true;d->error=DSR_BAD_RESPONSE;dsr_mobile_update(&m);save("66-cover-command-error");CHECK(find(lv_screen_active(),"Stan niepotwierdzony"));CHECK(blue_pixels()==0);
+ d->error=DSR_OK;d->position_pct=NAN;dsr_mobile_update(&m);CHECK(find(lv_screen_active(),"Nieznana pozycja"));d->position_pct=101;dsr_mobile_update(&m);CHECK(find(lv_screen_active(),"Nieznana pozycja"));
+ d->position_pct=65;d->command_pending=true;d->busy=true;dsr_mobile_update(&m);save("67-cover-command-pending");CHECK(find(lv_screen_active(),"Wysyłanie polecenia…"));
+ d->command_pending=false;d->busy=false;d->has_frequency=false;d->has_voltage=false;d->has_power=false;dsr_mobile_update(&m);CHECK(!find(lv_screen_active(),"50.0 Hz"));CHECK(!find(lv_screen_active(),"230.4 V"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("68-cover-english");CHECK(find(lv_screen_active(),"Open"));CHECK(find(lv_screen_active(),"Close"));
+ dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("69-cover-german");CHECK(find(lv_screen_active(),"Öffnen"));CHECK(find(lv_screen_active(),"Schließen"));dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ /* Non-demo transport requires an actual callback and explicit capabilities. */
+ m.demo=false;d->can_cover=false;d->can_stop_cover=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
+ tap(75,377);tap(231,377);tap(274,255);CHECK(cover_commands==0&&stop_commands==0);CHECK(find(lv_screen_active(),"Brak obsługi Cover RPC"));
+ tap(294,22);CHECK(device_edits==1);
+ d->can_cover=true;d->can_stop_cover=true;dsr_mobile_update(&m);tap(75,377);tap(231,377);tap(274,255);CHECK(cover_commands==2&&stop_commands==1);CHECK(find(lv_screen_active(),"Pozycja 65%"));
+ /* Preview cannot leak commands, edits, metrics or fake state into live model. */
+ dsr_mobile_cover_preview();tap(75,377);tap(231,377);tap(274,255);tap(294,22);CHECK(cover_commands==2&&stop_commands==1&&device_edits==1);
+ strcpy(m.devices[2].name,"Updated cover");dsr_mobile_update(&m);CHECK(!find(lv_screen_active(),"Updated cover"));tap(20,20);dsr_mobile_show(DSR_MOBILE_DETAILS,2);lv_obj_update_layout(lv_screen_active());CHECK(find(lv_screen_active(),"Updated cover"));CHECK(!find(lv_screen_active(),"DEMO • dane przykładowe"));
+ dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
+ lv_mem_monitor_t before,after;lv_mem_monitor(&before);
+ for(unsigned i=0;i<80;i++){dsr_mobile_cover_preview();tap(75,377);tap(231,377);tap(274,255);dsr_mobile_show(DSR_MOBILE_HOME,0);}
+ lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);printf("Cover heap before=%u after=%u largest=%u; 80 preview/control/exit cycles\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
+ dsr_mobile_update(&fixture);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2||argc==3);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -165,7 +225,7 @@ int main(int argc,char **argv)
  check_icon_alignment();save_icon_atlas();
  const uint32_t letters[]={0x105,0x119,0x142,0x144,0x15b,0x17a,0x17c,0xf3,0xe4,0xf6,0xfc,0xdf,0xf00c};
  for(unsigned i=0;i<sizeof(letters)/sizeof(letters[0]);i++){lv_font_glyph_dsc_t glyph;CHECK(lv_font_get_glyph_dsc(&dsr_roboto_14,&glyph,letters[i],0));}
- const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=open_settings,.add_device=add_device,.edit_dashboard=edit_dashboard,.select_dashboard=noop};dsr_mobile_bind(&actions);
+ const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=open_settings,.add_device=add_device,.edit_dashboard=edit_dashboard,.select_dashboard=noop,.set_cover=set_cover,.stop_cover=stop_cover,.edit_device=edit_device};dsr_mobile_bind(&actions);
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
  navigation_and_chips();
@@ -196,13 +256,13 @@ int main(int argc,char **argv)
  fixture.configured_layout=true;fixture.dashboard_id=2;strcpy(fixture.dashboard_name,"Pomieszczenia");fixture.tile_count=4;
  for(unsigned i=0;i<4;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.type=1,.index=i,.span=1,.height=1,.fields=255};
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("10-home-room-photos");CHECK(find(lv_screen_active(),"Salon"));
- dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");CHECK(find(lv_screen_active(),"65%"));
+ cover_views();
  fixture.configured_layout=false;fixture.tile_count=0;fixture.dashboard_name[0]=0;fixture.dashboard_id=1;
  dsr_mobile_update(&fixture);dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_HOME,0);save("12-home-english");CHECK(find(lv_screen_active(),"My dashboard"));
  navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
  navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
- printf("PASS: %u review checks, 13 real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks);
+ printf("PASS: %u review checks, %u real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks,frames_saved);
  lv_deinit();return 0;
 }

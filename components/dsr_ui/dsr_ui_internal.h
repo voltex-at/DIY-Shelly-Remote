@@ -27,6 +27,7 @@ void dsr_network_home(lv_event_t *event);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_edit_dashboard(void);
+void dsr_ui_edit_device(uint32_t id);
 void dsr_ui_select_dashboard(void);
 void dsr_ui_workspace_tick(void);
 void dsr_ui_workspace_hide(void);

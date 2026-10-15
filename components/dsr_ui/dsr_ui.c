@@ -170,6 +170,8 @@ static void settings(lv_event_t *event)
 void dsr_ui_open_settings(void) { menu(NULL); }
 
 static void hardware(lv_event_t *event);
+static void cover_preview(lv_event_t *event)
+{(void)event;dsr_mobile_cover_preview();}
 static void menu(lv_event_t *event)
 {
     (void)event;
@@ -178,7 +180,8 @@ static void menu(lv_event_t *event)
     dsr_ui_button(root, "Dodaj urządzenie Shelly", 16, 150, 288, dsr_network_device, NULL);
     dsr_ui_button(root, "Hardware tests", 16, 209, 288, hardware, NULL);
     dsr_ui_button(root, "Settings", 16, 268, 288, settings, NULL);
-    dsr_ui_label(root, "Jedno aktywne połączenie Shelly.\nEdycja pulpitów i lokalny panel są dostępne.", 16, 340, 288);
+    dsr_ui_button(root, "Podgląd rolety • DEMO", 16, 327, 288, cover_preview, NULL);
+    dsr_ui_label(root, "Podgląd grafiki bez sterowania sprzętem.", 16, 389, 288);
 }
 
 void dsr_ui_home(lv_event_t *event) { dsr_network_home(event); }

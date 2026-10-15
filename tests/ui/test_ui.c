@@ -213,7 +213,10 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Desk lamp")!=NULL);
     click("Desk lamp");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
     CHECK(find_label(lv_screen_active(),"Offline • stan niepotwierdzony")!=NULL);
-    dsr_ui_open_settings();screenshot("40-settings-menu");click("Settings");screenshot("41-display-settings");
+    dsr_ui_open_settings();screenshot("40-settings-menu");
+    click("Podgląd rolety • DEMO");CHECK(find_label(lv_screen_active(),"Pozycja 65%"));CHECK(find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("42-cover-preview-on-device");
+    unsigned before_preview=submitted.id;click("Otwórz");CHECK(find_label(lv_screen_active(),"Otwarte 100%"));click("Zamknij");CHECK(find_label(lv_screen_active(),"Zamknięte 0%"));click("Stop");CHECK(submitted.id==before_preview);tap(20,20);CHECK(!find_label(lv_screen_active(),"DEMO • dane przykładowe"));CHECK(find_label(lv_screen_active(),"Desk lamp"));
+    dsr_ui_open_settings();click("Settings");screenshot("41-display-settings");
     test_workspace_enable();dsr_ui_edit_dashboard();
     CHECK(find_label(lv_screen_active(),"Edytuj pilot"));screenshot("13-workspace-editor");
     click("Pomieszczenia");click("+ Dodaj wpis");

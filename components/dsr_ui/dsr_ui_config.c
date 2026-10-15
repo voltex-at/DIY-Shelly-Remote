@@ -264,6 +264,13 @@ void dsr_ui_edit_dashboard(void)
 {
  char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
 }
+void dsr_ui_edit_device(uint32_t id)
+{
+ dsr_ui_edit_dashboard();if(!draft)return;
+ cJSON *entry;cJSON_ArrayForEach(entry,cJSON_GetObjectItemCaseSensitive(draft,"devices"))if((uint32_t)integer(entry,"id")==id){
+  snprintf(collection_name,sizeof(collection_name),"devices");show_entity(entry);return;
+ }
+}
 static void pick_dashboard(lv_event_t *event)
 {cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),(unsigned)(uintptr_t)lv_event_get_user_data(event));save(NULL);}
 void dsr_ui_select_dashboard(void)

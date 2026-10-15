@@ -65,6 +65,9 @@ for path in sorted(onboarding.glob('*.ppm')):
 before=ROOT / 'docs/ui-review/before-0.5.1'
 for path in sorted(before.glob('*.png')):
     shutil.copyfile(path,out / ('before-'+path.name))
+before_cover=ROOT / 'docs/ui-review/before-0.6.1/11-cover-details.png'
+if before_cover.exists():
+    shutil.copyfile(before_cover,out / 'before-cover-0.6.1.png')
 sheet = bytearray(bytes((235, 237, 240)) * (648 * 1456))
 for index, name in enumerate(["10-home-room-photos", "01-home", "04-room-salon", "05-device-details-on", "11-cover-details", "07-device-offline"]):
     frame = frames[name]
@@ -77,6 +80,7 @@ manifest = {
     "branch": os.environ.get("GITHUB_HEAD_REF") or subprocess.check_output(["git", "branch", "--show-current"], cwd=ROOT, text=True).strip(), "lvgl": "9.3.0", "display": [320, 480],
     "renderer": "native C project source, LVGL software draw, RGB565 framebuffer", 
     "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
+    "cover_preview": "Explicit production menu DEMO only; no Cover transport or network commands",
     "onboarding_fixture": "tests/ui/test_ui.c (host radio fixture, not hardware evidence)",
     "frames": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.glob("*.png"))},
 }

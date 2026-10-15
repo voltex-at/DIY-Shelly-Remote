@@ -118,6 +118,8 @@ static void mobile_output(unsigned index, bool on)
     if(result!=DSR_OK){last_result=result;command_error=true;render();}
 }
 static void mobile_add(void) { dsr_network_device(NULL); }
+static void mobile_edit_device(unsigned index)
+{if(index<mobile_model.device_count&&mobile_model.devices[index].id)dsr_ui_edit_device(mobile_model.devices[index].id);}
 static void mobile_refresh(void)
 {
  if(busy||!configured)return;
@@ -300,7 +302,7 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;
