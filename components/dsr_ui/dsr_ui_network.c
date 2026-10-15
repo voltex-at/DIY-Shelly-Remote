@@ -11,6 +11,7 @@ static dsr_settings_t wifi_candidate;
 static dsr_connection_t saved, pending;
 static bool configured, busy, blocked, wifi_previous;
 static dsr_result_t last_result = DSR_OK;
+static bool command_error;
 static dsr_job_kind_t operation;
 static uint32_t serial, outstanding, last_poll;
 static bool storage_error;
@@ -68,8 +69,12 @@ static void render(void)
         }
         d->online = mobile_model.wifi && saved.device.online;
         d->output = saved.device.output; d->busy = busy;
+        d->command_pending=busy&&operation==DSR_JOB_SET_OUTPUT;
+        d->error=last_result;
         d->can_switch = saved.device.has_switch && !blocked;
         d->has_power = saved.device.has_power; d->power_w = saved.device.power_w;
+        d->has_voltage=saved.telemetry.has_voltage;d->voltage_v=saved.telemetry.voltage_v;
+        d->has_current=saved.telemetry.has_current;d->current_a=saved.telemetry.current_a;
     }
     dsr_mobile_update(&mobile_model);
 }
@@ -109,9 +114,17 @@ void dsr_network_home(lv_event_t *event)
 static void mobile_output(unsigned index, bool on)
 {
     if (index>=mobile_model.device_count||strcmp(mobile_model.devices[index].host,saved.device.host)||mobile_model.devices[index].channel!=saved.device.channel||busy||blocked||!saved.device.online||!dsr_wifi_connected()) return;
-    (void)submit(DSR_JOB_SET_OUTPUT, on);
+    dsr_result_t result=submit(DSR_JOB_SET_OUTPUT,on);
+    if(result!=DSR_OK){last_result=result;command_error=true;render();}
 }
 static void mobile_add(void) { dsr_network_device(NULL); }
+static void mobile_refresh(void)
+{
+ if(busy||!configured)return;
+ command_error=false;blocked=false;
+ if(!dsr_wifi_connected()){last_result=DSR_OFFLINE;render();return;}
+ dsr_result_t result=submit(DSR_JOB_PROBE,false);if(result!=DSR_OK){last_result=result;render();}
+}
 
 static void hide_keyboard(lv_event_t *event)
 {
@@ -240,7 +253,7 @@ static void poll(lv_timer_t *timer)
         } else if (operation == DSR_JOB_BIND) {
             if (event.result == DSR_OK) {
                 char old_host[16]={0};if(configured&&!strcmp(saved.device.device_id,event.device.device_id))snprintf(old_host,sizeof(old_host),"%s",saved.device.host);
-                saved = pending; saved.device = event.device; configured = true; blocked = false;
+                saved = pending; saved.device = event.device;saved.telemetry=event.telemetry; configured = true; blocked = false;command_error=false;
                 dsr_ui_workspace_migrate_bound(&saved,pending_room,old_host);
                 last_result = DSR_OK; if(!external_bind)dsr_network_home(NULL);
             }
@@ -249,7 +262,9 @@ static void poll(lv_timer_t *timer)
             memset(&pending, 0, sizeof(pending));
             if(external_bind){dsr_workspace_bind_result(event.result);external_bind=false;}
         } else {
-            saved.device = event.device; last_result = event.result;
+            saved.device = event.device;saved.telemetry=event.telemetry;
+            if(operation==DSR_JOB_SET_OUTPUT){last_result=event.result;command_error=event.result!=DSR_OK;}
+            else if(!command_error)last_result=event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
         if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT)
@@ -285,7 +300,7 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;

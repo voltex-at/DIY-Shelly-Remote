@@ -1,6 +1,9 @@
 #include "dsr_platform.h"
 #include "nvs.h"
 #include <string.h>
+/* Exact schema-1 layout from before volatile telemetry was added. Keeping the
+ * persistent type explicit preserves installed bindings across OTA updates. */
+typedef struct {dsr_device_t device;dsr_credentials_t credentials;} connection_record_v1_t;
 
 bool dsr_connection_valid(const dsr_connection_t *c, bool bound)
 {
@@ -25,13 +28,14 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found)
     uint32_t schema = 0;
     error = nvs_get_u32(handle, "schema", &schema);
     if (error == ESP_OK && schema != 1) error = ESP_ERR_NOT_SUPPORTED;
-    dsr_connection_t loaded = {0};
+    connection_record_v1_t loaded = {0};
     size_t length = sizeof(loaded);
     if (error == ESP_OK) error = nvs_get_blob(handle, "connection", &loaded, &length);
-    if (error == ESP_OK && (length != sizeof(loaded) || !dsr_connection_valid(&loaded, true))) error = ESP_ERR_INVALID_SIZE;
+    dsr_connection_t candidate={.device=loaded.device,.credentials=loaded.credentials};
+    if (error == ESP_OK && (length != sizeof(loaded) || !dsr_connection_valid(&candidate, true))) error = ESP_ERR_INVALID_SIZE;
     if (error == ESP_OK) {
         loaded.device.online = loaded.device.has_switch = loaded.device.has_power = false;
-        *out = loaded; *found = true;
+        candidate.device=loaded.device;*out=candidate;*found=true;
     }
     nvs_close(handle);
     return error;
@@ -43,7 +47,7 @@ esp_err_t dsr_connection_save(const dsr_connection_t *connection)
     nvs_handle_t handle;
     esp_err_t error = nvs_open("dsr_device", NVS_READWRITE, &handle);
     if (error != ESP_OK) return error;
-    dsr_connection_t saved = *connection;
+    connection_record_v1_t saved={.device=connection->device,.credentials=connection->credentials};
     saved.device.online = saved.device.has_switch = saved.device.has_power = false;
     saved.device.output = false; saved.device.power_w = 0;
     error = nvs_set_blob(handle, "connection", &saved, sizeof(saved));

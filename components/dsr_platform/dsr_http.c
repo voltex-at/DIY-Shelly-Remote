@@ -154,6 +154,7 @@ static dsr_result_t status(dsr_connection_t *connection)
 {
     dsr_device_t *device = &connection->device;
     device->online = false; device->has_power = false;
+    memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
     dsr_result_t result = dsr_request_build(device->generation, device->channel, DSR_GET_STATUS, false, &request);
     if (result != DSR_OK) return result;
@@ -162,10 +163,17 @@ static dsr_result_t status(dsr_connection_t *connection)
     if (result != DSR_OK) return result;
     cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
     if (!cJSON_IsBool(output)) { cJSON_Delete(root); return DSR_UNSUPPORTED; }
+    cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
+    cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
+    if(device->generation==DSR_GEN2_PLUS){
+        const cJSON *optional[]={power,voltage,current};
+        for(unsigned i=0;i<3;i++)if(optional[i]&&(!cJSON_IsNumber(optional[i])||!isfinite(optional[i]->valuedouble)||fabs(optional[i]->valuedouble)>1e9||(i&&optional[i]->valuedouble<0))){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+        if(voltage){connection->telemetry.has_voltage=true;connection->telemetry.voltage_v=voltage->valuedouble;}
+        if(current){connection->telemetry.has_current=true;connection->telemetry.current_a=current->valuedouble;}
+    }
     device->output = cJSON_IsTrue(output);
     device->has_switch = device->online = true;
     device->power_w = 0;
-    cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
     if (device->generation == DSR_GEN2_PLUS && cJSON_IsNumber(power) && isfinite(power->valuedouble)) {
         device->has_power = true; device->power_w = power->valuedouble;
     }
@@ -173,21 +181,27 @@ static dsr_result_t status(dsr_connection_t *connection)
     return DSR_OK;
 }
 
-dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out)
+dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry)
 {
     if (!out || !dsr_connection_valid(connection, false)) return DSR_INVALID;
     dsr_connection_t probed = *connection;
+    probed.device.online=probed.device.has_power=false;
+    memset(&probed.telemetry,0,sizeof(probed.telemetry));
     dsr_result_t result = identity(connection, &probed.device);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id))result=DSR_IDENTITY_MISMATCH;
     if (result == DSR_OK) result = status(&probed);
     *out = probed.device;
+    if(telemetry)*telemetry=probed.telemetry;
     return result;
 }
+dsr_result_t dsr_http_probe(const dsr_connection_t *connection,dsr_device_t *out)
+{return dsr_http_probe_telemetry(connection,out,NULL);}
 
 static dsr_result_t verify(dsr_connection_t *connection)
 {
     if (!dsr_connection_valid(connection, true)) return DSR_INVALID;
     connection->device.online = false;
+    connection->device.has_power=false;memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_device_t observed = {0};
     dsr_result_t result = identity(connection, &observed);
     if (result != DSR_OK) return result;

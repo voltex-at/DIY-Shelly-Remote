@@ -138,6 +138,23 @@ static void test_control(void)
     data[0].body = gen2; data[1].body = NULL; data[1].status = 0;
     fixture(data, 2, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_OFFLINE && used == 2);
     CHECK(!c.device.online); /* no automatic second write or optimistic state */
+    data[1].body="{\"error\":{\"code\":-104}}";data[1].status=200;
+    fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BAD_RESPONSE&&used==2&&!c.device.online);
+    data[1].body="{}";data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_AUTH_REQUIRED&&used==2&&!c.device.online);
+    data[1].status=200;data[2].body=NULL;data[2].status=0;fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_OFFLINE&&used==3&&!c.device.online);
+}
+static void test_telemetry(void)
+{
+ dsr_connection_t c=connection();dsr_device_t device;dsr_telemetry_t telemetry;
+ const char gen3[]="{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\"}";
+ step_t data[]={{"/shelly",gen3,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true,\"apower\":4.1,\"voltage\":230.4,\"current\":0.018}",200,false,true}};
+ fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&device,&telemetry)==DSR_OK);CHECK(device.has_power&&device.power_w==4.1);CHECK(telemetry.has_voltage&&telemetry.voltage_v==230.4);CHECK(telemetry.has_current&&telemetry.current_a==0.018);
+ c.device=device;c.telemetry=telemetry;
+ data[1].body="{\"output\":false}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(!c.device.has_power&&!c.telemetry.has_voltage&&!c.telemetry.has_current);
+ data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
+ const char *bad[]={"{\"output\":true,\"voltage\":\"230.4\"}","{\"output\":true,\"current\":null}","{\"output\":true,\"voltage\":false}","{\"output\":true,\"current\":[]}","{\"output\":true,\"voltage\":-1}","{\"output\":true,\"current\":-0.1}","{\"output\":true,\"current\":1e999}","{\"output\":true,\"voltage\":1e100}","{\"output\":true,\"apower\":\"4.1\"}"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
+ data[0].status=401;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
 }
 static void test_storage(void)
 {
@@ -154,6 +171,11 @@ static void test_storage(void)
     CHECK(dsr_connection_save(&c) == ESP_OK);
     CHECK(dsr_connection_load(&out, &found) == ESP_OK && found && !out.device.online);
     CHECK(!strcmp(out.credentials.password, c.credentials.password));
+    typedef struct {dsr_device_t device;dsr_credentials_t credentials;} legacy_connection_t;
+    CHECK(sizes[1]==sizeof(legacy_connection_t));
+    legacy_connection_t old={.device=c.device,.credentials=c.credentials};memcpy(blobs[1],&old,sizeof(old));sizes[1]=sizeof(old);schemas[1]=1;
+    CHECK(dsr_connection_load(&out,&found)==ESP_OK&&found&&!strcmp(out.device.device_id,"AABBCCDDEEFF"));CHECK(!out.telemetry.has_voltage&&!out.telemetry.has_current);
+    c.telemetry=(dsr_telemetry_t){.has_voltage=true,.has_current=true,.voltage_v=230.4,.current_a=0.018};CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[1]==sizeof(old));CHECK(dsr_connection_load(&out,&found)==ESP_OK&&found&&!out.telemetry.has_voltage&&!out.telemetry.has_current);
     sizes[1]--; CHECK(dsr_connection_load(&out, &found) == ESP_ERR_INVALID_SIZE && !found);
     fail_commit = true; CHECK(dsr_connection_save(&c) == ESP_FAIL); fail_commit = false;
     memset(c.credentials.username, 'a', sizeof(c.credentials.username)); CHECK(!dsr_connection_valid(&c, true));
@@ -193,6 +215,6 @@ static void test_discovery(void)
 }
 int main(void)
 {
-    test_probe(); test_control(); test_discovery(); test_storage();
+    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
 }

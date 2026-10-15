@@ -35,6 +35,11 @@ static void navigate(lv_event_t *e)
 }
 static void open_device(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_DETAILS,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
 static void open_room(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_ROOM,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
+static void refresh(lv_event_t *event){(void)event;if(actions.refresh)actions.refresh();}
+static const char *device_error(dsr_result_t result)
+{
+ switch(result){case DSR_AUTH_REQUIRED:return "Błąd logowania";case DSR_OFFLINE:return "Brak odpowiedzi";case DSR_IDENTITY_MISMATCH:return "Zmieniona tożsamość";case DSR_RATE_LIMITED:return "Limit zapytań";case DSR_BAD_RESPONSE:return "Stan niepotwierdzony";case DSR_UNSUPPORTED:return "Nieobsługiwany kanał";case DSR_IO:return "Błąd pamięci";case DSR_INVALID:return "Nieprawidłowe dane";default:return "Błąd komunikacji";}
+}
 static void control(lv_event_t *e)
 {
     unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(e);
@@ -136,9 +141,9 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
     int name_width=cover?124:sensor?218:166;
     lv_obj_t *name=dsr_sc_text(card,d->name,68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
-    const char *state=!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
+    const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
-    dsr_sc_text(card,subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online?DSR_SC_MUTED:0xffc18c);
+    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK?state:subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
     if(cover){
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
      card_control(card,i,DSR_ICON_UP,width-104,44,valid,cover_control,i*2+1);
@@ -146,7 +151,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     }else if(!sensor)card_control(card,i,DSR_ICON_POWER,width-58,48,d->online&&!d->busy&&d->can_switch,control,i);
     if(!fields)return;
     char values[128]={0},part[40];
-    if(!d->online)snprintf(values,sizeof(values),"Offline • odczyty niedostępne");
+    if(!d->online||d->error!=DSR_OK)snprintf(values,sizeof(values),"%s",dsr_sc_tr("Odczyty niedostępne"));
     else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"%s   %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else snprintf(values,sizeof(values),"%s   —",dsr_sc_tr("Pozycja"));}
     else if(sensor){
       if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
@@ -221,16 +226,17 @@ static void details(lv_obj_t *root)
         metric(root,"Pozycja",position,12);metric(root,"Stan",dsr_sc_tr(d->online?"Online":"Offline"),164);return;
     }
     dsr_sc_text(panel,"Główne sterowanie",13,12,270,&dsr_roboto_16,DSR_SC_TEXT);
-    const char *status=!d->online?"Offline • stan niepotwierdzony":d->busy?"Oczekiwanie na odczyt…":d->output?"Włączone • Online":"Wyłączone • Online";
-    center(dsr_sc_text(panel,status,8,41,280,&dsr_roboto_12,d->online?DSR_SC_TEXT:DSR_SC_MUTED));
-    char power[40];if(d->online&&d->has_power&&!d->busy)snprintf(power,sizeof(power),"%.1f W",d->power_w);else snprintf(power,sizeof(power),"—");
+    const char *status=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
+    center(dsr_sc_text(panel,status,8,41,280,&dsr_roboto_12,d->error!=DSR_OK?0xffc18c:d->online?DSR_SC_TEXT:DSR_SC_MUTED));
+    char power[40];if(d->online&&d->error==DSR_OK&&d->has_power&&!d->busy)snprintf(power,sizeof(power),"%.1f W",d->power_w);else snprintf(power,sizeof(power),"—");
     center(dsr_sc_text(panel,power,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
     center(dsr_sc_text(panel,d->has_power?"Moc chwilowa":"Pomiar mocy niedostępny",8,103,280,&dsr_roboto_12,DSR_SC_MUTED));
     power_button(panel,selected,105,130,86);
-    center(dsr_sc_text(panel,!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,226,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
+    if(actions.refresh){lv_obj_t *button=dsr_sc_button(panel,202,148,82,48,DSR_SC_PANEL,10,refresh,NULL);lv_obj_t *label=dsr_sc_text(button,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT);center(label);if(d->busy)lv_obj_add_state(button,LV_STATE_DISABLED);}
+    center(dsr_sc_text(panel,d->error!=DSR_OK?"Odśwież, aby potwierdzić stan":!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,226,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
     char voltage[32],current[32];
-    if(d->online&&d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"—");
-    if(d->online&&d->has_current)snprintf(current,sizeof(current),"%.3f A",d->current_a);else snprintf(current,sizeof(current),"—");
+    if(d->online&&d->error==DSR_OK&&d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"—");
+    if(d->online&&d->error==DSR_OK&&d->has_current)snprintf(current,sizeof(current),"%.3f A",d->current_a);else snprintf(current,sizeof(current),"—");
     metric(root,"Napięcie",voltage,12);metric(root,"Natężenie",current,164);
 }
 static void render(void)

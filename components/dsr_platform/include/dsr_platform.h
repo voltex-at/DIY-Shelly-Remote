@@ -13,7 +13,9 @@ typedef struct {
     uint16_t idle_seconds;
 } dsr_settings_t;
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
-typedef struct { dsr_device_t device; dsr_credentials_t credentials; } dsr_connection_t;
+/* Volatile measurements, deliberately excluded from the legacy NVS record. */
+typedef struct {bool has_voltage,has_current;double voltage_v,current_a;} dsr_telemetry_t;
+typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;} dsr_connection_t;
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
@@ -46,6 +48,7 @@ void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation 
 /* Worker only. No redirects; Basic Gen1 / SHA-256 Digest Gen2+ via IDF.
  * Refresh and write verify the saved identity before using an endpoint. */
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);
+dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 
@@ -60,6 +63,7 @@ typedef struct {
 /* Credentials are never returned through the event queue. */
 typedef struct {
     uint32_t id; dsr_result_t result; dsr_device_t device;
+    dsr_telemetry_t telemetry;
     dsr_wifi_scan_t scan; dsr_wifi_status_t wifi_detail;
 } dsr_event_t;
 /* One outstanding operation until receive; bounded queues, no command replay. */

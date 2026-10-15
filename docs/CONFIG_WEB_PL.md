@@ -1,4 +1,4 @@
-# Konfiguracja dotykowa i lokalny Web Panel — 0.6.0-ui-dev
+# Konfiguracja dotykowa i lokalny Web Panel — 0.6.1-telemetry-dev
 
 Wersja rozwojowa oparta na PR #5 i stosie #9–#11, nie scalona z main. Render HOME i panel są
 wygenerowane z kodu projektu. Kompilacja i testy na komputerze przeszły; ta wersja

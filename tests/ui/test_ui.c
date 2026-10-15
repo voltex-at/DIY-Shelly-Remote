@@ -78,10 +78,12 @@ static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 static void tick(void) {lv_tick_inc(250);lv_timer_handler();lv_refr_now(display);}
 static void screenshot(const char *name)
 {
-    lv_obj_update_layout(lv_screen_active()); lv_refr_now(display);
+    lv_obj_t *badge=NULL;
+    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_screen_active(),226,8,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
+    lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);
     FILE *f=fopen(path,"wb");CHECK(f!=NULL);fprintf(f,"P6\n320 480\n255\n");
-    CHECK(fwrite(canvas,1,sizeof(canvas),f)==sizeof(canvas));fclose(f);screenshots++;
+    CHECK(fwrite(canvas,1,sizeof(canvas),f)==sizeof(canvas));fclose(f);screenshots++;if(badge)lv_obj_delete(badge);
 }
 static lv_obj_t *find_label(lv_obj_t *root,const char *text)
 {
@@ -100,6 +102,11 @@ static void click(const char *text)
     lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label!=NULL);
     (void)lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);
     lv_obj_update_layout(lv_screen_active());
+}
+static lv_obj_t *power_target(lv_obj_t *root)
+{
+ if(lv_obj_get_width(root)==86&&lv_obj_get_height(root)==86&&lv_obj_has_flag(root,LV_OBJ_FLAG_CLICKABLE))return root;
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=power_target(lv_obj_get_child(root,(int)i));if(o)return o;}return NULL;
 }
 static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *skip)
 {
@@ -189,8 +196,19 @@ int main(int argc,char **argv)
     dsr_network_device(NULL);click("Dodaj ręcznie (IP)");password=find_type(lv_screen_active(),&lv_textarea_class);
     lv_textarea_set_text(password,"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
     response.device=(dsr_device_t){.host="192.168.1.77",.name="Desk lamp",.device_id="shellyplus1-AABBCCDDEEFF",
-        .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true};
+        .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true,.has_power=true,.power_w=4.1};
+    response.telemetry=(dsr_telemetry_t){.has_voltage=true,.has_current=true,.voltage_v=230.4,.current_a=0.018};
     deliver(DSR_OK,DSR_WIFI_IDLE);screenshot("11-configured-switch");
+    click("Desk lamp");CHECK(find_label(lv_screen_active(),"230.4 V"));CHECK(find_label(lv_screen_active(),"0.018 A"));screenshot("50-real-metrics-fixture");
+    lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT);
+    response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania"));CHECK(!find_label(lv_screen_active(),"230.4 V"));screenshot("51-command-auth-error");
+    dsr_network_home(NULL);screenshot("53-card-auth-error");CHECK(find_label(lv_screen_active(),"Błąd logowania"));click("Desk lamp");
+    click("Odśwież stan");CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"230.4 V"));
+    power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));screenshot("52-command-timeout");
+    lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));
+    click("Odśwież stan");CHECK(submitted.kind==DSR_JOB_PROBE);deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!find_label(lv_screen_active(),"Brak odpowiedzi"));
+    power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);response.device.online=false;deliver(DSR_BAD_RESPONSE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Stan niepotwierdzony"));screenshot("54-readback-unconfirmed");click("Odśwież stan");CHECK(submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+    dsr_network_home(NULL);
     wifi.connected=false;tick();screenshot("12-switch-offline");
     CHECK(find_label(lv_screen_active(),"Desk lamp")!=NULL);
     click("Desk lamp");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);

@@ -1,5 +1,30 @@
 # Project status
 
+## 0.6.1 — optional V/A and visible command outcomes (Issue #12)
+
+Branch `work/issue-12-telemetry-errors`, a small isolated change on UI PR #13.
+Real Gen2+/Gen3 Switch.GetStatus voltage/current are parsed only when present,
+numeric, finite and within a generous display bound (absolute value <= 1e9;
+V/A nonnegative). Missing fields remain unavailable, not zero. Invalid optional
+types reject the sample. Volatile telemetry is excluded from an explicit exact
+schema-1 NVS record, preserving existing stored bindings and passwords.
+
+Authenticated read/write identity checks, request transport and no-replay policy
+are retained. Cards/details show auth, unreachable, identity, response/state and
+storage errors; failed-command notices remain until explicit Refresh or another
+successful command. Refresh only reads state, never replays SET. Pending reads
+and pending commands have different labels. Worker logs transaction outcomes
+and availability flags without IP, identity or credentials.
+
+Local UBSan: 847 HTTP/parser/NVS checks, plus the retained 94 core and 222 Wi-Fi
+checks. 1026 native UI checks/34 frames and 2496 review checks pass. Tests drive
+V/A, auth failure, timeout, failed-command latching,
+explicit read-only refresh and old-format NVS persistence. Renders of these
+injected event samples carry TEST / DEMO; they are not physical measurements.
+[Exact Gen3 hardware regression](docs/ISSUE12_TELEMETRY.md). Target/ASan/browser
+CI belongs to the new draft PR. Physical V/A/error tests remain pending.
+Previous user-reported ON/OFF success remains recorded; no main merge.
+
 ## 0.6.0 — shared UI shell and readable keyboard (Issues #6 / #8)
 
 Branch `work/issue-6-8-unified-ui`, stacked on the retained 0.5.1 PR #11.

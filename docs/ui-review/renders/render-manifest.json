@@ -1,5 +1,5 @@
 {
-  "branch": "work/issue-6-8-unified-ui",
+  "branch": "work/issue-12-telemetry-errors",
   "lvgl": "9.3.0",
   "display": [
     320,
@@ -40,6 +40,11 @@
     "36-lan-password-keyboard.png": "fbd778fa9f4d3018b3f37fe62e4a93956cc55b81000c57c3cf7d52cbc8f04492",
     "40-settings-menu.png": "73515678cf8ca8d884f6aafe6f0f7ef6b4bd364753654fdf438496207fc8eb48",
     "41-display-settings.png": "a485bb379f898d02e0455db1dcacc840ef9d284669831ea889642f741072783e",
+    "50-real-metrics-fixture.png": "285fd409bbaba4afaaecb7dedd11450f2b4cd9f316980ec192589caf5f7d13ab",
+    "51-command-auth-error.png": "4b12856580c3d29a658c545d39ddaeecac8b8833977413c3d551c7271d62615d",
+    "52-command-timeout.png": "9b69ea3d561c5797b1508a7945c308941005b20904adc067b6a504c7329386e7",
+    "53-card-auth-error.png": "e323bcd047f2ffadf840fd1af6b74540d08f16c6edd4c3483021472b6a7162dd",
+    "54-readback-unconfirmed.png": "8b52678625cd10cf02cf060e579d32b59c2f671bf4790c782de5c359c87632d7",
     "before-01-home.png": "0bdf81ddf69393f5761b1a5626bf428cb48c76356ee05907d458087e4718307d",
     "before-10-home-room-photos.png": "e93bc1745a16de35fef8bc292f12fc9d3f6be3f449ae3e27019205de5dac7182",
     "before-21-fixture-wifi-keyboard.png": "53460c0f81244f0fddd17ea3a85c9e848388b3886793a980853ea10c9e260f23",

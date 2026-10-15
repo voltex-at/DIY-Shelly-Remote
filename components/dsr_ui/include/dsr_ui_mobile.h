@@ -2,6 +2,7 @@
 #define DSR_UI_MOBILE_H
 #include <stdbool.h>
 #include <stdint.h>
+#include "dsr_core.h"
 
 #define DSR_UI_MAX_DEVICES 16
 #define DSR_UI_MAX_ROOMS 8
@@ -13,6 +14,8 @@ typedef struct {
     uint8_t channel;
     uint8_t room;dsr_mobile_kind_t kind;
     bool online,output,busy,can_switch,has_power,has_voltage,has_current;
+    bool command_pending;
+    dsr_result_t error;
     double power_w,voltage_v,current_a;
     uint32_t id;
     bool has_battery,has_temperature,has_humidity,has_position,has_contact,contact_open,can_cover;
@@ -44,6 +47,7 @@ typedef struct {
     void (*edit_dashboard)(void);
     void (*set_cover)(unsigned index,int direction);
     void (*select_dashboard)(void);
+    void (*refresh)(void);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

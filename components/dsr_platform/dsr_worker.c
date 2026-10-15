@@ -1,4 +1,5 @@
 #include "dsr_platform.h"
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -21,7 +22,7 @@ static void network_task(void *arg)
         } else if (!dsr_wifi_connected()) {
             event.result = DSR_OFFLINE; event.device.online = false;
         } else if (job.kind == DSR_JOB_BIND) {
-            event.result = dsr_http_probe(&job.connection, &event.device);
+            event.result = dsr_http_probe_telemetry(&job.connection,&event.device,&event.telemetry);
             if (event.result == DSR_OK) {
                 job.connection.device = event.device;
                 if (dsr_connection_save(&job.connection) != ESP_OK) event.result = DSR_IO;
@@ -30,6 +31,12 @@ static void network_task(void *arg)
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :
                 dsr_http_set_output(&job.connection, job.on);
             event.device = job.connection.device;
+            event.telemetry=job.connection.telemetry;
+            /* Transaction outcomes only: never host, identity or credentials.
+             * SET result includes mandatory GetStatus readback; it is not a
+             * claim that a timed-out write did or did not reach the relay. */
+            if(job.kind==DSR_JOB_SET_OUTPUT)ESP_LOGI("dsr_network","Switch.Set/readback result=%d requested=%u confirmed=%u output=%u",(int)event.result,(unsigned)job.on,(unsigned)(event.result==DSR_OK&&event.device.online),(unsigned)event.device.output);
+            else ESP_LOGI("dsr_network","Switch.GetStatus result=%d online=%u voltage_available=%u current_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_voltage,(unsigned)event.telemetry.has_current);
         }
         /* No secrets in events or task-local memory between operations. */
         memset(&job, 0, sizeof(job));
