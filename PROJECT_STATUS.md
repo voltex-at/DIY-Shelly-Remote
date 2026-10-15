@@ -1,5 +1,13 @@
 # Project status
 
+## Active branch: UI review, awaiting user approval
+
+2026-10-15: development priority changed to a closer visual/interaction match to Shelly Smart Control. `reference/0.2.0-local-dev` preserves the working baseline; `work/wifi-onboarding` preserves pending Wi-Fi work; `ui/shelly-smart-control` isolates the UI proposal. Source version here is `0.3.0-ui-review`, not a public release. Do not merge or expand further screens before approval.
+
+Five core views, shared styles/original icons/Roboto fonts, and actual LVGL RGB565 rendering are implemented. Eight 320×480 review states include clearly marked DEMO data and a genuinely empty real-mode view. Transport and board code are unchanged from the frozen Wi-Fi checkpoint. Review source/data separation and no-demo-command behavior are tested; target compilation is tracked separately. Details: [UI review](docs/ui-review/README.md).
+
+The historical record below describes the previously delivered 0.2.0 firmware; it is not a claim that the new UI has passed physical testing.
+
 Checkpoint: 2026-10-15, Europe/Vienna. Current source version: `0.2.0-local-dev`.
 Repository: https://github.com/voltex-at/DIY-Shelly-Remote
 

@@ -1,5 +1,6 @@
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
+#include "dsr_ui_mobile.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
 #include "lvgl.h"
@@ -86,6 +87,7 @@ void dsr_ui_keyboard(lv_obj_t *obj)
 lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
 {
     dsr_network_reset_view();
+    dsr_mobile_hide();
     touch_status = brightness_text = NULL;
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
@@ -181,6 +183,8 @@ static void settings(lv_event_t *event)
     dsr_ui_button(root, "Firmware Update", 16, 270, 288, firmware, NULL);
     dsr_ui_label(root, "Auto screen off: 60 seconds\nBrightness is temporary; BLE pending", 16, 346, 288);
 }
+
+void dsr_ui_open_settings(void) { settings(NULL); }
 
 static void hardware(lv_event_t *event);
 static void menu(lv_event_t *event)

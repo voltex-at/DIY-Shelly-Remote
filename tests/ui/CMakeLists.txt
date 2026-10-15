@@ -13,7 +13,11 @@ add_executable(test_ui test_ui.c
     ${ROOT}/components/dsr_ui/dsr_ui.c
     ${ROOT}/components/dsr_ui/dsr_ui_network.c
     ${ROOT}/components/dsr_ui/dsr_ui_wifi.c
+    ${ROOT}/components/dsr_ui/dsr_ui_mobile.c
+    ${ROOT}/components/dsr_ui/dsr_ui_style.c
     ${ROOT}/components/dsr_platform/dsr_wifi_policy.c)
+file(GLOB fonts "${ROOT}/components/dsr_ui/fonts/*.c")
+target_sources(test_ui PRIVATE ${fonts})
 target_include_directories(test_ui PRIVATE . ../support
     ${ROOT}/components/dsr_core/include ${ROOT}/components/dsr_platform/include
     ${ROOT}/components/dsr_board/include ${ROOT}/components/dsr_ui/include

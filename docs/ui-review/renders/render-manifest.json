@@ -1,0 +1,21 @@
+{
+  "branch": "ui/shelly-smart-control",
+  "lvgl": "9.3.0",
+  "display": [
+    320,
+    480
+  ],
+  "renderer": "native C project source, LVGL software draw, RGB565 framebuffer",
+  "demo_fixture": "tests/ui/test_ui_review.c (not in firmware)",
+  "frames": {
+    "01-home.png": "55b6951a1de26324e462639f8f67668ac5c991278dd921dbe612eff2706136c8",
+    "02-rooms.png": "666350908a8b98990734e0cafd5eb6228a3f722c6d063bfc1ec4af05183a1ee2",
+    "03-devices.png": "8b1de8450bd523b046ace1d842751f4f0140ba0a8ad89121b31f7016a7faf68c",
+    "04-room-salon.png": "8046e75984f88fd129b2a33d008ad45e0d07aa3a54e521e12c8cfb03c2685918",
+    "05-device-details-on.png": "a9640f26359b63c740bb4a06b3c5bb85b9edea73daf7c0186984ee07cd63ba81",
+    "06-device-details-off.png": "483b2ee71e42f51019f947a36cb26bd831d7e37ceb1b5dab18965498b388255f",
+    "07-device-offline.png": "87189be02397fe9497081a25b531331908ebcd48c93fcd4f46539c16d03307d9",
+    "08-live-empty.png": "6aed61d0bb224c3845c9a6565424daa1a3565672ed3f4b7d0cbc984f4777a308",
+    "contact_sheet.png": "2216ea7d56e93187ae79cd4daffe6ade860221c0e9bc5af9b509c225558361d7"
+  }
+}

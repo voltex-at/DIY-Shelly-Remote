@@ -1,5 +1,6 @@
 #include "dsr_ui_internal.h"
 #include "dsr_platform.h"
+#include "dsr_ui_mobile.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +13,7 @@ static dsr_result_t last_result = DSR_OK;
 static dsr_job_kind_t operation;
 static uint32_t serial, outstanding, last_poll;
 static bool storage_error;
-static lv_obj_t *wifi_text, *name_text, *state_text, *power_text, *on_button, *off_button, *refresh_button;
-static lv_obj_t *setup_button;
+static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5];
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
 
@@ -36,8 +36,6 @@ static const char *result_text(dsr_result_t result)
 void dsr_network_reset_view(void)
 {
     dsr_wifi_ui_reset();
-    wifi_text = name_text = state_text = power_text = on_button = off_button = refresh_button = NULL;
-    setup_button = NULL;
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
 }
@@ -45,34 +43,22 @@ void dsr_network_reset_view(void)
 static void render(void)
 {
     if (view != VIEW_HOME) return;
-    bool wifi = dsr_wifi_connected();
-    dsr_wifi_info_t info; dsr_wifi_get_info(&info);
-    if (wifi) lv_label_set_text_fmt(wifi_text, LV_SYMBOL_WIFI "  %s\n%s", info.ssid, info.ip);
-    else lv_label_set_text(wifi_text, info.status == DSR_WIFI_BAD_PASSWORD ? "Wi-Fi authentication failed\nTap to choose a network" :
-        settings.ssid[0] ? "Wi-Fi disconnected\nTap to choose a network" : "Wi-Fi not configured\nTap to choose a network");
-    if (storage_error) lv_label_set_text(wifi_text, "Settings error. Reconfigure on screen.");
-    lv_label_set_text(name_text, configured ? saved.device.name : "No Shelly configured");
-    const char *state = !configured ? (wifi ? "Wi-Fi is ready. Add your first Shelly." : "Choose your Wi-Fi to get started.") :
-        busy ? "Contacting Shelly..." :
-        !wifi ? "Offline (last state not confirmed)" :
-        last_result != DSR_OK ? result_text(last_result) :
-        !saved.device.online ? "Waiting for confirmed state..." :
-        (saved.device.output ? "Relay: ON (confirmed)" : "Relay: OFF (confirmed)");
-    lv_label_set_text(state_text, state);
-    if (configured && wifi && !busy && last_result == DSR_OK && saved.device.online && saved.device.has_power) {
-        char power[48]; snprintf(power, sizeof(power), "Power: %.1f W", saved.device.power_w);
-        lv_label_set_text(power_text, power);
+    memset(&mobile_model, 0, sizeof(mobile_model));
+    mobile_model.wifi = dsr_wifi_connected();
+    snprintf(mobile_model.home_name, sizeof(mobile_model.home_name), "Mój dom");
+    if (configured) {
+        mobile_model.device_count = 1;
+        dsr_mobile_device_t *d = &mobile_model.devices[0];
+        snprintf(d->name, sizeof(d->name), "%s", saved.device.name);
+        snprintf(d->host, sizeof(d->host), "%s", saved.device.host);
+        snprintf(d->model, sizeof(d->model), "Shelly • kanał %u", saved.device.channel);
+        d->room = DSR_UI_NO_ROOM; d->kind = DSR_DEVICE_RELAY;
+        d->online = mobile_model.wifi && saved.device.online;
+        d->output = saved.device.output; d->busy = busy;
+        d->can_switch = saved.device.has_switch && !blocked;
+        d->has_power = saved.device.has_power; d->power_w = saved.device.power_w;
     }
-    else lv_label_set_text(power_text, "");
-    if (!configured) {
-        if (setup_button) lv_label_set_text(lv_obj_get_child(setup_button, 0), wifi ? "Add your Shelly" : "Choose Wi-Fi network");
-        return;
-    }
-    bool enabled = configured && wifi && !busy && !blocked && saved.device.online;
-    if (enabled) { lv_obj_remove_state(on_button, LV_STATE_DISABLED); lv_obj_remove_state(off_button, LV_STATE_DISABLED); }
-    else { lv_obj_add_state(on_button, LV_STATE_DISABLED); lv_obj_add_state(off_button, LV_STATE_DISABLED); }
-    if (configured && wifi && !busy) lv_obj_remove_state(refresh_button, LV_STATE_DISABLED);
-    else lv_obj_add_state(refresh_button, LV_STATE_DISABLED);
+    dsr_mobile_update(&mobile_model);
 }
 
 static dsr_result_t submit(dsr_job_kind_t kind, bool on)
@@ -99,47 +85,19 @@ dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t 
     memset(&job, 0, sizeof(job)); return result;
 }
 
-static void refresh(lv_event_t *event)
-{
-    (void)event;
-    if (!busy) { blocked = false; (void)submit(DSR_JOB_PROBE, false); }
-}
-
-static void set_output(lv_event_t *event)
-{
-    if (!saved.device.online || !dsr_wifi_connected() || blocked) return;
-    (void)submit(DSR_JOB_SET_OUTPUT, lv_event_get_user_data(event) != NULL);
-}
-
-static void setup(lv_event_t *event)
-{
-    if (dsr_wifi_connected()) dsr_network_device(event);
-    else dsr_network_wifi(event);
-}
-
 void dsr_network_home(lv_event_t *event)
 {
     (void)event;
-    lv_obj_t *root = dsr_ui_screen("Home", true); view = VIEW_HOME;
-    lv_obj_t *wifi_card = dsr_ui_button(root, "", 16, 84, 288, dsr_network_wifi, NULL);
-    lv_obj_set_height(wifi_card, 86); lv_obj_clean(wifi_card);
-    wifi_text = dsr_ui_label(wifi_card, "", 0, 0, 254);
-    name_text = dsr_ui_label(root, "", 16, 194, 288);
-    lv_obj_set_height(name_text, 40); lv_label_set_long_mode(name_text, LV_LABEL_LONG_MODE_DOTS);
-    state_text = dsr_ui_label(root, "", 16, 245, 288);
-    power_text = dsr_ui_label(root, "", 16, 294, 288);
-    if (configured) {
-        on_button = dsr_ui_button(root, "ON", 16, 332, 136, set_output, (void *)1);
-        off_button = dsr_ui_button(root, "OFF", 168, 332, 136, set_output, NULL);
-        refresh_button = dsr_ui_button(root, "Refresh", 16, 382, 288, refresh, NULL);
-        lv_obj_set_height(refresh_button, 32);
-        dsr_ui_primary(on_button);
-    } else {
-        setup_button = dsr_ui_button(root, "", 16, 330, 288, setup, NULL);
-        dsr_ui_primary(setup_button);
-    }
-    render();
+    dsr_network_reset_view(); view = VIEW_HOME;
+    render(); dsr_mobile_show(DSR_MOBILE_HOME, 0);
 }
+
+static void mobile_output(unsigned index, bool on)
+{
+    if (index || busy || blocked || !saved.device.online || !dsr_wifi_connected()) return;
+    (void)submit(DSR_JOB_SET_OUTPUT, on);
+}
+static void mobile_add(void) { dsr_network_device(NULL); }
 
 static void hide_keyboard(lv_event_t *event)
 {
@@ -282,6 +240,8 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add};
+    dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     bool found = false;
     if (dsr_connection_load(&saved, &found) != ESP_OK) storage_error = true;

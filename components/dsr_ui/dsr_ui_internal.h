@@ -10,6 +10,7 @@ void dsr_ui_primary(lv_obj_t *obj);
 void dsr_ui_textarea(lv_obj_t *obj);
 void dsr_ui_keyboard(lv_obj_t *obj);
 void dsr_ui_home(lv_event_t *event);
+void dsr_ui_open_settings(void);
 void dsr_network_init(void);
 void dsr_network_start_view(void);
 bool dsr_network_busy(void);

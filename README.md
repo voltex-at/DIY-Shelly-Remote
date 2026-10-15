@@ -1,5 +1,7 @@
 # DIY Shelly Remote
 
+> **UI review branch — awaiting visual approval.** The reference firmware remains in `reference/0.2.0-local-dev`; this branch is not merged to `main`. See [actual 320×480 LVGL frames and design notes](docs/ui-review/README.md). All populated review frames are marked DEMO; there is no new release to install at this checkpoint.
+
 An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
 
 **Current milestone: `0.2.0-local-dev`, on-device Wi-Fi and one local Shelly switch. The preceding bring-up boots and responds to touch on the user’s ES3C35P; new network/control behavior awaits its physical test.**

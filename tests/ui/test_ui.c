@@ -3,6 +3,7 @@
  * included in firmware. */
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
+#include "dsr_ui_mobile.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
 #include <assert.h>
@@ -109,9 +110,9 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Authentication failed. Check the password.")!=NULL);screenshot("05-password-error");
     click("Connect");wifi=(dsr_wifi_info_t){.connected=true,.status=DSR_WIFI_CONNECTED,.ssid="Home Wi-Fi",.ip="192.168.1.42"};
     deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(find_label(lv_screen_active(),"IP address: 192.168.1.42")!=NULL);screenshot("06-connected");
-    click("Continue");CHECK(find_label(lv_screen_active(),"Add your Shelly")!=NULL);
+    click("Continue");CHECK(find_label(lv_screen_active(),"Brak urządzeń")!=NULL);
     CHECK(find_label(lv_screen_active(),"ON")==NULL);screenshot("07-home");
-    click("Add your Shelly");screenshot("08-device-form");
+    dsr_network_device(NULL);screenshot("08-device-form");
     password=find_type(lv_screen_active(),&lv_textarea_class);CHECK(password!=NULL);
     foreground=lv_obj_get_style_text_color(password,LV_PART_MAIN);CHECK(foreground.red>200);
     dsr_network_wifi(NULL);tick();deliver(DSR_OK,DSR_WIFI_IDLE);click("Guest network");
@@ -121,21 +122,24 @@ int main(int argc,char **argv)
     dsr_wifi_scan_t many={.count=20};
     for(unsigned i=0;i<20;i++){snprintf(many.items[i].ssid,33,"Network %02u",i);many.items[i].security=DSR_WIFI_WPA2;many.items[i].rssi=-40-(int)i;}
     lv_mem_monitor_t before,after;
+    dsr_network_home(NULL);tick();
     lv_mem_monitor(&before);
     for(unsigned i=0;i<60;i++) {
         dsr_network_wifi(NULL);tick();response.scan=many;deliver(DSR_OK,DSR_WIFI_IDLE);
         click("Network 00");click("Back");click("Home");
     }
-    tick();lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);
-    click("Add your Shelly");password=find_type(lv_screen_active(),&lv_textarea_class);
+    tick();lv_mem_monitor(&after);
+    printf("UI heap before=%u after=%u largest=%u\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
+    fflush(stdout);CHECK(after.free_size+1024>=before.free_size);
+    dsr_network_device(NULL);password=find_type(lv_screen_active(),&lv_textarea_class);
     lv_textarea_set_text(password,"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
     response.device=(dsr_device_t){.host="192.168.1.77",.name="Desk lamp",.device_id="shellyplus1-AABBCCDDEEFF",
         .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true};
     deliver(DSR_OK,DSR_WIFI_IDLE);screenshot("11-configured-switch");
     wifi.connected=false;tick();screenshot("12-switch-offline");
-    lv_obj_t *on=find_label(lv_screen_active(),"ON");CHECK(on!=NULL);
-    CHECK(lv_obj_has_state(lv_obj_get_parent(on),LV_STATE_DISABLED));
-    foreground=lv_obj_get_style_text_color(on,LV_PART_MAIN);CHECK(foreground.red>110&&foreground.red<180);
+    CHECK(find_label(lv_screen_active(),"Desk lamp")!=NULL);
+    click("Desk lamp");CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
+    CHECK(find_label(lv_screen_active(),"Offline • stan niepotwierdzony")!=NULL);
     printf("PASS: %u real LVGL UI checks; twelve 320x480 screenshots; 60 navigation cycles at 128 KiB LVGL heap\n",checks);
     lv_deinit();return 0;
 }
