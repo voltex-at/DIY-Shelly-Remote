@@ -46,6 +46,25 @@ dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_sta
 void dsr_wifi_cancel_connect(void); /* Nonblocking, safe from UI. */
 void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation before queueing. */
 
+/* Internal onboarding controller primitive, NOT a UI/provisioning endpoint.
+ * Worker only, explicit user confirmation required before losing home LAN.
+ * Target BSSID must come from the selected scan result, NOT just an SSID.
+ * Callback runs synchronously under Wi-Fi control; it must be bounded, poll
+ * cancellation, and must not call scan/connect/visit or wait for those APIs.
+ * It must verify actual Shelly identity before any provisioning write.
+ * RAM-only: never saves target credentials or changes current home settings.
+ * Callback success is NOT provisioning/LAN rediscovery/identity acceptance. */
+typedef struct { dsr_settings_t settings; uint8_t bssid[6]; } dsr_wifi_ap_target_t;
+typedef dsr_result_t (*dsr_wifi_ap_action_t)(void *context);
+typedef struct {
+    dsr_wifi_status_t ap_status, home_status;
+    dsr_result_t action_result;
+    bool switch_attempted, action_called, home_config_restored, home_connected;
+} dsr_wifi_ap_visit_t;
+bool dsr_wifi_ap_cancelled(void);
+dsr_result_t dsr_wifi_visit_ap(const dsr_wifi_ap_target_t *target, bool confirmed,
+    dsr_wifi_ap_action_t action, void *context, dsr_wifi_ap_visit_t *out);
+
 /* Worker only. No redirects; Basic Gen1 / SHA-256 Digest Gen2+ via IDF.
  * Refresh and write verify the saved identity before using an endpoint. */
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);

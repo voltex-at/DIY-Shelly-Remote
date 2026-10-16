@@ -61,13 +61,17 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     wifi_binary = temp_root / "test_wifi"
     subprocess.run([os.environ.get("CC", "cc"), *flags,
                     "-I", str(ROOT / "tests/support"),
+                    "-I", str(ROOT / "components/dsr_platform"),
                     "-I", str(ROOT / "components/dsr_core/include"),
                     "-I", str(ROOT / "components/dsr_platform/include"),
                     str(ROOT / "components/dsr_platform/dsr_wifi.c"),
                     str(ROOT / "components/dsr_platform/dsr_wifi_policy.c"),
+                    str(ROOT / "components/dsr_platform/dsr_activity.c"),
                     str(ROOT / "tests/test_wifi.c"), "-o", str(wifi_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(wifi_binary)], check=True, cwd=temp_root, env=test_env)
+    for scenario in ("start-failure", "boot-home"):
+        subprocess.run([str(wifi_binary), scenario], check=True, cwd=temp_root, env=test_env)
     ble_binary=temp_root / "test_ble"
     subprocess.run([os.environ.get("CC","cc"),*flags,
                     "-I",str(ROOT / "tests/ble"),"-I",str(ROOT / "tests/support"),

@@ -11,4 +11,4 @@ idf_component_register(
              esp_netif esp_adc esp_timer spi_flash heap freertos dsr_config esp_http_server esp_https_server app_update spiffs mbedtls espressif__mdns bt
     EMBED_TXTFILES ${panel_assets}
 )
-set_source_files_properties(dsr_ota_upload.c dsr_panel.c dsr_activity.c dsr_restart.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
+set_source_files_properties(dsr_ota_upload.c dsr_panel.c dsr_activity.c dsr_restart.c dsr_wifi.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")

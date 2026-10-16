@@ -1,4 +1,5 @@
 #include "dsr_platform.h"
+#include "dsr_activity.h"
 #include "esp_bit_defs.h"
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -16,6 +17,7 @@
 #define STA_STOPPED BIT2
 #define STA_STARTED BIT3
 #define CANCEL BIT4
+#define AP_VISIT BIT5
 #define SCAN_RECORDS 48
 static EventGroupHandle_t events;
 static SemaphoreHandle_t control, info_lock;
@@ -23,7 +25,8 @@ static esp_timer_handle_t reconnect_timer;
 static esp_netif_t *station;
 static dsr_settings_t current;
 static dsr_wifi_info_t info;
-static bool initialized, driver_started, manual, auto_connect;
+static bool initialized, driver_started, manual, auto_connect, ready;
+static bool stop_fence_pending;
 static unsigned retry_seconds = 1;
 
 void dsr_wifi_get_info(dsr_wifi_info_t *out)
@@ -31,17 +34,24 @@ void dsr_wifi_get_info(dsr_wifi_info_t *out)
     if (!out) return;
     memset(out, 0, sizeof(*out));
     if (!info_lock) return;
-    xSemaphoreTake(info_lock, portMAX_DELAY); *out = info; xSemaphoreGive(info_lock);
+    xSemaphoreTake(info_lock, portMAX_DELAY); *out = info;
+    if (events && (xEventGroupGetBits(events) & AP_VISIT)) {
+        out->connected = false; out->ip[0] = 0;
+        out->status = manual ? DSR_WIFI_CONNECTING : DSR_WIFI_DRIVER_ERROR;
+    }
+    xSemaphoreGive(info_lock);
 }
 
-bool dsr_wifi_connected(void) { return events && (xEventGroupGetBits(events) & IP_READY) != 0; }
+bool dsr_wifi_connected(void)
+{ return events && (xEventGroupGetBits(events) & (IP_READY | AP_VISIT)) == IP_READY; }
 
 static void reconnect(void *arg)
 {
     (void)arg;
     if (xSemaphoreTake(control, 0) != pdTRUE) return;
     xSemaphoreTake(info_lock, portMAX_DELAY);
-    bool allowed = auto_connect && !manual && driver_started && !info.connected;
+    bool allowed = auto_connect && !manual && driver_started && !info.connected &&
+                   !(xEventGroupGetBits(events) & AP_VISIT);
     if (allowed) info.status = DSR_WIFI_CONNECTING;
     xSemaphoreGive(info_lock);
     if (allowed) (void)esp_wifi_connect();
@@ -93,7 +103,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     }
 }
 
-static esp_err_t start_station(const dsr_settings_t *settings, bool connect)
+static esp_err_t start_station(const dsr_settings_t *settings, bool connect, const uint8_t *bssid)
 {
     wifi_config_t config = {0};
     if (settings) {
@@ -105,6 +115,7 @@ static esp_err_t start_station(const dsr_settings_t *settings, bool connect)
         config.sta.pmf_cfg.capable = true;
         config.sta.pmf_cfg.required = settings->wifi_security == DSR_WIFI_WPA3;
         config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+        if (bssid) { config.sta.bssid_set = true; memcpy(config.sta.bssid, bssid, 6); }
     }
     esp_err_t error = esp_wifi_set_config(WIFI_IF_STA, &config);
     if (error != ESP_OK) return error;
@@ -127,14 +138,18 @@ static esp_err_t stop_station(void)
     xSemaphoreTake(info_lock, portMAX_DELAY);
     info.status = DSR_WIFI_IDLE; info.connected = false; info.ip[0] = 0;
     xSemaphoreGive(info_lock);
-    xEventGroupClearBits(events, STA_STOPPED | IP_READY | CONNECT_FAILED);
-    if (!driver_started) return ESP_OK;
-    esp_err_t error = esp_wifi_stop();
-    if (error != ESP_OK) return error;
-    driver_started = false;
+    xEventGroupClearBits(events, IP_READY | CONNECT_FAILED);
+    if (driver_started) {
+        xEventGroupClearBits(events, STA_STOPPED);
+        esp_err_t error = esp_wifi_stop();
+        if (error != ESP_OK) return error;
+        driver_started = false; stop_fence_pending = true;
+    }
+    if (!stop_fence_pending) return ESP_OK;
     /* Drain old disconnect/DHCP events before new credentials. An old GOT_IP
      * cannot validate a candidate network after this event-loop fence. */
-    return (xEventGroupWaitBits(events, STA_STOPPED, pdFALSE, pdTRUE, pdMS_TO_TICKS(2000)) & STA_STOPPED) ? ESP_OK : ESP_FAIL;
+    if (!(xEventGroupWaitBits(events, STA_STOPPED, pdFALSE, pdTRUE, pdMS_TO_TICKS(2000)) & STA_STOPPED)) return ESP_FAIL;
+    stop_fence_pending = false; return ESP_OK;
 }
 
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings)
@@ -161,7 +176,8 @@ esp_err_t dsr_wifi_start(const dsr_settings_t *settings)
         (error = esp_wifi_set_mode(WIFI_MODE_STA)) != ESP_OK) return error;
     if (settings) current = *settings;
     auto_connect = settings && settings->ssid[0];
-    return start_station(auto_connect ? settings : NULL, auto_connect);
+    error = start_station(auto_connect ? settings : NULL, auto_connect, NULL);
+    ready = error == ESP_OK; return error;
 }
 
 static dsr_wifi_security_t security(wifi_auth_mode_t auth)
@@ -180,7 +196,7 @@ static void automatic_resume(void)
 {
     xSemaphoreTake(info_lock, portMAX_DELAY);
     manual = false;
-    bool retry = auto_connect && !info.connected;
+    bool retry = auto_connect && !info.connected && !(xEventGroupGetBits(events) & AP_VISIT);
     xSemaphoreGive(info_lock);
     if (retry) (void)esp_timer_start_once(reconnect_timer, 1000000);
 }
@@ -190,12 +206,13 @@ dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out)
     if (!out || !events || !reconnect_timer) return DSR_INVALID;
     memset(out, 0, sizeof(*out));
     if (xSemaphoreTake(control, 0) != pdTRUE) return DSR_BUSY;
+    if (xEventGroupGetBits(events) & AP_VISIT) { xSemaphoreGive(control); return DSR_BUSY; }
     xSemaphoreTake(info_lock, portMAX_DELAY); manual = true; xSemaphoreGive(info_lock);
     (void)esp_timer_stop(reconnect_timer);
     esp_err_t error = ESP_OK;
     if (!dsr_wifi_connected()) {
         error = stop_station();
-        if (error == ESP_OK) error = start_station(current.ssid[0] ? &current : NULL, false);
+        if (error == ESP_OK) error = start_station(current.ssid[0] ? &current : NULL, false, NULL);
     }
     wifi_ap_record_t *records = calloc(SCAN_RECORDS, sizeof(*records));
     if (!records) { automatic_resume(); xSemaphoreGive(control); return DSR_IO; }
@@ -233,7 +250,7 @@ dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_sta
     *detail = DSR_WIFI_DRIVER_ERROR;
     xSemaphoreTake(info_lock, portMAX_DELAY); manual = true; xSemaphoreGive(info_lock);
     esp_err_t error = stop_station();
-    if (error == ESP_OK) error = start_station(settings, true);
+    if (error == ESP_OK) error = start_station(settings, true, NULL);
     dsr_result_t result = DSR_OFFLINE;
     if (error == ESP_OK) {
         EventBits_t bits = xEventGroupWaitBits(events, IP_READY | CONNECT_FAILED | CANCEL, pdFALSE, pdFALSE, pdMS_TO_TICKS(20000));
@@ -241,6 +258,7 @@ dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_sta
         else if (bits & IP_READY) {
             if (dsr_settings_save(settings) == ESP_OK) {
                 current = *settings;
+                xEventGroupClearBits(events, AP_VISIT);
                 xSemaphoreTake(info_lock, portMAX_DELAY); auto_connect = true; retry_seconds = 1; xSemaphoreGive(info_lock);
                 *detail = DSR_WIFI_CONNECTED; result = DSR_OK;
             } else { *detail = DSR_WIFI_STORAGE_ERROR; result = DSR_IO; }
@@ -251,11 +269,79 @@ dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_sta
     if (result != DSR_OK) {
         error = stop_station();
         xSemaphoreTake(info_lock, portMAX_DELAY); auto_connect = current.ssid[0] != 0; xSemaphoreGive(info_lock);
-        if (error == ESP_OK) error = start_station(current.ssid[0] ? &current : NULL, current.ssid[0] != 0);
+        if (error == ESP_OK) error = start_station(current.ssid[0] ? &current : NULL, current.ssid[0] != 0, NULL);
+        if (error == ESP_OK) xEventGroupClearBits(events, AP_VISIT);
         if (error != ESP_OK) {
             xSemaphoreTake(info_lock, portMAX_DELAY); info.status = DSR_WIFI_DRIVER_ERROR; xSemaphoreGive(info_lock);
         }
     }
     automatic_resume(); xSemaphoreGive(control);
+    return result;
+}
+
+bool dsr_wifi_ap_cancelled(void)
+{ return !events || (xEventGroupGetBits(events) & CANCEL) != 0; }
+
+static dsr_wifi_status_t wait_connection(bool cancellable)
+{
+    EventBits_t mask = IP_READY | CONNECT_FAILED | (cancellable ? CANCEL : 0);
+    EventBits_t bits = xEventGroupWaitBits(events, mask, pdFALSE, pdFALSE, pdMS_TO_TICKS(20000));
+    if (cancellable && (bits & CANCEL)) return DSR_WIFI_CANCELLED;
+    if (bits & IP_READY) return DSR_WIFI_CONNECTED;
+    if (bits & CONNECT_FAILED) {
+        xSemaphoreTake(info_lock, portMAX_DELAY); dsr_wifi_status_t status = info.status; xSemaphoreGive(info_lock);
+        return status;
+    }
+    return DSR_WIFI_TIMED_OUT;
+}
+
+dsr_result_t dsr_wifi_visit_ap(const dsr_wifi_ap_target_t *target, bool confirmed,
+    dsr_wifi_ap_action_t action, void *context, dsr_wifi_ap_visit_t *out)
+{
+    if (!out) return DSR_INVALID;
+    memset(out, 0, sizeof(*out)); out->action_result = DSR_INVALID;
+    out->ap_status = out->home_status = DSR_WIFI_IDLE;
+    bool nonzero = false;
+    if (target) for (unsigned i = 0; i < 6; i++) nonzero |= target->bssid[i] != 0;
+    if (!target || !confirmed || !action || !nonzero || (target->bssid[0] & 1) ||
+        !dsr_wifi_settings_valid(&target->settings) || !ready || !events || !reconnect_timer) return DSR_INVALID;
+    if (xSemaphoreTake(control, 0) != pdTRUE) return DSR_BUSY;
+    if ((xEventGroupGetBits(events) & AP_VISIT) || !dsr_activity_begin()) {
+        xSemaphoreGive(control); return DSR_BUSY;
+    }
+    /* A prequeued cancellation never disconnects the current LAN. */
+    if (dsr_wifi_ap_cancelled()) {
+        out->ap_status = DSR_WIFI_CANCELLED;
+        dsr_activity_end(); xSemaphoreGive(control); return DSR_OFFLINE;
+    }
+    xSemaphoreTake(info_lock, portMAX_DELAY); manual = true; xSemaphoreGive(info_lock);
+    out->switch_attempted = true;
+    xEventGroupSetBits(events, AP_VISIT);
+    esp_err_t error = stop_station();
+    if (error == ESP_OK && !dsr_wifi_ap_cancelled()) error = start_station(&target->settings, true, target->bssid);
+    out->ap_status = dsr_wifi_ap_cancelled() ? DSR_WIFI_CANCELLED :
+        error == ESP_OK ? wait_connection(true) : DSR_WIFI_DRIVER_ERROR;
+    dsr_result_t result = DSR_OFFLINE;
+    if (out->ap_status == DSR_WIFI_CONNECTED && !dsr_wifi_ap_cancelled()) {
+        out->action_called = true; out->action_result = action(context);
+        result = out->action_result;
+        if (dsr_wifi_ap_cancelled()) { out->ap_status = DSR_WIFI_CANCELLED; result = DSR_OFFLINE; }
+    }
+    /* Cancellation does not cancel recovery. Never start with home credentials
+     * until the old event-loop STOP fence is positively observed. */
+    error = stop_station();
+    if (error == ESP_OK) error = start_station(current.ssid[0] ? &current : NULL, current.ssid[0] != 0, NULL);
+    if (error == ESP_OK) {
+        out->home_config_restored = true;
+        out->home_status = current.ssid[0] ? wait_connection(false) : DSR_WIFI_IDLE;
+        out->home_connected = out->home_status == DSR_WIFI_CONNECTED;
+        xEventGroupClearBits(events, AP_VISIT);
+        if (current.ssid[0] && !out->home_connected) result = DSR_OFFLINE;
+    } else {
+        out->home_status = DSR_WIFI_DRIVER_ERROR; result = DSR_IO;
+        /* Fail closed: no automatic reconnect can reuse the foreign config.
+         * Explicit saved-network connect remains available for recovery. */
+    }
+    automatic_resume(); dsr_activity_end(); xSemaphoreGive(control);
     return result;
 }

@@ -3,3 +3,4 @@
 #define BIT2 (1U << 2)
 #define BIT3 (1U << 3)
 #define BIT4 (1U << 4)
+#define BIT5 (1U << 5)

@@ -1,4 +1,18 @@
-# Matryca funkcji — 0.7.23, rewizja 24
+# Matryca funkcji — 0.7.24, rewizja 25
+
+## #19: bezpieczna tymczasowa sieć AP — tylko warstwa backendu
+
+`dsr_wifi_visit_ap`: jawna zgoda + wybrany BSSID, RAM-only lifecycle i callback,
+obowiązkowa próba powrotu do saved home, serializacja Wi-Fi/restart admission,
+cancel/fault/late STOP fence i foreign-DHCP suppression. Bez zapisu credentials,
+bindingów, workspace, erase i bez zmiany ustawień Shelly.
+[Kontrakt](AP_VISIT_PL.md). Brak produkcyjnego kontrolera/job/aktywnego AP UI;
+nieużyte API może być usunięte przez linker. **Pełne #19 nadal Not implemented**;
+nie mylić backend testów z provisioningiem ani sprzętem. Następne: realna
+tożsamość API, integracja wyłączności transportu #20, potwierdzany kreator #32,
+konfiguracja i rediscovery stabilnego ID po powrocie LAN. UI i dane pozostałe
+bez zmian. Lokalne UBSan Wi-Fi1213+21 fresh-process checks / SDK-radio-boot MODEL;
+CI/target/artefakt/physical jako osobne bramki. Brak nowego physical pass.
 
 ## #6 punkt5: unieważnienie wspólnego parowania WWW
 

@@ -17,7 +17,7 @@ typedef struct {int unused;} wifi_init_config_t;
 #define WIFI_IF_STA 0
 #define WPA3_SAE_PWE_BOTH 3
 typedef struct {struct {uint8_t ssid[32],password[64];struct {wifi_auth_mode_t authmode;} threshold;
- struct {bool capable,required;} pmf_cfg;int sae_pwe_h2e;} sta;} wifi_config_t;
+ struct {bool capable,required;} pmf_cfg;int sae_pwe_h2e;bool bssid_set;uint8_t bssid[6];} sta;} wifi_config_t;
 esp_err_t esp_wifi_init(const wifi_init_config_t *config);
 esp_err_t esp_wifi_set_storage(int storage);
 esp_err_t esp_wifi_set_mode(int mode);

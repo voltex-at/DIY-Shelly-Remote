@@ -1,5 +1,27 @@
 # Project status
 
+## 0.7.24 — #19 RAM-only temporary AP visit primitive, NOT provisioning
+
+Independent existing #19 work while the #20 implementation is already active
+(coordination in Issue20comment6214747344); no duplicate registry/scheduler/UI.
+Actual Wi-Fi lifecycle accepts selected BSSID and explicit consent, serializes
+stop/fence/start/DHCP/callback/home restore under control and activity admission.
+No target settings_save/current/NVS/binding/workspace/partition changes. Home
+readiness remains false on foreign DHCP; cancellation cannot skip recovery.
+Failed restoration suppresses automatic foreign reconnect, explicit saved-network
+recovery remains available. Missing STOP fence survives retries, not bypassed by
+driver_started=false. Callback is trusted bounded controller code, not a sandbox
+or hard deadline. No production caller/job/AP UI activation/provisioning write;
+linker may discard unused API. [Contract/gates](docs/AP_VISIT_PL.md).
+Genuine source tests use SDK/radio/persistence/boot MODEL. Local UBSan Wi-Fi1213
+plus21 fresh-process checks and native/config265 PASS; ASan/LSan local /proc
+restriction is not PASS. Exact CI/compiled target/artifacts and hardware remain
+separate gates, final evidence in Draft PR. No physical AP or power-cut claim.
+Owner0.7.18/preformatted SPIFFS retention/Web evidence unchanged, blank init and
+new UI/pairing/revoke still separate. Parent PR49/50 exact CI5/5 with artifacts
+in their descriptions. Frozen global backlog/native OTA empty publisher trust/
+24h internal history/later optional SD remain; no main/Stable/erase.
+
 ## 0.7.23 — revoke the single Web pairing (#6 point5)
 
 Explicit LCD confirmation queues a local offline worker job, never NVS from
