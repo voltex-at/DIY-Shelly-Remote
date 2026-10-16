@@ -98,7 +98,7 @@ bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *ro
 }
 bool dsr_workspace_take_bind(dsr_connection_t *connection){return dsr_workspace_take_bind_with_room(connection,NULL);}
 void dsr_workspace_bind_result(dsr_result_t result)
-{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bool completed=bind_busy;bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);if(completed)dsr_activity_end();}
+{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bool completed=bind_busy;bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":result==DSR_CONFLICT?"Configuration changed; reload and retry adding the device":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);if(completed)dsr_activity_end();}
 dsr_result_t dsr_workspace_bind_result_code(void)
 {if(!mutex)return DSR_IO;xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=bind_result_code;xSemaphoreGive(mutex);return result;}
 void dsr_workspace_bind_status(bool *pending,char message[64])

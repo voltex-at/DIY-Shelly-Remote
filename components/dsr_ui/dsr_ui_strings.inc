@@ -165,3 +165,4 @@
 {"Zapisywanie…","Saving…","Speichern…"},{"Zapisano A • późniejsze zmiany niezapisane","Saved A • later edits are unsaved","A gespeichert • spätere Änderungen ungespeichert"},
 {"Salon\nKuchnia\nSypialnia\nŁazienka","Living room\nKitchen\nBedroom\nBathroom","Wohnzimmer\nKüche\nSchlafzimmer\nBadezimmer"},
 {"Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu","Blue\nTurquoise\nLavender\nAmber\nCustom from Web Panel","Blau\nTürkis\nLavendel\nBernstein\nEigene Farbe aus Webpanel"},
+{"Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.","Configuration changed; reload and retry adding the device","Konfiguration geändert. Neu laden und Gerät erneut hinzufügen."},

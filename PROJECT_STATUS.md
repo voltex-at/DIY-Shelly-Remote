@@ -14,8 +14,11 @@ LAN marks already added identities while allowing another channel and verified D
 
 Core independent review/coordinator found and resolved mapping, rollback, queue and
 OOM issues before integration. Integrated full tools/test.py UBSan exit0; actual
-LVGL3530/116 with independent targeted CRUD/two-store failure/recovery tests PASS.
-Platform1088/worker3559/config265 and all prior native regressions preserved.
+LVGL3576/116 with independent targeted CRUD/two-store failure/recovery tests PASS.
+Late review regressions also prove durable-delete readback failure/retry convergence
+and concurrent Web deletion winning over stale published-ID CAS migration.
+A missing published ID returns explicit PL/EN/DE DSR_CONFLICT, never recreation.
+Platform1093/worker3559/config265 and all prior native regressions preserved.
 Integrated exact-source CI/target/artefacts remain separate gates. Runtime API5029 checks with
 cJSON allocation faults; actual workspace mailbox164; actual JS47 deterministic
 race/freshness/epoch checks. Browser route/RTOS/NVS/device providers are MODEL.
@@ -28,7 +31,7 @@ confirms rooms retained after reset and Web service on preformatted SPIFFS;
 blank-init, full TLS/pairing and new feature acceptance remain separate. No erase,
 partition changes, main merge or Stable. Next frozen backlog: AP#19/BLE#18, then
 full signed OTA#24, device settings/history#29/#22, device types#23/groups#21/#32.
-Preserved unpublished pairing-revocation branch is separate, not in this build.
+Pairing revocation is separately published as Draft PR50, not in this build.
 
 ## 0.7.22 — browser-local Web Panel language (#5/#6)
 

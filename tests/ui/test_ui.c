@@ -720,7 +720,7 @@ int main(int argc,char **argv)
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
-    multi_device_regression();review_multi_regression();
+    multi_device_regression();review_multi_regression();review_deleted_migration_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

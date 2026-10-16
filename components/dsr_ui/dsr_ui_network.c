@@ -34,6 +34,7 @@ static const char *result_text(dsr_result_t result)
     case DSR_OK: return "Ready";
     case DSR_AUTH_REQUIRED: return "Authentication failed. Check login.";
     case DSR_RATE_LIMITED: return "Shelly limits logins. Wait, then Refresh.";
+    case DSR_CONFLICT: return "Configuration changed; reload and retry adding the device";
     case DSR_IDENTITY_MISMATCH: return "Different device at this IP. Add again.";
     case DSR_OFFLINE: return "Shelly offline / Wi-Fi disconnected";
     case DSR_UNSUPPORTED: return "Not a supported relay/switch channel";

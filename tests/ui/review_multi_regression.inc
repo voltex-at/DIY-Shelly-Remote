@@ -6,6 +6,34 @@ static unsigned review_entry_id(const char *name)
  cJSON_ArrayForEach(d,cJSON_GetObjectItemCaseSensitive(r,"devices"))if(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"name")->valuestring,name))id=(unsigned)cJSON_GetObjectItemCaseSensitive(d,"id")->valueint;
  cJSON_Delete(r);CHECK(id);return id;
 }
+static void review_remove_layout(unsigned id);
+static void review_preserved_room(void);
+static void review_deleted_migration_regression(void)
+{
+ CHECK(!in_flight&&!maintenance_ready);wifi.connected=true;tick();CHECK(!in_flight);
+ dsr_connection_t a={.device={.host="192.168.1.80",.name="Deleted migration A",.device_id="shelly-deleted-migration-A",.generation=DSR_GEN2_PLUS,.online=true,.has_switch=true}};
+ dsr_connection_t b=a;strcpy(b.device.host,"192.168.1.81");strcpy(b.device.name,"Preserved migration B");strcpy(b.device.device_id,"shelly-preserved-migration-B");
+ CHECK(dsr_network_bind_verified(&a,0)==DSR_OK);response=(dsr_event_t){.device=a.device};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(dsr_network_bind_verified(&b,0)==DSR_OK);response=(dsr_event_t){.device=b.device};deliver(DSR_OK,DSR_WIFI_IDLE);
+ a.layout_id=review_entry_id(a.device.name);unsigned bid=review_entry_id(b.device.name);CHECK(dsr_network_layout_reserved(a.layout_id)&&dsr_network_layout_reserved(bid));
+ wifi.connected=false;tick();unsigned before=requests;
+ /* Existing published A begins a DHCP/layout update. A competing Web save
+  * deletes its exact numeric ID before the queued candidate receives ACK. */
+ strcpy(a.device.host,"192.168.1.90");test_workspace_defer(true);dsr_ui_workspace_migrate_bound(&a,0,NULL);
+ b.layout_id=bid;strcpy(b.device.name,"Retained migration B");dsr_ui_workspace_migrate_bound(&b,0,NULL);tick();
+ bool busy;char message[96];dsr_workspace_status(&busy,message);CHECK(busy);
+ test_workspace_finish(false);test_workspace_defer(false);review_remove_layout(a.layout_id);tick();
+ cJSON *r=room_document(),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices");
+ if(cJSON_GetArraySize(devices)!=1){const cJSON *v;fprintf(stderr,"Deleted-ID migration counterexample: expected only preserved ID %u; actual:",bid);cJSON_ArrayForEach(v,devices)fprintf(stderr," [%d %s]",cJSON_GetObjectItemCaseSensitive(v,"id")->valueint,cJSON_GetObjectItemCaseSensitive(v,"name")->valuestring);fputc('\n',stderr);}
+ CHECK(cJSON_GetArraySize(devices)==1);
+ CHECK((unsigned)cJSON_GetObjectItemCaseSensitive(devices->child,"id")->valueint==bid&&!strcmp(cJSON_GetObjectItemCaseSensitive(devices->child,"name")->valuestring,"Preserved migration B"));cJSON_Delete(r);
+ dsr_result_t result;CHECK(!dsr_ui_workspace_migrate_status(&result)&&result==DSR_CONFLICT&&requests==before);
+ lv_tick_inc(5100);tick();tick();r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");CHECK(cJSON_GetArraySize(devices)==1);
+ CHECK((unsigned)cJSON_GetObjectItemCaseSensitive(devices->child,"id")->valueint==bid&&!strcmp(cJSON_GetObjectItemCaseSensitive(devices->child,"name")->valuestring,b.device.name));cJSON_Delete(r);review_preserved_room();
+ CHECK(!dsr_ui_workspace_migrate_status(&result)&&result==DSR_OK&&requests==before&&!dsr_network_endpoint_added(a.device.device_id,DSR_GEN2_PLUS,0)&&dsr_network_endpoint_added(b.device.device_id,DSR_GEN2_PLUS,0));
+ review_remove_layout(bid);tick();
+ printf("PASS: published-ID Web deletion wins over stale DHCP/CAS migration; unrelated migration finishes; no recreated endpoint or tile, no HTTP replay\n");
+}
 static void review_remove_layout(unsigned id)
 {
  cJSON *r=room_document(),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices"),*d,*dashboard;

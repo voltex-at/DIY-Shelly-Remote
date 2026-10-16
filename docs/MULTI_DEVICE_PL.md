@@ -21,6 +21,8 @@ Nie wykonano operacji na sprzęcie, erase, merge ani publikacji Stable.
 - Każdy zapis rejestru wymaga commit, ponownego otwarcia i porównania całego
   odczytanego blobu. Błąd commit/readback oznacza wynik niepotwierdzony;
   NVS mogło już przyjąć nowy blob. Nie obiecujemy rollbacku zapisu przy błędzie.
+  Ponowiony UNBIND potwierdza odczytem także brak już usuniętego endpointu;
+  nie zapisuje ponownie rejestru ani nie narusza pozostałych wpisów.
 - Workspace zachowuje dotychczasowy schema 1 i numeric stable IDs. Nie dodajemy
   pól do publicznego schematu. Sekrety i identity transportu pozostają poza nim.
   `layout_id=0` oznacza binding oczekujący na publikację; niezerowy wiąże istniejący
@@ -31,7 +33,10 @@ Nie wykonano operacji na sprzęcie, erase, merge ani publikacji Stable.
   blokujący restart. Błąd workspace nie usuwa innych bindingów; rejestr pozostaje
   możliwy do odzyskania bez ponownego logowania/nowego sprawdzania urządzenia.
 - Usunięcie opublikowanego numeric ID z poprawnego workspace kolejkuje oddzielny
-  lokalny UNBIND wyłącznie tego endpointu. Brak snapshotu/uszkodzony dokument nie
+  lokalny UNBIND wyłącznie tego endpointu. Usunięty opublikowany ID nie jest
+  odtwarzany przez zaległą migrację DHCP/BIND po konflikcie CAS; wynik
+  `DSR_CONFLICT` wymaga wczytania aktualnego stanu i ponownego dodawania.
+  Brak snapshotu/uszkodzony dokument nie
   oznacza usunięcia. Zmiana host/kanał istniejącego ID wyłącza jego routing aż do
   świadomego ponownego BIND; nie kierujemy SET na nowy adres wpisany w edytorze.
 - Firmware sprzed tej zmiany nadal zna wyłącznie dawny pojedynczy rekord. Przy

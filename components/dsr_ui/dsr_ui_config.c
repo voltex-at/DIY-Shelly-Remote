@@ -588,6 +588,9 @@ static bool merge_migration(cJSON *r,const migration_t *m)
  cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices"),*found=NULL;int id=1;
  for(cJSON *v=a->child;v;v=v->next){if(migration_match(v,m)&&!found)found=v;if(integer(v,"id")>=id)id=integer(v,"id")+1;}
  if(!found){
+  /* Published IDs are owned by the current workspace. A concurrent deletion
+   * must win over a delayed bind/DHCP migration, including after CAS retry. */
+  if(m->layout_id)return false;
   if(cJSON_GetArraySize(a)>=DSR_MAX_DEVICES)return false;
   found=cJSON_CreateObject();if(!found)return false;
   if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind","relay")){cJSON_Delete(found);return false;}
@@ -626,10 +629,17 @@ static void migration_tick(void)
  }
  if(busy||(migration_failed&&(int32_t)(lv_tick_get()-migration_retry)<0))return;
  char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);
- if(!r){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
+ char error[96];
+ if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
+ size_t retained=0;
+ for(size_t i=0;i<migration_count;i++)if(!migrations[i].layout_id||object_index(item(r,"devices"),(int)migrations[i].layout_id)!=255)migrations[retained++]=migrations[i];
+ if(retained!=migration_count){
+  memset(migrations+retained,0,(migration_count-retained)*sizeof(*migrations));migration_count=retained;
+  cJSON_Delete(r);migration_failed=true;migration_result=DSR_CONFLICT;migration_retry=lv_tick_get()+5000;return;
+ }
  cJSON *baseline=cJSON_Duplicate(r,true);bool ok=baseline!=NULL;
  for(size_t i=0;i<migration_count&&ok;i++)ok=merge_migration(r,&migrations[i]);
- char error[96];ok=ok&&dsr_config_validate(r,error);migration_submitted=migration_serial;
+ ok=ok&&dsr_config_validate(r,error);migration_submitted=migration_serial;
  if(ok&&cJSON_Compare(r,baseline,true)){cJSON_Delete(baseline);cJSON_Delete(r);migration_ack();return;}
  cJSON_Delete(baseline);char *next=ok?cJSON_PrintUnformatted(r):NULL;
  if(!next){cJSON_Delete(r);migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}

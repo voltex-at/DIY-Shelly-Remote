@@ -67,6 +67,7 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { (void)c; used++;
 static unsigned char blobs[3][8192];
 static size_t sizes[3]; static uint32_t schemas[3];
 static bool fail_commit;
+static bool fail_registry_readback,registry_readback_failed;
 static unsigned write_opens,nvs_fault;
 static bool writing[3];
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
@@ -76,10 +77,10 @@ esp_err_t nvs_get_u32(nvs_handle_t h, const char *key, uint32_t *out)
 esp_err_t nvs_set_u32(nvs_handle_t h, const char *key, uint32_t value)
 { (void)key;CHECK(writing[h]&&!dsr_activity_restart_reserve());if(nvs_fault==3)return ESP_FAIL;schemas[h] = value; return ESP_OK; }
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *size)
-{ (void)key; if (*size < sizes[h]) return ESP_ERR_INVALID_SIZE; memcpy(out, blobs[h], sizes[h]); *size = sizes[h]; return ESP_OK; }
+{ (void)key; if(h==2&&registry_readback_failed){registry_readback_failed=false;return ESP_FAIL;}if (*size < sizes[h]) return ESP_ERR_INVALID_SIZE; memcpy(out, blobs[h], sizes[h]); *size = sizes[h]; return ESP_OK; }
 esp_err_t nvs_set_blob(nvs_handle_t h, const char *key, const void *data, size_t size)
 { (void)key; CHECK(writing[h]&&!dsr_activity_restart_reserve()&&size <= sizeof(blobs[h]));if(nvs_fault==2)return ESP_FAIL;memcpy(blobs[h], data, size); sizes[h] = size; return ESP_OK; }
-esp_err_t nvs_commit(nvs_handle_t h) { CHECK(writing[h]&&!dsr_activity_restart_reserve());return fail_commit||nvs_fault==4 ? ESP_FAIL : ESP_OK; }
+esp_err_t nvs_commit(nvs_handle_t h) { CHECK(writing[h]&&!dsr_activity_restart_reserve());if(fail_commit||nvs_fault==4)return ESP_FAIL;if(h==2&&fail_registry_readback){fail_registry_readback=false;registry_readback_failed=true;}return ESP_OK; }
 void nvs_close(nvs_handle_t h) { if(writing[h])CHECK(!dsr_activity_restart_reserve());writing[h]=false; }
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 
@@ -250,6 +251,12 @@ static void test_multi_registry(void)
  unsigned char durable[8192];size_t durable_size=sizes[2];memcpy(durable,blobs[2],durable_size);
  ((uint32_t *)blobs[2])[0]=99;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);unsigned before=write_opens;CHECK(dsr_connection_save(&a)!=ESP_OK&&write_opens==before);memcpy(blobs[2],durable,durable_size);
  sizes[2]--;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);sizes[2]=durable_size;
+ /* A committed delete can outlive a failed readback. Retry must converge to
+  * success after a valid authoritative registry confirms the tuple absent. */
+ fail_registry_readback=true;CHECK(dsr_connection_remove(&b)!=ESP_OK);
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2);
+ for(size_t i=0;i<n;i++){CHECK(strcmp(loaded[i].device.device_id,b.device.device_id));}
+ unsigned before_retry=write_opens;CHECK(dsr_connection_remove(&b)==ESP_OK&&write_opens==before_retry);
  CHECK(dsr_connection_remove(&b)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!strcmp(loaded[0].device.device_id,a.device.device_id));
  CHECK(dsr_connection_remove(&a)==ESP_OK&&dsr_connection_remove(&channel)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==0);CHECK(!memcmp(blobs[1],&legacy,sizeof(legacy))); /* authoritative empty never resurrects legacy */
  for(unsigned i=0;i<16;i++){a=connection();a.device.generation=DSR_GEN2_PLUS;snprintf(a.device.device_id,sizeof(a.device.device_id),"shelly-%u",i);CHECK(dsr_connection_save(&a)==ESP_OK);}

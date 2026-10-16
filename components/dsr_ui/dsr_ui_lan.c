@@ -32,7 +32,7 @@ static void leave(lv_event_t *event){(void)event;dsr_lan_cancel();dsr_network_de
 static void results_back(lv_event_t *event){(void)event;memset(&credentials,0,sizeof(credentials));show_results();}
 static const char *failure(dsr_result_t result)
 {
-    return result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_AUTH_REQUIRED?"Błąd logowania. Sprawdź dane.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.":result==DSR_RATE_LIMITED?"Limit logowań Shelly. Poczekaj i odśwież.":result==DSR_OFFLINE?"Shelly offline lub brak Wi-Fi":"Nie udało się zweryfikować urządzenia.";
+    return result==DSR_CONFLICT?"Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.":result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_AUTH_REQUIRED?"Błąd logowania. Sprawdź dane.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.":result==DSR_RATE_LIMITED?"Limit logowań Shelly. Poczekaj i odśwież.":result==DSR_OFFLINE?"Shelly offline lub brak Wi-Fi":"Nie udało się zweryfikować urządzenia.";
 }
 static lv_obj_t *field(lv_obj_t *root,const char *caption,int y,const char *text,bool secret)
 {
