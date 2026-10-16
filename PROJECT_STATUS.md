@@ -1,5 +1,16 @@
 # Project status
 
+## 0.7.8 — independent on-demand BAT voltage (#6/#25)
+
+First-stage battery work follows the owner-approved existing backlog while PR #33
+awaits hardware. GPIO8 ADC1, median and IDF calibration run through the existing
+worker without Wi-Fi/workspace; UI exposes voltage/age/errors, no invented charge
+state or percent. No startup/periodic sampling or new task/timer. Host ADC/worker
+3367 checks and native UI regressions pass; exact-source target CI and hardware
+are separate gates. Percent, low battery, runtime and charging remain open.
+[Scope and physical acceptance](docs/BATTERY_VOLTAGE_PL.md).
+
+
 ## 0.7.7 — single-pass blank SPIFFS provisioning (#28 / PR #33)
 
 New reviewer evidence supersedes the earlier pending clean test: the owner
@@ -26,7 +37,8 @@ The real IDF test passes 131789 checks: one format, ten remounts, priority polic
 I/O failures, synthetic 313-marker prefix and actual formatter interrupted after
 313 sectors, followed by byte preservation, plus the generator image. Host
 timing/priority mocks do not establish physical watchdog health. The test-only
-d3b9472 passed CI 5/5; this firmware fix needs its own exact CI and physical test.
+d3b9472 passed CI 5/5; firmware fix 81e734d also passed exact-source CI 5/5
+[run 38835176199](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38835176199). Physical acceptance remains open.
 No repeated full erase, private dump publication, main merge or Stable.
 [Current acceptance and evidence](docs/PR33_ACCEPTANCE.md).
 

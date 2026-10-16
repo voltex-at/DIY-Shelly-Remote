@@ -38,6 +38,10 @@ The ST77922 touch block is accessed at I2C address `0x55` using 16-bit register 
 
 The schematic shows a 100k/100k battery divider (nominal 2:1). No charge-state signal is assumed connected to an MCU pin, so this milestone makes no charge-indicator claim. ESP32-S3 supports Bluetooth LE; the vendor page's BR/EDR wording is not used to claim Classic Bluetooth support.
 
+Battery first stage on the independent 0.7.8 branch: calibrated on-demand GPIO8
+voltage, nominal divider 2:1; physical multimeter acceptance pending. No percent
+or charging inference. [Scope](../../docs/BATTERY_VOLTAGE_PL.md).
+
 ## Build
 
 Use ESP-IDF v5.5.4 and a clean sdkconfig for this profile:

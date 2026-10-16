@@ -15,7 +15,13 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if (job.kind == DSR_JOB_WIFI_SCAN) {
+        if(job.kind==DSR_JOB_BATTERY_READ){
+#ifdef DSR_BOARD_ES3C35P
+            event.result=dsr_battery_read(&event.battery)==ESP_OK?DSR_OK:DSR_IO;
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
+        } else if (job.kind == DSR_JOB_WIFI_SCAN) {
             event.result = dsr_wifi_scan(&event.scan);
         } else if (job.kind == DSR_JOB_WIFI_CONNECT) {
             event.result = dsr_wifi_connect_saved(&job.settings, &event.wifi_detail);
@@ -64,10 +70,10 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_WIFI_CONNECT) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_BATTERY_READ) return DSR_INVALID;
     if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
-    } else if (job->kind != DSR_JOB_WIFI_SCAN && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
+    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (job->kind == DSR_JOB_WIFI_CONNECT) dsr_wifi_prepare_connect();
     if (xQueueSend(jobs, job, 0) != pdTRUE) { xSemaphoreGive(available); return DSR_BUSY; }

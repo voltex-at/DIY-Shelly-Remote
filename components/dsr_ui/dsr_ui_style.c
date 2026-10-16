@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#ifndef DSR_UI_REVIEW_DEMO
+void dsr_ui_battery_header(lv_obj_t *root);
+#endif
 
 static uint32_t accent=DSR_SC_BLUE;
 static bool midnight;
@@ -14,6 +17,20 @@ lv_color_t dsr_sc_color(uint32_t c)
 const char *dsr_sc_tr(const char *text)
 {
  static const char *const words[][3]={
+ {"Bateria i zasilanie","Battery and power","Akku und Stromversorgung"},
+ {"Napięcie wejścia BAT","BAT input voltage","Spannung am BAT-Eingang"},
+ {"Pomiar na żądanie","Measurement on request","Messung auf Anfrage"},
+ {"Brak pomiaru","No measurement","Keine Messung"},
+ {"Odczyt napięcia…","Reading voltage…","Spannung wird gemessen…"},
+ {"Pomiar niedostępny. Spróbuj ponownie.","Measurement unavailable. Try again.","Messung nicht verfügbar. Erneut versuchen."},
+ {"Kalibracja ADC niedostępna. Napięcie nieznane.","ADC calibration unavailable. Voltage unknown.","ADC-Kalibrierung fehlt. Spannung unbekannt."},
+ {"Napięcie BAT • dzielnik nominalny 2:1","BAT voltage • nominal 2:1 divider","BAT-Spannung • nominaler Teiler 2:1"},
+ {"Pomiar nieaktualny. Zmierz ponownie.","Measurement is stale. Measure again.","Messung veraltet. Erneut messen."},
+ {"Ostatni odczyt: %lu s temu","Last reading: %lu s ago","Letzte Messung: vor %lu s"},
+ {"Ładowanie i obecność akumulatora: brak wiarygodnych danych.","Charging and battery presence: no reliable data.","Ladestatus und Akku-Erkennung: keine verlässlichen Daten."},
+ {"Procent baterii wymaga potwierdzenia typu ogniwa i pomiaru multimetrem.","Battery percentage needs the cell type and a multimeter check.","Für den Akkustand sind Zelltyp und Multimeterprüfung erforderlich."},
+ {"Zmierz napięcie","Measure voltage","Spannung messen"},
+ {"Pilot jest zajęty. Spróbuj ponownie.","Remote is busy. Try again.","Fernbedienung beschäftigt. Erneut versuchen."},
  {"Konfiguracja niedostępna","Configuration unavailable","Konfiguration nicht verfügbar"},
  {"Nie można otworzyć edytora","Cannot open editor","Editor kann nicht geöffnet werden"},
  {"Diagnostyka","Diagnostics","Diagnose"},{"Diagnostyka konfiguracji","Configuration diagnostics","Konfigurationsdiagnose"},
@@ -177,7 +194,13 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
  if(back){lv_obj_t *b=dsr_sc_button(root,0,0,44,44,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,DSR_SC_TEXT);}
  lv_obj_t *name=dsr_sc_text(root,title,back?44:12,9,back?204:232,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
- else dsr_sc_icon(root,DSR_ICON_WIFI,280,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
+ else {
+  lv_obj_set_width(name,back?184:216);
+  dsr_sc_icon(root,DSR_ICON_WIFI,244,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
+#ifndef DSR_UI_REVIEW_DEMO
+  dsr_ui_battery_header(root);
+#endif
+ }
 }
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {

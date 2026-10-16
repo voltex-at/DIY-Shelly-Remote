@@ -177,12 +177,12 @@ static void menu(lv_event_t *event)
 {
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Menu", true);
-    dsr_ui_button(root, "Wi-Fi setup", 16, 91, 288, dsr_network_wifi, NULL);
-    dsr_ui_button(root, "Dodaj urządzenie Shelly", 16, 150, 288, dsr_network_device, NULL);
-    dsr_ui_button(root, "Hardware tests", 16, 209, 288, hardware, NULL);
-    dsr_ui_button(root, "Settings", 16, 268, 288, settings, NULL);
-    dsr_ui_button(root, "Podgląd rolety • DEMO", 16, 327, 288, cover_preview, NULL);
-    dsr_ui_label(root, "Podgląd grafiki bez sterowania sprzętem.", 16, 389, 288);
+    dsr_ui_button(root, "Wi-Fi setup", 16, 84, 288, dsr_network_wifi, NULL);
+    dsr_ui_button(root, "Dodaj urządzenie Shelly", 16, 140, 288, dsr_network_device, NULL);
+    dsr_ui_button(root, "Hardware tests", 16, 196, 288, hardware, NULL);
+    dsr_ui_button(root, "Settings", 16, 252, 288, settings, NULL);
+    dsr_ui_button(root, "Podgląd rolety • DEMO", 16, 308, 288, cover_preview, NULL);
+    dsr_ui_button(root, "Bateria i zasilanie", 16, 364, 288, dsr_ui_battery_open, NULL);
 }
 
 void dsr_ui_home(lv_event_t *event) { dsr_network_home(event); }

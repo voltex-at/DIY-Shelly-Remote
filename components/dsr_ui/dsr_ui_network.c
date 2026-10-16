@@ -44,6 +44,7 @@ static const char *result_text(dsr_result_t result)
 
 void dsr_network_reset_view(void)
 {
+    dsr_ui_battery_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
     dsr_ui_ble_reset();
@@ -98,6 +99,14 @@ static dsr_result_t submit(dsr_job_kind_t kind, bool on)
 }
 
 bool dsr_network_busy(void) { return busy; }
+dsr_result_t dsr_network_request_battery(void)
+{
+ if(busy)return DSR_BUSY;
+ const dsr_job_t job={.id=++serial,.kind=DSR_JOB_BATTERY_READ};
+ dsr_result_t accepted=dsr_worker_submit(&job);
+ if(accepted==DSR_OK){busy=true;operation=DSR_JOB_BATTERY_READ;outstanding=job.id;}
+ return accepted;
+}
 void dsr_network_wifi_settings(dsr_settings_t *out) { *out = settings; }
 dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t *candidate)
 {
@@ -260,8 +269,9 @@ static void poll(lv_timer_t *timer)
     uint32_t now = lv_tick_get();
     dsr_event_t event;
     if (dsr_worker_receive(&event) && event.id == outstanding) {
-        busy = false; last_poll = now;
-        if (operation == DSR_JOB_WIFI_SCAN || operation == DSR_JOB_WIFI_CONNECT) {
+        busy = false; if(operation!=DSR_JOB_BATTERY_READ)last_poll = now;
+        if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
+        else if (operation == DSR_JOB_WIFI_SCAN || operation == DSR_JOB_WIFI_CONNECT) {
             if (operation == DSR_JOB_WIFI_CONNECT && event.result == DSR_OK) {
                 settings = wifi_candidate; storage_error = false; saved.device.online = false;
             }
@@ -285,7 +295,7 @@ static void poll(lv_timer_t *timer)
             else if(!command_error)last_result=event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
-        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT)
+        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT && operation!=DSR_JOB_BATTERY_READ)
             dsr_sc_label_set_text(message, result_text(event.result));
         if(queued_output){
             bool on=queued_on;
@@ -312,6 +322,7 @@ static void poll(lv_timer_t *timer)
     dsr_wifi_ui_tick();
     dsr_ui_lan_tick();
     dsr_ui_ble_tick();
+    dsr_ui_battery_tick();
     dsr_ui_workspace_tick();dsr_panel_tick();
     if(!busy){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
         pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);

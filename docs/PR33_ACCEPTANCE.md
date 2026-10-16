@@ -109,4 +109,5 @@ No issue is closed, no PR approved/merged and no Stable release is authorized
 by this checkpoint. Test-only d3b9472 passed all five jobs in
 [run 38834099814](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38834099814),
 including original IDF under ASan/UBSan/LSan. The new 0.7.7 firmware fix needs
-its own exact-head CI and physical result; earlier green runs establish neither.
+physical acceptance. Exact-source 81e734d CI passed 5/5 in
+[run 38835176199](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38835176199); this does not establish a physical pass.

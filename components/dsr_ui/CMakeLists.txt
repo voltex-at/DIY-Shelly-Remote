@@ -1,7 +1,7 @@
 set(ui_source "")
 if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
     file(GLOB ui_fonts "${CMAKE_CURRENT_LIST_DIR}/fonts/*.c")
-    set(ui_source "dsr_ui.c" "dsr_ui_keyboard.c" "dsr_ui_network.c" "dsr_ui_wifi.c" "dsr_ui_lan.c" "dsr_ui_ble.c" "dsr_ui_mobile.c" "dsr_ui_style.c" "dsr_ui_icons.c" "dsr_ui_config.c" "dsr_ui_preview.c" ${ui_fonts})
+    set(ui_source "dsr_ui.c" "dsr_ui_battery.c" "dsr_ui_keyboard.c" "dsr_ui_network.c" "dsr_ui_wifi.c" "dsr_ui_lan.c" "dsr_ui_ble.c" "dsr_ui_mobile.c" "dsr_ui_style.c" "dsr_ui_icons.c" "dsr_ui_config.c" "dsr_ui_preview.c" ${ui_fonts})
 endif()
 if(IDF_TARGET STREQUAL "esp32s3")
     idf_component_register(SRCS ${ui_source} INCLUDE_DIRS "include"

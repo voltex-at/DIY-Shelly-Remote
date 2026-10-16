@@ -1,11 +1,19 @@
-# Matryca funkcji — 0.7.7, rewizja 8
+# Matryca funkcji — 0.7.8, rewizja 9
+
+Etap niezależny #6/#25: [napięcie BAT na żądanie](BATTERY_VOLTAGE_PL.md).
+
+| Zasilanie pilota | Stan | Bramka |
+| --- | --- | --- |
+| GPIO8 / kalibracja / napięcie / wiek | Implementacja + testy hostowe | Exact-source CI i pomiar multimetrem |
+| Procent / niski poziom / czas pracy / monitoring | Otwarte | Typ ogniwa, kalibracja i istniejący backlog |
+| Obecność ogniwa / USB / ładowanie | Nieznane | Wiarygodny sygnał sprzętowy |
 
 **Aktualny P0:** czysta 0.7.6 jest **FAIL** według nowych fizycznych dowodów
 w PR #33: 313/992 nagłówków formatu, brak workspace, działający callback ołówka
 i diagnostyka. 0.7.7 zmienia inicjalizację pustej partycji na jeden format po
 pełnym blank-check, współdzielenie CPU z idle i logi etapów/czasu/wyniku.
 Test oryginalnego IDF wymaga dokładnie 992 erase i zachowania prefiksu 313.
-CI nowej poprawki i fizyczny pierwszy boot do odbioru; wcześniejsze zielone CI
+CI poprawki 81e734d: 5/5, [run 38835176199](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38835176199). Fizyczny pierwszy boot do odbioru; zielone CI
 nie jest physical pass. [Aktualne dowody i blokady](PR33_ACCEPTANCE.md).
 
 **Historyczny test 0.7.6:** właściciel zaakceptował jednorazowe pełne erase swojej płytki

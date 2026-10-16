@@ -87,9 +87,10 @@ static void screenshot(const char *name)
 {
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
-    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,8,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
+    unsigned badge_y=strtoul(name,NULL,10)>=130?80:8;
+    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
-    if(badge){unsigned at=(20*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
+    if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
     char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);
     FILE *f=fopen(path,"wb");CHECK(f!=NULL);fprintf(f,"P6\n320 480\n255\n");
     CHECK(fwrite(canvas,1,sizeof(canvas),f)==sizeof(canvas));fclose(f);screenshots++;if(badge)lv_obj_delete(badge);
@@ -124,6 +125,44 @@ static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *sk
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
 {response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();}
+static void battery_regression(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ wifi.connected=false;tick();CHECK(!in_flight);test_workspace_disable();
+ dsr_ui_open_settings();click("Bateria i zasilanie");CHECK(find_label(lv_screen_active(),"Pomiar na żądanie"));
+ CHECK(find_label(lv_screen_active(),"Ładowanie i obecność akumulatora: brak wiarygodnych danych."));
+ CHECK(find_label(lv_screen_active(),"?"));screenshot("130-battery-unknown");
+ next_submit_result=DSR_BUSY;click("Zmierz napięcie");tick();
+ CHECK(!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+ unsigned before=requests;click("Zmierz napięcie");CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ&&requests==before+1);
+ CHECK(!submitted.connection.device.host[0]&&!submitted.connection.credentials.password[0]);
+ CHECK(find_label(lv_screen_active(),"Odczyt napięcia…"));screenshot("131-battery-reading");
+ lv_obj_t *button=lv_obj_get_parent(find_label(lv_screen_active(),"Zmierz napięcie"));CHECK(lv_obj_has_state(button,LV_STATE_DISABLED));
+ response.battery=(dsr_battery_sample_t){.has_raw=true,.has_voltage=true,.raw=2001,.adc_mv=2025,.bat_mv=4050};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"4.050 V")&&find_label(lv_screen_active(),"4.05V"));CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED));
+ screenshot("132-battery-voltage");
+ lv_tick_inc(30001);tick();CHECK(find_label(lv_screen_active(),"?"));CHECK(find_label(lv_screen_active(),"Pomiar nieaktualny. Zmierz ponownie."));screenshot("133-battery-stale");
+ click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){.has_raw=true,.raw=2001,.calibration_error=ESP_ERR_NOT_SUPPORTED};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Kalibracja ADC niedostępna. Napięcie nieznane."));CHECK(!find_label(lv_screen_active(),"4.050 V"));screenshot("134-battery-uncalibrated");
+ click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Pomiar niedostępny. Spróbuj ponownie."));screenshot("135-battery-adc-error");
+ /* A completion after Back must never touch deleted battery-page labels. */
+ click("Zmierz napięcie");tap(160,444);CHECK(!find_label(lv_screen_active(),"Napięcie wejścia BAT"));
+ response.battery=(dsr_battery_sample_t){.has_voltage=true,.bat_mv=4100};deliver(DSR_OK,DSR_WIFI_IDLE);
+ tap(298,22);CHECK(find_label(lv_screen_active(),"4.100 V"));
+ for(unsigned language=1;language<=2;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);dsr_ui_battery_open(NULL);
+  CHECK(find_label(lv_screen_active(),"Zmierz napięcie"));
+  screenshot(language==1?"136-battery-english":"137-battery-german");
+ }
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_ui_open_settings();dsr_ui_battery_open(NULL);lv_obj_update_layout(lv_screen_active());
+ for(unsigned n=0;n<10;n++){tap(160,444);tap(298,22);lv_obj_update_layout(lv_screen_active());}
+ lv_mem_monitor_t before_memory,after_memory;lv_mem_monitor(&before_memory);
+ for(unsigned n=0;n<40;n++){tap(160,444);tap(298,22);lv_obj_update_layout(lv_screen_active());}
+ lv_mem_monitor(&after_memory);
+ printf("Battery UI heap before=%lu after=%lu; 40 open/back cycles; on-demand host ADC fixture\n",(unsigned long)before_memory.free_size,(unsigned long)after_memory.free_size);
+ CHECK(after_memory.free_size==before_memory.free_size);
+}
 static cJSON *room_document(void)
 {char *json=dsr_workspace_snapshot();CHECK(json);cJSON *r=cJSON_Parse(json);free(json);CHECK(r);return r;}
 static void publish_document(cJSON *r)
@@ -431,7 +470,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }
