@@ -1,4 +1,12 @@
-# Matryca funkcji — 0.7.11, rewizja 12
+# Matryca funkcji — 0.7.12, rewizja 13
+
+## #24: strumień app BIN — backend bez Flash
+
+[Kontrakt i regresje](OTA_IMAGE_STREAM_PL.md). Dokładny rozmiar/SHA256,
+prefiks app/ESP32-S3/project i marker z NUL niezależnie od porcji; reset
+i fail-closed. Lokalny uploader pozostaje niezmieniony, integracja osobno
+po testach/review. Brak download/install/boot wyboru i brak physical pass.
+PR #38 c9dd6f7 ma CI 5/5 (38848223833) i zweryfikowany artefakt.
 
 ## #24: weryfikator manifestu, nie kompletny updater
 

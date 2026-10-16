@@ -1,5 +1,27 @@
 # Project status
 
+## 0.7.12 — bounded streamed app-BIN validation (#24), no installer
+
+Independent backend copies accepted manifest size/hash, hashes every byte,
+checks exact length, ESP32-S3/app/project headers and NUL-terminated board
+marker across every chunk boundary. Sticky failures and explicit reset; bounded
+heap context, no 4096+80 B stack probe, no network/Flash/boot selection.
+Host regression confirms old scanner skips accumulated prefix bytes and loses
+multi-chunk marker carry. The local uploader is deliberately unchanged pending
+defensive tests and independent review. This is not a physical failure report.
+Independent reviewer/coordinator found no helper blockers. Local UBSan passes
+2741363 stream checks, including a real six-MiB fixture and SIZE_MAX refusal,
+all splits/marker positions/one-byte chunks, metadata copy and reset/crypto/OOM.
+Native/config (265), UI (2237/96) and isolated review (2635/24) pass.
+Target CI, exact artifact integrity and hardware remain separate gates.
+[Contract, tests and remaining integration gates](docs/OTA_IMAGE_STREAM_PL.md).
+
+PR #38 source c9dd6f7: exact-source CI 5/5,
+[run 38848223833](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38848223833);
+downloaded artifact CRC/SHA/chip/version/source/segments/license verified.
+App SHA256 c529fee3a8bb44ab3fcb30063e8ee07922ea2727d6a9c39aac06008a7a16f67e.
+Production trust store still empty; no complete OTA or hardware acceptance.
+
 ## 0.7.11 — signed OTA manifest verifier (#24), not installer
 
 Real schema-v2 Ed25519 verification with strict bounded flat JSON, canonical

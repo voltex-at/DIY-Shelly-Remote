@@ -13,6 +13,7 @@ parser.add_argument("--ubsan-only", action="store_true", help="For restricted ru
 args = parser.parse_args()
 subprocess.run(["python3",str(ROOT/"tools/verify_crypto_vendor.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ota_image.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     temp_root = Path(tmp).resolve()
     binary = temp_root / "test_core"
