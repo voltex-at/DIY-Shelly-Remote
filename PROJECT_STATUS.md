@@ -1,5 +1,34 @@
 # Project status
 
+## 0.7.14 — bounded HTTPS manifest transport (#24), no installer
+
+Explicit repo manifest URL, one manually checked GitHub-to-release-assets hop,
+fresh TLS client/CA bundle/hostname validation, strict HTTP framing and <=2048
+raw bytes delivered to the existing Ed25519 verifier. No app download/Flash,
+slot selection/reboot, UI caller or release picker. Every error zeros output.
+Date checks are now enabled on target; unset UTC refuses before network. This
+stage establishes no trusted time/SNTP and no publisher anchor. Empty production
+trust still refuses all manifests; physical TLS/time/redirect remains untested.
+Cooperative timeout/cancel and own context bound are NOT total SDK heap/stack
+or hard DNS/TLS/header deadline claims.
+Independent reviewer fixtures pass UBSan: 350791 HOST-trust and 345251
+production-empty checks, each including 33 genuine allocation failures (own
+context + cJSON hooks). Post-crypto cancellation/deadline rejects and zeros
+output even when the verifier itself succeeded. Coordinator review: no blockers.
+Full native/config265, unchanged LVGL2237/96 and review2635/24 pass locally;
+exact-source target CI/artifact and physical network tests are separate gates.
+[Contract, source references and remaining gates](docs/OTA_FETCH_PL.md).
+
+PR #40 source 3501a67: exact-source CI 5/5
+[run 38854805117](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38854805117).
+Firmware/debug CRC/SHA/source/version/chip/segments/checksum/ELF SHA/license/
+unchanged partitions checked. App1697200 B SHA256
+08bf48f5401030ed97bbaaaa45119a297e5988a5ef020fb164330fd59e48bdaf.
+Actual receiver + original pinned Mbed TLS software SHA passes the actual BIN
+chunks1/511/512/4096, each write byte-compared in memory only. Both actual
+diagnostic BINs lack board marker; downloaded diagnostic-S3 ELF also lacks it
+in allocated sections. No physical Flash/auth/rollback or P0 acceptance claim.
+
 ## 0.7.13 — integrate streamed validation into existing dev Web upload (#24)
 
 The actual receiver uses the shared validator for every byte, retains the first

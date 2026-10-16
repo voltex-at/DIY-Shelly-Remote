@@ -1,4 +1,12 @@
-# Matryca funkcji — 0.7.13, rewizja 14
+# Matryca funkcji — 0.7.14, rewizja 15
+
+## #24: transport manifestu HTTPS — backend, nie updater
+
+[Kontrakt i bramki](OTA_FETCH_PL.md): strict URL/one CDN hop/TLS/framing/bodycap
+i istniejący verifier. Date checks włączone; unset UTC odmawia, nie dodano SNTP.
+Produkcja ma pusty publisher truststore. Brak LCD/release pickera/app download/
+Flash/instalacji. Fizyczny TLS/time/network peak i pełne OTA nadal otwarte.
+PR #40 3501a67: CI5/5/38854805117 i rzeczywisty BIN/ELF/receiver zweryfikowane.
 
 ## #24: istniejący dev Web upload — integracja strumienia
 

@@ -19,6 +19,7 @@ symbols={line.split()[-1]:line.split() for line in nm.splitlines() if len(line.s
 required=["dsr_ota_manifest_verify","dsr_ota_trusted_key","crypto_ed25519_check","crypto_eddsa_check_equation","dsr_ota_image_create","dsr_ota_image_create_dev_checksum","dsr_ota_image_update","dsr_ota_image_finish","dsr_ota_image_context_size","dsr_ota_upload_receive","dsr_ota_upload_sha256"]
 for name in required:
     assert name in symbols,name
+assert "dsr_ota_fetch_manifest" in symbols,"manifest fetch backend not retained"
 sha512=[name for name in symbols if name.startswith("crypto_sha512") or name=="sha512_compress"]
 assert sha512,"SHA512 implementation missing from target"
 for name in ["crypto_ed25519_sign","crypto_ed25519_key_pair","crypto_eddsa_sign","crypto_eddsa_key_pair"]:

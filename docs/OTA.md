@@ -11,6 +11,10 @@ the new app confirms its boot. It does not require an Internet/Shelly connection
 **The 0.7.11 backend verifies schema-v2 Ed25519 manifests; its production trust
 store is deliberately empty. The GitHub Releases downloader/installer remains
 unimplemented.** See [signed bytes, tests and remaining gates](OTA_MANIFEST_PL.md).
+0.7.14 adds a [bounded manifest HTTPS transport backend](OTA_FETCH_PL.md), not
+release discovery, UI orchestration, application download or installation.
+Target certificate date validation is enabled; unset system UTC refuses fetch.
+Trusted time setup and physical TLS validation are still open gates.
 A checksum does not authenticate the publisher. Only deliberately
 selected development images belong in this installer; it is not the signed
 release pipeline described below. No eFuses are written. Physical power-loss and
