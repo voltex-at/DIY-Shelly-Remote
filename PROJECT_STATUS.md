@@ -1,5 +1,19 @@
 # Project status
 
+## 0.7.11 — signed OTA manifest verifier (#24), not installer
+
+Real schema-v2 Ed25519 verification with strict bounded flat JSON, canonical
+signed bytes, pinned board/layout/channel/size/hash/URL policy and zero output
+on every failure. Production trust store is empty; no RFC/test anchor ships.
+Monocypher 4.0.3 bytes/license pinned and checked; no handwritten curve crypto.
+Backend only: no network, Flash or UI claim of complete OTA. Local Web upload,
+P0 SPIFFS image and partition/NVS configuration are unchanged.
+Local UBSan: RFC KAT/mutations 2315 checks; independent Python cryptography
+117-case corpus passes 1494 host-trust and 1329 production-empty checks,
+including 32 allocation failures per binary. Exact-source target CI, link
+audit and hardware timing/stack remain separate gates.
+[Contract and open updater work](docs/OTA_MANIFEST_PL.md).
+
 ## 0.7.10 — dedicated global Settings (#6, existing #24/#25 scope)
 
 Six directly reachable sections separate system preferences from the HOME
@@ -11,8 +25,9 @@ Native signed OTA, LCD restart, session revocation and export/reset remain
 explicitly unavailable, not implemented by this UI stage.
 Local LVGL: 2237 checks / 96 frames; 40 WWW/System cycles preserve heap
 (99704 → 99704 B). Existing isolated review: 2635 checks / 24 frames.
-Production permission helper: 22 checks; system snapshot: 30. Full exact-head
-target CI and hardware acceptance remain separate gates.
+Production permission helper: 22 checks; system snapshot: 30. Exact-source
+f7fb16d passed CI 5/5 [run 38843761384](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38843761384),
+artifact CRC/SHA/chip/version/source/segments verified. Hardware remains open.
 [Scope, remaining backend work and hardware gate](docs/GLOBAL_SETTINGS_PL.md).
 
 ## 0.7.9 — persistent display settings (#6/#24)

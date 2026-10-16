@@ -7,7 +7,7 @@ endif()
 idf_component_register(
     SRCS ${platform_source}
     INCLUDE_DIRS "include"
-    REQUIRES dsr_core esp_http_client json nvs_flash esp_wifi esp_event
+    REQUIRES dsr_core dsr_ota esp_http_client json nvs_flash esp_wifi esp_event
              esp_netif esp_adc esp_timer spi_flash heap freertos dsr_config esp_http_server esp_https_server app_update spiffs mbedtls espressif__mdns bt
     EMBED_TXTFILES ${panel_assets}
 )

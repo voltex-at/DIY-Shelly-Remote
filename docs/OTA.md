@@ -8,8 +8,10 @@ ESP-IDF image validation before selecting that slot. Restart is explicit. After
 five seconds of local UI operation with touch, configuration and panel readiness,
 the new app confirms its boot. It does not require an Internet/Shelly connection.
 
-**Publisher signature verification and the GitHub Releases updater are not
-implemented.** A checksum does not authenticate the publisher. Only deliberately
+**The 0.7.11 backend verifies schema-v2 Ed25519 manifests; its production trust
+store is deliberately empty. The GitHub Releases downloader/installer remains
+unimplemented.** See [signed bytes, tests and remaining gates](OTA_MANIFEST_PL.md).
+A checksum does not authenticate the publisher. Only deliberately
 selected development images belong in this installer; it is not the signed
 release pipeline described below. No eFuses are written. Physical power-loss and
 rollback validation remains pending. See [installation guide](CONFIG_WEB_PL.md).
@@ -37,7 +39,13 @@ files from the guide to retain NVS; the merged USB image fills intervening gaps.
 8. After reboot run a local health check: NVS migration, display, touch registration, UI task and worker readiness. Only then call `esp_ota_mark_app_valid_cancel_rollback()`. A temporary lack of Internet/Shelly device must not invalidate otherwise healthy firmware.
 9. With rollback enabled, a crash/reset before health confirmation restores the preceding valid image. Test this on physical hardware, including power interruption and USB recovery.
 
-The JSON schema in `docs/update-manifest.schema.json` is a proposed wire contract, not an example signed release or a functioning verifier. A signed manifest must bind the board ID to the exact image digest. Key rotation and recovery must be reviewed before stable releases. The current development version is outside the stable-only OTA policy.
+The schema-v2 wire contract in `docs/update-manifest.schema.json` now has a real
+verifier. It binds board, partition layout, version, explicitly selected channel,
+URL, size, digest and key ID. This is not a signed release or a complete updater.
+Key rotation/recovery and an owner-approved anchor must be reviewed before any
+release. The old core metadata helper remains stable-only syntax policy; the
+wrapper explicitly distinguishes stable/dev manifests and accepts only trusted
+numeric local release bases, not arbitrary build suffixes.
 
 ## Local upload status
 

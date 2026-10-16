@@ -1,18 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "DIY Shelly Remote proposed signed OTA manifest (installer not implemented)",
+  "title": "DIY Shelly Remote signed manifest v2 (verifier only; no installer)",
+  "description": "Strict ASCII flat wire profile with no JSON escapes; see OTA_MANIFEST_PL.md for canonical signed bytes.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "hardware_id", "version", "url", "size", "sha256", "key_id", "signature_algorithm", "signature"],
+  "minProperties": 11,
+  "maxProperties": 11,
+  "required": ["schema_version", "hardware_id", "partition_layout", "version", "channel", "url", "size", "sha256", "key_id", "signature_algorithm", "signature"],
   "properties": {
-    "schema_version": {"const": 1},
-    "hardware_id": {"type": "string", "pattern": "^(?!unconfigured$)[a-z0-9][a-z0-9_-]{0,63}$"},
-    "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
-    "url": {"type": "string", "pattern": "^https://[^/\\s]+/[^\\s]+$"},
-    "size": {"type": "integer", "minimum": 1},
+    "schema_version": {"const": 2},
+    "hardware_id": {"const": "lcdwiki-es3c35p-n16r8"},
+    "partition_layout": {"const": "es3c35p-16m-ota6m-dsrdata3e0000-v1"},
+    "version": {"type": "string", "maxLength": 31, "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "channel": {"enum": ["stable", "dev"]},
+    "url": {"type": "string", "maxLength": 256, "pattern": "^https://github\\.com/voltex-at/DIY-Shelly-Remote/releases/download/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "size": {"type": "integer", "minimum": 1, "maximum": 6291456},
     "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "key_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "key_id": {"type": "string", "pattern": "^[a-z0-9_-]{1,64}$"},
     "signature_algorithm": {"const": "ed25519"},
-    "signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"}
+    "signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$"}
   }
 }

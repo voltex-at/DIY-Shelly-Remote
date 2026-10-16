@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install real JSON parser for protocol fixtures
-        run: sudo apt-get update && sudo apt-get install -y libcjson-dev
+        run: sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography
       - name: Portable C tests with address and undefined behavior sanitizers
         run: |
           python3 tools/test.py --sanitize
@@ -94,6 +94,8 @@ jobs:
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p build
           idf.py -B build-board size
           python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
+          python3 tools/verify_crypto_vendor.py
+          python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -122,6 +124,8 @@ jobs:
           cp docs/STABLE_POLLING.md build-board/package/
           cp docs/BLE_PLAN.md build-board/package/
           cp docs/FEATURE_MATRIX.md docs/BATTERY_VOLTAGE_PL.md docs/DISPLAY_SETTINGS_PL.md docs/GLOBAL_SETTINGS_PL.md build-board/package/
+          cp docs/OTA_MANIFEST_PL.md build-board/OTA_VERIFIER.json build-board/package/
+          cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/
           cp docs/ROOM_EDITOR_PL.md build-board/package/

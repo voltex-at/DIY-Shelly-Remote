@@ -1,4 +1,18 @@
-# Matryca funkcji — 0.7.10, rewizja 11
+# Matryca funkcji — 0.7.11, rewizja 12
+
+## #24: weryfikator manifestu, nie kompletny updater
+
+[Kontrakt i testy](OTA_MANIFEST_PL.md). Produkcyjny truststore pusty, żadnego
+testowego klucza w firmware. Brak pobierania, instalacji i fizycznego odbioru.
+
+| Element | Stan | Dalsza bramka |
+| --- | --- | --- |
+| JSON v2 / canonical bytes / prawdziwy Ed25519 | Implementacja + 117-case niezależny korpus i RFC KAT | Exact CI / footprint / ESP32 stack |
+| Zaufany klucz wydawcy i signed Release | Brak; produkcja zawsze odmawia | Zatwierdzony autentyczny anchor / rotacja / wydanie |
+| HTTPS download / progres / install / rollback z LCD | Not implemented | Osobny backend #24 i rzeczywisty test zachowania danych |
+
+PR #37 source f7fb16d: CI 5/5, run 38843761384; firmware integrity zweryfikowana,
+brak physical pass. Statusy historycznych etapów poniżej nie zamykają #24.
 
 ## Pełne globalne Ustawienia — #6 / #24 / #25
 
