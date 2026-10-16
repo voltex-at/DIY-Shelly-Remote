@@ -10,6 +10,7 @@
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
 #include "dsr_boot.h"
+#include "dsr_config_health.h"
 #include "esp_heap_caps.h"
 static void boot_memory(const char *stage)
 {
@@ -63,7 +64,7 @@ void app_main(void)
     boot_memory("wifi_ready");
     esp_err_t workspace_error=dsr_workspace_start();
     if(workspace_error!=ESP_OK)ESP_LOGE(tag,"Configuration storage unavailable; existing data preserved: %s",esp_err_to_name(workspace_error));
-    else if(error==ESP_OK&&dsr_panel_start()!=ESP_OK)ESP_LOGE(tag,"Local Web Panel startup failed");
+    else if(error==ESP_OK){esp_err_t panel_error=dsr_panel_start();dsr_config_health_panel(panel_error);if(panel_error!=ESP_OK)ESP_LOGE(tag,"Local HTTPS startup failed: %s",esp_err_to_name(panel_error));}
     boot_memory("storage_panel_ready");
     if(dsr_lan_init()!=ESP_OK)ESP_LOGE(tag,"LAN discovery unavailable");
     if(dsr_ble_init()!=ESP_OK)ESP_LOGE(tag,"BLE scanner unavailable");

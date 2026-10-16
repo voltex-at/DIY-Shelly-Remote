@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#include "esp_heap_caps.h"
+#endif
 
 static const cJSON *item(const cJSON *o,const char *k){return cJSON_GetObjectItemCaseSensitive(o,k);}
 static int integer(const cJSON *o,const char *k){const cJSON *v=item(o,k);return cJSON_IsNumber(v)?v->valueint:0;}
@@ -53,6 +57,20 @@ static bool room_editor,room_new,room_deleted;
 static lv_obj_t *room_dialog;
 static unsigned tile_page;
 static cJSON *fields_tile;
+typedef enum {OPEN_OK,OPEN_STORAGE,OPEN_SNAPSHOT_MEMORY,OPEN_PARSE,OPEN_INVALID,OPEN_BASELINE_MEMORY,OPEN_OBJECT_MEMORY,OPEN_PANEL} open_result_t;
+static open_result_t open_error;
+static bool error_return_rooms;
+static void config_log(const char *stage,int code)
+{
+#ifdef ESP_PLATFORM
+ ESP_LOGI("dsr_config_ui","stage=%s code=%d internal_free=%u largest=%u psram_free=%u",stage,code,
+  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+  (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+#else
+ (void)stage;(void)code;
+#endif
+}
 static void clear_draft(void)
 {cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;}
 void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;body=keyboard=status_label=NULL;clear_draft();}
@@ -77,6 +95,44 @@ static lv_obj_t *screen(const char *title)
  return root;
 }
 static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_network_home(NULL);}
+static void error_back(lv_event_t *e){(void)e;dsr_ui_workspace_hide();if(error_return_rooms)dsr_network_rooms();else dsr_network_home(NULL);}
+static void config_error(open_result_t result);
+static void diagnostics(lv_event_t *event)
+{
+ (void)event;dsr_config_health_t h;dsr_config_health_snapshot(&h);
+ lv_obj_t *root=screen("Diagnostyka konfiguracji");dsr_sc_label_set_text(status_label,"Tylko odczyt • dane zachowane");
+ const char *storage=h.storage==DSR_STORAGE_READY?"SPIFFS: zamontowany":h.storage==DSR_STORAGE_NONEMPTY?"SPIFFS: niepusty, niezamontowany":h.storage==DSR_STORAGE_READ_ERROR?"SPIFFS: błąd odczytu":h.storage==DSR_STORAGE_PROVISION_ERROR?"SPIFFS: błąd inicjalizacji":"SPIFFS: niedostępny";
+ dsr_sc_text(body,storage,4,8,284,&dsr_roboto_16,DSR_SC_TEXT);
+ char codes[96];snprintf(codes,sizeof(codes),"Storage: %d / 0x%x\nWorkspace: %d / 0x%x\nHTTPS: %d / 0x%x",(int)h.storage,(unsigned)h.storage_error,(int)h.workspace,(unsigned)h.workspace_error,(int)h.panel,(unsigned)h.panel_error);dsr_sc_text(body,codes,4,50,284,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(body,h.panel==DSR_PANEL_READY?"HTTPS uruchomiony":h.panel==DSR_PANEL_FAILED?"HTTPS: błąd uruchomienia":"HTTPS nie został uruchomiony",4,123,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"USB 115200 • zachowaj kopię partycji przed naprawą.",4,156,284,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(body,"dsrdata: 0xC20000 + 0x3E0000\nNVS: 0x9000 + 0x10000",4,207,284,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(body,"Nie kasuj i nie formatuj pamięci.",4,251,284,&dsr_roboto_14,0xffc18c);
+ dsr_ui_button(root,"Wstecz",12,420,296,error_back,NULL);config_log("diagnostics",open_error);
+}
+void dsr_ui_config_diagnostics(lv_event_t *event)
+{dsr_ui_workspace_hide();error_return_rooms=false;open_error=OPEN_OK;diagnostics(event);}
+static void config_error(open_result_t result)
+{
+ clear_draft();editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;open_error=result;
+ lv_obj_t *root=screen("Konfiguracja niedostępna");dsr_sc_label_set_text(status_label,"Nie można otworzyć edytora");
+ dsr_config_health_t h;dsr_config_health_snapshot(&h);
+ const char *reason=result==OPEN_PANEL?"Serwer HTTPS jest niedostępny. Kod parowania nie został utworzony.":result==OPEN_STORAGE?(h.storage==DSR_STORAGE_NONEMPTY?"Magazyn konfiguracji niedostępny: niepusta partycja SPIFFS nie została zamontowana.":"Magazyn konfiguracji jest niedostępny."):result==OPEN_PARSE||result==OPEN_INVALID?"Nie można odczytać poprawnej konfiguracji. Sprawdź pamięć i kopię danych.":"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.";
+ dsr_sc_text(body,reason,4,16,284,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(body,"Dane nie zostały skasowane. Szczegóły są w diagnostyce i logu USB.",4,137,284,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_ui_button(root,"Wstecz",12,420,140,error_back,NULL);dsr_ui_button(root,"Diagnostyka",168,420,140,diagnostics,NULL);config_log("open_failed",result);
+}
+/* Transactional open: no expired/partial draft survives an error. */
+static open_result_t prepare_draft(void)
+{
+ char *json=NULL;dsr_snapshot_result_t result=dsr_workspace_snapshot_checked(&json);config_log("snapshot",result);
+ if(result!=DSR_SNAPSHOT_OK)return result==DSR_SNAPSHOT_NO_MEMORY?OPEN_SNAPSHOT_MEMORY:OPEN_STORAGE;
+ if(!dsr_config_json_depth(json)){free(json);return OPEN_PARSE;}
+ cJSON *next=cJSON_Parse(json);free(json);config_log("parse",next?0:OPEN_PARSE);if(!next)return OPEN_PARSE;
+ char error[96];if(!dsr_config_validate(next,error)){cJSON_Delete(next);return OPEN_INVALID;}
+ cJSON *baseline=cJSON_Duplicate(next,true);config_log("baseline",baseline?0:OPEN_BASELINE_MEMORY);if(!baseline){cJSON_Delete(next);return OPEN_BASELINE_MEMORY;}
+ clear_draft();draft=next;saved_baseline=baseline;draft_revision=(uint32_t)integer(draft,"revision");return OPEN_OK;
+}
 static void save(lv_event_t *event)
 {
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
@@ -323,7 +379,7 @@ static void appearance(lv_event_t *event)
 {(void)event;editing=draft;lv_obj_t *root=screen("Wygląd i język");add_choice("Język: Polski / English / Deutsch",&language_choice,0);add_choice("Motyw",&theme_choice,80);dsr_sc_text(body,"Kolor akcentu",2,160,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *color=lv_dropdown_create(body);lv_obj_set_pos(color,0,181);lv_obj_set_size(color,284,44);lv_dropdown_set_options(color,dsr_sc_tr("Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu"));unsigned chosen=4;for(unsigned i=0;i<4;i++)if((uint32_t)integer(draft,"accent")==colors[i])chosen=i;lv_dropdown_set_selected(color,chosen);lv_obj_add_event_cb(color,color_selected,LV_EVENT_VALUE_CHANGED,NULL);object_choice("Pulpit startowy","active_dashboard",240);actions(root,menu_event);}
 static void pair_browser(lv_event_t *event)
 {
- (void)event;char code[17];dsr_panel_pair_begin(code);lv_obj_t *root=screen("Parowanie Web Panelu");
+ (void)event;if(!dsr_panel_ready()){config_error(OPEN_PANEL);return;}char code[17]={0};dsr_panel_pair_begin(code);if(!code[0]){config_error(OPEN_PANEL);return;}lv_obj_t *root=screen("Parowanie Web Panelu");
  dsr_sc_text(body,"https://shelly-remote.local",0,4,284,&dsr_roboto_16,DSR_SC_BLUE);dsr_sc_text(body,"Jednorazowy kod • ważny 2 minuty",0,43,284,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_text(body,code[0]?code:"Panel niedostępny",0,83,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",0,128,284,&dsr_roboto_14,DSR_SC_MUTED);
  char digest[80];const char *fp=dsr_tls_fingerprint();snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp,strlen(fp)>32?fp+32:"");dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",0,200,284,&dsr_roboto_11,DSR_SC_MUTED);dsr_sc_text(body,digest,0,223,284,&dsr_roboto_11,DSR_SC_TEXT);actions(root,menu_event);
 }
@@ -337,27 +393,26 @@ static void show_menu(void)
 }
 void dsr_ui_edit_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();room_editor=room_new=room_deleted=false;room_dialog=NULL;draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;dashboard_picker=false;tile_page=0;show_menu();
+ error_return_rooms=false;config_log("edit_dashboard",0);open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ room_editor=room_new=room_deleted=false;room_dialog=NULL;editor_active=true;dashboard_picker=false;tile_page=0;config_log("show_menu",0);show_menu();
 }
 static bool room_begin(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return false;
- cJSON *next=cJSON_Parse(json);free(json);if(!next)return false;
- cJSON *baseline=cJSON_Duplicate(next,true);if(!baseline){cJSON_Delete(next);return false;}
- clear_draft();draft=next;saved_baseline=baseline;draft_revision=(uint32_t)integer(draft,"revision");
+ error_return_rooms=true;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return false;}
  editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=false;room_dialog=NULL;
  snprintf(collection_name,sizeof(collection_name),"rooms");return true;
 }
 void dsr_ui_add_room(void)
 {
- if(!room_begin())return;
+ config_log("add_room",0);if(!room_begin())return;
  const cJSON *rooms=item(draft,"rooms");
  if(cJSON_GetArraySize(rooms)>=DSR_UI_MAX_ROOMS){
   lv_obj_t *root=screen("Pomieszczenia");dsr_sc_text(body,"Limit: 8 pomieszczeń. Edytuj lub usuń istniejący pokój.",4,32,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,room_leave,NULL);return;
  }
  int id=1;while(object_index(rooms,id)!=255)id++;
- cJSON *room=cJSON_CreateObject();if(!room){room_leave(NULL);return;}
- cJSON_AddNumberToObject(room,"id",id);cJSON_AddStringToObject(room,"name","");cJSON_AddNumberToObject(room,"icon",0);cJSON_AddStringToObject(room,"photo","");cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(draft,"rooms"),room);
+ cJSON *room=cJSON_CreateObject();if(!room){config_error(OPEN_OBJECT_MEMORY);return;}
+ if(!cJSON_AddNumberToObject(room,"id",id)||!cJSON_AddStringToObject(room,"name","")||!cJSON_AddNumberToObject(room,"icon",0)||!cJSON_AddStringToObject(room,"photo","")){cJSON_Delete(room);config_error(OPEN_OBJECT_MEMORY);return;}
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(draft,"rooms"),room);
  room_new=true;editing=room;show_room_form();
 }
 void dsr_ui_edit_room(uint32_t id)
@@ -378,7 +433,7 @@ static void pick_dashboard(lv_event_t *event)
 {cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),(unsigned)(uintptr_t)lv_event_get_user_data(event));save(NULL);}
 void dsr_ui_select_dashboard(void)
 {
- char *json=dsr_workspace_snapshot();if(!json)return;clear_draft();draft=cJSON_Parse(json);free(json);if(!draft)return;saved_baseline=cJSON_Duplicate(draft,true);
+ error_return_rooms=false;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
  draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=false;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}

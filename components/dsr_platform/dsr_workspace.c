@@ -20,6 +20,7 @@ static uint32_t bind_room=UINT32_MAX;
 static dsr_result_t bind_result_code=DSR_OK;
 static char bind_message[64];
 typedef struct {char *json;uint32_t revision;} request_t;
+static bool workspace_ready(void){dsr_config_health_t h;dsr_config_health_snapshot(&h);return h.workspace==DSR_WORKSPACE_READY&&mutex&&queue&&current;}
 static void config_task(void *argument)
 {
  (void)argument;request_t request;
@@ -37,10 +38,12 @@ static void config_task(void *argument)
 esp_err_t dsr_workspace_start(void)
 {
  if(mutex)return ESP_ERR_INVALID_STATE;
- esp_err_t err=dsr_storage_mount();if(err!=ESP_OK)return err;
+ dsr_config_health_workspace(DSR_WORKSPACE_MOUNTING,ESP_OK);
+ esp_err_t err=dsr_storage_mount();if(err!=ESP_OK){dsr_config_health_workspace(DSR_WORKSPACE_MOUNTING,err);return err;}
+ dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_OK);
  bool found=false;char error[96]={0};current=dsr_config_store_load("/dsr",&found,error);
- if(!found){if(error[0])return ESP_FAIL;current=dsr_config_default();if(!current)return ESP_ERR_NO_MEM;
-  if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;return ESP_FAIL;}}
+ if(!found){if(error[0]){dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_FAIL);return ESP_FAIL;}dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_OK);current=dsr_config_default();if(!current){dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+  if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_FAIL);return ESP_FAIL;}}
  /* Refresh the older checkpoint with the already verified boot document.
   * Power loss retains the newest record. Readback must succeed before GC.
   * This also retires old photo references without requiring a second edit. */
@@ -48,21 +51,28 @@ esp_err_t dsr_workspace_start(void)
  /* Boot-time GC precedes cache/LVGL construction; immutable live pointers are
   * never freed. Any remaining corrupt checkpoint conservatively skips GC. */
  unsigned removed=0;dsr_config_store_collect_photos("/dsr",&removed,error);
+ dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_OK);
  dsr_photos_load();revision=dsr_config_revision(current);mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(request_t));
- if(!mutex||!queue)return ESP_ERR_NO_MEM;
- return xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)==pdPASS?ESP_OK:ESP_ERR_NO_MEM;
+ if(!mutex||!queue){dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+ dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_OK);
+ if(xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)!=pdPASS){dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+ dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);return ESP_OK;
 }
-char *dsr_workspace_snapshot(void)
+dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out)
 {
- if(!mutex)return NULL;
- xSemaphoreTake(mutex,portMAX_DELAY);
- char *copy=malloc(strlen(current)+1);if(copy)strcpy(copy,current);xSemaphoreGive(mutex);return copy;
+ if(!out)return DSR_SNAPSHOT_UNAVAILABLE;
+ *out=NULL;dsr_config_health_t health;dsr_config_health_snapshot(&health);
+ if(health.workspace!=DSR_WORKSPACE_READY||!mutex||!current)return DSR_SNAPSHOT_UNAVAILABLE;
+ xSemaphoreTake(mutex,portMAX_DELAY);char *copy=malloc(strlen(current)+1);if(copy)strcpy(copy,current);xSemaphoreGive(mutex);
+ if(!copy)return DSR_SNAPSHOT_NO_MEMORY;
+ *out=copy;return DSR_SNAPSHOT_OK;
 }
+char *dsr_workspace_snapshot(void){char *copy=NULL;(void)dsr_workspace_snapshot_checked(&copy);return copy;}
 uint32_t dsr_workspace_revision(void)
-{if(!mutex)return 0;xSemaphoreTake(mutex,portMAX_DELAY);uint32_t r=revision;xSemaphoreGive(mutex);return r;}
+{if(!workspace_ready())return 0;xSemaphoreTake(mutex,portMAX_DELAY);uint32_t r=revision;xSemaphoreGive(mutex);return r;}
 bool dsr_workspace_submit(const char *json,uint32_t expected)
 {
- if(!mutex||!json||strlen(json)>DSR_CONFIG_MAX_JSON)return false;
+ if(!workspace_ready()||!json||strlen(json)>DSR_CONFIG_MAX_JSON)return false;
  char *copy=malloc(strlen(json)+1);if(!copy)return false;strcpy(copy,json);
  xSemaphoreTake(mutex,portMAX_DELAY);
  bool ok=!busy&&revision==expected;
@@ -70,17 +80,17 @@ bool dsr_workspace_submit(const char *json,uint32_t expected)
  xSemaphoreGive(mutex);if(!ok)free(copy);return ok;
 }
 void dsr_workspace_status(bool *pending,char message[96])
-{if(!mutex){*pending=false;snprintf(message,96,"Configuration storage unavailable");return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=busy;snprintf(message,96,"%s",status);xSemaphoreGive(mutex);}
+{if(!workspace_ready()){*pending=false;snprintf(message,96,"Configuration storage unavailable");return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=busy;snprintf(message,96,"%s",status);xSemaphoreGive(mutex);}
 bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t room)
 {
- if(!mutex||!dsr_connection_valid(connection,false))return false;
+ if(!workspace_ready()||!dsr_connection_valid(connection,false))return false;
  xSemaphoreTake(mutex,portMAX_DELAY);
  bool ok=!bind_busy;if(ok){bind_request=*connection;bind_room=room;bind_result_code=DSR_BUSY;bind_waiting=bind_busy=true;snprintf(bind_message,sizeof(bind_message),"Checking Shelly identity…");}xSemaphoreGive(mutex);return ok;
 }
 bool dsr_workspace_bind(const dsr_connection_t *connection){return dsr_workspace_bind_with_room(connection,UINT32_MAX);}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *room)
 {
- if(!mutex)return false;
+ if(!workspace_ready())return false;
  xSemaphoreTake(mutex,portMAX_DELAY);bool found=bind_waiting;
  if(found){*connection=bind_request;if(room)*room=bind_room;bind_room=UINT32_MAX;memset(&bind_request,0,sizeof(bind_request));bind_waiting=false;}xSemaphoreGive(mutex);return found;
 }

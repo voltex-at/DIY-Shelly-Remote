@@ -48,7 +48,12 @@ static void navigate(lv_event_t *e)
     unsigned target=(unsigned)(uintptr_t)lv_event_get_user_data(e);
     if(target==10){if(actions.open_settings)actions.open_settings();return;}
     if(target==11){if(actions.add_device)actions.add_device();return;}
-    if(target==12){if(actions.edit_dashboard)actions.edit_dashboard();return;}
+    if(target==12){
+#ifdef ESP_PLATFORM
+        ESP_LOGI("dsr_config_ui","stage=pencil_click callback=%u",(unsigned)(actions.edit_dashboard!=NULL));
+#endif
+        if(actions.edit_dashboard)actions.edit_dashboard();
+        return;}
     if(target==13){if(actions.select_dashboard)actions.select_dashboard();return;}
     if(target==98){dsr_mobile_show(page==DSR_MOBILE_DETAILS?previous_page:DSR_MOBILE_ROOMS,
         page==DSR_MOBILE_DETAILS?previous_selected:0);return;}
@@ -56,7 +61,11 @@ static void navigate(lv_event_t *e)
 }
 static void open_device(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_DETAILS,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
 static void open_room(lv_event_t *e){dsr_mobile_show(DSR_MOBILE_ROOM,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
-static void add_room(lv_event_t *e){(void)e;if(!model.demo&&actions.add_room)actions.add_room();}
+static void add_room(lv_event_t *e){
+#ifdef ESP_PLATFORM
+ ESP_LOGI("dsr_config_ui","stage=add_room_click event=%u demo=%u callback=%u",(unsigned)(e?lv_event_get_code(e):0),(unsigned)model.demo,(unsigned)(actions.add_room!=NULL));
+#endif
+ (void)e;if(!model.demo&&actions.add_room)actions.add_room();}
 static void edit_room(lv_event_t *e)
 {uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(e);if(!model.demo&&id&&actions.edit_room)actions.edit_room(id);}
 static void refresh(lv_event_t *event){(void)event;if(actions.refresh)actions.refresh();}

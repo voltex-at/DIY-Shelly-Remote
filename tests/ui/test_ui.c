@@ -21,6 +21,8 @@ void test_workspace_disable(void);
 void test_workspace_defer(bool enabled);
 void test_workspace_finish(bool success);
 void test_workspace_photos(bool enabled);
+void test_workspace_fault(unsigned fault);
+void test_panel_ready(bool ready);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
@@ -133,6 +135,41 @@ static void room_delete_button(void)
  lv_obj_t *label=find_label(lv_screen_active(),"Usuń pomieszczenie");CHECK(label);
  lv_obj_t *button=lv_obj_get_parent(label);lv_obj_scroll_to_view(button,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());
  lv_area_t a;lv_obj_get_coords(button,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=118&&a.y2<420);CHECK(lv_obj_get_height(button)>=44);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
+}
+static unsigned json_allocations,json_fail_at;
+static void *json_alloc(size_t size){json_allocations++;return json_fail_at&&json_allocations==json_fail_at?NULL:malloc(size);}
+static void storage_error_regression(void)
+{
+ test_workspace_disable();test_workspace_enable();wifi.connected=false;tick();
+ dsr_config_health_storage(DSR_STORAGE_NONEMPTY,ESP_FAIL);dsr_config_health_workspace(DSR_WORKSPACE_MOUNTING,ESP_FAIL);
+ unsigned before=requests;
+ for(unsigned fault=1;fault<=4;fault++)for(unsigned surface=0;surface<3;surface++){
+  test_workspace_fault(0);dsr_network_rooms();test_workspace_fault(fault);
+  tap(surface==2?280:160,surface==0?116:surface==1?380:450);
+  CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));CHECK(find_label(lv_screen_active(),"Nie można otworzyć edytora"));CHECK(!find_label(lv_screen_active(),"Zapisz"));
+  if(fault==1&&surface==0){screenshot("120-storage-unavailable-room");click("Diagnostyka");CHECK(find_label(lv_screen_active(),"SPIFFS: niepusty, niezamontowany"));CHECK(find_label(lv_screen_active(),"Nie kasuj i nie formatuj pamięci."));screenshot("121-storage-read-only-diagnostics");}
+  test_workspace_fault(0);click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ }
+ for(unsigned fault=1;fault<=4;fault++){
+  dsr_network_home(NULL);test_workspace_fault(fault);tap(224,116);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));if(fault==1)screenshot("122-storage-pencil-error");test_workspace_fault(0);click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+ }
+ /* Actual cJSON allocator failures: parse, duplicate, new object and field. */
+ cJSON_Hooks hooks={.malloc_fn=json_alloc,.free_fn=free};char *json=dsr_workspace_snapshot();CHECK(json);cJSON_InitHooks(&hooks);json_fail_at=json_allocations=0;cJSON *parsed=cJSON_Parse(json);CHECK(parsed);unsigned parse_count=json_allocations;json_allocations=0;cJSON *duplicate=cJSON_Duplicate(parsed,true);CHECK(duplicate);unsigned duplicate_count=json_allocations;cJSON_Delete(parsed);cJSON_Delete(duplicate);cJSON_InitHooks(NULL);free(json);
+ unsigned faults[]={1,parse_count+1,parse_count+duplicate_count+1,parse_count+duplicate_count+2};
+ for(unsigned i=0;i<4;i++){
+  dsr_network_rooms();json_allocations=0;json_fail_at=faults[i];cJSON_InitHooks(&hooks);tap(160,116);cJSON_InitHooks(NULL);json_fail_at=0;
+  CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));CHECK(!find_label(lv_screen_active(),"Zapisz"));if(i==1)screenshot("123-storage-baseline-memory-error");click("Wstecz");
+ }
+ /* All three real pointer targets still open the form with healthy storage. */
+ dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
+ for(unsigned surface=0;surface<3;surface++){dsr_network_rooms();tap(surface==2?280:160,surface==0?116:surface==1?380:450);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));click("Wstecz");}
+ dsr_network_home(NULL);tap(224,116);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));test_panel_ready(false);click("Web Panel • parowanie");CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");click("Diagnostyka");CHECK(find_label(lv_screen_active(),"HTTPS: błąd uruchomienia"));test_panel_ready(true);click("Wstecz");
+ dsr_ui_edit_dashboard();click("Web Panel • parowanie");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");click("Wstecz");CHECK(requests==before);test_workspace_disable();
+ test_workspace_enable();
+ for(unsigned language=1;language<3;language++){
+  cJSON *r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);dsr_network_rooms();test_workspace_fault(1);tap(160,116);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));screenshot(language==1?"125-storage-error-english":"127-storage-error-german");click("Diagnostyka");CHECK(find_label(lv_screen_active(),"Nie kasuj i nie formatuj pamięci."));screenshot(language==1?"126-storage-diagnostics-english":"128-storage-diagnostics-german");test_workspace_fault(0);click("Wstecz");
+ }
+ test_workspace_disable();dsr_sc_appearance(DSR_SC_BLUE,false,0);
 }
 static void rooms_regression(void)
 {
@@ -394,7 +431,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();rooms_regression();test_workspace_disable();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

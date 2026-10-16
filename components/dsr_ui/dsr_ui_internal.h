@@ -28,6 +28,7 @@ void dsr_network_rooms(void);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_edit_dashboard(void);
+void dsr_ui_config_diagnostics(lv_event_t *event);
 void dsr_ui_edit_device(uint32_t id);
 void dsr_ui_add_room(void);
 void dsr_ui_edit_room(uint32_t id);

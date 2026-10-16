@@ -164,7 +164,8 @@ static void settings(lv_event_t *event)
     lv_obj_add_event_cb(slider, change_brightness, LV_EVENT_VALUE_CHANGED, NULL);
     dsr_ui_button(root, "Screen off / touch to wake", 16, 204, 288, sleep_display, NULL);
     dsr_ui_button(root, "Firmware Update", 16, 270, 288, firmware, NULL);
-    dsr_ui_label(root, "Ekran gaśnie po 60 sekundach.\nJasność jest ustawieniem tymczasowym.", 16, 346, 288);
+    dsr_ui_button(root, "Diagnostyka konfiguracji", 16, 326, 288, dsr_ui_config_diagnostics, NULL);
+    dsr_ui_label(root, "Ekran gaśnie po 60 sekundach.\nJasność jest ustawieniem tymczasowym.", 16, 384, 288);
 }
 
 void dsr_ui_open_settings(void) { menu(NULL); }

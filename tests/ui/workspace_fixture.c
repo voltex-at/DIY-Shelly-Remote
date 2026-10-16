@@ -9,11 +9,22 @@
 static char *stored;
 static char *pending;
 static bool defer_save;
+static unsigned snapshot_fault;
+static bool https_ready=true;
+void test_workspace_fault(unsigned fault){snapshot_fault=fault;}
+void test_panel_ready(bool ready){https_ready=ready;dsr_config_health_panel(ready?ESP_OK:ESP_FAIL);}
+bool dsr_panel_ready(void){return https_ready;}
 void test_workspace_defer(bool enabled){defer_save=enabled;}
 void test_workspace_finish(bool success){if(success){free(stored);stored=pending;}else free(pending);pending=NULL;}
 void test_workspace_enable(void){stored=dsr_config_default();}
 void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;defer_save=false;}
 char *dsr_workspace_snapshot(void){if(!stored)return NULL;char *copy=malloc(strlen(stored)+1);if(copy)strcpy(copy,stored);return copy;}
+dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out)
+{
+ *out=NULL;if(snapshot_fault==1)return DSR_SNAPSHOT_UNAVAILABLE;if(snapshot_fault==2)return DSR_SNAPSHOT_NO_MEMORY;
+ if(snapshot_fault==3||snapshot_fault==4){const char *bad=snapshot_fault==3?"{broken":"{}";*out=malloc(strlen(bad)+1);if(*out)strcpy(*out,bad);return *out?DSR_SNAPSHOT_OK:DSR_SNAPSHOT_NO_MEMORY;}
+ *out=dsr_workspace_snapshot();return *out?DSR_SNAPSHOT_OK:stored?DSR_SNAPSHOT_NO_MEMORY:DSR_SNAPSHOT_UNAVAILABLE;
+}
 uint32_t dsr_workspace_revision(void){return stored?dsr_config_revision(stored):0;}
 bool dsr_workspace_submit(const char *json,uint32_t revision)
 {if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;}return true;}

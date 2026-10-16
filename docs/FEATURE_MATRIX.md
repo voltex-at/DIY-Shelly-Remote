@@ -1,4 +1,13 @@
-# Matryca funkcji — 0.7.4, rewizja 4
+# Matryca funkcji — 0.7.6, rewizja 6
+
+**Blokada fizyczna #28:** instalacja 0.7.4 nie montuje niepustego dsrdata
+(log SPIFFS_ERR_NOT_A_FS), więc edytory i HTTPS nie działają. 0.7.4 nie
+przeszła odbioru. 0.7.6 w tym samym PR #33 dodaje widoczne błędy, diagnostykę,
+blokadę API niegotowego workspace oraz narzędzie kopii/analizy bez zapisu.
+[Procedura](STORAGE_RECOVERY_PL.md). Faktyczny odzysk danych i test sprzętowy
+pozostają otwarte; nowy firmware nie formatuje nieznanej niepustej partycji.
+Zależne #20/#29 pozostają zablokowane. Dotychczasowe statusy CI poniżej
+dotyczą testów automatycznych, nie potwierdzenia działania tej płytki.
 
 0.7.4 dodaje kontekstowe Dodaj/Edytuj/Usuń pomieszczenie (#28), z istniejącym
 modelem, asynchronicznym potwierdzeniem zapisu, CAS i ochroną zależności.

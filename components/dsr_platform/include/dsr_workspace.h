@@ -4,12 +4,15 @@
 #include "esp_err.h"
 #include "dsr_platform.h"
 #include "dsr_boot.h"
+#include "dsr_config_health.h"
 #define DSR_PHOTO_WIDTH 320
 #define DSR_PHOTO_HEIGHT 180
 #define DSR_PHOTO_BYTES (DSR_PHOTO_WIDTH*DSR_PHOTO_HEIGHT*2)
 /* These APIs never call LVGL. All flash work belongs to dsr_config task. */
 esp_err_t dsr_workspace_start(void);
 char *dsr_workspace_snapshot(void); /* malloc; caller frees */
+typedef enum {DSR_SNAPSHOT_OK,DSR_SNAPSHOT_UNAVAILABLE,DSR_SNAPSHOT_NO_MEMORY} dsr_snapshot_result_t;
+dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out);
 uint32_t dsr_workspace_revision(void);
 /* Nonblocking. Configuration stays unchanged until durable write succeeds. */
 bool dsr_workspace_submit(const char *json,uint32_t revision);

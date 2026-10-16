@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "esp_partition.h"
 #include "esp_spiffs.h"
+#include "dsr_config_health.h"
 #include <setjmp.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -87,21 +88,26 @@ int main(void)
     CHECK(held == 2 && delay_calls == 3); /* A latched failure closes the gate. */
     reset_storage(); mount_error=ESP_OK;
     CHECK(dsr_storage_mount() == ESP_OK && mount_calls == 1 && !format_calls && !read_calls);
+    dsr_config_health_t health;dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_READY&&health.storage_error==ESP_OK);
     reset_storage(); mount_error=ESP_ERR_NO_MEM;
     CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && !read_calls && !format_calls);
+    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_MOUNT_ERROR&&health.storage_error==ESP_ERR_NO_MEM);
     reset_storage(); mount_error=ESP_ERR_INVALID_STATE;
     CHECK(dsr_storage_mount() == ESP_ERR_INVALID_STATE && !read_calls && !format_calls);
     reset_storage(); missing=true;
     CHECK(dsr_storage_mount() == ESP_FAIL && !format_calls);
     reset_storage(); read_error=ESP_ERR_INVALID_SIZE;
     CHECK(dsr_storage_mount() == ESP_ERR_INVALID_SIZE && !format_calls);
+    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_READ_ERROR&&health.storage_error==ESP_ERR_INVALID_SIZE);
     reset_storage(); nonempty=true;
     CHECK(dsr_storage_mount() == ESP_FAIL && !format_calls && mount_calls == 1);
+    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_NONEMPTY&&health.storage_error==ESP_FAIL);
     reset_storage();
     CHECK(dsr_storage_mount() == ESP_OK && format_calls == 1 && mount_calls == 2);
     CHECK(read_bytes == 0x3e0000);
     reset_storage(); format_error=ESP_ERR_NO_MEM;
     CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && format_calls == 1 && mount_calls == 1);
+    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_PROVISION_ERROR&&health.storage_error==ESP_ERR_NO_MEM);
     reset_storage(); second_mount_error=ESP_ERR_NO_MEM;
     CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && format_calls == 1 && mount_calls == 2);
     reset_storage(); partition.size=1027;

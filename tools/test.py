@@ -70,8 +70,10 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     "-I", str(ROOT / "tests/boot"), "-I", str(ROOT / "tests/support"),
                     "-I", str(ROOT / "components/dsr_board"),
                     "-I", str(ROOT / "components/dsr_platform"),
+                    "-I", str(ROOT / "components/dsr_platform/include"),
                     str(ROOT / "components/dsr_board/dsr_ui_task.c"),
                     str(ROOT / "components/dsr_platform/dsr_storage.c"),
+                    str(ROOT / "components/dsr_platform/dsr_config_health.c"),
                     str(ROOT / "tests/test_boot_memory.c"), "-o", str(boot_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(boot_binary)], check=True, cwd=temp_root, env=test_env)
@@ -83,6 +85,15 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     "-I", str(ROOT / "components/dsr_core/include"),
                     "-I", str(ROOT / "components/dsr_platform/include"),
                     str(ROOT / "main/app_main.c"), str(ROOT / "components/dsr_platform/dsr_boot.c"),
+                    str(ROOT / "components/dsr_platform/dsr_config_health.c"),
                     str(ROOT / "tests/test_startup.c"), "-o", str(startup_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(startup_binary)], check=True, cwd=temp_root, env=test_env)
+    workspace_binary=temp_root / "test_workspace_start"
+    subprocess.run([os.environ.get("CC","cc"),*flags,
+                    *[item for directory in ["tests/actor","tests/support","components/dsr_core/include","components/dsr_platform/include","components/dsr_config/include",str(json_include)] for item in ["-I",str(ROOT / directory) if not Path(directory).is_absolute() else directory]],
+                    *[str(ROOT / source) for source in ["components/dsr_platform/dsr_workspace.c","components/dsr_platform/dsr_config_health.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","tests/test_workspace_start.c"]],
+                    "-Wl,--wrap=malloc","-l:libcjson.so.1","-lm","-o",str(workspace_binary)],check=True,cwd=temp_root,env=test_env)
+    for scenario in range(7):
+        subprocess.run([str(workspace_binary),str(scenario)],check=True,cwd=temp_root,env=test_env)
+    subprocess.run(["python3",str(ROOT / "tests/test_storage_recovery.py")],check=True,cwd=temp_root,env=test_env)

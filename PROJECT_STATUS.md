@@ -1,5 +1,45 @@
 # Project status
 
+## 0.7.6 — storage blocker diagnostics and read-only recovery (#28 / PR #33)
+
+The owner's physical 0.7.4 log confirms nonempty, unmountable dsrdata with
+SPIFFS_ERR_NOT_A_FS (-10025). Workspace never starts; silent editor returns
+made Home pencil and all Add room actions appear dead, and HTTPS was skipped.
+0.7.4 **failed physical acceptance**. The raw partition cause/content is still
+unknown. The boot log does not establish the exact source commit.
+
+This correction stays in existing Draft PR #33. Failed snapshot, parse,
+validation, baseline/object allocation now show a translated error with Back
+and read-only diagnostics. Workspace APIs fail closed until config task
+startup succeeds, including partial mutex/queue/task failure. No stale draft
+survives a failed open. Boot storage/workspace/HTTPS codes remain accessible
+without Flash; USB logs click/callback/snapshot/parse/baseline and memory counts,
+never JSON/SSID/credentials. Pairing requires a ready HTTPS server; no false PIN.
+No driver, LCD memory, single-Shelly transport, security or partition changes.
+
+A read-only USB helper backs up the partition table, private NVS and dsrdata
+with duplicate reads, profile/MD5 validation and SHA-256. Offline analysis can
+extract complete indexed SPIFFS file candidates and verify DSR checkpoint CRC.
+It does not mount/repair/write Flash, guess that unknown data is worthless,
+or authorize erasure. No owner dump was available here. Actual recovery and
+the physical Add/Save/restart/HTTPS acceptance remain blocked on private backup
+analysis and, only if needed later, explicit approval of a concrete operation.
+[Backup, diagnostic and hardware procedure](docs/STORAGE_RECOVERY_PL.md).
+
+Local UBSan: 1627 integrated LVGL checks / 73 frames, including EN/DE diagnostic
+captures, 2635 review / 24 frames, core 94/platform 847/Wi-Fi 222/
+BLE 2138/config 265/boot-storage 15948/startup 163. Seven actual workspace
+startup scenarios cover unavailable Flash, bad checkpoints, read-only save,
+mutex/queue/task OOM and snapshot OOM; eight offline tests cover backup,
+geometry/length magic, complete/long indexes, torn/ambiguous pages and CRC.
+Exact-source target/sanitizer/browser CI and real LVGL diagnostics 320×480
+are required; no physical pass or main merge is claimed.
+
+The in-progress #20 implementation is preserved separately on the local
+multi-device branch (registry, multi-peer queue, durable binding transaction
+and native regression). It is not shipped by this repair, not accepted on hardware and
+does not bypass the dependency blocker. PR #34 remains blocked by storage too.
+
 ## 0.7.4 — contextual room editor (Issue #28)
 
 Branch `work/rooms-context-editor`, stacked on draft PR #31. Rooms now has a

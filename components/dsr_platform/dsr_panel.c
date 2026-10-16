@@ -45,7 +45,7 @@ static void random_hex(char *out,size_t bytes)
 static bool equal(const void *a,const void *b,size_t n)
 {const uint8_t *x=a,*y=b;unsigned d=0;while(n--)d|=*x++^*y++;return d==0;}
 void dsr_panel_pair_begin(char code[17])
-{if(!dsr_boot_ready()||!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
+{if(!dsr_boot_ready()||!panel_ready||!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
 void dsr_panel_allow_ota(void)
 {if(dsr_boot_ready()&&lock&&xSemaphoreTake(lock,0)==pdTRUE){ota_until=esp_timer_get_time()+120000000;xSemaphoreGive(lock);}}
 void dsr_panel_pair_cancel(void)
