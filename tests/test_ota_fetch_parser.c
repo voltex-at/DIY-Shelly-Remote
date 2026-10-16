@@ -44,7 +44,9 @@ static int headers(http_parser *p)
 static int body(http_parser *p,const char *data,size_t n)
 {client_t *s=p->data;if(n>sizeof(s->cache)-s->cached)return -1;memcpy(s->cache+s->cached,data,n);s->cached+=n;s->body_callbacks++;return 0;}
 static int complete(http_parser *p)
-{client_t *s=p->data;dispatch(s);s->complete=true;return 0;}
+{/* IDF's message-complete callback does not flush its last pending trailer.
+   * Test policy errors in SDK-visible trailers using a following field. */
+ client_t *s=p->data;s->complete=true;return 0;}
 static void pump(client_t *s)
 {
  if(s->error||s->complete||s->eof)return;
@@ -144,7 +146,10 @@ int main(int argc,char **argv)
  n=cl("",1,manifest_length);run(wire,n,1,false);run(wire,n,n,false);
  n=cl("",0,manifest_length-1);run(wire,n,1,false);run(wire,n,n,false);
  n=chunked("","",false);run(wire,n,1,false);run(wire,n,n,false);
- n=chunked("","Content-Length: 1\r\n",true);run(wire,n,1,false);run(wire,n,n,false);
+ n=chunked("","Content-Length: 1\r\nX-After: harmless\r\n",true);run(wire,n,1,false);run(wire,n,n,false);
+ /* A Location arriving in trailers must not bypass the final-200 policy. */
+ n=chunked("","Location: https://release-assets.githubusercontent.com/x\r\nX-After: harmless\r\n",true);
+ run(wire,n,1,false);run(wire,n,n,false);
  const char *bad[]={"HTTP/1.1 200 OK\r\nContent-Length: -1\r\n\r\n", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nQ\r\n", "HTTP/1.1 200 OK\r\nX-Bad\r\n\r\n", "HTTP/1.1 200 OK\r\n\r\n{}"};
  for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){run(bad[i],strlen(bad[i]),1,false);run(bad[i],strlen(bad[i]),strlen(bad[i]),false);}
  printf("PASS: %u raw HTTP cases / %u checks; original IDF parser + real fetch/Ed25519; SDK assembly/cache/transport MODEL; trust=%s; no TLS/network/hardware proof\n",cases,checks,

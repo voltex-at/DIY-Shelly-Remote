@@ -133,6 +133,7 @@ jobs:
           cp docs/OTA_IMAGE_STREAM_PL.md build-board/OTA_IMAGE.json build-board/package/
           cp docs/OTA_UPLOAD_STREAM_PL.md build-board/package/
           cp docs/OTA_FETCH_PL.md build-board/OTA_FETCH.json build-board/package/
+          cp docs/OTA_DOWNLOAD_PL.md build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

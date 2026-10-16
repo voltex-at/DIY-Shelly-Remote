@@ -1,5 +1,54 @@
 # Project status
 
+## 0.7.15 — manifest-first app stream validation/discard (#24), not installer
+
+Public chain fetches/verifies manifest first; only DSR_FETCH_OK permits any app
+request. No API accepts caller-created verified metadata. Signed URL/size/hash
+feed the existing real image helper via the same private HTTPS transport, with
+fresh app clients/one-hop allowlist/clock/date/framing policy. CL must equal
+signed size; chunked is bounded by actual signed size and final completeness.
+App heap buffer reads<=1024 B; each byte reaches the helper once. All app bytes
+are discarded; no Flash/OTA/slot/reboot/UI/worker or installable-image claim.
+Only full-chain OK publishes metadata; all failures zero output. Each phase has
+its own cooperative30s budget, not a hard DNS/TLS/header/positive-progress-read
+deadline. Fetch<=8192 plus chain<=512 target-compiled bounds exclude image
+context and all SDK/TLS/JSON allocations; actual peak requires hardware.
+
+Root raw-wire regression first reproduced an SDK-visible late Location bypassing
+the initial final-200 policy; post-body/cleanup check now rejects it before
+manifest/image acceptance. Raw-parser UBSan3012 cases/provider PASS
+(1615474 HOST/2110802 production-empty checks); previous fetch350791/345251
+checks unchanged. This is host policy evidence, not a physical failure or a
+cause of P0 SPIFFS interruption. Independent app-chain regressions and exact
+target CI/artifact are separate gates. [Contract](docs/OTA_DOWNLOAD_PL.md).
+Pinned SDK does not emit the final pending trailer at message-complete; the
+public API exposes no read-only getter. Rejection covers delivered header
+events, not all raw trailers. Harness now preserves this behavior; negative
+trailers use X-After to trigger dispatch. No Location from200 is followed, and
+signed metadata/exact size/hash remain mandatory; no authenticity-bypass claim.
+Independent chain UBSan:220127 HOST/168689 production-empty checks,36/34
+real allocation faults; empty trust always starts zero app requests. Signed
+size511, invalid signed URL, both redirects, CL/chunked/cache, size/hash/header/
+marker/IO/crypto/cleanup faults and post-finish cancel/deadline covered.
+Actual PR41 app fixture (exact SHA below) also passes independently HOST-signed
+chain:10013219 HOST/169661 production-empty checks. Test signature is not
+publisher trust or a Release. Full native/config265, UI2237/96 and review2635/24
+UBSan PASS; actual target/full sanitizer CI remains separate before acceptance.
+
+Latest parent PR #41 a298e686: exact-source CI5/5
+[38859714148](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38859714148),
+full raw-parser sanitizers. Downloaded firmware12029106340/debug12028941876
+verified CRC/SHA/source/version/chip/project/all segments/checksum/ELF SHA/
+license/unchanged partitions. App1772528 B SHA256
+516700a62369e957abb9ddf6d6e8e090a68f9b893eae27ea0fa799670365e076;
+ELF5b65a4d2a73efc60b1d2cabc7d60ff724225c15c9307fe052e82ed3060c90081.
+Actual receiver+pinned software SHA memory-sink passes chunks1/511/512/4096.
+Downloaded diagnostic-S3 has no full board marker in any allocated file-backed
+section. No physical TLS/install/rollback/P0 acceptance; no erase/main/Stable.
+Publisher trust remains empty; UTC, approved anchor/rotation/signed Release,
+release discovery, LCD/progress/consent/power/serialized staging/health/rollback
+remain open. Full global backlog/history24h internal/later microSD unchanged.
+
 ## 0.7.14 — bounded HTTPS manifest transport (#24), no installer
 
 Explicit repo manifest URL, one manually checked GitHub-to-release-assets hop,

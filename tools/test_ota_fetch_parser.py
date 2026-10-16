@@ -55,12 +55,13 @@ with tempfile.TemporaryDirectory(prefix="dsr-raw-http-") as directory:
         flags += ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"]
     elif args.ubsan_only:
         flags += ["-fsanitize=undefined", "-fno-omit-frame-pointer"]
-    for folder in ["tests/ota_fetch", "tests/support", "components/dsr_ota/include",
+    for folder in ["tests/ota_fetch", "tests/ota_image", "tests/support", "components/dsr_ota/include",
                    "components/dsr_ota", "components/dsr_core/include",
                    "components/dsr_crypto/vendor", "components/dsr_crypto/vendor/optional", ".test-deps"]:
         flags += ["-I", str(ROOT / folder)]
     flags += ["-I", str(tmp), "-I", "/usr/include/cjson"]
     sources = ["components/dsr_ota/dsr_ota_fetch.c", "components/dsr_ota/dsr_ota_manifest.c",
+               "components/dsr_ota/dsr_ota_image.c", "tests/ota_image/sha256_adapter.c",
                "components/dsr_core/dsr_core.c", "components/dsr_crypto/vendor/monocypher.c",
                "components/dsr_crypto/vendor/optional/monocypher-ed25519.c",
                "tests/test_ota_fetch_parser.c"]
@@ -73,6 +74,6 @@ with tempfile.TemporaryDirectory(prefix="dsr-raw-http-") as directory:
         binary = tmp / ("host-test-trust" if trusted else "production-empty-trust")
         subprocess.run([os.environ.get("CC", "cc"), *flags, *extra,
                         *[str(ROOT / s) for s in sources], str(parser_object),
-                        "-Wl,--wrap=time", "-l:libcjson.so.1", "-o", str(binary)], check=True)
+                        "-Wl,--wrap=time", "-l:libcjson.so.1", "-lcrypto", "-o", str(binary)], check=True)
         subprocess.run([str(binary), str(fixture)], check=True)
 print(f"PASS: original external ESP-IDF parser {PIN}; both SHA256 pins verified; no vendored SDK or network fetch")

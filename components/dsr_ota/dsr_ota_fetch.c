@@ -108,17 +108,19 @@ bad:
  /* IDF ignores this callback's result at header dispatch; latch the failure. */
  s->result=DSR_FETCH_HEADERS;return ESP_FAIL;
 }
-dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_policy_t *policy,
- const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why)
+static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
+ dsr_ota_image_t *image,dsr_image_result_t *image_why)
 {
  if(why)*why=DSR_MANIFEST_INVALID;
  if(!out)return DSR_FETCH_ARGUMENT;
- memset(out,0,sizeof(*out));
+ if(!image)memset(out,0,sizeof(*out));
  if(!policy||!policy->current_version||bounded_length(policy->current_version,31)>31
     ||(policy->selected_channel!=DSR_OTA_STABLE&&policy->selected_channel!=DSR_OTA_DEV)
     ||!policy->inactive_slot_size||policy->inactive_slot_size>0x600000)return DSR_FETCH_ARGUMENT;
  if(!initial_url(url))return DSR_FETCH_URL;
  if(time(NULL)<(time_t)1735689600)return DSR_FETCH_CLOCK;
+ size_t limit=image?out->size:DSR_OTA_MANIFEST_MAX;
  fetch_t *s=calloc(1,sizeof(*s));if(!s)return DSR_FETCH_NOMEM;
  s->control=control;s->started=esp_timer_get_time();strcpy(s->url,url);
  for(unsigned hop=0;hop<2;hop++){
@@ -136,7 +138,7 @@ dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_poli
   if(!client){s->result=DSR_FETCH_NOMEM;break;}
   bool redirect=false;
   if(!stopped(s)&&esp_http_client_set_header(client,"Accept-Encoding","identity")!=ESP_OK)s->result=DSR_FETCH_IO;
-  if(!stopped(s)&&esp_http_client_set_header(client,"Accept","application/json")!=ESP_OK)s->result=DSR_FETCH_IO;
+  if(!stopped(s)&&esp_http_client_set_header(client,"Accept",image?"application/octet-stream":"application/json")!=ESP_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)&&esp_http_client_open(client,0)!=ESP_OK&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)){
    int64_t length=esp_http_client_fetch_headers(client);
@@ -148,23 +150,35 @@ dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_poli
      else redirect=true;
     }else if(status!=200)s->result=DSR_FETCH_STATUS;
     else if(s->location_seen||(!s->length_seen&&!s->transfer_seen))s->result=DSR_FETCH_HEADERS;
-    else if(s->length_seen&&(!s->declared||s->declared>DSR_OTA_MANIFEST_MAX))s->result=DSR_FETCH_SIZE;
+    else if(s->length_seen&&(!s->declared||s->declared>limit||(image&&s->declared!=limit)))s->result=DSR_FETCH_SIZE;
     else if((s->length_seen&&(length!=(int64_t)s->declared||esp_http_client_get_content_length(client)!=length||esp_http_client_is_chunked_response(client)))
       ||(s->transfer_seen&&(length!=0||!esp_http_client_is_chunked_response(client))))s->result=DSR_FETCH_HEADERS;
     else{
-     /* Read even when complete is already true: fetch_headers may cache body.
-      * One byte per call bounds positive-progress body waits between polls. */
+     /* Drain cached bytes even if headers already completed the response.
+      * App uses the same heap buffer repeatedly; no whole-image allocation.
+      * SDK read may wait for its requested bytes despite positive progress,
+      * hence the budget is explicitly cooperative, not a hard deadline. */
      while(!stopped(s)){
-      int n=esp_http_client_read(client,(char *)s->body+s->used,1);
+      size_t wanted=image?limit-s->used+1:1;
+      if(wanted>1024)wanted=1024;
+      char *buffer=(char *)s->body+(image?0:s->used);
+      int n=esp_http_client_read(client,buffer,(int)wanted);
       if(stopped(s))break;
       if(n<0){s->result=DSR_FETCH_IO;break;}
-      if(n>1){s->result=DSR_FETCH_SIZE;break;}
+      if((size_t)n>wanted){s->result=DSR_FETCH_SIZE;break;}
       if(!n){
        if(!esp_http_client_is_complete_data_received(client)||(s->length_seen&&s->used!=s->declared))s->result=DSR_FETCH_INCOMPLETE;
        else if(!s->used)s->result=DSR_FETCH_SIZE;
        break;
       }
-      if(++s->used>DSR_OTA_MANIFEST_MAX||(s->length_seen&&s->used>s->declared)){s->result=DSR_FETCH_SIZE;break;}
+      if((size_t)n>limit-s->used){s->result=DSR_FETCH_SIZE;break;}
+      if(image){
+       dsr_image_result_t result=dsr_ota_image_update(image,buffer,(size_t)n);
+       if(image_why)*image_why=result;
+       if(result!=DSR_IMAGE_OK){s->result=DSR_FETCH_IMAGE;break;}
+      }
+      s->used+=(size_t)n;
+      if(s->length_seen&&s->used>s->declared){s->result=DSR_FETCH_SIZE;break;}
      }
     }
    }
@@ -173,13 +187,50 @@ dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_poli
   if((closed!=ESP_OK||cleaned!=ESP_OK)&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
   if(stopped(s))break;
   if(redirect){strcpy(s->url,s->location);continue;}
-  dsr_manifest_result_t result=dsr_ota_manifest_verify(s->body,s->used,policy,out);
-  if(why)*why=result;
-  if(result!=DSR_MANIFEST_OK)s->result=DSR_FETCH_MANIFEST;
-  else (void)stopped(s);
+  /* SDK-visible chunk trailers arrive after the initial header checks.
+   * IDF does not dispatch its final pending trailer at message-complete;
+   * this check covers delivered events, not all raw trailer bytes. */
+  if(s->location_seen){s->result=DSR_FETCH_HEADERS;break;}
+  if(image){
+   dsr_image_result_t result=dsr_ota_image_finish(image);
+   if(image_why)*image_why=result;
+   if(result!=DSR_IMAGE_OK)s->result=DSR_FETCH_IMAGE;
+   else (void)stopped(s);
+  }else{
+   dsr_manifest_result_t result=dsr_ota_manifest_verify(s->body,s->used,policy,out);
+   if(why)*why=result;
+   if(result!=DSR_MANIFEST_OK)s->result=DSR_FETCH_MANIFEST;
+   else (void)stopped(s);
+  }
   break;
  }
  dsr_ota_fetch_result_t result=s->result;
  if(result!=DSR_FETCH_OK)memset(out,0,sizeof(*out));
  free(s);return result;
+}
+dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why)
+{return fetch(url,policy,control,out,why,NULL,NULL);}
+
+typedef struct {dsr_ota_verified_t verified;dsr_ota_image_t *image;} app_chain_t;
+_Static_assert(sizeof(app_chain_t)<=512,"bounded app-chain workspace");
+dsr_ota_fetch_result_t dsr_ota_fetch_app(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
+ dsr_image_result_t *image_why)
+{
+ if(why)*why=DSR_MANIFEST_INVALID;
+ if(image_why)*image_why=DSR_IMAGE_STATE;
+ if(!out)return DSR_FETCH_ARGUMENT;
+ memset(out,0,sizeof(*out));
+ app_chain_t *chain=calloc(1,sizeof(*chain));if(!chain)return DSR_FETCH_NOMEM;
+ dsr_ota_fetch_result_t result=dsr_ota_fetch_manifest(url,policy,control,&chain->verified,why);
+ if(result==DSR_FETCH_OK){
+  dsr_image_result_t created=dsr_ota_image_create(&chain->verified,&chain->image);
+  if(image_why)*image_why=created;
+  if(created!=DSR_IMAGE_OK)result=DSR_FETCH_IMAGE;
+  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why);
+ }
+ dsr_ota_image_destroy(chain->image);
+ if(result==DSR_FETCH_OK)*out=chain->verified;
+ free(chain);return result;
 }

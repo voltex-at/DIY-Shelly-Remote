@@ -9,10 +9,14 @@ five seconds of local UI operation with touch, configuration and panel readiness
 the new app confirms its boot. It does not require an Internet/Shelly connection.
 
 **The 0.7.11 backend verifies schema-v2 Ed25519 manifests; its production trust
-store is deliberately empty. The GitHub Releases downloader/installer remains
+store is deliberately empty. The complete GitHub Releases LCD updater remains
 unimplemented.** See [signed bytes, tests and remaining gates](OTA_MANIFEST_PL.md).
 0.7.14 adds a [bounded manifest HTTPS transport backend](OTA_FETCH_PL.md), not
 release discovery, UI orchestration, application download or installation.
+0.7.15 adds a [manifest-first app download/validation-discard backend](OTA_DOWNLOAD_PL.md).
+It uses the existing image validator, without Flash, app-byte output, slot
+selection, UI caller or reboot. Successful validation cannot install the
+discarded bytes; a future installer must download/verify again under its gates.
 Target certificate date validation is enabled; unset system UTC refuses fetch.
 Trusted time setup and physical TLS validation are still open gates.
 A checksum does not authenticate the publisher. Only deliberately

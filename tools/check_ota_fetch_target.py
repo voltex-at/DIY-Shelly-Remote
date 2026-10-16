@@ -1,4 +1,4 @@
-"""Audit the target manifest fetch object's direct dependencies and own frames.
+"""Audit target manifest/app fetch direct dependencies and own frames.
 
 The heap bound is a target-compiled static assertion, not a runtime measurement.
 This does not bound SDK/TLS allocations or transitive stack use, and does not
@@ -56,6 +56,8 @@ required = {
     "esp_http_client_is_chunked_response", "esp_http_client_read",
     "esp_http_client_is_complete_data_received", "esp_http_client_close",
     "esp_http_client_cleanup",
+    "dsr_ota_image_create", "dsr_ota_image_update", "dsr_ota_image_finish",
+    "dsr_ota_image_destroy",
 }
 allowed = required | {
     "memcpy", "memset", "strlen", "strncmp", "strcpy", "strchr", "strstr",
@@ -79,16 +81,21 @@ for line in stacks[0].read_text().splitlines():
     require(size <= args.max_frame, f"Fetch frame exceeds budget: {line}")
     require(function not in frames, f"Duplicate fetch frame: {function}")
     frames[function] = size
-require("dsr_ota_fetch_manifest" in frames, "Public fetch stack report missing")
+public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app"}
+require(public <= set(frames), f"Public fetch stack reports missing: {sorted(public - set(frames))}")
+require(any(name == "fetch" or name.startswith("fetch.") for name in frames),
+        "Private shared transport stack report missing")
 
 defined_text = subprocess.check_output(
     ["xtensa-esp32s3-elf-nm", "--defined-only", str(args.elf)], text=True
 )
 defined = {line.split()[-1] for line in defined_text.splitlines() if line.split()}
-require("dsr_ota_fetch_manifest" in defined, "Fetch not retained in real target ELF")
+require(public <= defined, f"Fetch not retained in real target ELF: {sorted(public - defined)}")
 source = (Path(__file__).resolve().parents[1] / "components/dsr_ota/dsr_ota_fetch.c").read_text()
 require(re.search(r"_Static_assert\s*\(\s*sizeof\s*\(\s*fetch_t\s*\)\s*<=\s*8192\s*,", source),
         "Target-compiled fetch workspace bound assertion missing")
+require(re.search(r"_Static_assert\s*\(\s*sizeof\s*\(\s*app_chain_t\s*\)\s*<=\s*512\s*,", source),
+        "Target-compiled app chain context bound assertion missing")
 
 args.out.write_text(json.dumps({
     "object": str(objects[0]),
@@ -96,6 +103,12 @@ args.out.write_text(json.dumps({
     "fetch_stack_frames": frames,
     "fetch_frame_budget_bytes": args.max_frame,
     "owned_heap_context_upper_bound_bytes": 8192,
+    "app_chain_context_upper_bound_bytes": 512,
+    "app_chain_context_evidence": "target-compiled _Static_assert(sizeof(app_chain_t)<=512)",
+    "retained_public_functions": sorted(public),
+    "own_chain_and_fetch_context_upper_bound_bytes": 8704,
+    "image_context_included_in_chain_and_fetch_bound": False,
+    "image_context_evidence": "separate check_ota_image_target.py actual target context-size audit",
     "sdkconfig": str(args.sdkconfig),
     "target_tls_required_options": sorted(enabled),
     "target_insecure_tls_options_disabled": True,
@@ -108,4 +121,4 @@ args.out.write_text(json.dumps({
     "trusted_clock_or_publisher_key_established": False,
     "physical_network_operation_verified": False,
 }, indent=2) + "\n")
-print(f"PASS: target fetch frames <= {args.max_frame} B; compiled owned-context bound <=8192 B; HTTP/verifier/timer/time present; no direct Flash/slot/restart/key-provider dependency")
+print(f"PASS: target manifest/app fetch frames <= {args.max_frame} B; compiled fetch<=8192 B and chain<=512 B; HTTP/verifier/image/timer/time present; no direct Flash/slot/restart/key-provider or development-checksum dependency")

@@ -1,4 +1,22 @@
-# Matryca funkcji — 0.7.14, rewizja 15
+# Matryca funkcji — 0.7.15, rewizja 16
+
+## #24: pobranie i walidacja app BIN — bez instalacji
+
+[Kontrakt](OTA_DOWNLOAD_PL.md): publiczny manifest-first chain, osobna TLS/
+redirect policy dla podpisanego app URL, exact size/SHA/header/board przez
+istniejący helper. Bajty są odrzucane, bez Flash/slot/reboot/UI i bez caller-
+created verified struct. Każdy błąd zeruje wynik; produkcyjny truststore pusty.
+UTC/publisher anchor/signed Release/real TLS i pełny updater nadal otwarte.
+Niezależny chain UBSan220127 HOST/168689 empty PASS,36/34 allocation faults;
+empty trust zawsze zero app requests. Actual parent BIN jako HOST fixture
+10013219/169661 PASS; to nie approved Release, physical TLS ani instalacja.
+Raw HTTP regresja potwierdziła SDK-visible Location w trailerze; końcowa
+kontrola go odrzuca. Ostatni pending trailer może nie być emitowany przez SDK;
+nie claimujemy kontroli wszystkich raw trailerów ani obejścia autentyczności.
+To wynik hostowy, nie P0/hardware failure.
+PR #41 a298e686: CI5/5/38859714148 i exact-source BIN/ELF sprawdzone;
+SHA app516700a62369e957abb9ddf6d6e8e090a68f9b893eae27ea0fa799670365e076.
+Nowszy backend wymaga własnego exact-source CI/artefaktu i testu sprzętowego.
 
 ## #24: transport manifestu HTTPS — backend, nie updater
 
@@ -37,7 +55,7 @@ testowego klucza w firmware. Brak pobierania, instalacji i fizycznego odbioru.
 | --- | --- | --- |
 | JSON v2 / canonical bytes / prawdziwy Ed25519 | Implementacja + 117-case niezależny korpus i RFC KAT | Exact CI / footprint / ESP32 stack |
 | Zaufany klucz wydawcy i signed Release | Brak; produkcja zawsze odmawia | Zatwierdzony autentyczny anchor / rotacja / wydanie |
-| HTTPS download / progres / install / rollback z LCD | Not implemented | Osobny backend #24 i rzeczywisty test zachowania danych |
+| HTTPS download / progres / install / rollback z LCD | Backend fetch/validation-discard częściowo; LCD/progres/install/rollback nadal nie | Osobna integracja #24 i rzeczywisty test zachowania danych |
 
 PR #37 source f7fb16d: CI 5/5, run 38843761384; firmware integrity zweryfikowana,
 brak physical pass. Statusy historycznych etapów poniżej nie zamykają #24.

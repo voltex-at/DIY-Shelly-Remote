@@ -54,6 +54,14 @@ na 200. Limit dotyczy faktycznych zdekodowanych bajtów; kontrola końcowej
 kompletności i długości, próba 2049. bajtu. Callback kopiuje nagłówek przed jego
 zwolnieniem i latchuje błąd, bo IDF ignoruje zwrot callbacku w tej ścieżce.
 
+Follow-up 0.7.15 wspólnie wykorzystuje ten transport dla app validation/discard.
+Końcowa kontrola odrzuca SDK-visible Location z trailerów przed akceptacją.
+IDF5.5.4 nie flushuje ostatniego pending trailera przy message-complete;
+public API nie ma jego read-only gettera. Polityka callbacków nie gwarantuje
+kontroli wszystkich surowych trailerów. Raw harness poprawiono zgodnie z SDK;
+X-After wymusza dispatch w negatywach. Nie podążamy za Location z200, a
+podpis i exactsize/hash nadal obowiązują. [Aktualny kontrakt](OTA_DOWNLOAD_PL.md).
+
 Read loop opróżnia również dane odebrane razem z nagłówkami, nawet gdy parser
 już mówi complete. Nie łączy event body i manual read. Close/cleanup każdego
 utworzonego klienta poprzedza verifier. Cancel należy do tego samego ownera;
