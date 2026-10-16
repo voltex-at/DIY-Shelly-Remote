@@ -57,6 +57,29 @@ static void take_with_outer(dsr_output_request_t *out)
  CHECK(!dsr_activity_restart_reserve()); /* outer UI poll covers the handoff */
  dsr_activity_end();
 }
+static void cover_mailboxes(void)
+{
+ dsr_runtime_device_t endpoints[2]={device("shared-physical",0),device("shared-physical",0)};
+ endpoints[1].device.endpoint_kind=DSR_ENDPOINT_COVER;endpoints[1].device.has_switch=false;endpoints[1].can_stop=true;endpoints[1].telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,.current_pos=38};publish(endpoints,2);
+ uint32_t move=0,stop=0;dsr_output_request_t request;
+ CHECK(dsr_workspace_output_request(&endpoints[1].device,true,&move)==DSR_UNSUPPORTED);
+ CHECK(dsr_workspace_cover_request(&endpoints[0].device,(dsr_cover_intent_t){.command=DSR_COVER_OPEN},&move)==DSR_UNSUPPORTED);
+ CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67},&move)==DSR_OK);
+ CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_CLOSE},&stop)==DSR_BUSY);
+ CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&stop)==DSR_OK&&stop>move);
+ CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&move)==DSR_BUSY);
+ take_with_outer(&request);CHECK(request.device.endpoint_kind==DSR_ENDPOINT_COVER&&request.cover.command==DSR_COVER_STOP&&request.operation_id==stop&&!dsr_workspace_take_output(&request));admission_open();
+ /* Already in-flight movement may still receive STOP with unknown position,
+  * calibration/error flags or stale sample; identity/auth remain mandatory. */
+ endpoints[1].pending=true;endpoints[1].device.online=false;endpoints[1].sample_age_ms=16000;endpoints[1].telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_CALIBRATING,.errors=128};publish(endpoints,2);
+ CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&stop)==DSR_OK);take_with_outer(&request);CHECK(request.operation_id==stop);admission_open();
+ for(unsigned phase=0;phase<3;phase++){
+  endpoints[1].pending=false;endpoints[1].error=phase==0?DSR_AUTH_REQUIRED:phase==1?DSR_IDENTITY_MISMATCH:DSR_RATE_LIMITED;publish(endpoints,2);
+  CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&stop)==endpoints[1].error);admission_open();
+ }
+ endpoints[1].error=DSR_OK;endpoints[1].can_stop=false;publish(endpoints,2);CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&stop)==DSR_OFFLINE);
+ endpoints[1].device.online=true;endpoints[1].sample_age_ms=0;endpoints[1].pending=false;publish(endpoints,2);CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67},&move)==DSR_UNSUPPORTED);admission_open();
+}
 static void test_ap_handoff(void)
 {
  _Static_assert(DSR_AP_HANDOFF_UNAVAILABLE==0&&DSR_AP_HANDOFF_READY==1&&DSR_AP_HANDOFF_REQUESTED==2&&DSR_AP_HANDOFF_ACTIVE==3&&DSR_AP_HANDOFF_EXPIRED==4,"stable handoff states");
@@ -202,6 +225,7 @@ int main(void)
  CHECK(dsr_workspace_output_request(NULL,true,&operation)==DSR_INVALID);
  CHECK(dsr_workspace_output_request(&devices[0].device,true,NULL)==DSR_INVALID);admission_open();
  CHECK(dsr_activity_restart_reserve());CHECK(dsr_workspace_output_request(&devices[0].device,true,&operation)==DSR_BUSY);dsr_activity_restart_cancel();admission_open();
+ cover_mailboxes();
  printf("PASS: %u actual workspace/runtime checks; AP handoff TTL/wrap/restart, identity mailboxes, compaction, count0 and per-endpoint admission; RTOS/Flash/HTTP MODEL\n",checks);
  return 0;
 }

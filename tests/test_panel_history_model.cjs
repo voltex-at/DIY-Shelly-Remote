@@ -20,5 +20,9 @@ async function fixture(){let clock=0,observer,hold=false,release,corrupt=false,n
  f.corrupt(true);await f.refresh();ok(f.text().includes('Verlauf nicht verfügbar'));eq(f.all('circle').length,0);f.corrupt(false);await f.refresh();
  const before=f.posts.length;await f.all('button')[0].listeners.click();eq(f.posts.filter(x=>x[0]==='history/clock').length,1);ok(f.posts.length>before); /* no hidden clock request before explicit action */
  f.c.window.dsrHistorySnapshot(null);ok(f.text().includes('Keine aktiven Verbindungen'));eq(f.all('circle').length,0);f.state.devices.reverse();f.c.window.dsrHistorySnapshot(f.state,0);await flush();f.remount();await flush();ok(f.all('select').length===3);
+ /* Same physical ID/channel but typed Cover must never issue a Switch query. */
+ f.state.devices=[{...f.state.devices[0],device_id:'same',endpoint_kind:0},{...f.state.devices[0],device_id:'same',endpoint_kind:1}];f.c.window.dsrHistorySnapshot(f.state,0);await flush();const beforeCover=f.posts.length;
+ s=f.all('select');eq(s[0].children.length,2);s[0].value=JSON.stringify(['same',2,1,0]);s[0].listeners.change();await flush();eq(f.posts.length,beforeCover);ok(f.text().includes('Rollladenverlauf wird nicht unterstützt'));eq(f.all('circle').length,0);
+ f.locale('en');eq(f.posts.length,beforeCover);ok(f.text().includes('Cover history is not supported'));s=f.all('select');s[0].value=JSON.stringify(['same',2,0,0]);s[0].listeners.change();await flush();eq(f.posts.at(-1)[1].kind,0);ok(!f.text().includes('Cover history is not supported'));
  console.log(`PASS: ${checks} actual-history JS checks; 0/null, stale totals, exact target, 1h/24h, no-time, locale, late replies and explicit clock; DOM/HTTP MODEL`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

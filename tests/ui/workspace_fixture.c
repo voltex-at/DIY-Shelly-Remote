@@ -1,4 +1,5 @@
 #include "dsr_workspace.h"
+#include "dsr_activity.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
 #include "dsr_ble_rpc.h"
@@ -86,7 +87,11 @@ void test_runtime_capture(bool enabled){runtime_capture=enabled;runtime_size=0;}
 size_t test_runtime_count(void){return runtime_size;}
 const dsr_runtime_device_t *test_runtime_at(size_t index){return index<runtime_size?runtime_values+index:NULL;}
 void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device){if(runtime_capture){if(index>=count||count!=runtime_size)abort();runtime_values[index]=*device;}}
-bool dsr_workspace_take_output(dsr_output_request_t *request){(void)request;return false;}
+static bool cover_waiting;static unsigned cover_requests;static uint32_t cover_serial=1000;static dsr_output_request_t cover_request;
+unsigned test_cover_requests(void){return cover_requests;}
+dsr_result_t dsr_workspace_cover_request(const dsr_device_t *device,dsr_cover_intent_t intent,uint32_t *id)
+{if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.cover=intent,.operation_id=++cover_serial};*id=cover_serial;cover_requests++;cover_waiting=true;return DSR_OK;}
+bool dsr_workspace_take_output(dsr_output_request_t *request){if(!cover_waiting)return false;*request=cover_request;cover_waiting=false;memset(&cover_request,0,sizeof(cover_request));dsr_activity_end();return true;}
 
 bool dsr_workspace_runtime_publish_begin(size_t count){if(!runtime_capture)return false;if(count>DSR_MAX_DEVICES)abort();runtime_size=count;return true;}
 void dsr_workspace_runtime_publish_end(void){}
@@ -147,10 +152,12 @@ void test_history_time(uint32_t utc){history_utc=utc;history_no_time=!utc;}
 void test_history_clear(void){memset(&history_model,0,sizeof(history_model));}
 esp_err_t dsr_history_init(void){return ESP_OK;}
 void dsr_history_status(dsr_history_status_t *out){*out=(dsr_history_status_t){.state=DSR_HISTORY_READY,.clock_valid=!history_no_time,.now_utc=history_utc,.step_seconds=300,.retention_seconds=86400,.clock_pending=history_clock};}
-void dsr_history_binding(const dsr_connection_t *c,bool enabled){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel};memcpy(k.device_id,c->device.device_id,64);(void)dsr_history_model_binding(&history_model,&k,enabled);}
-void dsr_history_forget(const dsr_device_t *d){for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(!strcmp(history_model.slots[i].key.device_id,d->device_id)&&history_model.slots[i].key.channel==d->channel&&history_model.slots[i].key.generation==d->generation)history_model.slots[i].active=false;}
-void dsr_history_record(const dsr_connection_t *c,uint32_t request){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel};memcpy(k.device_id,c->device.device_id,64);dsr_history_model_record(&history_model,&k,&c->device,&c->telemetry,request,history_utc,lv_tick_get());}
-dsr_history_series_t *dsr_history_query(const dsr_history_key_t *k,unsigned hours){dsr_history_series_t *s=calloc(1,sizeof(*s));if(!s)return NULL;dsr_history_status(&s->status);for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(history_model.slots[i].active&&dsr_history_key_equal(k,&history_model.slots[i].key)){if(history_utc)dsr_history_model_query(&history_model,i,hours,history_utc,s);s->key=*k;return s;}free(s);return NULL;}
+void dsr_history_binding(const dsr_connection_t *c,bool enabled){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel,.kind=c->device.endpoint_kind};memcpy(k.device_id,c->device.device_id,64);(void)dsr_history_model_binding(&history_model,&k,enabled);}
+void dsr_history_forget(const dsr_device_t *d){for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(!strcmp(history_model.slots[i].key.device_id,d->device_id)&&history_model.slots[i].key.channel==d->channel&&history_model.slots[i].key.generation==d->generation&&history_model.slots[i].key.kind==d->endpoint_kind)history_model.slots[i].active=false;}
+void dsr_history_record(const dsr_connection_t *c,uint32_t request){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel,.kind=c->device.endpoint_kind};memcpy(k.device_id,c->device.device_id,64);dsr_history_model_record(&history_model,&k,&c->device,&c->telemetry,request,history_utc,lv_tick_get());}
+static uint8_t history_query_kind;
+unsigned test_history_last_kind(void){return history_query_kind;}
+dsr_history_series_t *dsr_history_query(const dsr_history_key_t *k,unsigned hours){history_query_kind=k->kind;if(k->kind!=DSR_ENDPOINT_SWITCH)return NULL;dsr_history_series_t *s=calloc(1,sizeof(*s));if(!s)return NULL;dsr_history_status(&s->status);for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(history_model.slots[i].active&&dsr_history_key_equal(k,&history_model.slots[i].key)){if(history_utc)dsr_history_model_query(&history_model,i,hours,history_utc,s);s->key=*k;return s;}free(s);return NULL;}
 void dsr_history_series_free(dsr_history_series_t *s){free(s);}
 bool dsr_history_service_due(uint32_t now){history_due_now=now;history_due_calls++;return false;}
 void dsr_history_service(void){}

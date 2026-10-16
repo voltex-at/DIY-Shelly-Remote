@@ -57,7 +57,20 @@ static void serializer(void)
  for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(123);CHECK(!json&&live==0);}fail_at=0;
  snapshot_count=0;json=dsr_runtime_json(124);CHECK(json);root=cJSON_Parse(json);CHECK(root&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(root,"devices"))==0);cJSON_Delete(root);cJSON_free(json);CHECK(live==0);
 }
+static void cover_parser(void)
+{
+ const char *valid_cover="{\"device_id\":\"shellyplus2pm-fixture\",\"generation\":2,\"endpoint_kind\":1,\"channel\":1,\"command\":\"position\",\"position\":67}";
+ dsr_device_t d;dsr_cover_intent_t intent;
+ attempts=0;CHECK(dsr_cover_parse(valid_cover,&d,&intent)&&d.endpoint_kind==DSR_ENDPOINT_COVER&&d.channel==1&&intent.command==DSR_COVER_GOTO&&intent.position==67&&!d.host[0]);unsigned total=attempts;
+ const char *bad[]={"{\"device_id\":\"a\",\"generation\":1,\"endpoint_kind\":1,\"channel\":0,\"command\":\"stop\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":0,\"channel\":0,\"command\":\"open\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"Calibrate\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"stop\",\"position\":0}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"position\",\"position\":100.5}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"position\",\"position\":-1}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"position\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"open\",\"command\":\"stop\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"stop\",\"host\":\"192.0.2.1\"}","{\"device_id\":\"a\\u0000tail\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"stop\"}","null","[]","{} trailing"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){memset(&d,0x5a,sizeof(d));memset(&intent,0x5a,sizeof(intent));dsr_device_t old=d;dsr_cover_intent_t prior=intent;CHECK(!dsr_cover_parse(bad[i],&d,&intent)&&!memcmp(&d,&old,sizeof(d))&&!memcmp(&intent,&prior,sizeof(intent))&&live==0);}
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;CHECK(!dsr_cover_parse(valid_cover,&d,&intent)&&live==0);}fail_at=0;
+ CHECK(dsr_cover_parse("{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":15,\"command\":\"stop\"}",&d,&intent)&&intent.command==DSR_COVER_STOP&&intent.position==0);
+ snapshot_count=1;snapshots[0]=(dsr_runtime_device_t){.device=d,.can_stop=true,.stop_pending=true,.telemetry={.cover={.state=DSR_COVER_STATE_CALIBRATING,.errors=32}}};
+ attempts=0;char *json=dsr_runtime_json(125);CHECK(json&&strstr(json,"\"endpoint_kind\":1")&&strstr(json,"\"stop_pending\":true")&&strstr(json,"\"can_move\":false")&&strstr(json,"\"can_position\":false"));total=attempts;cJSON_free(json);CHECK(live==0);
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(125);CHECK(!json&&live==0);}fail_at=0;
+}
 int main(void)
 {
- cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
+ cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
 }

@@ -41,7 +41,7 @@ static void reset(unsigned m){CHECK(!adc_live&&!cal_live);mode=m;reads=adc_delet
 
 /* Only existing queue/worker lifetime is used, no battery task or timer. */
 typedef struct {size_t size;bool occupied;unsigned char data[sizeof(dsr_event_t)+sizeof(dsr_job_t)];} queue_t;
-static queue_t queues[2];static unsigned queue_count;static bool semaphore;
+static queue_t queues[2];static unsigned queue_count;static bool semaphore,stop_lock;
 static void (*worker)(void *);static jmp_buf stop;
 QueueHandle_t xQueueCreate(unsigned count,unsigned size)
 {CHECK(count==1&&queue_count<2&&size<=sizeof(queues[0].data));queue_t *q=&queues[queue_count++];q->size=size;return q;}
@@ -51,8 +51,9 @@ int xQueueReceive(QueueHandle_t handle,void *data,TickType_t wait)
 {queue_t *q=handle;if(!q->occupied){if(wait)longjmp(stop,1);return pdFALSE;}memcpy(data,q->data,q->size);q->occupied=false;return pdTRUE;}
 void vQueueDelete(QueueHandle_t q){(void)q;}
 SemaphoreHandle_t xSemaphoreCreateBinary(void){return &semaphore;}
-int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;CHECK(h==&semaphore);if(!semaphore)return pdFALSE;semaphore=false;return pdTRUE;}
-int xSemaphoreGive(SemaphoreHandle_t h){CHECK(h==&semaphore);semaphore=true;return pdTRUE;}
+SemaphoreHandle_t xSemaphoreCreateMutex(void){return &stop_lock;}
+int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;if(h==&stop_lock){CHECK(!stop_lock);stop_lock=true;return pdTRUE;}CHECK(h==&semaphore);if(!semaphore)return pdFALSE;semaphore=false;return pdTRUE;}
+int xSemaphoreGive(SemaphoreHandle_t h){if(h==&stop_lock){CHECK(stop_lock);stop_lock=false;return pdTRUE;}CHECK(h==&semaphore);semaphore=true;return pdTRUE;}
 void vSemaphoreDelete(SemaphoreHandle_t h){(void)h;}
 int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,unsigned priority,TaskHandle_t *out)
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
@@ -85,7 +86,11 @@ esp_err_t dsr_connection_remove(const dsr_connection_t *c){CHECK(!dsr_activity_r
 static bool mapping_allowed=true,private_failure;static dsr_connection_t private_record;
 esp_err_t dsr_connection_save(const dsr_connection_t *c){CHECK(c->layout_id==42&&!dsr_activity_restart_reserve());publishes++;if(private_failure)return ESP_FAIL;private_record=*c;return ESP_OK;}
 bool dsr_workspace_mapping_matches(const dsr_connection_t *c){return mapping_allowed&&c->layout_id==42;}
-dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
+static bool (*urgent_hook)(void);static unsigned move_calls,stop_calls;static bool inject_stop;static dsr_connection_t stop_target;static dsr_result_t stop_http_result=DSR_OK;
+void dsr_http_urgent_hook(bool (*hook)(void)){urgent_hook=hook;}
+dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
+{CHECK(!stop_lock&&!dsr_activity_restart_reserve()&&c->device.endpoint_kind==DSR_ENDPOINT_COVER&&!strcmp(c->credentials.password,"stop-private"));if(intent.command!=DSR_COVER_STOP){move_calls++;return DSR_OK;}stop_calls++;c->device.online=stop_http_result==DSR_OK;c->telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION,.current_pos=17};return stop_http_result;}
+dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(inject_stop&&!stop_lock);inject_stop=false;CHECK(dsr_worker_stop_request(&stop_target,909)==DSR_OK&&urgent_hook&&urgent_hook());c->device.online=true;return DSR_OK;}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 static unsigned history_services,history_clocks;
@@ -148,6 +153,42 @@ int main(void)
   CHECK(bind_probes==1&&removes==2);admission_open();
  }
  CHECK(publishes==before_private+2);probe_result=DSR_AUTH_REQUIRED;bind.id=157;CHECK(dsr_worker_submit(&bind)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.result==DSR_AUTH_REQUIRED&&publishes==before_private+2&&bind_probes==2);admission_open();worker_wifi=false;private_failure=false;
+ /* Actual independent STOP lane, including interrupt of an outer GET. No
+  * inner event can borrow the outer id or release its queue semaphore. */
+ stop_target=(dsr_connection_t){.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_COVER},.credentials={.password="stop-private"},.layout_id=42};worker_wifi=true;
+ CHECK(dsr_worker_stop_request(NULL,909)==DSR_INVALID&&dsr_worker_stop_request(&stop_target,0)==DSR_INVALID);admission_open();
+ dsr_job_t outer={.id=2020,.kind=DSR_JOB_PROBE,.connection=stop_target};outer.connection.device.endpoint_kind=DSR_ENDPOINT_SWITCH;inject_stop=true;
+ CHECK(dsr_worker_submit(&outer)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(stop_calls==1&&dsr_worker_stop_pending());
+ dsr_stop_result_t stopped;CHECK(!dsr_worker_stop_receive(&stopped,true)&&dsr_worker_stop_request(&stop_target,910)==DSR_BUSY&&!dsr_activity_restart_reserve());
+ CHECK(dsr_worker_submit(&outer)==DSR_BUSY);CHECK(dsr_worker_receive(&checked)&&checked.id==2020&&checked.device.endpoint_kind==DSR_ENDPOINT_SWITCH);
+ CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==909&&stopped.layout_id==42&&stopped.device.endpoint_kind==DSR_ENDPOINT_COVER&&stopped.telemetry.cover.current_pos==17&&!dsr_worker_stop_pending());admission_open();
+ CHECK(!dsr_worker_stop_receive(&stopped,false)&&stop_calls==1);
+ for(unsigned phase=0;phase<3;phase++){
+  mapping_allowed=phase!=0;worker_wifi=phase!=1;unsigned before_stop=stop_calls;CHECK(dsr_worker_stop_request(&stop_target,911+phase)==DSR_OK);
+  CHECK(dsr_worker_stop_request(&stop_target,920)==DSR_BUSY);if(!setjmp(stop))worker(NULL);
+  CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==911+phase&&stopped.result==(phase==0?DSR_IDENTITY_MISMATCH:phase==1?DSR_OFFLINE:DSR_OK));CHECK(stop_calls==before_stop+(phase==2));admission_open();
+ }
+ /* Accepted motion must not run AFTER a newer STOP was already performed. */
+ mapping_allowed=true;worker_wifi=true;unsigned before_stop=stop_calls,before_move=move_calls;
+ dsr_job_t queued_cover={.id=3030,.kind=DSR_JOB_COVER,.connection=stop_target,.cover={.command=DSR_COVER_OPEN}};
+ CHECK(dsr_worker_submit(&queued_cover)==DSR_OK);
+ CHECK(dsr_worker_stop_request(&stop_target,999)==DSR_OK);
+ if(!setjmp(stop))worker(NULL);
+ fprintf(stderr,"Queued MOVE then STOP: stop_calls=%u move_calls=%u\n",stop_calls-before_stop,move_calls-before_move);
+ CHECK(stop_calls==before_stop+1&&move_calls==before_move);
+ CHECK(dsr_worker_receive(&checked)&&checked.id==3030&&checked.result==DSR_BUSY);
+ CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==999);admission_open();
+ /* Exact channel/locator/layout registration: A STOP never tombstones B,
+  * while the outstanding result blocks another movement for the stopped A. */
+ for(unsigned distinct=0;distinct<3;distinct++){
+  queued_cover.id=3031+distinct;queued_cover.connection=stop_target;
+  if(distinct==0)queued_cover.connection.device.channel=1;else if(distinct==1)strcpy(queued_cover.connection.device.host,"192.168.1.21");else queued_cover.connection.layout_id=43;
+  before_move=move_calls;before_stop=stop_calls;CHECK(dsr_worker_submit(&queued_cover)==DSR_OK);CHECK(dsr_worker_stop_request(&stop_target,1000+distinct)==DSR_OK);
+  if(!setjmp(stop))worker(NULL);
+  CHECK(stop_calls==before_stop+1&&move_calls==before_move+1);CHECK(!dsr_worker_stop_receive(&stopped,true));CHECK(dsr_worker_receive(&checked)&&checked.id==queued_cover.id&&checked.result==DSR_OK);
+  dsr_job_t retry=queued_cover;retry.connection=stop_target;CHECK(dsr_worker_submit(&retry)==DSR_BUSY);CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==1000+distinct);admission_open();
+ }
+ worker_wifi=false;mapping_allowed=true;
  CHECK(ota_initialized==1);
  for(unsigned kind=DSR_JOB_OTA_CHECK;kind<=DSR_JOB_OTA_INSTALL;kind++){
   dsr_job_t ota={.id=160+kind,.kind=kind};ota_admit=false;CHECK(dsr_worker_submit(&ota)==DSR_INVALID);

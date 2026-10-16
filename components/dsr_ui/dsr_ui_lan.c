@@ -15,7 +15,7 @@ static dsr_credentials_t credentials;
 static lv_obj_t *notice,*username,*password,*name,*room,*channel,*save_button;
 static lv_obj_t *form_body;
 static uint32_t room_ids[9];
-static uint8_t channels[16];
+static uint8_t channels[32],channel_count;
 static void show_results(void);
 static void show_credentials(void);
 static void show_components(void);
@@ -106,11 +106,12 @@ static void show_credentials(void)
 }
 static void bind(lv_event_t *event)
 {
-    (void)event;if(blu_gateway()||!capabilities.switches){dsr_sc_label_set_text(notice,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
-    unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=16||!(capabilities.switches&(1u<<channels[selected_channel])))return;
+    (void)event;if(blu_gateway()||!channel_count){dsr_sc_label_set_text(notice,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
+    unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=channel_count)return;
+    unsigned code=channels[selected_channel];if(!((code&128?capabilities.covers:capabilities.switches)&(1u<<(code&15))))return;
     const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){dsr_sc_label_set_text(notice,"Wpisz nazwę do 47 bajtów.");return;}
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
-    c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)];
+    c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=(channels[lv_dropdown_get_selected(channel)]&128)?DSR_ENDPOINT_COVER:DSR_ENDPOINT_SWITCH;
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
     if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);dsr_sc_label_set_text(notice,"Sprawdzanie urządzenia przed zapisem…");}
     else dsr_sc_label_set_text(notice,failure(result));
@@ -129,8 +130,8 @@ static void show_components(void)
     }cJSON_Delete(r);}
     room=lv_dropdown_create(body);lv_obj_set_pos(room,16,94);lv_obj_set_size(room,288,44);lv_dropdown_set_options(room,options);
     dsr_sc_text(body,"Kanał z odpowiedzi API",16,146,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
-    for(unsigned i=0;i<16;i++)if(capabilities.switches&(1u<<i)){char text[16];snprintf(text,sizeof(text),"%s%u",count?"\n":"",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)i;}
-    channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
+    for(unsigned kind=0;kind<2;kind++)for(unsigned i=0;i<16;i++)if((kind?(selected.generation>=2?capabilities.covers:0):capabilities.switches)&(1u<<i)){char text[24];snprintf(text,sizeof(text),"%s%s %u",count?"\n":"",kind?"Cover":"Switch",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(i|(kind?128:0));}
+    channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     notice=dsr_sc_text(root,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
     dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);save_button=dsr_ui_button(root,"Zapisz",168,420,140,bind,NULL);if(!count||blu_gateway())lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
 }

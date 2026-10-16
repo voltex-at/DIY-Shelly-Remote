@@ -377,7 +377,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Wynik BLE RPC → Szukaj w LAN | Powrót do metod i LAN | Urządzenie faktycznie obecne w LAN | CI tested: przejście do istniejącego kreatora | #7/#18; BLE nie dodaje sam do Wi-Fi |
 | BLE pairing / provisioning / stałe BLU | Wyłącznie tekst o ograniczeniu, bez atrapy Add | Zgodny GATT/RPC/bonding/BTHome | Not implemented | #18 B1/B2/B3; osobny test modelu, autoryzacji i kluczy |
 | Wiele urządzeń Shelly | Trwały registry do16 endpointów + własny stan/sterowanie | Bounded serial I/O, nie16 równoległych połączeń | Kod + genuine native/LVGL; exact CI i fizyczny odbiór otwarte | #20; min2 fizyczne Shelly, offline/DHCP/restart/heap |
-| Roleta Otwórz / Zamknij / Stop / wskaźnik | Definicja i podgląd | Realny Cover transport nieobecny | UI mock w jawnym DEMO; produkcyjne sterowanie disabled/unknown | #15/#23, PR #16; bezpieczne stanowisko Cover RPC |
+| Roleta Otwórz / Zamknij / Stop / pozycja | Typowany runtime i te same intencje | Aktywny Cover Gen2+; bez kalibracji/profile/slats/Gen1 | Genuine HTTP/NVS/worker/LVGL + modele WWW; target/fizyczny odbiór otwarty | #23; [kontrakt i limity](COVER_GEN2_PL.md), własny priorytetowy STOP |
 | Roleta edycja ołówkiem | Edytuj definicję | Zapisany wpis | CI tested: otwiera istniejący edytor; DEMO disabled | PR #16; właściwe ID po zmianie kolejności |
 | Dimmer / RGB/RGBW / termostat | Brak funkcjonalnego kontrolera | API danego modelu | Not implemented | #23; osobny typ/PR, capability i readback |
 | Czujnik otwarcia / bateria / temperatura / wilgotność | Definicja typu / preview | Wymagane rzeczywiste źródło danych | UI mock w fixture; Not implemented: adapter czujnika/BLU | #18/#23; odczyt modelu i unavailable, bez fikcyjnego zera |
@@ -423,8 +423,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
   wymaga odbioru. Brak ścieżki GATT write/provisioning.
 - `editor Save → workspace_submit → durable config store → exact ack → model`:
   operacyjny zapis definicji. Nie wykonuje scen lub wielu urządzeń.
-- `cover_control → actions.set_cover` i Stop: w produkcyjnym bindingu brak
-  takich callbacków; przyciski są disabled. DEMO działa tylko lokalnie.
+- `cover_control/drag-release/Stop → shared typed intent → fleet/urgent lane →
+  Cover RPC → readback`: rzeczywisty Gen2+ endpoint; DEMO zachowuje izolację.
 - `scene_card`: prowadzi do edycji, nie do SET. `Energia`/`Wykresy` mają pion #22 opisany powyżej. `Grupy`,
   `Sceny`, `Aktywność` i settings RPC nie mają wykonawcy; są disabled.
 - `toolbar Info`: usunięto martwą akcję, jest realny modal i Zamknij. Bieżące

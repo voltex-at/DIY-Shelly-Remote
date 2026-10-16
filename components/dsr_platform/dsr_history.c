@@ -53,29 +53,29 @@ void dsr_history_status(dsr_history_status_t *out)
 {if(!out)return;if(!take()){*out=(dsr_history_status_t){.state=DSR_HISTORY_UNAVAILABLE};return;}status_locked(out);give();}
 static dsr_history_key_t key(const dsr_connection_t *c)
 {
- dsr_history_key_t k={.layout_id=c->layout_id,.generation=(uint8_t)c->device.generation,.channel=c->device.channel,.kind=0};
+ dsr_history_key_t k={.layout_id=c->layout_id,.generation=(uint8_t)c->device.generation,.channel=c->device.channel,.kind=c->device.endpoint_kind};
  memcpy(k.device_id,c->device.device_id,sizeof(k.device_id));return k;
 }
 void dsr_history_binding(const dsr_connection_t *connection,bool enabled)
 {
- if(!connection||!connection->layout_id||!take())return;
+ if(!connection||connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->layout_id||!take())return;
  if(history->readable){dsr_history_key_t k=key(connection);(void)dsr_history_model_binding(&history->model,&k,enabled);}give();
 }
 void dsr_history_forget(const dsr_device_t *device)
 {
- if(!device||!take())return;
+ if(!device||device->endpoint_kind!=DSR_ENDPOINT_SWITCH||!take())return;
  dsr_connection_t c={.device=*device};dsr_history_key_t k=key(&c);
  if(history->readable)for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(history->model.slots[i].used&&dsr_history_key_equal(&history->model.slots[i].key,&k))history->model.slots[i].active=false;
  give();
 }
 void dsr_history_record(const dsr_connection_t *connection,uint32_t request_id)
 {
- if(!connection||!take())return;
+ if(!connection||connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!take())return;
  if(history->readable){dsr_history_key_t k=key(connection);dsr_history_model_record(&history->model,&k,&connection->device,&connection->telemetry,request_id,utc_now(),(uint64_t)(esp_timer_get_time()/1000));}give();
 }
 dsr_history_series_t *dsr_history_query(const dsr_history_key_t *expected,unsigned hours)
 {
- if(!expected||(hours!=1&&hours!=24))return NULL;
+ if(!expected||expected->kind!=DSR_ENDPOINT_SWITCH||(hours!=1&&hours!=24))return NULL;
  dsr_history_series_t *out=memory(sizeof(*out));if(!out)return NULL;
  if(!take()){out->status.state=DSR_HISTORY_UNAVAILABLE;return out;}
  status_locked(&out->status);out->key=*expected;

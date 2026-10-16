@@ -17,6 +17,12 @@ typedef enum {
 } dsr_result_t;
 
 typedef enum { DSR_GEN1 = 1, DSR_GEN2_PLUS = 2 } dsr_generation_t;
+typedef enum { DSR_ENDPOINT_SWITCH=0, DSR_ENDPOINT_COVER=1 } dsr_endpoint_kind_t;
+typedef enum {DSR_COVER_STATE_UNKNOWN,DSR_COVER_STATE_OPEN,DSR_COVER_STATE_CLOSED,DSR_COVER_STATE_OPENING,DSR_COVER_STATE_CLOSING,DSR_COVER_STATE_STOPPED,DSR_COVER_STATE_CALIBRATING} dsr_cover_state_t;
+enum {DSR_COVER_VALID=1,DSR_COVER_POSITION=2,DSR_COVER_TARGET=4,DSR_COVER_POSITION_CONTROL=8};
+typedef struct {uint8_t state,current_pos,target_pos,flags,errors;} dsr_cover_status_t;
+typedef enum {DSR_COVER_NONE,DSR_COVER_OPEN,DSR_COVER_CLOSE,DSR_COVER_STOP,DSR_COVER_GOTO} dsr_cover_command_t;
+typedef struct {uint8_t command,position;} dsr_cover_intent_t;
 typedef struct {
     char host[DSR_HOST_SIZE];
     char name[DSR_NAME_SIZE];
@@ -27,8 +33,15 @@ typedef struct {
     bool has_switch;
     bool has_power;
     bool output;
+    uint8_t endpoint_kind;
     double power_w;
 } dsr_device_t;
+/* Installed raw records use this ABI. Persistent legacy types are frozen
+ * separately; their padding is never interpreted as an endpoint kind. */
+_Static_assert(sizeof(dsr_generation_t)==4&&sizeof(bool)==1,"installed scalar ABI");
+_Static_assert(sizeof(dsr_device_t)==152&&offsetof(dsr_device_t,generation)==128&&offsetof(dsr_device_t,channel)==132&&offsetof(dsr_device_t,output)==136&&offsetof(dsr_device_t,endpoint_kind)==137&&offsetof(dsr_device_t,power_w)==144,"installed device ABI");
+bool dsr_cover_intent_valid(dsr_cover_intent_t intent);
+bool dsr_cover_can_move(const dsr_cover_status_t *status,dsr_cover_intent_t intent);
 
 typedef struct { dsr_device_t items[DSR_MAX_DEVICES]; size_t count; } dsr_registry_t;
 typedef enum { DSR_GET_STATUS, DSR_SET_OUTPUT } dsr_command_t;
@@ -37,6 +50,7 @@ typedef struct {
     char body[64];
     bool post;
 } dsr_request_t;
+dsr_result_t dsr_cover_request_build(uint8_t channel,dsr_cover_intent_t intent,dsr_request_t *out);
 
 bool dsr_ipv4_valid(const char *host);
 dsr_result_t dsr_request_build(dsr_generation_t gen, uint8_t channel,

@@ -8,7 +8,7 @@ let checks=0;
 const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=value=>{assert(value);checks++;};
 const clone=value=>JSON.parse(JSON.stringify(value));
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-async function fixture(){
+async function fixture(cover=false){
  let clock=0,timerSerial=0,observer;
  const timers=new Map();
  class Node {
@@ -25,15 +25,16 @@ async function fixture(){
  root.append(workspace);workspace.append(parent);
  const document={documentElement:{lang:'en'},createElement:tag=>new Node(tag),querySelector:selector=>selector==='#workspace'?workspace:null};
  const makeDevice=(device_id,channel)=>({device_id,generation:2,channel,host:'192.0.2.'+(channel+10),name:device_id,online:true,output:false,has_switch:true,has_power:true,power_w:2.5,has_voltage:false,has_current:false,pending:false,error:0,sample_age_ms:0,operation_id:0});
- const state={boot:17,devices:[makeDevice('shelly-a',0),makeDevice('shelly-b',1)],gets:0,posts:[],dropPost:false,stale:null,hold:false,release:null};
+ const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
+ const state={boot:17,devices,gets:0,posts:[],dropPost:false,stale:null,hold:false,release:null};
  const context={window:{},document,page:'devices',config:null,queueMicrotask,performance:{now:()=>clock},
   MutationObserver:class{constructor(fn){observer=fn;}observe(){}},
   clearTimeout:id=>timers.delete(id),setTimeout:(fn,delay)=>{const id=++timerSerial;timers.set(id,{fn,at:clock+delay});return id;},
   request:async(route,options)=>{
    if(options?.method==='POST'){
     const body=JSON.parse(options.body);state.posts.push(body);
-    const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel);assert(d);
-    d.operation_id++;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
+    const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel&&(item.endpoint_kind??0)===(body.endpoint_kind??0));assert(d);
+    eq(route,body.endpoint_kind===1?'devices/cover':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
     return{json:async()=>({accepted:true,operation_id:d.operation_id,boot_id:state.boot})};
    }
    eq(route,'devices/runtime');state.gets++;
@@ -77,6 +78,42 @@ async function fixture(){
   await f.refresh();ok(!f.button(0).disabled);eq(f.state.posts.length,1);
   const card=f.cards()[0],button=f.button(0),gets=f.state.gets;f.locale('de');eq(f.cards()[0],card);eq(f.button(0),button);eq(f.state.gets,gets);ok(button.textContent.includes('Einschalten'));
   f.state.devices=[f.state.devices[0],clone(f.state.devices[0])];await f.refresh();ok(f.button(0).disabled);ok(f.button(1).disabled);
+ }
+ {
+  const f=await fixture();f.state.devices[0].operation_id=2;await f.refresh();f.state.stale=clone(f.state.devices);f.state.stale[0].operation_id=1;f.state.dropPost=true;await f.button(0).listeners.click();ok(f.button(0).disabled);await f.button(0).listeners.click();eq(f.state.posts.length,1);f.state.stale=null;f.state.devices[0].pending=false;await f.refresh();ok(!f.button(0).disabled);
+ }
+ {
+  const f=await fixture();f.state.devices[0].operation_id=0xffffffff;await f.refresh();f.state.stale=clone(f.state.devices);await f.button(0).listeners.click();eq(f.state.devices[0].operation_id,1);ok(f.button(0).disabled);await f.button(0).listeners.click();eq(f.state.posts.length,1);f.state.stale=null;f.state.devices[0].pending=false;await f.refresh();ok(!f.button(0).disabled);
+ }
+ {
+  const f=await fixture(true),card=f.cards()[0],actions=card.children[5].children,range=actions[3],preview=card.children[6];
+  ok(!actions[0].disabled&&!actions[1].disabled&&!actions[2].disabled&&!range.disabled);ok(preview.textContent.includes('38%'));
+  range.value='90';range.listeners.input();range.listeners.pointercancel();await range.listeners.change();eq(f.state.posts.length,0);eq(range.value,'38');
+  range.value='67';range.listeners.input();eq(f.state.posts.length,0);ok(preview.textContent.includes('67%'));eq(f.state.devices[0].position,38);
+  const gets=f.state.gets;f.locale('de');eq(f.state.gets,gets);eq(f.cards()[0],card);ok(preview.textContent.includes('67%'));
+  await range.listeners.change();eq(f.state.posts[0],{device_id:'shelly-a',generation:2,channel:0,endpoint_kind:1,command:'position',position:67});ok(actions[0].disabled&&range.disabled&&!actions[2].disabled);
+  await actions[2].listeners.click();eq(f.state.posts[1],{device_id:'shelly-a',generation:2,channel:0,endpoint_kind:1,command:'stop'});ok(actions[2].disabled);await actions[2].listeners.click();eq(f.state.posts.length,2);
+  f.state.devices[0].pending=false;await f.refresh();ok(!actions[0].disabled&&!actions[2].disabled);eq(f.state.devices[0].position,38);
+  f.state.devices[0].can_position=false;f.state.devices[0].has_position=false;await f.refresh();ok(range.disabled&&!actions[0].disabled);range.value='50';await range.listeners.change();eq(f.state.posts.length,2);
+  f.state.devices[0].cover_errors=32;f.state.devices[0].can_move=false;await f.refresh();ok(actions[0].disabled&&actions[1].disabled&&!actions[2].disabled);
+ }
+ {
+  const f=await fixture(true),actions=f.cards()[0].children[5].children;await actions[0].listeners.click();eq(f.state.posts[0].command,'open');ok(actions[0].disabled&&!actions[2].disabled);
+  f.state.dropPost=true;await actions[2].listeners.click();eq(f.state.posts.length,2);ok(actions[2].disabled);
+  f.state.devices[0].pending=false;await f.refresh();ok(actions[2].disabled);await actions[2].listeners.click();eq(f.state.posts.length,2); /* Unknown STOP cannot be cleared by a delayed older command. */
+  f.state.boot++;f.state.devices[0].operation_id=0;await f.refresh();ok(!actions[2].disabled);
+  f.state.devices[0].sample_age_ms=14950;await f.refresh();f.advance(60);ok(actions[0].disabled&&!actions[2].disabled);await actions[0].listeners.click();eq(f.state.posts.length,2);
+ }
+ {
+  const f=await fixture(true),actions=f.cards()[0].children[5].children,range=actions[3];
+  range.value='67';range.listeners.input();eq(f.state.posts.length,0);
+  f.state.devices[0].can_position=false;await f.refresh();ok(range.disabled);
+  f.state.devices[0].can_position=true;await f.refresh();ok(!range.disabled);
+  await range.listeners.change();eq(f.state.posts.length,0);
+ }
+ for(const invalidate of [d=>d.online=false,d=>d.pending=true,d=>d.host='192.0.2.99',d=>{d.has_target=true;d.target=12;},d=>d.sample_age_ms=15001]){
+  const f=await fixture(true),range=f.cards()[0].children[5].children[3];range.value='67';range.listeners.input();invalidate(f.state.devices[0]);await f.refresh();Object.assign(f.state.devices[0],{online:true,pending:false,sample_age_ms:0});await f.refresh();await range.listeners.change();eq(f.state.posts.length,0);eq(range.value,'38');
+  range.value='71';range.listeners.input();await range.listeners.change();eq(f.state.posts.length,1);eq(f.state.posts[0].position,71);
  }
  console.log(`PASS: ${checks} deterministic actual-runtime checks; delayed GET/POST loss, independent controls, freshness, epoch, locale; DOM/HTTP MODEL`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

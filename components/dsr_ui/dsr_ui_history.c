@@ -90,9 +90,9 @@ static void detail(lv_obj_t *root)
  button(root,"1 h",12,96,142,range,1,hours==1);button(root,"24 h",166,96,142,range,24,hours==24);
  const char *units[]={"W","V","A","Wh"};for(unsigned i=0;i<4;i++)button(root,units[i],12+(int)i*76,142,68,measure,i,metric==i);
  if(exists&&d.identity[0]){
-  dsr_history_key_t key={.layout_id=d.id,.generation=(uint8_t)d.generation,.channel=d.channel,.kind=0};memcpy(key.device_id,d.identity,sizeof(key.device_id));series=dsr_history_query(&key,hours);if(series)status=series->status;
+  dsr_history_key_t key={.layout_id=d.id,.generation=(uint8_t)d.generation,.channel=d.channel,.kind=d.endpoint_kind};memcpy(key.device_id,d.identity,sizeof(key.device_id));series=dsr_history_query(&key,hours);if(series)status=series->status;
  }
- chart(root,series);const char *message=failure(&status);
+ chart(root,series);const char *message=exists&&d.identity[0]&&d.endpoint_kind!=DSR_ENDPOINT_SWITCH?"Historia rolet nie jest obsługiwana":failure(&status);
  if(!message&&!series)message="Brak aktywnego połączenia";
  if(!message&&series&&!series->count)message="Brak próbek. Historia zbiera rzeczywiste odczyty.";
  if(!message)message=status.durable?"Historia lokalna • zapis potwierdzony":"Bieżące okno RAM. Restart może utracić do 5 min.";
@@ -101,7 +101,7 @@ static void detail(lv_obj_t *root)
 static bool duplicate(unsigned index,const dsr_mobile_device_t *device)
 {
  dsr_mobile_device_t previous;
- for(unsigned i=0;i<index;i++)if(dsr_network_energy_at(i,&previous)&&previous.identity[0]&&previous.generation==device->generation&&previous.channel==device->channel&&!strcmp(previous.identity,device->identity))return true;
+ for(unsigned i=0;i<index;i++)if(dsr_network_energy_at(i,&previous)&&previous.identity[0]&&previous.generation==device->generation&&previous.endpoint_kind==device->endpoint_kind&&previous.channel==device->channel&&!strcmp(previous.identity,device->identity))return true;
  return false;
 }
 static void energy(lv_obj_t *root)

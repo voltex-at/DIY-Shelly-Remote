@@ -9,7 +9,9 @@ typedef struct {
  dsr_device_t intent_identity;
  uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
  uint8_t failures;
- bool sample_valid,blocked,command_error,queued,on,in_flight,layout_enabled;
+ bool sample_valid,blocked,command_error,queued,in_flight,layout_enabled,urgent_stop;
+ uint8_t mailbox_pending; /* LCD accepted intent before shared-mailbox take: move1/STOP2. */
+ union {bool on;dsr_cover_intent_t cover;};
  dsr_job_kind_t operation;
 } dsr_fleet_slot_t;
 typedef struct {
@@ -22,6 +24,8 @@ bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b);
 int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);
 dsr_result_t dsr_fleet_request(dsr_fleet_t *fleet,unsigned index,bool on,bool wifi,uint32_t now);
+dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *fleet,unsigned index,dsr_cover_intent_t intent,bool wifi,uint32_t now);
+void dsr_fleet_cancel_queued(dsr_fleet_t *fleet,unsigned index);
 bool dsr_fleet_next(dsr_fleet_t *fleet,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index);
 void dsr_fleet_started(dsr_fleet_t *fleet,unsigned index,const dsr_job_t *job);
 bool dsr_fleet_complete(dsr_fleet_t *fleet,unsigned index,const dsr_event_t *event,uint32_t now);

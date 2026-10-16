@@ -2,6 +2,7 @@
 #include "dsr_core.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "nvs_flash.h"
 #ifdef DSR_BOARD_ES3C35P
 #include "dsr_ui.h"
@@ -28,6 +29,9 @@ void app_main(void)
     dsr_boot_begin();
 #endif
     const char *tag = "dsr";
+    const esp_reset_reason_t reason = esp_reset_reason();
+    ESP_LOGI(tag, "reset_reason=%d", (int)reason);
+    (void)reason; /* Host log providers may discard arguments. */
     ESP_LOGI(tag, "DIY Shelly Remote %s", esp_app_get_description()->version);
 #ifndef DSR_BOARD_ES3C35P
     ESP_LOGW(tag, "Unconfigured diagnostic target only");

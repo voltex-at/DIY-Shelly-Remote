@@ -3,7 +3,7 @@
 #include <string.h>
 
 bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b)
-{return a&&b&&a->device_id[0]&&b->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->channel==b->channel;}
+{return a&&b&&a->device_id[0]&&b->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->endpoint_kind==b->endpoint_kind&&a->channel==b->channel;}
 int dsr_fleet_find(const dsr_fleet_t *f,const dsr_device_t *d)
 {for(size_t i=0;i<f->count;i++)if(dsr_endpoint_equal(&f->slots[i].connection.device,d))return (int)i;return -1;}
 static void discard(dsr_fleet_slot_t *s)
@@ -24,6 +24,7 @@ dsr_result_t dsr_fleet_request(dsr_fleet_t *f,unsigned index,bool on,bool wifi,u
 {
  if(!f||index>=f->count)return DSR_INVALID;
  dsr_fleet_slot_t *s=&f->slots[index];
+ if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)return DSR_UNSUPPORTED;
  if(s->queued||(s->in_flight&&s->operation==DSR_JOB_SET_OUTPUT))return DSR_BUSY;
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi||!s->connection.device.online||!s->sample_valid||now-s->sample_ms>15000)return DSR_OFFLINE;
@@ -33,6 +34,21 @@ dsr_result_t dsr_fleet_request(dsr_fleet_t *f,unsigned index,bool on,bool wifi,u
  s->queued=true;s->on=on;s->intent_identity=s->connection.device;s->intent_order=++f->order;
  s->result=DSR_OK;s->command_error=false;return DSR_OK;
 }
+dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *f,unsigned index,dsr_cover_intent_t intent,bool wifi,uint32_t now)
+{
+ if(!f||index>=f->count||!dsr_cover_intent_valid(intent)||intent.command==DSR_COVER_STOP)return DSR_INVALID;
+ dsr_fleet_slot_t *s=&f->slots[index];
+ if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_COVER)return DSR_UNSUPPORTED;
+ if(s->queued||s->urgent_stop||(s->in_flight&&s->operation==DSR_JOB_COVER))return DSR_BUSY;
+ if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
+ if(!wifi||!s->connection.device.online||!s->sample_valid||now-s->sample_ms>15000)return DSR_OFFLINE;
+ if(s->blocked)return s->result;
+ if(!dsr_cover_can_move(&s->connection.telemetry.cover,intent))return DSR_UNSUPPORTED;
+ if(!dsr_activity_begin())return DSR_BUSY;
+ s->queued=true;s->cover=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+}
+void dsr_fleet_cancel_queued(dsr_fleet_t *f,unsigned index)
+{if(f&&index<f->count)discard(&f->slots[index]);}
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
 {
  if(!f||!job||!index)return false;
@@ -46,15 +62,17 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
  }
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
   unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
-  if(s->layout_enabled&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
+  if(s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0)return false;
- dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?DSR_JOB_SET_OUTPUT:DSR_JOB_PROBE,.connection=s->connection,.on=s->on};*index=(unsigned)at;return true;
+ dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
+ if(s->queued){if(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER)job->cover=s->cover;else job->on=s->on;}
+ *index=(unsigned)at;return true;
 }
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
- if(job->kind==DSR_JOB_SET_OUTPUT)discard(s);
+ if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER)discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
 }
 bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,uint32_t now)
@@ -66,7 +84,7 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(!dsr_endpoint_equal(&s->connection.device,&event->device)||strcmp(s->connection.device.host,event->device.host))result=DSR_IDENTITY_MISMATCH;
  if(result==DSR_OK){s->connection.device=event->device;s->connection.telemetry=event->telemetry;s->failures=0;if(event->device.online){s->sample_valid=true;s->sample_ms=now;}}
  else {s->connection.device.online=false;s->connection.device.has_power=false;memset(&s->connection.telemetry,0,sizeof(s->connection.telemetry));if(s->failures<4)s->failures++;}
- if(s->operation==DSR_JOB_SET_OUTPUT){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
+ if(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
  s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED;
  s->next_poll=now+(s->failures?(5000u<<s->failures):5000u);
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}

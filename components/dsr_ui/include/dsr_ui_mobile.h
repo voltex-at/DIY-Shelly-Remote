@@ -31,8 +31,8 @@ typedef struct {
     /* Only supplied for the actually bound transport; never inferred from a card. */
     char identity[64];
     dsr_generation_t generation;
-    bool can_refresh;
-    bool has_energy;
+    bool can_refresh,can_position,has_energy;
+    uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */
     double energy_wh;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;
@@ -63,6 +63,7 @@ typedef struct {
     void (*refresh)(uint32_t id);
     void (*edit_device)(uint32_t id);
     void (*stop_cover)(unsigned index);
+    void (*set_position)(unsigned index,uint8_t position);
     void (*add_room)(void);
     void (*edit_room)(uint32_t id);
     void (*open_charts)(uint32_t id);

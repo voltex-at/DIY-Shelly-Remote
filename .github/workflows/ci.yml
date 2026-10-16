@@ -153,6 +153,7 @@ jobs:
           cp docs/CONFIG_WEB_PL.md build-board/package/INSTALL_AND_TEST.md
           cp docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md docs/UNIFIED_UI.md docs/ISSUE12_TELEMETRY.md build-board/package/
           cp docs/ISSUE15_COVER.md build-board/package/
+          cp docs/COVER_GEN2_PL.md build-board/package/
           cp docs/STABLE_POLLING.md build-board/package/
           cp docs/BLE_PLAN.md build-board/package/
           cp docs/FEATURE_MATRIX.md docs/BATTERY_VOLTAGE_PL.md docs/DISPLAY_SETTINGS_PL.md docs/GLOBAL_SETTINGS_PL.md build-board/package/

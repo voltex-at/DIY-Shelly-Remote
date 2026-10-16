@@ -12,6 +12,9 @@
 #include <string.h>
 
 #define RESPONSE_LIMIT 8192
+static bool (*urgent_hook)(void);
+void dsr_http_urgent_hook(bool (*hook)(void)){urgent_hook=hook;}
+static bool urgent(void){return urgent_hook&&urgent_hook();}
 static void wipe(void *memory,size_t size)
 {volatile unsigned char *p=memory;while(size--)*p++=0;}
 
@@ -75,7 +78,8 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     else if (status != 200) result = DSR_BAD_RESPONSE;
     else {
         *out = dsr_config_json_depth(response.text)?cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true):NULL;
-        result = cJSON_IsObject(*out) ? DSR_OK : DSR_BAD_RESPONSE;
+        bool null_ack=request->post&&!strncmp(request->path,"/rpc/Cover.",11)&&cJSON_IsNull(*out);
+        result = (cJSON_IsObject(*out)||null_ack)&&!strstr(response.text,"\\u0000") ? DSR_OK : DSR_BAD_RESPONSE;
         if (result != DSR_OK) { cJSON_Delete(*out); *out = NULL; }
         if (*out && cJSON_GetObjectItemCaseSensitive(*out, "error")) {
             cJSON_Delete(*out); *out = NULL; result = DSR_BAD_RESPONSE;
@@ -160,19 +164,48 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     return DSR_OK;
 }
 
+static bool cover_parse(const cJSON *r,uint8_t channel,dsr_cover_status_t *out)
+{
+ if(!cJSON_IsObject(r))return false;
+ for(const cJSON *a=r->child;a;a=a->next)for(const cJSON *b=a->next;b;b=b->next)if(!strcmp(a->string,b->string))return false;
+ const cJSON *id=cJSON_GetObjectItemCaseSensitive(r,"id"),*state=cJSON_GetObjectItemCaseSensitive(r,"state"),*control=cJSON_GetObjectItemCaseSensitive(r,"pos_control");
+ if(!cJSON_IsNumber(id)||id->valuedouble!=channel||!cJSON_IsString(state)||!cJSON_IsBool(control))return false;
+ const char *states[]={"","open","closed","opening","closing","stopped","calibrating"};dsr_cover_status_t c={0};
+ for(unsigned i=1;i<sizeof(states)/sizeof(states[0]);i++)if(!strcmp(state->valuestring,states[i]))c.state=(uint8_t)i;
+ if(!c.state)return false;
+ c.flags=DSR_COVER_VALID|(cJSON_IsTrue(control)?DSR_COVER_POSITION_CONTROL:0);
+ const char *positions[]={"current_pos","target_pos"};
+ for(unsigned i=0;i<2;i++){const cJSON *v=cJSON_GetObjectItemCaseSensitive(r,positions[i]);if(!v||cJSON_IsNull(v))continue;
+  if(!cJSON_IsNumber(v)||!isfinite(v->valuedouble)||v->valuedouble<0||v->valuedouble>100||floor(v->valuedouble)!=v->valuedouble)return false;
+  if(i){c.target_pos=(uint8_t)v->valueint;c.flags|=DSR_COVER_TARGET;}else{c.current_pos=(uint8_t)v->valueint;c.flags|=DSR_COVER_POSITION;}
+ }
+ const cJSON *errors=cJSON_GetObjectItemCaseSensitive(r,"errors");
+ if(errors){if(!cJSON_IsArray(errors)||cJSON_GetArraySize(errors)>16)return false;
+  const char *known[]={"overtemp","overpower","overvoltage","undervoltage","overcurrent","obstruction","safety_switch"};
+  const cJSON *v;cJSON_ArrayForEach(v,errors){if(!cJSON_IsString(v)||!v->valuestring[0]||strlen(v->valuestring)>64)return false;uint8_t bit=128;
+   for(unsigned i=0;i<7;i++)if(!strcmp(v->valuestring,known[i]))bit=(uint8_t)(1u<<i);
+   c.errors|=bit;
+  }
+ }
+ *out=c;return true;
+}
 static dsr_result_t status(dsr_connection_t *connection)
 {
     dsr_device_t *device = &connection->device;
     device->online = false; device->has_power = false;
     memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
-    dsr_result_t result = dsr_request_build(device->generation, device->channel, DSR_GET_STATUS, false, &request);
+    dsr_result_t result;
+    if(device->endpoint_kind==DSR_ENDPOINT_COVER){
+        if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
+        memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/Cover.GetStatus?id=%u",device->channel);result=DSR_OK;
+    }else result = dsr_request_build(device->generation, device->channel, DSR_GET_STATUS, false, &request);
     if (result != DSR_OK) return result;
     cJSON *root = NULL;
     result = fetch_json(connection, &request, false, &root);
     if (result != DSR_OK) return result;
     cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
-    if (!cJSON_IsBool(output)) { cJSON_Delete(root); return DSR_UNSUPPORTED; }
+    if (device->endpoint_kind==DSR_ENDPOINT_COVER?!cover_parse(root,device->channel,&connection->telemetry.cover):!cJSON_IsBool(output)) { cJSON_Delete(root); return DSR_UNSUPPORTED; }
     cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
     cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
     if(device->generation==DSR_GEN2_PLUS){
@@ -194,7 +227,7 @@ static dsr_result_t status(dsr_connection_t *connection)
         }
     }
     device->output = cJSON_IsTrue(output);
-    device->has_switch = device->online = true;
+    device->has_switch = device->endpoint_kind==DSR_ENDPOINT_SWITCH;device->online = true;
     device->power_w = 0;
     if (device->generation == DSR_GEN2_PLUS && cJSON_IsNumber(power) && isfinite(power->valuedouble)) {
         device->has_power = true; device->power_w = power->valuedouble;
@@ -211,7 +244,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
     memset(&probed.telemetry,0,sizeof(probed.telemetry));
     dsr_result_t result = identity(connection, &probed.device);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id))result=DSR_IDENTITY_MISMATCH;
-    if (result == DSR_OK) result = status(&probed);
+    if (result == DSR_OK){(void)urgent();result = status(&probed);}
     *out = probed.device;
     if(telemetry)*telemetry=probed.telemetry;
     return result;
@@ -235,14 +268,15 @@ static dsr_result_t verify(dsr_connection_t *connection)
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 {
     dsr_result_t result = verify(connection);
-    return result == DSR_OK ? status(connection) : result;
+    (void)urgent();return result == DSR_OK ? status(connection) : result;
 }
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
 {
     dsr_result_t result = verify(connection);
     if (result != DSR_OK) return result;
-    if (!connection->device.has_switch) return DSR_UNSUPPORTED;
+    if (connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->device.has_switch) return DSR_UNSUPPORTED;
+    if(urgent())return DSR_BUSY;
     dsr_request_t request;
     result = dsr_request_build(connection->device.generation, connection->device.channel, DSR_SET_OUTPUT, on, &request);
     if (result != DSR_OK) return result;
@@ -250,6 +284,7 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
     result = fetch_json(connection, &request, false, &root);
     cJSON_Delete(root);
     if (result != DSR_OK) return result;
+    if(urgent())return DSR_BAD_RESPONSE;
     /* Never display an optimistic position; don't replay after a timeout. */
     result = status(connection);
     if (result == DSR_OK && connection->device.output != on) {
@@ -257,6 +292,24 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
         return DSR_BAD_RESPONSE;
     }
     return result;
+}
+
+dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
+{
+ if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_COVER||c->device.generation!=DSR_GEN2_PLUS||!dsr_cover_intent_valid(intent))return DSR_INVALID;
+ dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
+ if(urgent())return DSR_BUSY;
+ /* STOP verifies identity/auth at its own POST; it may stop calibration or
+  * unknown position. Every other move requires a fresh typed status. */
+ if(intent.command!=DSR_COVER_STOP){result=status(c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
+ dsr_request_t request;result=dsr_cover_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
+ cJSON *ack=NULL;result=fetch_json(c,&request,false,&ack);
+ /* Only the documented null ACK confirms acceptance, never position. */
+ if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
+ cJSON_Delete(ack);c->device.online=false;
+ if(urgent())return DSR_BAD_RESPONSE;
+ if(result!=DSR_OK)return result;
+ return status(c);
 }
 
 static void ap_identity(const dsr_lan_device_t *source,const char *ssid,dsr_ap_identity_t *out)

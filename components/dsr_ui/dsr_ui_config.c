@@ -597,6 +597,7 @@ static dsr_result_t migration_result=DSR_OK;
 static bool migration_failed;
 static bool migration_match(const cJSON *v,const migration_t *m)
 {
+ if((!strcmp(string(v,"kind"),"cover"))!=(m->device.endpoint_kind==DSR_ENDPOINT_COVER))return false;
  if(m->layout_id)return (uint32_t)integer(v,"id")==m->layout_id;
  if(integer(v,"channel")!=m->device.channel)return false;
  /* An unpublished endpoint may adopt legacy layout only if another durable
@@ -622,7 +623,7 @@ static bool merge_migration(cJSON *r,const migration_t *m)
   if(m->layout_id)return false;
   if(cJSON_GetArraySize(a)>=DSR_MAX_DEVICES)return false;
   found=cJSON_CreateObject();if(!found)return false;
-  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind","relay")){cJSON_Delete(found);return false;}
+  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind",m->device.endpoint_kind==DSR_ENDPOINT_COVER?"cover":"relay")){cJSON_Delete(found);return false;}
   cJSON_AddItemToArray(a,found);
   cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
   if(cJSON_GetArraySize(tiles)<24){
@@ -680,7 +681,7 @@ static void migration_tick(void)
 void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t room,const char *previous_host)
 {
  if(!connection||!connection->device.device_id[0])return;
- size_t i=0;for(;i<migration_count;i++)if(migrations[i].device.channel==connection->device.channel&&migrations[i].device.generation==connection->device.generation&&!strcmp(migrations[i].device.device_id,connection->device.device_id))break;
+ size_t i=0;for(;i<migration_count;i++)if(migrations[i].device.endpoint_kind==connection->device.endpoint_kind&&migrations[i].device.channel==connection->device.channel&&migrations[i].device.generation==connection->device.generation&&!strcmp(migrations[i].device.device_id,connection->device.device_id))break;
  if(i==DSR_MAX_DEVICES){migration_failed=true;migration_result=DSR_FULL;return;}
  if(i==migration_count)migration_count++;
  migrations[i].device=connection->device;migrations[i].layout_id=connection->layout_id;migrations[i].room=room;migrations[i].version=++migration_serial;

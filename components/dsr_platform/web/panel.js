@@ -239,14 +239,14 @@ async function pollLan(generation){
  }catch(e){notice(e.uiMessage||serverMessage(e.message));}
 }
 async function bindLan(name,room,channel,button){
- button.disabled=true;const body={host:lanSelected.host,expected_id:lanSelected.id,name,room:Number(room),channel:Number(channel),...lanCredentials};
+ button.disabled=true;const cover=String(channel).startsWith('cover:');const body={host:lanSelected.host,expected_id:lanSelected.id,name,room:Number(room),channel:Number(cover?String(channel).slice(6):channel),...lanCredentials};if(cover)body.endpoint_kind=1;
  try{
   await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
   for(let i=0;i<100;i++){
    await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();
    if(s.device_busy||s.busy)continue;
    if(s.device_result!==0){if(s.device_result===4){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
-   const current=await(await request('config')).json();const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&d.room===body.room&&d.name===body.name);
+   const current=await(await request('config')).json();const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&d.room===body.room&&d.name===body.name);
    page='devices';lanCredentials=null;lanGeneration++;await load();notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
   }
   throw failure(m('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.'));
@@ -273,7 +273,7 @@ function discoveryView(){
   const u=lanInput(form,m('Login'),'admin'),p=lanInput(form,m('Hasło Shelly'),'','password');n.append(button(m('Sprawdź urządzenie'),()=>inspectLan(lanSelected,{username:u.value,password:p.value}),'primary'));return n;
  }
  const name=lanInput(form,m('Nazwa urządzenia'),lanSelected.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]);
- const channels=[];for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&(lanSnapshot.capabilities.switches&(1<<i)))channels.push([i,alreadyBound(lanSelected,i)?m('{0} · {1}',i,m('Już dodane')):String(i)]);
+ const channels=[];for(let kind=0;kind<2;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?lanSnapshot.capabilities.covers:0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`cover:${i}`:i,`${kind?'Cover':'Switch'} ${i}`]);
  const channel=lanSelect(form,m('Kanał z odpowiedzi API'),channels.length?channels:[['',m('Brak obsługiwanego kanału')]]);
  n.append(el('p',m('Dodanie zachowuje poprzednie urządzenia i ich kanały.')));
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);

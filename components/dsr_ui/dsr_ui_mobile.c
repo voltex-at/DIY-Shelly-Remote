@@ -23,7 +23,10 @@ static bool active;
 static lv_obj_t *content;
 static lv_obj_t *sample_age;
 static lv_obj_t *info_overlay;
-static bool info_open;
+static bool info_open,cover_drag;
+static uint8_t cover_preview_position;
+static uint32_t cover_drag_id;
+static lv_obj_t *cover_preview_label;
 static lv_timer_t *age_timer;
 static void render(void);
 static void update_sample_age(void)
@@ -40,7 +43,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){cover_drag=false;cover_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -283,10 +286,12 @@ static void metric(lv_obj_t *root,const char *label,const char *value,int x)
 }
 static bool cover_position(const dsr_mobile_device_t *d)
 {return d->online&&d->error==DSR_OK&&d->has_position&&isfinite(d->position_pct)&&d->position_pct>=0&&d->position_pct<=100;}
+static const char *cover_fault(uint8_t errors)
+{const char *names[]={"Przegrzanie","Przekroczona moc","Zbyt wysokie napięcie","Zbyt niskie napięcie","Przekroczony prąd","Wykryto przeszkodę","Wejście bezpieczeństwa","Błąd rolety"};for(unsigned i=0;i<8;i++)if(errors&(1u<<i))return names[i];return "Błąd rolety";}
 static void cover_stop(lv_event_t *event)
 {
  (void)event;dsr_mobile_device_t *d=&model.devices[selected];
- if(!d->online||d->busy||!d->can_stop_cover)return;
+ if(!d->can_stop_cover)return;
  if(model.demo){d->cover_state=DSR_COVER_STOPPED;render();}
  else if(actions.stop_cover)actions.stop_cover(selected);
 }
@@ -300,6 +305,23 @@ static void cover_header(lv_obj_t *root,const char *title)
 }
 static void cover_metric(lv_obj_t *row,int *x,const char *value)
 {lv_obj_t *chip=dsr_sc_chip(row,value,*x,0,180,DSR_SC_TEXT);*x+=lv_obj_get_style_width(chip,LV_PART_MAIN)+6;}
+static bool position_enabled(const dsr_mobile_device_t *d)
+{return !cover_preview&&d->online&&d->error==DSR_OK&&!d->busy&&d->has_position&&d->can_position&&actions.set_position;}
+static void cover_drag_event(lv_event_t *event)
+{
+ lv_event_code_t code=lv_event_get_code(event);lv_obj_t *rail=lv_event_get_target(event);
+ if(selected>=model.device_count)return;
+ dsr_mobile_device_t *d=&model.devices[selected];
+ if(code==LV_EVENT_PRESS_LOST){cover_drag=false;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");return;}
+ if(!position_enabled(d)){cover_drag=false;return;}
+ lv_indev_t *input=lv_indev_active();if(!input)return;lv_point_t point;lv_indev_get_point(input,&point);lv_area_t area;lv_obj_get_coords(rail,&area);
+ bool inside=point.x>=area.x1&&point.x<=area.x2&&point.y>=area.y1&&point.y<=area.y2;
+ if(code==LV_EVENT_PRESSED){if(!inside)return;cover_drag=true;cover_drag_id=d->id;}
+ if(!cover_drag||cover_drag_id!=d->id)return;
+ int value=(int)lround((area.y1+138-point.y)*100.0/130.0);if(value<0)value=0;if(value>100)value=100;cover_preview_position=(uint8_t)value;
+ if(cover_preview_label){char text[48];snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Podgląd"),cover_preview_position);lv_label_set_text(cover_preview_label,text);}
+ if(code==LV_EVENT_RELEASED){cover_drag=false;uint8_t target=cover_preview_position;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");if(inside&&actions.set_position)actions.set_position(selected,target);}
+}
 static void cover_details(lv_obj_t *root)
 {
  dsr_mobile_device_t *d=&model.devices[selected];bool known=cover_position(d),readable=d->online&&d->error==DSR_OK;
@@ -311,22 +333,24 @@ static void cover_details(lv_obj_t *root)
  if(readable&&d->has_power&&isfinite(d->power_w)){snprintf(value,sizeof(value),"%.1f W",d->power_w);cover_metric(row,&x,value);}
  if(readable&&d->has_voltage&&isfinite(d->voltage_v)&&d->voltage_v>=0){snprintf(value,sizeof(value),"%.1f V",d->voltage_v);cover_metric(row,&x,value);}
  if(readable&&d->has_frequency&&isfinite(d->frequency_hz)&&d->frequency_hz>=0){snprintf(value,sizeof(value),"%.1f Hz",d->frequency_hz);cover_metric(row,&x,value);}
- const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline":d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
+ const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline":d->cover_errors?cover_fault(d->cover_errors):d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
  center(dsr_sc_text(root,state,12,132,296,&dsr_roboto_12,readable?DSR_SC_MUTED:0xffc18c));
- /* Informational meter, no slider or GoToPosition hit target. 100% = open. */
+ /* Actual position remains the fill; dragging previews a separate target. */
  lv_obj_t *rail=dsr_sc_panel(root,112,156,96,148,DSR_SC_PANEL,16);edge(rail,DSR_SC_EDGE,1);
+ if(position_enabled(d)){lv_obj_add_flag(rail,LV_OBJ_FLAG_CLICKABLE);lv_obj_remove_flag(rail,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_CHAIN_VER);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESSING,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESS_LOST,NULL);}
  lv_obj_t *well=dsr_sc_panel(rail,8,8,78,130,0x101a22,10);lv_obj_set_style_clip_corner(well,true,0);
  int fill=known?(int)lround(d->position_pct*130/100):0;
  if(fill){lv_obj_t *blue=dsr_sc_panel(well,0,130-fill,78,fill,DSR_SC_BLUE,0);lv_obj_set_style_bg_grad_color(blue,dsr_sc_color(0x2379c8),0);lv_obj_set_style_bg_grad_dir(blue,LV_GRAD_DIR_VER,0);}
  for(int y=12;y<130;y+=14){lv_obj_t *line=dsr_sc_panel(well,8,y,62,1,DSR_SC_TEXT,0);lv_obj_set_style_bg_opa(line,24,0);}
  if(known){int y=130-fill-2;if(y<3)y=3;if(y>124)y=124;dsr_sc_panel(well,22,y,34,3,DSR_SC_TEXT,2);}
  else center(dsr_sc_text(well,"—",0,49,78,&dsr_roboto_28,DSR_SC_OFF));
+ cover_preview_label=dsr_sc_text(root,"",212,164,106,&dsr_roboto_12,DSR_SC_BLUE);
  dsr_sc_text(root,"100%",67,159,40,&dsr_roboto_11,DSR_SC_OFF);dsr_sc_text(root,"0%",80,289,27,&dsr_roboto_11,DSR_SC_OFF);
  if(known)snprintf(value,sizeof(value),"%s %.0f%%",dsr_sc_tr(d->position_pct==100?"Otwarte":d->position_pct==0?"Zamknięte":"Pozycja"),d->position_pct);
  else snprintf(value,sizeof(value),"%s",dsr_sc_tr("Nieznana pozycja"));
  center(dsr_sc_text(root,value,12,313,296,known?&dsr_roboto_22:&dsr_roboto_18,DSR_SC_TEXT));
  bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
- bool stop_valid=d->online&&!d->busy&&d->can_stop_cover&&(model.demo||actions.stop_cover);
+ bool stop_valid=d->can_stop_cover&&(model.demo||actions.stop_cover);
  lv_obj_t *stop=dsr_sc_button(root,242,225,64,64,DSR_SC_PANEL,12,cover_stop,NULL);edge(stop,DSR_SC_EDGE,1);
  dsr_sc_panel(stop,27,12,10,10,stop_valid?DSR_SC_BLUE:DSR_SC_OFF,2);center(dsr_sc_text(stop,"Stop",2,36,60,&dsr_roboto_14,stop_valid?DSR_SC_TEXT:DSR_SC_OFF));
  if(!stop_valid)lv_obj_add_state(stop,LV_STATE_DISABLED);
@@ -339,7 +363,7 @@ static void cover_details(lv_obj_t *root)
   if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
  }
  dsr_sc_panel(controls,147,12,1,40,DSR_SC_EDGE,0);
- if(!model.demo&&!d->can_cover)center(dsr_sc_text(root,"Brak obsługi Cover RPC",12,415,296,&dsr_roboto_11,0xe1bb70));
+ if(!model.demo){const char *footer=d->error!=DSR_OK?"Ruch zablokowany":!d->online?"Brak aktualnego odczytu":d->cover_errors||d->cover_state==DSR_COVER_CALIBRATING?"Ruch zablokowany":!d->can_cover?"Brak obsługi Cover RPC":!d->can_position?"Pozycjonowanie niedostępne":NULL;if(footer)center(dsr_sc_text(root,footer,12,415,296,&dsr_roboto_11,0xe1bb70));}
 }
 static void details(lv_obj_t *root)
 {
@@ -396,7 +420,7 @@ static void device_settings(lv_obj_t *root)
 }
 static void render(void)
 {
-    int scroll=content?lv_obj_get_scroll_y(content):0;
+    cover_drag=false;cover_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
@@ -468,6 +492,12 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
         preview_saved.demo=false;
 #endif
         return;}
+    if(cover_drag&&selected<model.device_count){
+     const dsr_mobile_device_t *old=&model.devices[selected];const dsr_mobile_device_t *next=NULL;
+     for(unsigned i=0;i<m->device_count;i++)if(m->devices[i].id==cover_drag_id)next=&m->devices[i];
+     if(next&&position_enabled(next)&&next->generation==old->generation&&next->endpoint_kind==old->endpoint_kind&&next->channel==old->channel&&!strcmp(next->identity,old->identity)&&!strcmp(next->host,old->host)){model=*m;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==cover_drag_id)selected=i;update_sample_age();return;}
+     cover_drag=false;
+    }
     /* Freshness changes update one label, not the entire screen or scroll state. */
     for(unsigned i=0;i<DSR_UI_MAX_DEVICES;i++){model.devices[i].has_sample_time=m->devices[i].has_sample_time;model.devices[i].sample_ms=m->devices[i].sample_ms;}
     if(!memcmp(&model,m,sizeof(model))){update_sample_age();return;}

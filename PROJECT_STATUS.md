@@ -1,5 +1,66 @@
 # Project status
 
+## 0.7.30 — Cover integration candidate
+
+Stacked on exact PR58/f240d15: 5/5 CI38919291117, all five received artifacts
+verified, APP/BIN/ELF/partition/SPIFFS provenance and PL/EN/DE renders checked.
+This candidate adds the complete typed Cover family and the P0 evidence/reset
+diagnostic correction below. Independent review found two concrete safety
+counterexamples; the queued-movement/STOP and canceled-Web-gesture tests were
+RED before their fixes and now pass. New target/browser/received-artifact
+validation remains required for this source. Physical P0 and movement remain
+open; no device writes, main merge, Stable or automation changes.
+
+## P0 evidence correction — physical test was 0.7.23 / PR51
+
+Owner [correction6217253815](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217253815)
+supersedes the earlier0.7.25 attribution: the device ran0.7.23/PR51, not PR53.
+The reported109/992 markers and883erased blocks come from the owner's separate
+private analysis; that dump is unavailable here. Erase All explains lost data,
+not interrupted formatting. PR51/PR53 share storage blobbaa433f649d69d768877d492b5a4036984d8d817.
+The app now logs the SDK reset reason before NVS/board/storage, alongside the
+existing blank-check/start/finish logs. No watchdog/yield/mount/geometry change,
+new erase or hardware write. A complete first-boot USB log remains required;
+the format interruption and physical acceptance remain open.
+
+## #23 — complete Gen2+ Cover family on current support stack
+
+Typed discovery/manual BIND and durable schema3 registry → Cover.GetStatus →
+explicit Open/Close/Stop/GoToPosition → genuine LCD and same authenticated Web
+intent path. Frozen legacy structs import Switch0 explicitly; installed offsets,
+record footprints, workspace schema1/hash and existing relay contract retained.
+Fresh identity/status gates all movement; calibrated known position gates GOTO,
+errors/calibration block movement, null ACK followed by mandatory readback.
+No profile/calibration/slats/Gen1 Cover action or POST replay.
+
+Single bounded urgent STOP lane has its own operation/result/lease, no outer
+queue/id/semaphore reuse or new task. It runs between HTTP legs; a pending outer
+result is consumed before the STOP snapshot. Existing SDK I/O cannot be preempted.
+LCD sends one drag-release intent, keeps confirmed position separate from preview
+and cancels on invalidation. PL/EN/DE actual frames inspected. WWW preserves DOM,
+keeps STOP available during movement, and fails closed after uncertain ACK.
+
+Integrated on immutable history/settings/P0/photo/native/BLE1324fcc. Actual
+endpoint_kind reaches every history boundary; Cover1 is explicitly unsupported,
+never a Switch history alias. Five Cover flags reuse energy telemetry32 B;
+connection296/slot496/fleet7952 B, job560/event1192 B retained. B1 Cover-only
+Plus2PM follows both physical consents and station/identity verification before
+typed BIND; security/preflight gates retained.
+
+Independent RED counterexamples reproduced and fixed: queued OPEN→STOP cannot
+move afterwards, invalidated WWW drag cannot replay on re-enable, and older
+GET serials cannot unlock a new command across uint32 wrap. STOP admission uses
+a bounded160 B secret-free registration/tombstone under its existing mutex;
+no job/event/task growth or SDK I/O under the mutex. Poll's STOP result is in a
+separate bounded frame; target validation still required.
+
+Full portable UBSan exit0: HTTP/NVS/fleet2173, actual worker4089, API9719 with
+exhaustive allocation faults, mailbox635, history2304+20+29+34+83+82. Actual JS
+runtime165/history32, LCD4619/161 + Cover105/7 + P0 restart14/23/18/25, review
+2635/24 PASS. Playwright pointer/locale cases await real browser CI; no local
+browser PASS claimed. Target ELF/BSS/stack and physical movement/persistence
+remain open. No hardware, erase, main merge or Stable. [Contract](docs/COVER_GEN2_PL.md).
+
 ## 0.7.29 — integrated energy history, contextual settings and photo filenames
 
 Stacked on exact P0 PR57/51124b4 (5/5 CI and received FACTORY/UPDATE/BIN/ELF

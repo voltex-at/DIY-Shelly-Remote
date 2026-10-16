@@ -17,6 +17,7 @@ static bool ble_rpc_active;
 bool dsr_ble_rpc_active(void){return ble_rpc_active;}
 static bool lan_mode,ap_protocol,temporary_ap,cancel_after_drain;
 static const char *transport_host="192.168.1.10",*ap_payload,*ap_content_type;
+static const char *cover_payload;
 static unsigned ap_restores,ap_suspends,ap_connects;
 bool dsr_wifi_connected(void){return !temporary_ap;}
 bool dsr_wifi_temporary_active(void){return temporary_ap;}
@@ -62,7 +63,7 @@ static esp_err_t emit(esp_http_client_handle_t c, esp_http_client_event_id_t id,
 esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
 {
     const step_t *s = &steps[used]; CHECK(c->post == s->post);
-    if (c->post) CHECK(!strcmp(c->body, ap_protocol?ap_payload:"{\"id\":0,\"on\":true}"));
+    if (c->post) CHECK(!strcmp(c->body, ap_protocol?ap_payload:cover_payload?cover_payload:"{\"id\":0,\"on\":true}"));
     emit(c, HTTP_EVENT_HEADERS_SENT, NULL, 0);
     if (s->challenge) {
         emit(c, HTTP_EVENT_ON_DATA, "{\"error\":401}", 13);
@@ -357,8 +358,9 @@ static void test_ap_protocol(void)
  ble_rpc_active=true;job=(dsr_job_t){.kind=DSR_JOB_AP_INSPECT,.ap={.ssid="shelly1-DDEEFF"}};dsr_ap_execute(&job,&event);CHECK(event.result==DSR_BUSY&&ap_suspends==suspends&&ap_connects==connects);ble_rpc_active=false;
  ap_protocol=lan_mode=false;transport_host="192.168.1.10";admission_open();
 }
+#include "cover_platform.inc"
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();
+    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
 }

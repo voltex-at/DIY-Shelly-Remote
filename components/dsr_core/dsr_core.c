@@ -3,6 +3,24 @@
 #include <string.h>
 
 static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
+bool dsr_cover_intent_valid(dsr_cover_intent_t i)
+{return i.command>=DSR_COVER_OPEN&&i.command<=DSR_COVER_GOTO&&(i.command==DSR_COVER_GOTO?i.position<=100:i.position==0);}
+bool dsr_cover_can_move(const dsr_cover_status_t *s,dsr_cover_intent_t i)
+{
+ if(!s||!dsr_cover_intent_valid(i))return false;
+ if(i.command==DSR_COVER_STOP)return true;
+ if(!(s->flags&DSR_COVER_VALID)||s->errors||s->state==DSR_COVER_STATE_CALIBRATING)return false;
+ return i.command!=DSR_COVER_GOTO||((s->flags&(DSR_COVER_POSITION_CONTROL|DSR_COVER_POSITION))==(DSR_COVER_POSITION_CONTROL|DSR_COVER_POSITION));
+}
+dsr_result_t dsr_cover_request_build(uint8_t channel,dsr_cover_intent_t i,dsr_request_t *out)
+{
+ if(!out||channel>DSR_MAX_CHANNEL||!dsr_cover_intent_valid(i))return DSR_INVALID;
+ memset(out,0,sizeof(*out));const char *method=i.command==DSR_COVER_OPEN?"Open":i.command==DSR_COVER_CLOSE?"Close":i.command==DSR_COVER_STOP?"Stop":"GoToPosition";
+ out->post=true;snprintf(out->path,sizeof(out->path),"/rpc/Cover.%s",method);
+ if(i.command==DSR_COVER_GOTO)snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"pos\":%u}",channel,i.position);
+ else snprintf(out->body,sizeof(out->body),"{\"id\":%u}",channel);
+ return DSR_OK;
+}
 
 bool dsr_ipv4_valid(const char *host)
 {
@@ -57,7 +75,7 @@ dsr_result_t dsr_registry_upsert(dsr_registry_t *registry, const dsr_device_t *d
         (device->generation != DSR_GEN1 && device->generation != DSR_GEN2_PLUS)) return DSR_INVALID;
     for (size_t i = 0; i < registry->count; i++) {
         if (strcmp(registry->items[i].host, device->host) == 0 &&
-            registry->items[i].channel == device->channel) {
+            registry->items[i].channel == device->channel&&registry->items[i].endpoint_kind==device->endpoint_kind) {
             registry->items[i] = *device;
             return DSR_OK;
         }

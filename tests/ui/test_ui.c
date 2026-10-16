@@ -20,7 +20,7 @@
 
 static unsigned checks;
 static unsigned screenshots,requests;
-static unsigned job_counts[DSR_JOB_HISTORY_CLOCK+1];
+static unsigned job_counts[DSR_JOB_COVER+1];
 void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t error,dsr_manifest_result_t why);
 void test_native_ota_uncertain(void);
 void test_native_ota_notes(const char *text);
@@ -105,6 +105,14 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;job_counts[job->kind]++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
 {if(maintenance_ready&&!hold_maintenance){*out=(dsr_event_t){.id=maintenance.id,.result=maintenance_result,.device=maintenance.connection.device,.layout_id=maintenance.connection.layout_id,.telemetry=maintenance.connection.telemetry};maintenance_ready=false;dsr_activity_end();return true;}if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
+/* Urgent SDK lane MODEL; genuine sole-worker mutex/event ownership is tested
+ * in test_battery.c. This fixture lets actual LCD consume delayed results. */
+static bool stop_pending,stop_ready;static dsr_stop_result_t stop_result;
+dsr_result_t dsr_worker_stop_request(const dsr_connection_t *c,uint32_t id)
+{if(stop_pending||!dsr_activity_begin())return DSR_BUSY;stop_pending=true;stop_result=(dsr_stop_result_t){.operation_id=id,.layout_id=c->layout_id,.device=c->device,.telemetry=c->telemetry};return DSR_OK;}
+bool dsr_worker_stop_pending(void){return stop_pending;}
+bool dsr_worker_stop_receive(dsr_stop_result_t *out,bool outer_pending)
+{if(!stop_ready||outer_pending)return false;*out=stop_result;stop_pending=stop_ready=false;memset(&stop_result,0,sizeof(stop_result));dsr_activity_end();return true;}
 
 static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 {

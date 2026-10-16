@@ -22,7 +22,7 @@ bool dsr_history_parse(const char *json,dsr_history_key_t *key,unsigned *hours)
  }
  ok=ok&&cJSON_IsString(id)&&id->valuestring[0]&&strlen(id->valuestring)<64&&integer(generation,1,2)&&integer(channel,0,15)&&integer(range,1,24)&&(range->valueint==1||range->valueint==24)&&(!kind||integer(kind,0,0));
  if(ok)for(const unsigned char *p=(const unsigned char *)id->valuestring;*p;p++)if(!((*p>='a'&&*p<='z')||(*p>='A'&&*p<='Z')||(*p>='0'&&*p<='9')||*p=='-'||*p=='_')){ok=false;break;}
- if(ok){strcpy(key->device_id,id->valuestring);key->generation=(uint8_t)generation->valueint;key->channel=(uint8_t)channel->valueint;key->kind=0;*hours=(unsigned)range->valueint;}
+ if(ok){strcpy(key->device_id,id->valuestring);key->generation=(uint8_t)generation->valueint;key->channel=(uint8_t)channel->valueint;key->kind=kind?(uint8_t)kind->valueint:DSR_ENDPOINT_SWITCH;*hours=(unsigned)range->valueint;}
  cJSON_Delete(r);return ok;
 }
 #define JSON_CAP 49152u

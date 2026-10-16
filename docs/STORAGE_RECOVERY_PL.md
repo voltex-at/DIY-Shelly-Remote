@@ -3,7 +3,9 @@
 ## Dwa warianty instalacji FACTORY i UPDATE (2026-10-16)
 
 W [decyzji właściciela](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217161680)
-potwierdzono włączone Erase All podczas nieudanej instalacji 0.7.25. To kasuje
+potwierdzono włączone Erase All. Właściciel następnie
+[sprostował wersję fizyczną na 0.7.23 / PR51](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217253815),
+nie 0.7.25 / PR53. Erase All kasuje
 wcześniejszą konfigurację; krótki merged BIN kończył się przed dsrdata i nie
 zawierał przygotowanego systemu plików. Nowa relacja o 109/992 blokach pochodzi
 z analizy w odrębnej rozmowie; aktualny dump nie jest dostępny w tej sesji.
@@ -28,12 +30,26 @@ Nie wykonano device writes, nie proponuje się kolejnego erase przed gotowym
 artefaktem. Factory omija koszt pierwszego formatu na płytce, **nie zamyka
 przyczyny przerwania automatycznego formatowania** ani testu fizycznego.
 
-## Nowy raport 0.7.25 i test trwałości (2026-10-16)
+## Sprostowany raport 0.7.23 / PR51 i test trwałości (2026-10-16)
 
-Fizyczny raport dla PR53/source `267c32f` ponownie pokazuje niepusty,
-niezamontowany SPIFFS. Nie ma aktualnego obrazu dsrdata ani pierwszego logu
-nieudanego startu. Dawny obraz z prefiksem 313 bloków nie jest dowodem
-zawartości obecnej partycji. Przyczyna obecnej awarii pozostaje nieustalona.
+Fizyczny raport dotyczy PR51/source `07331b8`, wersji 0.7.23; PR53 nie został
+w tym teście zainstalowany. Według sprostowania właściciela odrębna analiza
+kopii znalazła 109 z 992 kolejnych nagłówków i 883 bloki 0xFF, bez plików.
+Aktualny dump nie jest dostępny w tej sesji; nie jest to nasza analiza kopii.
+Nie ma pełnego logu pierwszego nieudanego startu. Dawny prefiks 313 bloków
+jest oddzielną obserwacją. Erase All wyjaśnia utratę danych, lecz **nie powód
+przerwania formatu na bloku 109**. To nie dowód fizycznej regresji AP/PR53.
+
+`dsr_storage_mount()` ma identyczny blob
+`baa433f649d69d768877d492b5a4036984d8d817` w PR51 `07331b8` i PR53 `267c32f`.
+Nie zmieniamy watchdogów, yield ani czasu oczekiwania na podstawie samego
+prefiksu. Przed ewentualnym osobno zatwierdzonym testem monitor USB musi
+działać **przed pierwszym EN**. Aplikacja loguje `reset_reason` jeszcze przed
+inicjalizacją NVS/board/storage, następnie istniejące `blank_check`,
+`format_started`, `format_finished` i READY. Brak końcowego logu wraz z kodem
+resetu następnego bootu pomaga rozróżnić reset; nie przesądza jego przyczyny.
+Bez nowego Erase All lub formatowania. Ewentualna osobno uzgodniona reprodukcja
+dotyczy wyłącznie dsrdata po prywatnej kopii, nigdy NVS ani OTA.
 
 Porównanie `0790e6e803c0bb8e091117e0cc37a47f8eb7782b` →
 `267c32f31d7d955b26cc611e0ee7685226813ffb` daje **zero zmian** w

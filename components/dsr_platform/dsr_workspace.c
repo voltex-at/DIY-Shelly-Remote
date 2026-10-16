@@ -107,7 +107,8 @@ bool dsr_workspace_mapping_matches(const dsr_connection_t *c)
  char *json=NULL;if(dsr_workspace_snapshot_checked(&json)!=DSR_SNAPSHOT_OK)return false;
  cJSON *root=dsr_config_json_depth(json)?cJSON_Parse(json):NULL;free(json);char error[96];bool matches=false;
  if(root&&dsr_config_validate(root,error)){const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(root,"devices")){
-  const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*host=cJSON_GetObjectItemCaseSensitive(v,"host"),*channel=cJSON_GetObjectItemCaseSensitive(v,"channel");
+  const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*host=cJSON_GetObjectItemCaseSensitive(v,"host"),*channel=cJSON_GetObjectItemCaseSensitive(v,"channel"),*kind=cJSON_GetObjectItemCaseSensitive(v,"kind");
+  if((!strcmp(kind->valuestring,"cover"))!=(c->device.endpoint_kind==DSR_ENDPOINT_COVER))continue;
   if(id->valuedouble==c->layout_id&&channel->valuedouble==c->device.channel&&!strcmp(host->valuestring,c->device.host))matches=true;
  }}
  cJSON_Delete(root);return matches;
@@ -170,7 +171,7 @@ static bool output_waiting[DSR_MAX_DEVICES];
 static size_t runtime_count;
 static uint32_t output_serial;
 static bool endpoint(const dsr_device_t *a,const dsr_device_t *b)
-{return a->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->channel==b->channel;}
+{return a->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->endpoint_kind==b->endpoint_kind&&a->channel==b->channel;}
 bool dsr_workspace_runtime_publish_begin(size_t count)
 {if(!mutex||count>DSR_MAX_DEVICES)return false;xSemaphoreTake(mutex,portMAX_DELAY);runtime_count=count;return true;}
 void dsr_workspace_runtime_publish_end(void){xSemaphoreGive(mutex);}
@@ -178,7 +179,7 @@ void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtim
 {
  if(!device||index>=count||count!=runtime_count)return;
  runtime[index]=*device;
- for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]&&endpoint(&outputs[i].device,&device->device)){runtime[index].pending=true;runtime[index].operation_id=outputs[i].operation_id;}
+ for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]&&endpoint(&outputs[i].device,&device->device)){runtime[index].pending=true;runtime[index].operation_id=outputs[i].operation_id;if(outputs[i].device.endpoint_kind==DSR_ENDPOINT_COVER&&outputs[i].cover.command==DSR_COVER_STOP)runtime[index].stop_pending=true;}
 }
 size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capacity)
 {
@@ -186,28 +187,39 @@ size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capac
  xSemaphoreTake(mutex,portMAX_DELAY);size_t count=runtime_count<capacity?runtime_count:capacity;
  memcpy(devices,runtime,count*sizeof(*devices));xSemaphoreGive(mutex);return count;
 }
-dsr_result_t dsr_workspace_output_request(const dsr_device_t *device,bool on,uint32_t *operation_id)
+static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_intent_t intent,uint32_t *operation_id)
 {
- if(!mutex||!device||!operation_id)return DSR_INVALID;
+ if(!mutex||!device||!operation_id||device->endpoint_kind>DSR_ENDPOINT_COVER)return DSR_INVALID;
+ bool cover=device->endpoint_kind==DSR_ENDPOINT_COVER,stop=cover&&intent.command==DSR_COVER_STOP;
+ if(cover&&!dsr_cover_intent_valid(intent))return DSR_INVALID;
  xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=DSR_INVALID;
  for(size_t i=0;i<runtime_count;i++)if(endpoint(&runtime[i].device,device)){
   dsr_runtime_device_t *r=&runtime[i];
-  int free_slot=-1;bool queued=false;for(size_t j=0;j<DSR_MAX_DEVICES;j++){if(!output_waiting[j]&&free_slot<0)free_slot=(int)j;if(output_waiting[j]&&endpoint(&outputs[j].device,device))queued=true;}
-  if(queued||r->pending||free_slot<0)result=DSR_BUSY;
-  else if(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000)result=DSR_OFFLINE;
-  else if(!r->device.has_switch)result=DSR_UNSUPPORTED;
+  int free_slot=-1,queued_slot=-1;for(size_t j=0;j<DSR_MAX_DEVICES;j++){if(!output_waiting[j]&&free_slot<0)free_slot=(int)j;if(output_waiting[j]&&endpoint(&outputs[j].device,device))queued_slot=(int)j;}
+  bool replace=stop&&queued_slot>=0&&outputs[queued_slot].cover.command!=DSR_COVER_STOP;if(replace)free_slot=queued_slot;
+  if((queued_slot>=0&&!replace)||(!stop&&r->pending)||(stop&&r->stop_pending)||free_slot<0)result=DSR_BUSY;
+  else if(stop?!r->can_stop:(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000))result=DSR_OFFLINE;
+  else if(cover?!dsr_cover_can_move(&r->telemetry.cover,intent):!r->device.has_switch)result=DSR_UNSUPPORTED;
   else if(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED)result=r->error;
-  else if(!dsr_activity_begin())result=DSR_BUSY;
-  else {outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=++output_serial};output_waiting[free_slot]=true;r->pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;}
+  else if(!replace&&!dsr_activity_begin())result=DSR_BUSY;
+  else {if(!++output_serial)++output_serial;outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=output_serial};if(cover)outputs[free_slot].cover=intent;output_waiting[free_slot]=true;r->pending=true;if(stop)r->stop_pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;}
   break;
  }
  xSemaphoreGive(mutex);return result;
 }
+dsr_result_t dsr_workspace_output_request(const dsr_device_t *device,bool on,uint32_t *operation_id)
+{if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_SWITCH)return DSR_UNSUPPORTED;return intent_request(device,on,(dsr_cover_intent_t){0},operation_id);}
+dsr_result_t dsr_workspace_cover_request(const dsr_device_t *device,dsr_cover_intent_t intent,uint32_t *operation_id)
+{if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_COVER)return DSR_UNSUPPORTED;return intent_request(device,false,intent,operation_id);}
 bool dsr_workspace_take_output(dsr_output_request_t *request)
 {
  if(!mutex||!request)return false;
  xSemaphoreTake(mutex,portMAX_DELAY);bool found=false;int oldest=-1;
- for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]&&(oldest<0||(int32_t)(outputs[i].operation_id-outputs[oldest].operation_id)<0))oldest=(int)i;
+ for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]){
+  bool priority=outputs[i].device.endpoint_kind==DSR_ENDPOINT_COVER&&outputs[i].cover.command==DSR_COVER_STOP;
+  bool previous=oldest>=0&&outputs[oldest].device.endpoint_kind==DSR_ENDPOINT_COVER&&outputs[oldest].cover.command==DSR_COVER_STOP;
+  if(oldest<0||(priority&&!previous)||(priority==previous&&(int32_t)(outputs[i].operation_id-outputs[oldest].operation_id)<0))oldest=(int)i;
+ }
  if(oldest>=0){*request=outputs[oldest];output_waiting[oldest]=false;memset(&outputs[oldest],0,sizeof(outputs[oldest]));found=true;}
  xSemaphoreGive(mutex);if(found)dsr_activity_end();return found;
 }

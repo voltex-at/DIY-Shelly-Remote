@@ -78,3 +78,8 @@ if not args.review:
     subprocess.run([cc,*flags,*map(str,boot_objects),"-lm","-l:libcjson.so.1","-o",str(boot_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     for mode in range(4):
         subprocess.run([str(boot_binary),str(screens),str(mode)],check=True,cwd=build)
+    cover_object=compile_source(ROOT / "tests/ui/test_cover_ui.c")
+    cover_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[cover_object]
+    cover_binary=build / "test_cover_ui"
+    subprocess.run([cc,*flags,*map(str,cover_objects),"-lm","-l:libcjson.so.1","-o",str(cover_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(cover_binary),str(screens)],check=True,cwd=build)

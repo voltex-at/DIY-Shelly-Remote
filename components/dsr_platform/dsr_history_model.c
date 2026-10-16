@@ -37,7 +37,7 @@ void dsr_history_model_seal(dsr_history_model_t *m,uint32_t utc)
 void dsr_history_model_record(dsr_history_model_t *m,const dsr_history_key_t *key,
  const dsr_device_t *d,const dsr_telemetry_t *t,uint32_t request,uint32_t utc,uint64_t mono)
 {
- if(!m||!d||!t||!d->online||!key||!key->layout_id)return;
+ if(!m||!d||!t||!d->online||!key||d->endpoint_kind!=key->kind||!key->layout_id)return;
  int index=dsr_history_model_binding(m,key,true);if(index<0)return;
  dsr_history_slot_t *s=&m->slots[index];
  if(s->has_request&&s->last_request==request)return;

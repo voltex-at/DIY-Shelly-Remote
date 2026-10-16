@@ -16,17 +16,17 @@ typedef struct {
 } dsr_settings_t;
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
-typedef struct {bool has_voltage,has_current,has_energy;double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
+typedef struct {bool has_voltage,has_current,has_energy;dsr_cover_status_t cover;double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
 typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
 /* Volatile origin consumes tail padding; never enters installed raw records. */
 _Static_assert(offsetof(dsr_connection_t,legacy_fallback)==offsetof(dsr_connection_t,layout_id)+4&&sizeof(dsr_connection_t)==offsetof(dsr_connection_t,layout_id)+8,"origin consumes existing connection tail padding");
-_Static_assert(sizeof(dsr_telemetry_t)<=32,"bounded telemetry extension for history/Cover");
+_Static_assert(sizeof(dsr_cover_status_t)==5&&sizeof(dsr_telemetry_t)==32,"Cover occupies five energy telemetry padding bytes");
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
 esp_err_t dsr_settings_save(const dsr_settings_t *settings);
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found);
-/* Schema-2 endpoint registry. Legacy single record remains untouched. */
+/* Typed schema-3 registry; frozen v1/v2 import defaults to Switch0. */
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count);
 esp_err_t dsr_connection_save(const dsr_connection_t *connection);
 esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id);
@@ -66,16 +66,22 @@ dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *ou
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
+dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
+/* Sole worker invokes an optional urgent-STOP callback between HTTP legs.
+ * The callback is never installed by HTTP fixtures or other transports. */
+void dsr_http_urgent_hook(bool (*hook)(void));
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
     dsr_connection_t connection;
     dsr_settings_t settings;
-    bool on,ap_confirmed;
+    /* Different job kinds reuse the two existing public-intent bytes. */
+    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;};
     union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;};
 } dsr_job_t;
+_Static_assert(sizeof(dsr_job_t)==560&&offsetof(dsr_job_t,on)==406&&offsetof(dsr_job_t,ap_confirmed)==407&&offsetof(dsr_job_t,ap)==408,"Cover retains the existing job footprint and payload offsets");
 /* Credentials are never returned through the event queue. */
 typedef struct {
     uint32_t id; dsr_result_t result; dsr_device_t device;
@@ -91,4 +97,12 @@ typedef enum {DSR_BIND_VERIFY,DSR_BIND_WORKSPACE,DSR_BIND_PRIVATE} dsr_bind_stag
 esp_err_t dsr_worker_start(void);
 dsr_result_t dsr_worker_submit(const dsr_job_t *job);
 bool dsr_worker_receive(dsr_event_t *event);
+/* Independent urgent lane: never enters the outer event queue or releases
+ * its semaphore. One STOP, including its final result, until consume. */
+typedef struct {uint32_t operation_id,layout_id;dsr_device_t device;dsr_telemetry_t telemetry;dsr_result_t result;} dsr_stop_result_t;
+dsr_result_t dsr_worker_stop_request(const dsr_connection_t *connection,uint32_t operation_id);
+bool dsr_worker_stop_pending(void);
+/* Consumer must hold its outer activity and defer until its old job event
+ * has been received; otherwise an old event could overwrite STOP readback. */
+bool dsr_worker_stop_receive(dsr_stop_result_t *result,bool outer_pending);
 #endif
