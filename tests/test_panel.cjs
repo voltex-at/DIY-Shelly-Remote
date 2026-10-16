@@ -7,7 +7,7 @@ const path=require('node:path');
 let activePage;
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
- const context=await browser.newContext({viewport:{width:1440,height:1050}}),page=await context.newPage();let checks=0;
+ const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'pl-PL'}),page=await context.newPage();let checks=0;
  activePage=page;
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));});
  await page.goto('http://127.0.0.1:8765/');await page.locator('#pairing').waitFor({state:'visible'});checks++;

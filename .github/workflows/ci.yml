@@ -32,6 +32,8 @@ jobs:
           trap 'kill "$panel_pid"' EXIT
           python3 -c 'import socket,time; [(time.sleep(.2)) for _ in range(50) if socket.socket().connect_ex(("127.0.0.1",8765)) != 0]'
           node tests/test_panel.cjs
+          node tests/test_web_locale_dictionary.cjs
+          node tests/test_panel_locale.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,6 +42,7 @@ jobs:
             build-ui/review-export/
             build-ui/review-export.zip
             build-ui/panel-review/
+            build-ui/panel-locale/
           if-no-files-found: error
   native:
     runs-on: ubuntu-24.04
@@ -150,6 +153,7 @@ jobs:
           cp docs/OTA_RELEASE_CHAIN_PL.md build-board/OTA_RELEASE_CHAIN.json build-board/package/
           cp docs/RESTART_PL.md build-board/RESTART.json build-board/package/
           cp docs/EDITOR_ACCEPTANCE_PL.md build-board/EDITOR.json build-board/package/
+          cp docs/WEB_LOCALE_PL.md build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

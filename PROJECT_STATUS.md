@@ -1,5 +1,28 @@
 # Project status
 
+## 0.7.22 — browser-local Web Panel language (#5/#6)
+
+Owner [PR5comment6214082384](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5#issuecomment-6214082384)
+requested independent PL/EN/DE locale after physical Web service success.
+Header selector stays available before pairing/after401; browser-local
+dsr.web.locale and supported navigator language fallback, no remote language
+or revision changes. Explicit UI text/attribute bindings update existing DOM,
+not destructive form render; user names/credentials/file inputs/raw LVGL remain.
+Appearance distinguishes shared remote language from browser preference.
+[Contract](docs/WEB_LOCALE_PL.md). No backend/auth/NVS/partition/OTA changes.
+Independent Playwright cases cover state/no-request/input identity/dirty/CAS/
+pending save/locale/storage failures/mobile geometry. Local Chromium launch
+fails SIGTRAP in restricted environment: syntax/review is not browser PASS.
+Actual CI/renders/exact artifact and physical locale acceptance separate gates.
+
+Parent Draft [PR48](https://github.com/voltex-at/DIY-Shelly-Remote/pull/48)
+sourcef9bac663 exact CI38892424314 5/5 and downloaded firmware/debug proof in PR.
+App1780240 B SHA2569f9bfae58ef04482083883d7c3ff776fd4f29ff15967b4cf84e86efb72594856;
+UI3223/111, own target frames and full regressions PASS, physical new UI still open.
+P0 owner0.7.18/preformatted SPIFFS rooms survive reset and Web works, not blank
+init or full TLS/pairing acceptance. No further erase/restore/main/Stable.
+Frozen pairing revoke remains separate/unpublished; do not duplicate it.
+
 ## P0 update — 2026-10-16 10:54 UTC / 0.7.21-editor-acceptance-dev
 
 Fresh owner hardware report [PR33comment6213932010](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6213932010):

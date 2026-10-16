@@ -1,4 +1,17 @@
-# Matryca funkcji — 0.7.21, rewizja 22
+# Matryca funkcji — 0.7.22, rewizja 23
+
+## #5/#6: język Web Panelu niezależny od pilota
+
+[Zlecenie właściciela](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5#issuecomment-6214082384)
+i [kontrakt](WEB_LOCALE_PL.md): header PL/EN/DE przed pairing/po401, lokalny
+dsr.web.locale/browser fallback. Tylko jawne UI text/ARIA bindings, bez render,
+API, changed/Save/load i bez zmian shared language/revision. Pola/focus/files/
+paircode/dirty/conflict/strona pozostają. User names/SSID/preview nietłumaczone.
+Język pilota = wspólny workspace; język WWW = ta przeglądarka.
+Browser test/review/exact CI/artefakt/physical gates osobno. Lokalny Chromium
+SIGTRAP nie jest PASS; wymagane rzeczywiste wykonanie w CI. Bez backend zmian.
+Parent PR48f9bac663 CI38892424314 5/5, pobrany exact BIN1780240 B i ELF/segmenty/
+partycje sprawdzone, pełne dowody w PR48; jego nowy UI czeka na fizyczny retest.
 
 ## P0: rzeczywisty odczyt wrócił; poprawki Save/Usuń
 
