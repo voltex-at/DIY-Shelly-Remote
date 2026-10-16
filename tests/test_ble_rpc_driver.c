@@ -69,12 +69,12 @@ int ble_gap_connect(uint8_t own,const ble_addr_t *peer,int32_t timeout,const str
 int ble_gap_conn_cancel(void){CHECK(connecting);connecting=false;gap(BLE_GAP_EVENT_CONNECT,1,gap_arg);return 0;}
 int ble_gap_terminate(uint16_t handle,uint8_t reason){CHECK(handle==7&&reason==BLE_ERR_REM_USER_CONN_TERM);terminated++;if(mode==LATE_CLOSE&&!close_started){close_started=clock_ms;return 0;}if(mode!=LATE_CLOSE||clock_ms-close_started>5000){connected=false;gap(BLE_GAP_EVENT_DISCONNECT,0,gap_arg);}return 0;}
 uint16_t ble_att_mtu(uint16_t handle){CHECK(handle==7);return 23;}
-int ble_uuid_from_str(const char *text,ble_uuid_any_t *uuid){CHECK(strlen(text)==36);uuid->u.type=128;strcpy(uuid->u.text,text);return 0;}
+int ble_uuid_from_str(ble_uuid_any_t *uuid,const char *text){CHECK(strlen(text)==36);uuid->u.type=128;strcpy(uuid->u.text,text);return 0;}
 int ble_uuid_cmp(const ble_uuid_t *a,const ble_uuid_t *b){return strcmp(a->text,b->text);}
 int ble_gattc_disc_svc_by_uuid(uint16_t handle,const ble_uuid_t *uuid,ble_gatt_disc_svc_fn *cb,void *arg)
 {CHECK(handle==7&&!strcmp(uuid->text,"5f6d4f53-5f52-5043-5f53-56435f49445f"));struct ble_gatt_svc service={.start_handle=1,.end_handle=8};struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};cb(handle,&ok,&service,arg);cb(handle,&done,NULL,arg);return 0;}
 int ble_gattc_disc_all_chrs(uint16_t handle,uint16_t first,uint16_t last,ble_gatt_chr_fn *cb,void *arg)
-{CHECK(handle==7&&first==1&&last==8);const char *uuids[]={"5f6d4f53-5f52-5043-5f64-6174615f5f5f","5f6d4f53-5f52-5043-5f74-785f63746c5f","5f6d4f53-5f52-5043-5f72-785f63746c5f"};struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};for(unsigned i=0;i<(mode==MISSING_CHAR?2u:3u);i++){struct ble_gatt_chr chr={.def_handle=(uint16_t)(1+2*i),.val_handle=(uint16_t)(2+2*i),.properties=BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE};ble_uuid_from_str(uuids[i],&chr.uuid);cb(handle,&ok,&chr,arg);if(mode==DUPLICATE_CHAR&&i==1)cb(handle,&ok,&chr,arg);}cb(handle,&done,NULL,arg);return 0;}
+{CHECK(handle==7&&first==1&&last==8);const char *uuids[]={"5f6d4f53-5f52-5043-5f64-6174615f5f5f","5f6d4f53-5f52-5043-5f74-785f63746c5f","5f6d4f53-5f52-5043-5f72-785f63746c5f"};struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};for(unsigned i=0;i<(mode==MISSING_CHAR?2u:3u);i++){struct ble_gatt_chr chr={.def_handle=(uint16_t)(1+2*i),.val_handle=(uint16_t)(2+2*i),.properties=BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE};ble_uuid_from_str(&chr.uuid,uuids[i]);cb(handle,&ok,&chr,arg);if(mode==DUPLICATE_CHAR&&i==1)cb(handle,&ok,&chr,arg);}cb(handle,&done,NULL,arg);return 0;}
 static void build_response(void)
 {
  cJSON *r=cJSON_Parse(request);CHECK(r);const char *method=cJSON_GetObjectItemCaseSensitive(r,"method")->valuestring;const char *src=cJSON_GetObjectItemCaseSensitive(r,"src")->valuestring;int id=cJSON_GetObjectItemCaseSensitive(r,"id")->valueint;const char *payload="{}";

@@ -69,7 +69,7 @@ static int characteristic_cb(uint16_t handle,const struct ble_gatt_error *error,
 {
  static const char *uuids[]={"5f6d4f53-5f52-5043-5f64-6174615f5f5f","5f6d4f53-5f52-5043-5f74-785f63746c5f","5f6d4f53-5f52-5043-5f72-785f63746c5f"};
  lock();if(callback_matches(handle,arg)){
-  if(error->status==0&&chr){for(unsigned i=0;i<3;i++){ble_uuid_any_t uuid;if(ble_uuid_from_str(uuids[i],&uuid)!=0)continue;if(ble_uuid_cmp(&uuid.u,&chr->uuid.u))continue;uint16_t *target=i==0?&data_handle:i==1?&tx_handle:&rx_handle;unsigned properties=i==0?BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE:i==1?BLE_GATT_CHR_F_WRITE:BLE_GATT_CHR_F_READ;if(*target||chr->val_handle<=service_first||chr->val_handle>service_last||chr->def_handle>=chr->val_handle||(chr->properties&properties)!=properties)duplicated=true;else *target=chr->val_handle;}}
+  if(error->status==0&&chr){for(unsigned i=0;i<3;i++){ble_uuid_any_t uuid;if(ble_uuid_from_str(&uuid,uuids[i])!=0)continue;if(ble_uuid_cmp(&uuid.u,&chr->uuid.u))continue;uint16_t *target=i==0?&data_handle:i==1?&tx_handle:&rx_handle;unsigned properties=i==0?BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE:i==1?BLE_GATT_CHR_F_WRITE:BLE_GATT_CHR_F_READ;if(*target||chr->val_handle<=service_first||chr->val_handle>service_last||chr->def_handle>=chr->val_handle||(chr->properties&properties)!=properties)duplicated=true;else *target=chr->val_handle;}}
   else{io_result=error->status==BLE_HS_EDONE?(data_handle&&tx_handle&&rx_handle&&data_handle!=tx_handle&&data_handle!=rx_handle&&tx_handle!=rx_handle&&!duplicated?DSR_OK:DSR_UNSUPPORTED):sdk_result(error->status);io_pending=false;io_done=true;}
  }unlock();return 0;
 }
@@ -114,7 +114,7 @@ static dsr_result_t connect_peer(uint32_t generation)
 static dsr_result_t discover(void)
 {
  if(atomic_load(&cancelled))return DSR_BUSY;
- ble_uuid_any_t service;if(ble_uuid_from_str("5f6d4f53-5f52-5043-5f53-56435f49445f",&service)!=0)return DSR_IO;
+ ble_uuid_any_t service;if(ble_uuid_from_str(&service,"5f6d4f53-5f52-5043-5f53-56435f49445f")!=0)return DSR_IO;
  lock();service_first=service_last=data_handle=tx_handle=rx_handle=0;duplicated=false;bool token=next_token();uint32_t id=pending_token;unlock();if(!token)return DSR_IO;
  int rc=ble_gattc_disc_svc_by_uuid(connection,&service.u,service_cb,(void *)(uintptr_t)id);
  if(rc||!wait_io(now_ms()))return rc?sdk_result(rc):DSR_OFFLINE;

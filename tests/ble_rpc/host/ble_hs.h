@@ -31,7 +31,7 @@ int ble_gap_connect(uint8_t own,const ble_addr_t *peer,int32_t duration,const st
 int ble_gap_conn_cancel(void);
 int ble_gap_terminate(uint16_t connection,uint8_t reason);
 uint16_t ble_att_mtu(uint16_t connection);
-int ble_uuid_from_str(const char *text,ble_uuid_any_t *uuid);
+int ble_uuid_from_str(ble_uuid_any_t *uuid,const char *text);
 int ble_uuid_cmp(const ble_uuid_t *a,const ble_uuid_t *b);
 int ble_gattc_disc_svc_by_uuid(uint16_t,const ble_uuid_t *,ble_gatt_disc_svc_fn *,void *);
 int ble_gattc_disc_all_chrs(uint16_t,uint16_t,uint16_t,ble_gatt_chr_fn *,void *);
