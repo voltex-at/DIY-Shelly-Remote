@@ -9,6 +9,7 @@
 #include "dsr_ble.h"
 #include "esp_app_desc.h"
 #include "dsr_system_info.h"
+#include "dsr_restart.h"
 #include "../../components/dsr_platform/dsr_activity_internal.h"
 #include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"
 #include <assert.h>
@@ -46,6 +47,11 @@ static lv_indev_t *pointer;
 static lv_point_t touch;
 static bool pressed;
 static unsigned ready_count;
+/* Backend MODEL only: no activity reservation, task, or esp_restart. Real
+ * admission/dispatcher races are covered by the separate native suite. */
+static unsigned restart_requests;
+static dsr_restart_result_t restart_response=DSR_RESTART_BUSY;
+dsr_restart_result_t dsr_restart_request(void){restart_requests++;return restart_response;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y)
@@ -99,7 +105,8 @@ static void screenshot(const char *name)
 {
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
-    unsigned badge_y=strtoul(name,NULL,10)>=130?80:8;
+    unsigned frame=(unsigned)strtoul(name,NULL,10);
+    unsigned badge_y=frame>=160&&frame<=165?195:frame>=130?80:8;
     if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
@@ -268,6 +275,52 @@ static void global_settings_regression(void)
  for(unsigned i=0;i<40;i++){tap_row("Panel WWW / bezpieczeństwo");click("Wstecz");tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
  lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Global Settings heap before=%lu after=%lu;40 web/system cycles; host only\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
  test_workspace_disable();
+}
+static void restart_open(void)
+{dsr_ui_open_settings();tap_row("System");tap_row("Restart pilota");CHECK(find_label(lv_screen_active(),"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone."));}
+static lv_obj_t *restart_control(const char *text)
+{
+ lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label);lv_obj_t *button=lv_obj_get_parent(label);
+ lv_obj_update_layout(lv_screen_active());lv_area_t area;lv_obj_get_coords(button,&area);
+ CHECK(area.x1>=0&&area.x2<320&&area.y1>=86&&area.y2<404&&lv_obj_get_height(button)>=44);
+ return button;
+}
+static void restart_regression(void)
+{
+ wifi.connected=false;test_workspace_disable();unsigned before=restart_requests;
+ const char *translated[]={"Restart pilota","Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.","Uruchom ponownie","Anuluj"};
+ for(unsigned language=0;language<3;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);restart_open();
+  for(unsigned i=0;i<4;i++){CHECK(find_label(lv_screen_active(),translated[i]));if(language&&i<3)CHECK(strcmp(dsr_sc_tr(translated[i]),translated[i]));}
+  CHECK(!lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));restart_control("Anuluj");
+  lv_area_t question,warning,prompt,confirm;
+  lv_obj_get_coords(find_label(lv_screen_active(),"Czy uruchomić pilot ponownie?"),&question);
+  lv_obj_get_coords(find_label(lv_screen_active(),translated[1]),&warning);
+  lv_obj_t *prompt_label=find_label(lv_screen_active(),"Potwierdź restart przyciskiem poniżej.");CHECK(prompt_label);lv_obj_get_coords(prompt_label,&prompt);
+  lv_obj_get_coords(restart_control("Uruchom ponownie"),&confirm);
+  CHECK(question.y2<warning.y1&&warning.y2<prompt.y1&&prompt.y2<confirm.y1&&warning.x1>=12&&warning.x2<308);
+  screenshot(language==0?"160-restart-confirm-pl":language==1?"161-restart-confirm-en":"162-restart-confirm-de");
+  click("Anuluj");CHECK(find_label(lv_screen_active(),"System")&&!find_label(lv_screen_active(),"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.")&&restart_requests==before);
+  restart_open();click("Wstecz");CHECK(find_label(lv_screen_active(),"Ustawienia pilota")&&restart_requests==before);
+ }
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);restart_open();restart_response=DSR_RESTART_BUSY;click("Uruchom ponownie");
+ CHECK(restart_requests==before+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));CHECK(!lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));screenshot("163-restart-busy");
+ restart_response=DSR_RESTART_UNAVAILABLE;click("Uruchom ponownie");
+ CHECK(restart_requests==before+2&&find_label(lv_screen_active(),"Restart jest niedostępny. Spróbuj później."));CHECK(!lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));screenshot("164-restart-unavailable");
+ click("Anuluj");restart_open();CHECK(!find_label(lv_screen_active(),"Restart jest niedostępny. Spróbuj później."));click("Wstecz");
+ for(unsigned i=0;i<10;i++){restart_open();click("Anuluj");}
+ lv_mem_monitor_t a,b;lv_mem_monitor(&a);
+ for(unsigned i=0;i<40;i++){restart_open();click(i%2?"Anuluj":"Wstecz");CHECK(restart_requests==before+2);}
+ lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Restart UI heap before=%lu after=%lu;40 confirm/cancel/back cycles; backend MODEL\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
+ /* Acceptance is deliberately LAST: the production process latch cannot be
+  * reset by tests, navigation, synthetic programmatic events, or reopening. */
+ restart_open();restart_response=DSR_RESTART_ACCEPTED;click("Uruchom ponownie");
+ CHECK(restart_requests==before+3&&find_label(lv_screen_active(),"Przyjęto żądanie restartu."));
+ CHECK(lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));CHECK(lv_obj_has_state(restart_control("Anuluj"),LV_STATE_DISABLED));screenshot("165-restart-accepted-model");
+ click("Uruchom ponownie");click("Anuluj");CHECK(restart_requests==before+3);
+ click("Wstecz");restart_open();CHECK(find_label(lv_screen_active(),"Przyjęto żądanie restartu."));
+ CHECK(lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));click("Uruchom ponownie");CHECK(restart_requests==before+3);
+ dsr_network_home(NULL);restart_open();click("Uruchom ponownie");CHECK(restart_requests==before+3&&!dsr_activity_restart_pending());
 }
 static void room_name(const char *name)
 {lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,name);}
@@ -573,7 +626,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

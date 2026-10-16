@@ -1,4 +1,15 @@
-# Matryca funkcji — 0.7.19, rewizja 20
+# Matryca funkcji — 0.7.20, rewizja 21
+
+## #6/#24: LCD restart z potwierdzeniem, bez erase/reset
+
+System → Restart pilota: osobny ekran, potwierdź/anuluj/Wstecz. Tylko świadome
+potwierdzenie wywołuje wspólny backend; BUSY/unavailable mają retry, accepted
+blokuje kolejne żądania także po ponownym otwarciu. Pointery czyszczone na hide,
+accepted zachowany do końca procesu. PL/EN/DE i przyciski48px; LVGL nie wywołuje
+restartu ani zapisu. Backend PR46, własne testy/CI/artifact oraz fizyczna retencja
+pozostają bramkami. LVGL UBSan2838/102, PL/EN/DE geometry,40cycles heap stable
+106712→106712 i niezależny review PASS; request provider jawnie MODEL, nie
+physical restart. Eksport/import/reset i pełne OTA nie stają się ukończone.
 
 P0 aktualizacja09:56UTC: właściciel potwierdził boot/UI/Wi-Fi0.7.18, lecz
 SPIFFS nadal niepusty/niezamontowany, workspace/HTTPS niedostępne. To nie próba
@@ -7,7 +18,7 @@ właściciel wykonuje test i zbiera pierwszy log. Brak nowego physical PASS,
 bez prawa do full erase/NVS/OTA slotów lub powtórzenia. Prywatne dane poza repo.
 [Aktualny dowód i zgoda](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6212940294).
 
-## #24/#6: bezpieczny backend restartu, LCD confirm jeszcze następny
+## #24/#6: bezpieczny backend restartu (etap0.7.19)
 
 [Kontrakt/inventory](RESTART_PL.md): atomic admission queued/running/event i
 real poll handoff; NVS/workspace/bind/pair/photo/OTA+slot/boot health covered.
@@ -15,7 +26,7 @@ Dedicated dispatcher stack4096 priority1, one-shot poza LVGL/HTTP; Web restart
 zachowuje auth/local-only i jawnie odmawia409/503. Nie ma erase/reset/formatu.
 Atomic16052/dispatcher131/panel97/upload234559 UBSan i UI2334/96 PASS;
 pozostałe writer faults/exact CI/ELF i physical restart/retention osobne bramki.
-LCD potwierdzenie/anulowanie nadal niewdrożone, #24/#6/P0 niezamknięte.
+LCD follow-up powyżej; #24/#6/P0 niezamknięte.
 Actual-writer UBSan: NVS935/worker3534/workspace123/photos101 PASS, failure cleanup
 i odmowa po restart admission; niezależny review bez blockerów. Nadal HOST MODEL
 providerów NVS/RTOS/filesystem/Flash, nie odbiór fizyczny.
@@ -144,7 +155,8 @@ implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
 | System → Firmware Update | Natywny podpisany updater #24 | Not implemented; brak zweryfikowanego Release |
 | System → lokalna zgoda OTA | Istniejący upload HTTPS / 120 s | Bool accepted/expiry i negatywne testy; fizyczny transfer/rollback otwarte |
 | System → build/board/RAM/PSRAM/Flash/diagnostyka | Read-only snapshot i health | Testy realnego adaptera; płytka do odbioru |
-| System → restart/eksport/import/reset | Osobny bezpieczny backend #24 | Not implemented; bez destrukcyjnej atrapy |
+| System → restart | Wspólny backend #24, LCD confirm/cancel | Host/CI/physical gates; bez erase/reset |
+| System → eksport/import/reset | Osobne istniejące zadania | Not implemented; bez destrukcyjnej atrapy |
 | Ołówek HOME | Tylko pulpity/pokoje; wpisy/sceny w System | Bez ukrytego języka/pairing/OTA; #28 hardware nadal P0 |
 
 Historia #22: obowiązuje **24 h internal** z rzeczywistych pomiarów i bezpieczną

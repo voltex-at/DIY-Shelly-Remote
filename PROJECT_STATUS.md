@@ -1,5 +1,30 @@
 # Project status
 
+## 0.7.20 — confirmed LCD restart through shared backend (#6/#24)
+
+Settings → System → Restart remote now opens an explicit confirmation screen,
+separate from HOME pencil/editor. Opening, Cancel and Back submit no request.
+Confirm calls the existing nonblocking admission backend, never esp_restart or
+storage APIs from LVGL. BUSY/UNAVAILABLE remain retryable with translated status;
+ACCEPTED disables both action buttons and latches for this process, including
+leave/reopen and synthetic repeated events. Screen pointers are cleared on hide;
+the accepted latch is not. It is an accepted request, not a promise a frame or
+HTTP response was delivered or that shutdown has completed. No public cancel
+after acceptance, retry timer, reset/erase/format or new backend policy.
+
+PL/EN/DE use existing scroll-body and 48-pixel buttons. Export/import/reset and
+full native OTA remain unimplemented; the old LCD-restart-unimplemented copy is
+replaced without claiming those other functions complete. Backend parent PR46
+e72074c fixes new harness cJSON include discovery after initial CI4/5; own final
+CI/artifact proof remains separate. Independent real LVGL UBSan2838/102 frames,
+PL/EN/DE non-overlap and buttons48px, retry/zero-call cancel/duplicate guards
+PASS; 40cycles heap106712→106712. Reviewer authored tests, coordinator independently
+reviewed production/lifecycle/renders without blockers; root full native/config265
+UBSan PASS. Backend provider in UI is explicitly MODEL; genuine admission and
+dispatcher tests remain in parent. Physical restart/retention still required.
+Do not replace owner's P0 test0.7.18 mid-test.
+[Contract](docs/RESTART_PL.md). Global backlog and hardware P0 remain open.
+
 ## P0 hardware update — 2026-10-16 09:56 UTC
 
 Fresh PR33 comments6212871631/6212940294: owner tested0.7.18, UI/boot/Wi-Fi

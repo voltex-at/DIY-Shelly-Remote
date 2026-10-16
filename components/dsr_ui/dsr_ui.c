@@ -6,6 +6,7 @@
 #include "esp_app_desc.h"
 #include "dsr_workspace.h"
 #include "dsr_system_info.h"
+#include "dsr_restart.h"
 #include "lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -16,7 +17,12 @@ static unsigned touches;
 static lv_obj_t *expiry_label;
 static uint32_t issued_at;
 static bool expiry_pair;
-void dsr_ui_settings_hide(void){expiry_label=NULL;}
+static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
+/* Accepted is process-lifetime state, not a screen state. Navigating away must
+ * neither cancel backend admission nor submit a second request on reopening. */
+static bool restart_accepted;
+void dsr_ui_settings_hide(void)
+{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;}
 void dsr_ui_settings_tick(void)
 {
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
@@ -224,6 +230,30 @@ static void firmware(lv_event_t *event)
  unavailable(body,"Sprawdź aktualizacje • niedostępne",218);unavailable(body,"Zainstaluj • niedostępne",276);
  row(body,"Zezwól na OTA • 2 minuty",334,ota_allowed);
 }
+static void system_menu(lv_event_t *event);
+static void restart_cancel(lv_event_t *event)
+{if(!restart_accepted)system_menu(event);}
+static void restart_confirm(lv_event_t *event)
+{
+ (void)event;if(restart_accepted||!restart_status||!restart_confirm_button||!restart_cancel_button)return;
+ dsr_restart_result_t result=dsr_restart_request();
+ const char *text="Restart jest niedostępny. Spróbuj później.";
+ if(result==DSR_RESTART_ACCEPTED){
+  restart_accepted=true;text="Przyjęto żądanie restartu.";
+  lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);
+ }else if(result==DSR_RESTART_BUSY)text="Pilot jest zajęty. Spróbuj ponownie.";
+ dsr_sc_label_set_text(restart_status,text);
+}
+static void restart_screen(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Restart pilota");
+ dsr_sc_text(body,"Czy uruchomić pilot ponownie?",4,6,284,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(body,"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ restart_status=dsr_sc_text(body,restart_accepted?"Przyjęto żądanie restartu.":"Potwierdź restart przyciskiem poniżej.",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
+ restart_confirm_button=row(body,"Uruchom ponownie",210,restart_confirm);dsr_ui_primary(restart_confirm_button);
+ restart_cancel_button=row(body,"Anuluj",268,restart_cancel);
+ if(restart_accepted){lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);}
+}
 static void system_info(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Informacje i diagnostyka");dsr_system_info_t info;dsr_system_info_snapshot(&info);
@@ -232,7 +262,7 @@ static void system_info(lv_event_t *event)
  char text[160];snprintf(text,sizeof(text),dsr_sc_tr("RAM wolna: %lu B\nNajwiększy blok: %lu B\nPSRAM wolna: %lu B\nFlash dostępna: %lu B / 0x%x"),(unsigned long)info.internal_free,(unsigned long)info.internal_largest,(unsigned long)info.psram_free,(unsigned long)info.flash_bytes,(unsigned)info.flash_error);
  dsr_sc_text(body,text,4,76,284,&dsr_roboto_14,DSR_SC_TEXT);
  row(body,"Diagnostyka konfiguracji",194,dsr_ui_config_diagnostics);
- dsr_sc_text(body,"Restart z LCD: niewdrożony. Eksport i reset: niewdrożone; dane zachowane.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(body,"Restart: w menu System, po potwierdzeniu. Eksport i reset: niewdrożone.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
  row(body,"Odśwież",342,system_info);
 }
 static void system_menu(lv_event_t *event)
@@ -240,7 +270,7 @@ static void system_menu(lv_event_t *event)
  (void)event;lv_obj_t *body=settings_body("System");
  row(body,"Firmware Update",0,firmware);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
- row(body,"Podgląd rolety • DEMO",232,cover_preview);unavailable(body,"Restart • niedostępny",290);
+ row(body,"Podgląd rolety • DEMO",232,cover_preview);row(body,"Restart pilota",290,restart_screen);
 }
 static void screen_settings(lv_event_t *event)
 {

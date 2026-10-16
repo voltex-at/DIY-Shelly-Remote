@@ -1,8 +1,8 @@
-# Bezpieczna rezerwacja restartu — backend 0.7.19, #24/#6
+# Bezpieczna rezerwacja restartu — backend0.7.19 / LCD0.7.20, #24/#6
 
 Ten etap dodaje wspólny backend i zastępuje bezpośredni restart z istniejącego
-uwierzytelnionego Web API. **Potwierdzenie restartu na LCD pozostaje osobnym
-następnym etapem**, a obecny ekran nadal uczciwie mówi, że nie jest wdrożone.
+uwierzytelnionego Web API. Follow-up0.7.20 dodaje potwierdzenie na LCD opisane
+poniżej; nie zmienia kontraktu backendu ani autoryzacji WWW.
 Nie dodano resetu ustawień, kasowania, formatowania, zmiany partycji ani OTA
 instalatora. Testy nie wywołują restartu ani zapisu na fizycznym urządzeniu.
 
@@ -97,9 +97,35 @@ Nie wykonano restartu sprzętu, nie zaliczono retencji/health/rollback ani P0.
 Restart nie potwierdza zdrowia nowej aplikacji ani nie omija rollback IDF.
 Stan pending-verify nadal podlega istniejącemu boot-health/rollback kontraktowi.
 
-Następny krok: LCD confirm/cancel/Back, czytelne BUSY/unavailable/accepted,
-jednokrotny dispatch bez blokowania LVGL; dopiero potem fizyczny odbiór z
-zachowaniem Wi-Fi/pokoi/zdjęć. P0 SPIFFS nadal wymaga osobnego hardware testu;
+## LCD potwierdzenie (follow-up0.7.20)
+
+Ustawienia → System → Restart pilota otwiera osobny ekran. Samo otwarcie,
+Anuluj oraz Wstecz nie wołają backendu. Dopiero Uruchom ponownie wywołuje
+`dsr_restart_request()`. BUSY i UNAVAILABLE pokazują jawny komunikat PL/EN/DE,
+pozostawiając możliwość ponownego świadomego potwierdzenia. Nie ma busy snapshotu
+zamiast atomic admission ani automatycznego retry. LCD nie wymaga mount SPIFFS.
+
+ACCEPTED zapisuje procesowy latch i wyłącza confirm/cancel. Ukrycie ekranu
+zeruje wszystkie nowe pointery LVGL, ale nie latch; po wyjściu i ponownym
+otwarciu nie można zgłosić kolejnego restartu. Programmatyczne ponowne eventy
+też odmawiają. Wstecz/Home nadal pozwalają opuścić ekran, nie cofają requestu.
+Brak publicznego cancel po akceptacji; późniejsza utrata boot-ready może
+odwołać backend dispatch bez ponawiania. UI uczciwie mówi „przyjęto żądanie”,
+nie obiecuje czasu restartu ani wyrenderowania klatki na fizycznym LCD.
+
+Nie wywołuje się delay/esp_restart/storage z LVGL. Ostrzeżenie rozróżnia
+zachowane dane od niezapisanych zmian; restart nie jest resetem fabrycznym.
+Przyciski48px, przewijalny kontener318px, napisy PL/EN/DE. Test UI używa jawnego
+HOST modelu wyników requestu; prawdziwe admission/dispatcher testuje etap0.7.19.
+Niezależne LVGL UBSan2838/102 rendery PASS: wszystkie języki i nieprzecinanie
+label/buttonów, zero calls przed confirm, retry po odmowach, sticky accepted
+przez programmatic event/Back/Home/reopen.40cykli heap106712→106712. Stare
+dirty/pending/CAS appearance testy zachowane. Niezależne code/lifecycle/render
+reviews bez blockerów; root powtarza testy. Exact target/CI/artifact osobno.
+Fizyczny odbiór wymaga osobno potwierdzić odmowę podczas zapisu/OTA, pojedynczy
+restart w idle oraz zachowanie Wi-Fi/pokoi/zdjęć. Tego jeszcze nie wykonano.
+
+P0 SPIFFS nadal wymaga osobnego hardware testu;
 żadnego kolejnego erase/nonempty-format bez odrębnej zgody właściciela.
 
 Źródła pierwotne, IDF5.5.4 pin735507283d5b2f9fb363a1901172dbd9e847945d:
