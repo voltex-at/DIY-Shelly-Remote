@@ -115,6 +115,7 @@ jobs:
           python3 tools/check_ota_release_chain_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/OTA_RELEASE_CHAIN.json
           python3 tools/check_restart_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/RESTART.json
           python3 tools/check_editor_target.py --build-dir build-board --out build-board/EDITOR.json
+          python3 tools/check_pairing_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/PAIRING.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -154,6 +155,7 @@ jobs:
           cp docs/RESTART_PL.md build-board/RESTART.json build-board/package/
           cp docs/EDITOR_ACCEPTANCE_PL.md build-board/EDITOR.json build-board/package/
           cp docs/WEB_LOCALE_PL.md build-board/package/
+          cp docs/PAIRING_REVOKE_PL.md build-board/PAIRING.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

@@ -53,7 +53,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_PAIRING_REVOKE } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;

@@ -1,5 +1,39 @@
 # Project status
 
+## 0.7.23 — revoke the single Web pairing (#6 point5)
+
+Explicit LCD confirmation queues a local offline worker job, never NVS from
+LVGL. Trylock snapshot shows current-boot RAM authorization, not active sessions
+or proven durable key state. Panel lock serializes pair/auth/revoke; activity
+covers queue→receive and nested revoke through lastclose. Deny old RAM token,
+pairing code/OTA window before erasing ONLY token_hash, verify NOT_FOUND.
+Errors never restore RAM auth; persistent revocation explicitly unconfirmed.
+Pinned IDF commit is no-op, not transactional rollback: durable hash may remain
+OR already be erased. Preauthorized operations may finish; new physical pairing
+allowed. No remote revoke API, namespace wipe, Wi-Fi/workspace/photo/TLS identity
+changes, reset/format/restart. Pending UI survives hide/reopen/Back/Home and
+guards duplicates; matching ACK updates live WWW generate/status too.
+[Contract and primary source](docs/PAIRING_REVOKE_PL.md). Tests/review/CI/target/
+exact artifacts/physical acceptance separate gates. Original implementation
+was frozen on PR47 source1765187d, then preserved byte-for-byte before
+reapplying onto PR49 source8637296, including final browser harness fixes.
+Root repeated real LVGL3741/119, pairing786/config265 and dictionary1885/237
+UBSan checks; worker3570/full native PASS independently. Revoke40cycles heap
+105488→105488. Auth local_request/authorized/api exact SHA guards unchanged.
+Own exact CI/target/artifact and physical acceptance remain separate gates.
+Parent locale CI38894174497 is5/5 PASS, browser688+legacy28, all18 renders
+reviewed; downloaded exact app/ELF/assets/segments/partitions proof in PR49.
+Owner0.7.18 PRE-FORMATTED dsrdata retains rooms after reset and Web Panel works
+(PR33comment6214082938). This is not blank-init, full TLS/pairing or acceptance
+of this revoke UI. No further erase/restore; main/Stable unchanged.
+
+Resume validation on ba1591b: full native UBSan PASS, including786 extracted
+panel checks and3570 worker checks; unchanged local_request/authorized/api
+SHA guards PASS. Real LVGL UBSan3741/119 screenshots PASS with original P0
+editor regressions retained; revoke40cycles heap105488→105488. Config265 and
+locale dictionary1885/237 PASS; shipped locale assets/P0 editor source unchanged.
+Mutex/NVS/HTTP/RTOS providers remain MODEL. No target/physical revoke PASS yet.
+
 ## 0.7.22 — browser-local Web Panel language (#5/#6)
 
 Owner [PR5comment6214082384](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5#issuecomment-6214082384)
@@ -13,7 +47,9 @@ Appearance distinguishes shared remote language from browser preference.
 Independent Playwright cases cover state/no-request/input identity/dirty/CAS/
 pending save/locale/storage failures/mobile geometry. Local Chromium launch
 fails SIGTRAP in restricted environment: syntax/review is not browser PASS.
-Actual CI/renders/exact artifact and physical locale acceptance separate gates.
+Final exact CI38894174497 5/5/browser688/render18/actual artifacts verified in
+PR49; physical locale acceptance remains separate. Initial local launch failure
+and earlier test-only CI corrections are documented there, not hidden PASS.
 
 Parent Draft [PR48](https://github.com/voltex-at/DIY-Shelly-Remote/pull/48)
 sourcef9bac663 exact CI38892424314 5/5 and downloaded firmware/debug proof in PR.
@@ -21,7 +57,7 @@ App1780240 B SHA2569f9bfae58ef04482083883d7c3ff776fd4f29ff15967b4cf84e86efb72594
 UI3223/111, own target frames and full regressions PASS, physical new UI still open.
 P0 owner0.7.18/preformatted SPIFFS rooms survive reset and Web works, not blank
 init or full TLS/pairing acceptance. No further erase/restore/main/Stable.
-Frozen pairing revoke remains separate/unpublished; do not duplicate it.
+At 0.7.22, pairing revoke remained separate/unpublished; it is resumed above in 0.7.23.
 
 ## P0 update — 2026-10-16 10:54 UTC / 0.7.21-editor-acceptance-dev
 
@@ -49,10 +85,10 @@ Full native/config265 UBSan PASS; target own-frame checker smoke2positive/
 Exact CI/artifact and physical new UI retest still gates. Main/Stable
 unchanged. Native OTA/full backlog/history24h internal/later optional SD remain.
 
-Independent pairing-revocation work is preserved UNPUBLISHED on
-work/issue-6-web-pairing-revoke, not part of this P0 build: backend786/worker3570/
+At the 0.7.21 P0 publication, independent pairing revocation was preserved
+UNPUBLISHED on work/issue-6-web-pairing-revoke, outside that P0 build: backend786/worker3570/
 UI3356/110 host tests passed, but new hardware P0 took publication priority.
-Do not duplicate or claim revocation included here; resume after P0 review.
+That frozen implementation is now resumed in 0.7.23 above; the original worktree remains untouched.
 
 ## 0.7.20 — confirmed LCD restart through shared backend (#6/#24)
 

@@ -102,6 +102,14 @@ static dsr_result_t submit(dsr_job_kind_t kind, bool on)
 }
 
 bool dsr_network_busy(void) { return busy; }
+dsr_result_t dsr_network_request_pairing_revoke(void)
+{
+ if(busy)return DSR_BUSY;
+ const dsr_job_t job={.id=++serial,.kind=DSR_JOB_PAIRING_REVOKE};
+ dsr_result_t accepted=dsr_worker_submit(&job);
+ if(accepted==DSR_OK){busy=true;operation=DSR_JOB_PAIRING_REVOKE;outstanding=job.id;}
+ return accepted;
+}
 dsr_result_t dsr_network_request_display(uint8_t brightness,uint16_t seconds)
 {
  if(busy)return DSR_BUSY;
@@ -290,8 +298,9 @@ static void poll(lv_timer_t *timer)
     uint32_t now = lv_tick_get();
     dsr_event_t event;
     if (dsr_worker_receive(&event) && event.id == outstanding) {
-        busy = false; if(operation!=DSR_JOB_BATTERY_READ&&operation!=DSR_JOB_DISPLAY_SAVE)last_poll = now;
-        if(operation==DSR_JOB_DISPLAY_SAVE){
+        busy = false; if(operation!=DSR_JOB_BATTERY_READ&&operation!=DSR_JOB_DISPLAY_SAVE&&operation!=DSR_JOB_PAIRING_REVOKE)last_poll = now;
+        if(operation==DSR_JOB_PAIRING_REVOKE)dsr_ui_pairing_revoke_result(&event);
+        else if(operation==DSR_JOB_DISPLAY_SAVE){
             if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}
             dsr_ui_display_result(&event);
         } else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
@@ -319,7 +328,7 @@ static void poll(lv_timer_t *timer)
             else if(!command_error)last_result=event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
-        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT && operation!=DSR_JOB_BATTERY_READ && operation!=DSR_JOB_DISPLAY_SAVE)
+        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT && operation!=DSR_JOB_BATTERY_READ && operation!=DSR_JOB_DISPLAY_SAVE && operation!=DSR_JOB_PAIRING_REVOKE)
             dsr_sc_label_set_text(message, result_text(event.result));
         if(queued_output){
             bool on=queued_on;

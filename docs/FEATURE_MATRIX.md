@@ -1,4 +1,16 @@
-# Matryca funkcji — 0.7.22, rewizja 23
+# Matryca funkcji — 0.7.23, rewizja 24
+
+## #6 punkt5: unieważnienie wspólnego parowania WWW
+
+Jedno token_hash, NIE rejestr/liczba sesji. Snapshot efektywnego dostępu RAM;
+unavailable i niepotwierdzona trwałość jawne. Confirm→worker poza LVGL, mutex
+pair/auth/revoke i activity do lastclose/receive. Stare RAM uprawnienie, kod
+i OTA window blokowane przed NVS; erase ONLY token_hash + NOT_FOUND readback.
+Commit NVS nie jest rollbackiem; błąd nie obiecuje stanu Flash po restarcie.
+Pending bez duplikatów/hide/reopen, PL/EN/DE; testy/CI/artefakty/physical osobno.
+[Kontrakt](PAIRING_REVOKE_PL.md), bez namespace wipe/resetu/TLS rotation.
+Po integracji UBSan panel786/worker3570/config265/LVGL3741/119 PASS;
+40cycles revoke heap105488→105488, auth SHA guards bez zmian.
 
 ## #5/#6: język Web Panelu niezależny od pilota
 
@@ -9,7 +21,9 @@ API, changed/Save/load i bez zmian shared language/revision. Pola/focus/files/
 paircode/dirty/conflict/strona pozostają. User names/SSID/preview nietłumaczone.
 Język pilota = wspólny workspace; język WWW = ta przeglądarka.
 Browser test/review/exact CI/artefakt/physical gates osobno. Lokalny Chromium
-SIGTRAP nie jest PASS; wymagane rzeczywiste wykonanie w CI. Bez backend zmian.
+SIGTRAP nie jest PASS. Final PR49 source8637296 CI38894174497 5/5, browser688+
+legacy28, dictionary1885/237 i18renderów niezależnie odebrane; downloaded app/
+ELF/source/3assets/segmenty/partycje sprawdzone w PR49. Locale bez backend zmian.
 Parent PR48f9bac663 CI38892424314 5/5, pobrany exact BIN1780240 B i ELF/segmenty/
 partycje sprawdzone, pełne dowody w PR48; jego nowy UI czeka na fizyczny retest.
 
@@ -24,7 +38,7 @@ To NIE blank-format ani pełny TLS/pairing PASS. Nie ponawiać erase/przywracani
 B/IO/CAS/mismatch zostają. Widoczne48px delete dashboard/room, named modal przed
 mutacją draft, constraints recheck, osobneSave→ACK. Stabilny ID pokoju/fallback.
 [Kontrakt i krótki retest](EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
-bramki osobno. Revoke WWW zachowane nieopublikowane, NIE część tego builda.
+bramki osobno. Revoke WWW był poza buildem0.7.21; wznowiony powyżej w0.7.23.
 LVGL UBSan3223/111, PL/EN/DE/max47char/48px i40cycles heap104456→104456 PASS;
 native/config265 PASS, niezależny review bez blockerów. Nowy UI fizycznie nieodebrany.
 
@@ -179,7 +193,7 @@ implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
 | Ekran: jasność/timeout/sleep/wake | Istniejący NVS, worker, PWM | PR #36 CI 5/5; timeout wybrany i 0=off, wake bez SET do testu |
 | Bateria | GPIO8 ADC / brak Web procentów | PR #35 CI 5/5; multimeter otwarty, procent/niski poziom/charging nieznane |
 | WWW: IPv4/mDNS/TLS/SPIFFS/fingerprint/kod | Istniejący HTTPS/pairing | Jawne generowanie i expiry; realny telefon/preview do testu |
-| WWW: sesje i unieważnianie | Brak LCD API | Not implemented; brak pozornej akcji |
+| WWW: unieważnienie wspólnego parowania | Jeden token_hash, worker + LCD confirm | 0.7.23; test/CI/physical gates, nie registry sesji |
 | System → Firmware Update | Natywny podpisany updater #24 | Not implemented; brak zweryfikowanego Release |
 | System → lokalna zgoda OTA | Istniejący upload HTTPS / 120 s | Bool accepted/expiry i negatywne testy; fizyczny transfer/rollback otwarte |
 | System → build/board/RAM/PSRAM/Flash/diagnostyka | Read-only snapshot i health | Testy realnego adaptera; płytka do odbioru |

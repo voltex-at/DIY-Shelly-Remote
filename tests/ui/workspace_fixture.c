@@ -1,6 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
+#include "dsr_panel_pairing.h"
 #include "lvgl.h"
 #include <stdlib.h>
 #include <string.h>
@@ -30,8 +31,14 @@ bool dsr_workspace_submit(const char *json,uint32_t revision)
 {if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;}return true;}
 void dsr_workspace_status(bool *busy,char message[96]){*busy=pending!=NULL;message[0]=0;}
 static bool pair_accepted=true;
+static bool pairing_available=true,pairing_paired,pairing_uncertain;
+static unsigned pair_code_requests;
+void test_pairing_state(bool available,bool paired,bool uncertain){pairing_available=available;pairing_paired=paired;pairing_uncertain=uncertain;}
+unsigned test_pair_code_requests(void){return pair_code_requests;}
+bool dsr_panel_pairing_snapshot(dsr_panel_pairing_snapshot_t *out)
+{if(!out)return false;memset(out,0,sizeof(*out));if(!https_ready||!pairing_available)return false;*out=(dsr_panel_pairing_snapshot_t){pairing_paired,pairing_uncertain};return true;}
 void test_pair_accept(bool accepted){pair_accepted=accepted;}
-void dsr_panel_pair_begin(char code[17]){if(https_ready&&pair_accepted)strcpy(code,"0123456789abcdef");else code[0]=0;}
+void dsr_panel_pair_begin(char code[17]){pair_code_requests++;if(https_ready&&pair_accepted)strcpy(code,"0123456789abcdef");else code[0]=0;}
 void dsr_panel_pair_cancel(void){}
 static bool ota_accepted=true;
 void test_ota_accept(bool accepted){ota_accepted=accepted;}

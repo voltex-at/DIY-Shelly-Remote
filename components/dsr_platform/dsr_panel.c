@@ -1,5 +1,6 @@
 #include "dsr_workspace.h"
 #include "dsr_panel_permission.h"
+#include "dsr_panel_pairing.h"
 #include "dsr_ota_upload.h"
 #include "dsr_ota_image.h"
 #include "dsr_discovery.h"
@@ -39,11 +40,47 @@ __attribute__((used)) const char dsr_ota_board_marker[]=DSR_OTA_IMAGE_BOARD_MARK
 static SemaphoreHandle_t lock;
 static char pairing[17];static int64_t pair_until,ota_until;static unsigned attempts;
 static unsigned char token_hash[32];static bool has_token,need_preview;
+static bool revocation_unconfirmed;
 static unsigned char *preview;static bool preview_ready;
 static httpd_handle_t server;
 static httpd_handle_t redirect_server;
 static bool panel_ready;
 bool dsr_panel_ready(void){return panel_ready;}
+
+bool dsr_panel_pairing_snapshot(dsr_panel_pairing_snapshot_t *out)
+{
+ if(!out)return false;
+ memset(out,0,sizeof(*out));
+ if(!dsr_boot_ready()||!panel_ready||!lock||xSemaphoreTake(lock,0)!=pdTRUE)return false;
+ out->paired=has_token;out->revocation_unconfirmed=revocation_unconfirmed;
+ xSemaphoreGive(lock);return true;
+}
+esp_err_t dsr_panel_pairing_revoke(void)
+{
+ if(!dsr_boot_ready()||!panel_ready||!lock)return ESP_ERR_INVALID_STATE;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ if(xSemaphoreTake(lock,portMAX_DELAY)!=pdTRUE){dsr_activity_end();return ESP_ERR_TIMEOUT;}
+ /* The shared lock linearizes authorization, pairing and RAM invalidation.
+  * Deny first: later NVS errors must never resurrect the old credential. */
+ has_token=false;memset(token_hash,0,sizeof(token_hash));
+ memset(pairing,0,sizeof(pairing));pair_until=ota_until=0;attempts=0;
+ revocation_unconfirmed=true;
+ nvs_handle_t handle;
+ esp_err_t error=nvs_open("dsr_panel",NVS_READWRITE,&handle);
+ if(error==ESP_OK){
+  error=nvs_erase_key(handle,"token_hash");
+  if(error==ESP_ERR_NVS_NOT_FOUND)error=ESP_OK;
+  if(error==ESP_OK)error=nvs_commit(handle);
+  if(error==ESP_OK){
+   size_t length=0;error=nvs_get_blob(handle,"token_hash",NULL,&length);
+   if(error==ESP_ERR_NVS_NOT_FOUND)error=ESP_OK;
+   else if(error==ESP_OK)error=ESP_ERR_INVALID_STATE;
+  }
+  nvs_close(handle);
+ }
+ if(error==ESP_OK)revocation_unconfirmed=false;
+ xSemaphoreGive(lock);dsr_activity_end();return error;
+}
 
 static void random_hex(char *out,size_t bytes)
 {uint8_t raw[32];esp_fill_random(raw,bytes);for(size_t i=0;i<bytes;i++)sprintf(out+i*2,"%02x",raw[i]);out[bytes*2]=0;memset(raw,0,sizeof(raw));}
@@ -123,7 +160,7 @@ static esp_err_t pair(httpd_req_t *r)
  if(valid){
   random_hex(token,32);mbedtls_sha256((unsigned char *)token,64,digest,0);
   nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READWRITE,&n)==ESP_OK){result=nvs_set_blob(n,"token_hash",digest,32);if(result==ESP_OK)result=nvs_commit(n);nvs_close(n);}
-  if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;pair_until=0;memset(pairing,0,sizeof(pairing));}
+  if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;revocation_unconfirmed=false;pair_until=0;memset(pairing,0,sizeof(pairing));}
  }
  xSemaphoreGive(lock);memset(data,0,strlen(data));free(data);
  dsr_activity_end();

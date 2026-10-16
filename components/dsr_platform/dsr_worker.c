@@ -1,5 +1,6 @@
 #include "dsr_platform.h"
 #include "dsr_activity.h"
+#include "dsr_panel_pairing.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -16,7 +17,13 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_DISPLAY_SAVE){
+        if(job.kind==DSR_JOB_PAIRING_REVOKE){
+#ifdef DSR_BOARD_ES3C35P
+            event.result=dsr_panel_pairing_revoke()==ESP_OK?DSR_OK:DSR_IO;
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
+        } else if(job.kind==DSR_JOB_DISPLAY_SAVE){
             /* Read the latest full NVS record inside the sole worker. Never
              * replay UI-cached credentials over a newer Wi-Fi connection. */
             dsr_settings_t current;
@@ -85,12 +92,12 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_DISPLAY_SAVE) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_PAIRING_REVOKE) return DSR_INVALID;
     if(job->kind==DSR_JOB_DISPLAY_SAVE){
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
-    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
+    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && job->kind!=DSR_JOB_PAIRING_REVOKE && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (!dsr_activity_begin()) { xSemaphoreGive(available); return DSR_BUSY; }
     if (job->kind == DSR_JOB_WIFI_CONNECT) dsr_wifi_prepare_connect();

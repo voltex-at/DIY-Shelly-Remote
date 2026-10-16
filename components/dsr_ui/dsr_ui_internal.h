@@ -17,6 +17,8 @@ bool dsr_ui_settings_can_open(void);
 void dsr_ui_settings_network(lv_event_t *event);
 void dsr_ui_settings_hide(void);
 void dsr_ui_settings_tick(void);
+dsr_result_t dsr_network_request_pairing_revoke(void);
+void dsr_ui_pairing_revoke_result(const dsr_event_t *event);
 void dsr_ui_ble_settings(lv_event_t *event);
 void dsr_ui_config_appearance(lv_event_t *event);
 void dsr_ui_config_registry(lv_event_t *event);

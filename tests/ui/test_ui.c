@@ -28,6 +28,8 @@ void test_workspace_fault(unsigned fault);
 void test_panel_ready(bool ready);
 void test_ota_accept(bool accepted);
 void test_pair_accept(bool accepted);
+void test_pairing_state(bool available,bool paired,bool uncertain);
+unsigned test_pair_code_requests(void);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
@@ -35,7 +37,7 @@ void test_ble_finish(dsr_ble_phase_t phase);
 #define CHECK(x) do {checks++; if (!(x)) {fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort();}} while(0)
 static dsr_job_t submitted;
 static dsr_event_t response;
-static bool in_flight, result_ready;
+static bool in_flight, result_ready,stale_event;
 static dsr_result_t next_submit_result;
 static dsr_settings_t stored = {.brightness = 70, .idle_seconds = 60};
 static dsr_wifi_info_t wifi;
@@ -85,7 +87,7 @@ void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
-{if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
+{if(!result_ready)return false; *out=response; result_ready=false;if(stale_event){stale_event=false;return true;} /* synthetic unrelated event does not complete the current MODEL job */ in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
 
 static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 {
@@ -106,7 +108,7 @@ static void screenshot(const char *name)
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
     unsigned frame=(unsigned)strtoul(name,NULL,10);
-    unsigned badge_y=frame>=180&&frame<=199?8:frame>=160&&frame<=165?195:frame>=130?80:8;
+    unsigned badge_y=frame>=180&&frame<=199?8:frame>=160&&frame<=177?195:frame>=130?80:8;
     if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
@@ -321,6 +323,45 @@ static void restart_regression(void)
  click("Wstecz");restart_open();CHECK(find_label(lv_screen_active(),"Przyjęto żądanie restartu."));
  CHECK(lv_obj_has_state(restart_control("Uruchom ponownie"),LV_STATE_DISABLED));click("Uruchom ponownie");CHECK(restart_requests==before+3);
  dsr_network_home(NULL);restart_open();click("Uruchom ponownie");CHECK(restart_requests==before+3&&!dsr_activity_restart_pending());
+}
+static void revoke_open(void)
+{dsr_ui_open_settings();tap_row("Panel WWW / bezpieczeństwo");tap_row("Unieważnij parowanie WWW");CHECK(find_label(lv_screen_active(),"Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną."));}
+static void revoke_regression(void)
+{
+ wifi.connected=false;test_panel_ready(true);test_pair_accept(true);test_workspace_disable();unsigned before=requests;
+ const char *warning="Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną.";
+ for(unsigned language=0;language<3;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);test_pairing_state(true,true,false);revoke_open();
+  CHECK(find_label(lv_screen_active(),"Dostęp WWW: aktywny.")&&find_label(lv_screen_active(),"Potwierdź unieważnienie przyciskiem poniżej."));
+  if(language)CHECK(strcmp(dsr_sc_tr(warning),warning)&&strcmp(dsr_sc_tr("Unieważnij parowanie"),"Unieważnij parowanie"));
+  restart_control("Unieważnij parowanie");restart_control("Anuluj");
+  lv_area_t warn,status,confirm;lv_obj_get_coords(find_label(lv_screen_active(),warning),&warn);lv_obj_get_coords(find_label(lv_screen_active(),"Potwierdź unieważnienie przyciskiem poniżej."),&status);lv_obj_get_coords(restart_control("Unieważnij parowanie"),&confirm);CHECK(warn.y2<status.y1&&status.y2<confirm.y1);
+  screenshot(language==0?"170-revoke-confirm-pl":language==1?"171-revoke-confirm-en":"172-revoke-confirm-de");
+  click("Anuluj");CHECK(find_label(lv_screen_active(),"Panel WWW / bezpieczeństwo")&&requests==before);
+  revoke_open();click("Wstecz");CHECK(find_label(lv_screen_active(),"Ustawienia pilota")&&requests==before);
+ }
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);test_pairing_state(false,false,false);revoke_open();CHECK(find_label(lv_screen_active(),"Stan parowania niedostępny."));screenshot("176-revoke-snapshot-unavailable");click("Wstecz");
+ test_pairing_state(true,true,true);revoke_open();CHECK(find_label(lv_screen_active(),"Trwałe unieważnienie: niepotwierdzone.")&&!find_label(lv_screen_active(),"Dostęp WWW: aktywny."));screenshot("177-revoke-uncertain");click("Wstecz");
+ test_pairing_state(true,true,false);revoke_open();next_submit_result=DSR_BUSY;click("Unieważnij parowanie");CHECK(requests==before&&!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+ click("Unieważnij parowanie");CHECK(in_flight&&submitted.kind==DSR_JOB_PAIRING_REVOKE&&requests==before+1);CHECK(!submitted.connection.device.host[0]&&!submitted.connection.credentials.password[0]);
+ CHECK(lv_obj_has_state(restart_control("Unieważnij parowanie"),LV_STATE_DISABLED)&&lv_obj_has_state(restart_control("Anuluj"),LV_STATE_DISABLED));click("Unieważnij parowanie");click("Anuluj");CHECK(requests==before+1&&find_label(lv_screen_active(),"Unieważnianie parowania…"));screenshot("173-revoke-pending");
+ /* Exercise genuine poll matching with an explicitly synthetic stale MODEL
+  * event; it neither completes nor releases the current queued operation. */
+ response=(dsr_event_t){.id=submitted.id+123,.result=DSR_OK};stale_event=result_ready=true;tick();CHECK(in_flight&&find_label(lv_screen_active(),"Unieważnianie parowania…"));
+ revoke_open();CHECK(find_label(lv_screen_active(),"Unieważnianie parowania…")&&lv_obj_has_state(restart_control("Unieważnij parowanie"),LV_STATE_DISABLED)&&requests==before+1);
+ click("Wstecz");dsr_ui_open_settings();tap_row("Panel WWW / bezpieczeństwo");unsigned codes=test_pair_code_requests();
+ lv_obj_t *generate=lv_obj_get_parent(find_label(lv_screen_active(),"Wygeneruj kod parowania"));CHECK(lv_obj_has_state(generate,LV_STATE_DISABLED));click("Wygeneruj kod parowania");CHECK(test_pair_code_requests()==codes&&!find_label(lv_screen_active(),"0123456789abcdef"));
+ dsr_ui_open_settings();tap_row("Panel WWW / bezpieczeństwo");generate=lv_obj_get_parent(find_label(lv_screen_active(),"Wygeneruj kod parowania"));CHECK(lv_obj_has_state(generate,LV_STATE_DISABLED));
+ test_pairing_state(true,false,true);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(!in_flight&&requests==before+1);
+ CHECK(!lv_obj_has_state(generate,LV_STATE_DISABLED)&&!find_label(lv_screen_active(),"Unieważnianie parowania…")&&find_label(lv_screen_active(),"Trwałe unieważnienie: niepotwierdzone."));
+ revoke_open();CHECK(find_label(lv_screen_active(),"Nie potwierdzono trwałego unieważnienia. Spróbuj ponownie.")&&find_label(lv_screen_active(),"Trwałe unieważnienie: niepotwierdzone."));CHECK(!lv_obj_has_state(restart_control("Unieważnij parowanie"),LV_STATE_DISABLED));screenshot("174-revoke-failure");
+ click("Unieważnij parowanie");CHECK(in_flight&&requests==before+2);dsr_network_home(NULL);test_pairing_state(true,false,false);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);revoke_open();
+ CHECK(find_label(lv_screen_active(),"Parowanie unieważniono. Nowy dostęp wymaga nowego kodu.")&&find_label(lv_screen_active(),"Dostęp WWW: nieaktywny."));screenshot("175-revoke-success");click("Anuluj");
+ revoke_open();response=(dsr_event_t){.id=submitted.id,.result=DSR_IO};stale_event=result_ready=true;tick();CHECK(find_label(lv_screen_active(),"Parowanie unieważniono. Nowy dostęp wymaga nowego kodu.")&&!find_label(lv_screen_active(),"Nie potwierdzono trwałego unieważnienia. Spróbuj ponownie."));click("Anuluj");
+ codes=test_pair_code_requests();tap_row("Wygeneruj kod parowania");CHECK(test_pair_code_requests()==codes+1&&find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");
+ for(unsigned i=0;i<10;i++){revoke_open();click("Anuluj");}
+ lv_mem_monitor_t a,b;lv_mem_monitor(&a);for(unsigned i=0;i<40;i++){revoke_open();click("Anuluj");CHECK(requests==before+2);}lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);
+ printf("Pairing revoke UI heap before=%lu after=%lu;40 open/cancel cycles; snapshot/worker MODEL\n",(unsigned long)a.free_size,(unsigned long)b.free_size);test_pairing_state(true,false,false);
 }
 static void room_name(const char *name)
 {lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,name);}
@@ -685,7 +726,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();revoke_regression();restart_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

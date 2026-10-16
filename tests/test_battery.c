@@ -56,6 +56,8 @@ int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
 static dsr_settings_t display_stored={.ssid="new-network",.password="latest-private-password",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
 static unsigned display_load_error,display_save_error,display_saves;
+static unsigned pairing_revokes;static esp_err_t pairing_error;
+esp_err_t dsr_panel_pairing_revoke(void){CHECK(!dsr_activity_restart_reserve());pairing_revokes++;return pairing_error;}
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 bool dsr_wifi_connected(void){return false;}
@@ -110,6 +112,15 @@ int main(void)
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);
+ for(unsigned n=0;n<3;n++){
+  pairing_error=n==0?ESP_OK:n==1?ESP_FAIL:ESP_ERR_INVALID_STATE;
+  unsigned before=pairing_revokes,display_before=display_saves;dsr_job_t revoke_job={.id=500+n,.kind=DSR_JOB_PAIRING_REVOKE};
+  CHECK(dsr_worker_submit(&revoke_job)==DSR_OK&&!dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&revoke_job)==DSR_BUSY);
+  if(!setjmp(stop))worker(NULL);
+  CHECK(pairing_revokes==before+1&&display_saves==display_before&&!dsr_activity_restart_reserve());
+  dsr_event_t revoked;CHECK(dsr_worker_receive(&revoked)&&revoked.id==500+n&&revoked.result==(n==0?DSR_OK:DSR_IO));
+  CHECK(!memcmp(&revoked.device,&(dsr_device_t){0},sizeof(revoked.device))&&!dsr_worker_receive(&revoked));admission_open();
+ }
  admission_open();
  dsr_job_t admitted={.id=200,.kind=DSR_JOB_BATTERY_READ};
  fail_queue=true;CHECK(dsr_worker_submit(&admitted)==DSR_BUSY&&!queues[0].occupied&&semaphore);admission_open();fail_queue=false;

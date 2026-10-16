@@ -21,6 +21,7 @@ subprocess.run(["python3",str(ROOT/"tools/test_ota_release.py"),*( ["--sanitize"
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_fetch.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_chain.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_restart.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_pairing.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     temp_root = Path(tmp).resolve()
     binary = temp_root / "test_core"
