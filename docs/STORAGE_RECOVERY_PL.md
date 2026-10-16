@@ -79,7 +79,10 @@ prawdopodobieństwa:
 3. watchdog.
 
 Różne punkty przerwania (109 vs 313) przemawiają raczej za resetem
-zewnętrznym niż za stałym limitem czasu. Rozstrzyga `reset_reason` z
+zewnętrznym niż za stałym limitem czasu. **Właściciel (2026-10-17) uznał
+za bardzo prawdopodobne, że reset został wciśnięty z zewnątrz dwukrotnie w
+czasie czarnego ekranu** — to wyjaśnia oba prefiksy; brak logu, więc formalnie
+nadal hipoteza, ale ekran postępu i wznowienie usuwają oba skutki. Rozstrzyga `reset_reason` z
 następnego startu (logowany już w `app_main`): POWERON, USB, BROWNOUT,
 TASK_WDT, INT_WDT lub PANIC.
 
