@@ -142,6 +142,12 @@ void dsr_network_rooms(void)
     dsr_network_home(NULL); /* Re-read the published shared configuration first. */
     dsr_mobile_show(DSR_MOBILE_ROOMS,0);
 }
+void dsr_network_room_context(uint32_t id)
+{
+    dsr_network_home(NULL); /* Re-read published IDs; never reuse a room index. */
+    for(unsigned i=0;i<mobile_model.room_count;i++)if(mobile_model.rooms[i].id==id){dsr_mobile_show(DSR_MOBILE_ROOM,i);return;}
+    dsr_mobile_show(DSR_MOBILE_ROOMS,0);
+}
 
 static void mobile_output(unsigned index, bool on)
 {

@@ -1,4 +1,19 @@
-# Matryca funkcji — 0.7.20, rewizja 21
+# Matryca funkcji — 0.7.21, rewizja 22
+
+## P0: rzeczywisty odczyt wrócił; poprawki Save/Usuń
+
+[PR33comment6213932010,16.10.2026 10:54UTC](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6213932010):
+właściciel przywrócił PRE-FORMATTED SPIFFS, edytor/model/form/klawiatura działają.
+[Dalszy wynik11:02UTC](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6214082938):
+pokoje zachowane po resecie i Web Panel działa na0.7.18/preformatowanym SPIFFS.
+To NIE blank-format ani pełny TLS/pairing PASS. Nie ponawiać erase/przywracania dsrdata.
+0.7.21: fresh exact ACK + clean A + ta sama screen generation→kontekst poprzedni,
+B/IO/CAS/mismatch zostają. Widoczne48px delete dashboard/room, named modal przed
+mutacją draft, constraints recheck, osobneSave→ACK. Stabilny ID pokoju/fallback.
+[Kontrakt i krótki retest](EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
+bramki osobno. Revoke WWW zachowane nieopublikowane, NIE część tego builda.
+LVGL UBSan3223/111, PL/EN/DE/max47char/48px i40cycles heap104456→104456 PASS;
+native/config265 PASS, niezależny review bez blockerów. Nowy UI fizycznie nieodebrany.
 
 ## #6/#24: LCD restart z potwierdzeniem, bez erase/reset
 
@@ -11,7 +26,7 @@ pozostają bramkami. LVGL UBSan2838/102, PL/EN/DE geometry,40cycles heap stable
 106712→106712 i niezależny review PASS; request provider jawnie MODEL, nie
 physical restart. Eksport/import/reset i pełne OTA nie stają się ukończone.
 
-P0 aktualizacja09:56UTC: właściciel potwierdził boot/UI/Wi-Fi0.7.18, lecz
+Historyczna aktualizacja09:56UTC (zastąpiona10:54powyżej): właściciel potwierdził boot/UI/Wi-Fi0.7.18, lecz
 SPIFFS nadal niepusty/niezamontowany, workspace/HTTPS niedostępne. To nie próba
 blank format. Nowa osobna zgoda obejmuje JEDEN lokalny erase tylko dsrdata;
 właściciel wykonuje test i zbiera pierwszy log. Brak nowego physical PASS,

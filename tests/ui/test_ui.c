@@ -106,7 +106,7 @@ static void screenshot(const char *name)
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
     unsigned frame=(unsigned)strtoul(name,NULL,10);
-    unsigned badge_y=frame>=160&&frame<=165?195:frame>=130?80:8;
+    unsigned badge_y=frame>=180&&frame<=199?8:frame>=160&&frame<=165?195:frame>=130?80:8;
     if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
@@ -374,29 +374,29 @@ static void rooms_regression(void)
  CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);CHECK(find_label(lv_screen_active(),"Brak pomieszczeń"));screenshot("90-rooms-empty");
  tap(160,380);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));screenshot("91-room-new");
  click("Zapisz");CHECK(find_label(lv_screen_active(),"Podaj nazwę pomieszczenia."));
- room_name("Salon");tap(236,442);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));tap(78,442);
+ room_name("Salon");tap(236,442);dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS&&!find_type(lv_screen_active(),&lv_textarea_class));
  CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);CHECK(find_label(lv_screen_active(),"Salon"));screenshot("92-rooms-created");
  /* Real pointer on the card's 44x44 edit target; it must not open the room. */
  tap(134,168);CHECK(!dsr_mobile_active());CHECK(find_label(lv_screen_active(),"Edytuj pomieszczenie"));room_name("Salon 2");
  lv_obj_t *icon=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(icon);lv_dropdown_set_selected(icon,2);lv_obj_send_event(icon,LV_EVENT_VALUE_CHANGED,NULL);
  click("Wybierz zdjęcie z pamięci");test_workspace_defer(true);tap(236,442);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisywanie…"));screenshot("93-room-saving");
- tap(78,442);CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));
+ click("Wstecz");CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));
  cJSON *r=room_document();CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name")->valuestring,"Salon"));cJSON_Delete(r);
  test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));screenshot("94-room-save-failed");
- click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));test_workspace_defer(false);click("Wstecz");
- tap(160,116);room_name("Łazienka Küche");click("Wybierz zdjęcie z pamięci");click("Zmień zdjęcie z pamięci");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");screenshot("95-rooms-photos");
+ click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);test_workspace_defer(false);
+ tap(160,116);room_name("Łazienka Küche");click("Wybierz zdjęcie z pamięci");click("Zmień zdjęcie z pamięci");click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);screenshot("95-rooms-photos");
  r=room_document();cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");CHECK(cJSON_GetArraySize(rooms)==2);
  CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child,"name")->valuestring,"Salon 2"));CHECK(cJSON_GetObjectItemCaseSensitive(rooms->child,"icon")->valueint==2);
  CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child,"photo")->valuestring,dsr_photo_id(0)));
  /* Reordering from Web changes list positions, not which ID gets edited. */
  cJSON *moved=cJSON_DetachItemFromArray(rooms,0);cJSON_AddItemToArray(rooms,moved);publish_document(r);dsr_network_rooms();tap(134,168);
- CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Łazienka Küche"));room_name("Pokój 2");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");
+ CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Łazienka Küche"));room_name("Pokój 2");click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
  r=room_document();rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");CHECK(cJSON_GetObjectItemCaseSensitive(rooms->child,"id")->valueint==2);CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(rooms->child->next,"name")->valuestring,"Salon 2"));cJSON_Delete(r);
  /* An already-open room also follows ID when a Web reorder is published. */
  tap(60,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);r=room_document();rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms");moved=cJSON_DetachItemFromArray(rooms,0);cJSON_AddItemToArray(rooms,moved);publish_document(r);
  char *json=dsr_workspace_snapshot();dsr_mobile_model_t view_model={0};CHECK(dsr_mobile_configure(&view_model,json));free(json);dsr_mobile_update(&view_model);CHECK(find_label(lv_screen_active(),"Pokój 2"));tap(160,116);CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Pokój 2"));click("Wstecz");
  /* Single-room contextual entry and unsaved-change protection. */
- tap(215,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);tap(160,116);room_name("Nie zapisuj");click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));screenshot("96-room-discard");click("Zostań");CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Nie zapisuj"));click("Wstecz");click("Odrzuć");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ dsr_network_rooms();tap(215,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);tap(160,116);room_name("Nie zapisuj");click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));screenshot("96-room-discard");click("Zostań");CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Nie zapisuj"));click("Wstecz");click("Odrzuć");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);
  /* Pending save A / later edit B, followed by an external Web edit. */
  dsr_ui_edit_room(2);room_name("Wersja A");test_workspace_defer(true);click("Zapisz");room_name("Wersja B");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));
  test_workspace_defer(false);r=room_document();publish_document(r);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));screenshot("97-room-conflict");click("Zapisz");click("Wstecz");click("Odrzuć");
@@ -416,12 +416,12 @@ static void rooms_regression(void)
  /* Explicitly move the device first, then confirm deletion, then durable Save. */
  r=room_document();cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"devices")->child,"room"),1);publish_document(r);
  dsr_ui_edit_room(2);room_delete_button();CHECK(find_label(lv_screen_active(),"Usunąć pomieszczenie?"));screenshot("99-room-delete-confirm");click("Anuluj");room_delete_button();click("Usuń");CHECK(find_label(lv_screen_active(),"Usunięcie pomieszczenia"));
- r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==2);cJSON_Delete(r);click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Pomieszczenie usunięte"));CHECK(!find_label(lv_screen_active(),"Zapisz"));click("Wstecz");
+ r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==2);cJSON_Delete(r);click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS&&!find_label(lv_screen_active(),"Zapisz"));
  r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"scenes"))==1);d=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"host")->valuestring,bound.device.host));CHECK(cJSON_GetObjectItemCaseSensitive(d,"channel")->valueint==bound.device.channel);cJSON_Delete(r);
  /* New rooms appear in the existing LAN wizard and dashboard tile selector. */
  dsr_ui_edit_dashboard();click("Pulpity");click("Mój pulpit");click("+ Pomieszczenie");click("Zapisz");dsr_ui_workspace_tick();r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(tiles->child&&cJSON_GetObjectItemCaseSensitive(tiles->child,"ref")->valueint==1);cJSON_Delete(r);
  wifi.connected=true;dsr_ui_lan_open(NULL);test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-test\",\"mac\":\"aabbccddeeff\",\"model\":\"TEST model\",\"auth_en\":false}","192.168.1.88");dsr_ui_lan_tick();click("TEST model");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();lv_obj_t *room=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(room);CHECK(strstr(lv_dropdown_get_options(room),"Salon 2"));CHECK(lv_dropdown_get_option_count(room)==2);dsr_ui_lan_reset();wifi.connected=false;
- dsr_network_rooms();for(unsigned i=1;i<8;i++){dsr_ui_add_room();room_name("Pokój TEST");click("Zapisz");dsr_ui_workspace_tick();click("Wstecz");}
+ dsr_network_rooms();for(unsigned i=1;i<8;i++){dsr_ui_add_room();room_name("Pokój TEST");click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);}
  dsr_ui_add_room();CHECK(find_label(lv_screen_active(),"Limit: 8 pomieszczeń. Edytuj lub usuń istniejący pokój."));screenshot("100-rooms-limit");click("Wstecz");
  /* PL/EN/DE use the same production form and reference warning. */
  for(unsigned language=1;language<3;language++){
@@ -432,6 +432,65 @@ static void rooms_regression(void)
  for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
  printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
  test_workspace_photos(false);dsr_network_home(NULL);tap(188,116);CHECK(find_label(lv_screen_active(),"Bluetooth LE"));dsr_network_home(NULL);
+}
+static void p0_generic(const char *collection,const char *name)
+{dsr_ui_edit_dashboard();click(collection);if(name)click(name);}
+static void p0_visible_delete(const char *text)
+{
+ lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label);lv_obj_t *button=lv_obj_get_parent(label);lv_obj_update_layout(lv_screen_active());lv_area_t a;lv_obj_get_coords(button,&a);
+ CHECK(a.x1>=12&&a.x2<308&&a.y1>=106&&a.y2<398&&lv_obj_get_height(button)>=44); /* no scroll-to-view rescue */
+ tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
+}
+static lv_obj_t *p0_modal(const char *name)
+{char title[160];snprintf(title,sizeof(title),dsr_sc_tr("Usunąć \"%s\"?"),name);lv_obj_t *label=find_label(lv_screen_active(),title);if(!label){lv_obj_t *description=find_label(lv_screen_active(),"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie.");CHECK(description);label=lv_obj_get_child(lv_obj_get_parent(description),0);CHECK(lv_obj_check_type(label,&lv_label_class));}lv_label_long_mode_t mode=lv_label_get_long_mode(label);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_WRAP);CHECK(!strcmp(lv_label_get_text(label),title)&&strstr(lv_label_get_text(label),name));lv_label_set_long_mode(label,mode);lv_obj_update_layout(lv_screen_active());return label;}
+static cJSON *p0_data(void)
+{cJSON *r=room_document();cJSON_DeleteItemFromObjectCaseSensitive(r,"revision");return r;}
+static void p0_editor_regression(void)
+{
+ wifi.connected=false;dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_network_home(NULL);test_workspace_disable();test_workspace_enable();
+ cJSON *r=room_document();cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),cJSON_Parse("{\"id\":8,\"name\":\"Pulpit drugi\",\"tiles\":[]}"));
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"rooms"),cJSON_Parse("{\"id\":7,\"name\":\"Pusty pokój\",\"icon\":0,\"photo\":\"\"}"));cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"rooms"),cJSON_Parse("{\"id\":9,\"name\":\"Drugi pokój\",\"icon\":0,\"photo\":\"\"}"));publish_document(r);
+ /* The first assertion after ACK fails on 0.7.18: it used to retain the
+  * entity editor despite a clean, exactly published durable snapshot. */
+ p0_generic("Pulpity","Mój pulpit");room_name("Pulpit A");test_workspace_defer(true);unsigned revision=dsr_workspace_revision();click("Zapisz");dsr_ui_workspace_tick();CHECK(find_type(lv_screen_active(),&lv_textarea_class)&&dsr_workspace_revision()==revision);
+ p0_visible_delete("Usuń pulpit");CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu.")&&!find_label(lv_screen_active(),"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie."));
+ test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(!find_type(lv_screen_active(),&lv_textarea_class)&&find_label(lv_screen_active(),"Pulpit A")&&find_label(lv_screen_active(),"+ Dodaj wpis"));CHECK(dsr_workspace_revision()==revision+1);screenshot("180-editor-clean-ack-list");
+ dsr_ui_select_dashboard();click("Pulpit drugi");dsr_ui_workspace_tick();CHECK(!dsr_mobile_active()&&find_label(lv_screen_active(),"Wybierz pulpit"));test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME);dsr_ui_select_dashboard();click("Pulpit A");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME);
+ p0_generic("Pulpity","Pulpit A");room_name("Zapis A");click("Zapisz");room_name("Edycja B");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Edycja B")&&find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));
+ click("Zapisz");test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze.")&&!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Edycja B"));
+ /* A real Web publication at the expected next revision is not our A. */
+ click("Zapisz");test_workspace_finish(false);test_workspace_defer(false);r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"name",cJSON_CreateString("WEB dashboard"));publish_document(r);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.")&&find_type(lv_screen_active(),&lv_textarea_class));
+ /* Navigation/redraw after submit consumes no later navigation opportunity. */
+ p0_generic("Pulpity","WEB dashboard");room_name("Pulpit A");test_workspace_defer(true);click("Zapisz");click("Wstecz");click("Pulpit drugi");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Pulpit drugi"));test_workspace_defer(false);
+ p0_generic("Pulpity","Pulpit A");cJSON *unchanged=p0_data();p0_visible_delete("Usuń pulpit");p0_modal("Pulpit A");CHECK(find_label(lv_screen_active(),"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie."));screenshot("181-dashboard-delete-confirm");click("Anuluj");click("Zapisz");dsr_ui_workspace_tick();r=p0_data();CHECK(cJSON_Compare(unchanged,r,true));cJSON_Delete(unchanged);cJSON_Delete(r);
+ click("Pulpit A");unchanged=p0_data();p0_visible_delete("Usuń pulpit");test_workspace_defer(true);click("Zapisz");click("Usuń");CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));test_workspace_finish(true);dsr_ui_workspace_tick();r=p0_data();CHECK(cJSON_Compare(unchanged,r,true));cJSON_Delete(unchanged);cJSON_Delete(r);test_workspace_defer(false);
+ click("Pulpit A");p0_visible_delete("Usuń pulpit");p0_modal("Pulpit A");click("Usuń");CHECK(!find_label(lv_screen_active(),"Pulpit A")&&find_label(lv_screen_active(),"Pulpit drugi"));r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"dashboards"))==2);cJSON_Delete(r);
+ test_workspace_defer(true);click("Zapisz");dsr_ui_workspace_tick();r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"dashboards"))==2);cJSON_Delete(r);test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Pulpit drugi")&&find_label(lv_screen_active(),"+ Dodaj wpis")&&!find_label(lv_screen_active(),"Pulpity"));test_workspace_defer(false);
+ r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"dashboards"))==1&&cJSON_GetObjectItemCaseSensitive(r,"active_dashboard")->valueint==8);cJSON_Delete(r);
+ click("Pulpit drugi");p0_visible_delete("Usuń pulpit");CHECK(find_label(lv_screen_active(),"Zachowaj przynajmniej jeden pulpit."));click("Wstecz");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Edytuj pilot"));click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+ /* Generic rooms use the same clean entity->collection contract. */
+ p0_generic("Pomieszczenia","Pusty pokój");room_name("Pokój A");test_workspace_defer(true);click("Zapisz");CHECK(find_type(lv_screen_active(),&lv_textarea_class));test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Pokój A")&&!find_type(lv_screen_active(),&lv_textarea_class));test_workspace_defer(false);
+ /* Actual contextual entry from ROOM detail must return to stable ID 7. */
+ dsr_network_rooms();tap(60,228);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);tap(160,116);room_name("Pokój trwały");test_workspace_defer(true);click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM&&find_label(lv_screen_active(),"Pokój trwały"));test_workspace_defer(false);screenshot("182-room-ack-stable-context");
+ /* Each type of existing reference must prevent generic room deletion. */
+ r=room_document();cJSON *tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");cJSON_AddItemToArray(tiles,cJSON_Parse("{\"id\":1,\"type\":\"room\",\"ref\":7,\"span\":1,\"height\":1,\"fields\":255}"));publish_document(r);
+ p0_generic("Pomieszczenia","Pokój trwały");p0_visible_delete("Usuń pomieszczenie");CHECK(find_label(lv_screen_active(),"Najpierw usuń powiązane karty lub działania."));click("Wstecz");
+ r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");cJSON_DeleteItemFromArray(tiles,0);cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"devices"),cJSON_Parse("{\"id\":1,\"name\":\"Fixture lamp\",\"kind\":\"light\",\"host\":\"192.168.1.20\",\"channel\":0,\"room\":7}"));cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"scenes"),cJSON_Parse("{\"id\":1,\"name\":\"Fixture scene\",\"actions\":[{\"device\":1,\"command\":\"on\"}]}"));publish_document(r);
+ p0_generic("Pomieszczenia","Pokój trwały");p0_visible_delete("Usuń pomieszczenie");CHECK(find_label(lv_screen_active(),"Najpierw usuń powiązane karty lub działania."));
+ r=room_document();cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"devices")->child,"room"),0);publish_document(r);
+ p0_generic("Pomieszczenia","Pokój trwały");p0_visible_delete("Usuń pomieszczenie");p0_modal("Pokój trwały");click("Anuluj");CHECK(find_type(lv_screen_active(),&lv_textarea_class));p0_visible_delete("Usuń pomieszczenie");click("Usuń");click("Zapisz");dsr_ui_workspace_tick();r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==1&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==1&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"scenes"))==1);cJSON_Delete(r);
+ /* Fresh reopen reads the acknowledged model, not the deleted draft object. */
+ p0_generic("Pomieszczenia",NULL);CHECK(!find_label(lv_screen_active(),"Pokój trwały")&&find_label(lv_screen_active(),"Drugi pokój"));
+ click("Drugi pokój");p0_visible_delete("Usuń pomieszczenie");r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name",cJSON_CreateString("Pokój WEB"));publish_document(r);click("Usuń");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==1&&!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name")->valuestring,"Pokój WEB"));cJSON_Delete(r);
+ char wide[48];memset(wide,'W',47);wide[47]=0;
+ r=room_document();cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),cJSON_Parse("{\"id\":11,\"name\":\"Wide dashboard\",\"tiles\":[]}"));cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child->next,"name",cJSON_CreateString(wide));publish_document(r);
+ for(unsigned language=0;language<3;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);CHECK(dsr_sc_language()==language);
+  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name",cJSON_CreateString(wide));publish_document(r);p0_generic("Pomieszczenia",wide);p0_visible_delete("Usuń pomieszczenie");lv_obj_t *title=p0_modal(wide),*description=find_label(lv_screen_active(),"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie.");CHECK(description);lv_area_t a,b,c;lv_obj_get_coords(title,&a);lv_obj_get_coords(description,&b);lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj")),&c);CHECK(a.y2<b.y1&&b.y2<c.y1&&lv_obj_get_height(title)==44);screenshot(language==0?"183-delete-wide-pl":language==1?"184-delete-wide-en":"185-delete-wide-de");click("Anuluj");
+  p0_generic("Pulpity",wide);p0_visible_delete("Usuń pulpit");p0_modal(wide);screenshot(language==0?"186-dashboard-wide-pl":language==1?"187-dashboard-wide-en":"188-dashboard-wide-de");click("Anuluj");
+ }
+ dsr_network_home(NULL);dsr_sc_appearance(DSR_SC_BLUE,false,0);p0_generic("Pomieszczenia",wide);for(unsigned i=0;i<3;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor_t before,after;lv_mem_monitor(&before);for(unsigned i=0;i<40;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor(&after);printf("P0 generic delete heap before=%lu after=%lu;40 cancel cycles, host workspace MODEL\n",(unsigned long)before.free_size,(unsigned long)after.free_size);fflush(stdout);CHECK(before.free_size==after.free_size);
+ dsr_network_home(NULL);test_workspace_disable();dsr_sc_appearance(DSR_SC_BLUE,false,0);
 }
 static void polling_regression(void)
 {
@@ -591,21 +650,21 @@ int main(int argc,char **argv)
     click("System");click("Podgląd rolety • DEMO");CHECK(find_label(lv_screen_active(),"Pozycja 65%"));CHECK(find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("42-cover-preview-on-device");
     unsigned before_preview=submitted.id;click("Otwórz");CHECK(find_label(lv_screen_active(),"Otwarte 100%"));click("Zamknij");CHECK(find_label(lv_screen_active(),"Zamknięte 0%"));click("Stop");CHECK(submitted.id==before_preview);tap(20,20);CHECK(!find_label(lv_screen_active(),"DEMO • dane przykładowe"));CHECK(find_label(lv_screen_active(),"Desk lamp"));
     dsr_ui_open_settings();click("Ekran i komfort");screenshot("41-display-settings");
-    test_workspace_enable();dsr_ui_edit_dashboard();
+    p0_editor_regression();test_workspace_enable();dsr_ui_edit_dashboard();
     CHECK(find_label(lv_screen_active(),"Edytuj pilot"));screenshot("13-workspace-editor");
     click("Pomieszczenia");click("+ Dodaj wpis");
     lv_obj_t *name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name);lv_textarea_set_text(name,"Salon testowy");click("Zapisz");
     char *configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_config_revision(configuration)==2);
     dsr_mobile_model_t model={0};CHECK(dsr_mobile_configure(&model,configuration));free(configuration);
     CHECK(model.room_count==1);CHECK(!strcmp(model.rooms[0].name,"Salon testowy"));
-    dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));
+    dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Salon testowy")&&!find_type(lv_screen_active(),&lv_textarea_class));click("Salon testowy");name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name);
     test_workspace_defer(true);lv_textarea_set_text(name,"Wersja A");click("Zapisz");
     lv_textarea_set_text(name,"Wersja B");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisywanie…"));
     test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));
     screenshot("20-workspace-save-race");
     CHECK(!strcmp(lv_textarea_get_text(name),"Wersja B"));configuration=dsr_workspace_snapshot();CHECK(strstr(configuration,"Wersja A"));CHECK(!strstr(configuration,"Wersja B"));free(configuration);
     click("Zapisz");test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));CHECK(!strcmp(lv_textarea_get_text(name),"Wersja B"));
-    click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));configuration=dsr_workspace_snapshot();CHECK(dsr_config_revision(configuration)==4);CHECK(strstr(configuration,"Wersja B"));free(configuration);
+    click("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Wersja B")&&!find_type(lv_screen_active(),&lv_textarea_class));configuration=dsr_workspace_snapshot();CHECK(dsr_config_revision(configuration)==4);CHECK(strstr(configuration,"Wersja B"));free(configuration);click("Wersja B");
     test_workspace_defer(false);configuration=dsr_workspace_snapshot();CHECK(dsr_workspace_submit(configuration,4));free(configuration);dsr_ui_workspace_tick();
     CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
     dsr_network_home(NULL);dsr_ui_workspace_tick();

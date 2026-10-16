@@ -43,6 +43,7 @@ void dsr_wifi_ui_result(const dsr_event_t *event, dsr_job_kind_t kind);
 void dsr_network_reset_view(void);
 void dsr_network_home(lv_event_t *event);
 void dsr_network_rooms(void);
+void dsr_network_room_context(uint32_t id);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_edit_dashboard(void);

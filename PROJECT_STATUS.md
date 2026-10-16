@@ -1,5 +1,36 @@
 # Project status
 
+## P0 update — 2026-10-16 10:54 UTC / 0.7.21-editor-acceptance-dev
+
+Fresh owner hardware report [PR33comment6213932010](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6213932010):
+owner restored a complete PRE-FORMATTED SPIFFS image ONLY to dsrdata under
+separate scoped consent. Actual0.7.18 now opens editor/rooms/model/form/keyboard.
+Later [owner report11:02UTC](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6214082938)
+confirms rooms survive reset and Web Panel works on this preformatted image.
+This is physical retention/service evidence, NOT blank-format success,
+full TLS/pairing or full #28 PASS. Do not repeat erase or
+replace/restore dsrdata again. Private photos/video not retrieved/published.
+
+New P0 fixes on current stacked UI: fresh exact own ACK + clean draft A + same
+screen generation returns to captured parent context; B edits/IO/CAS/mismatch
+stay. Context room return resolves stable ID after published model reread,
+deleted ID falls back Rooms. Generic dashboard/room delete is visible48px,
+named confirmation before draft mutation, own_save/membership/refs rechecked,
+last dashboard protected and active fallback valid. Separate Save→ACK required;
+no persistence/schema/OTA/auth/partition/format changes. [Contract/retest](docs/EDITOR_ACCEPTANCE_PL.md).
+Independent real LVGL UBSan3223/111 screenshots PASS; root repeated, reviewer
+authored regressions, coordinator cross-review without blockers. PL/EN/DE,
+47-character names/ellipsis and48px buttons covered;40cycles heap104456→104456.
+Full native/config265 UBSan PASS; target own-frame checker smoke2positive/
+8negative PASS. Providers explicitly MODEL, not physical new UI acceptance.
+Exact CI/artifact and physical new UI retest still gates. Main/Stable
+unchanged. Native OTA/full backlog/history24h internal/later optional SD remain.
+
+Independent pairing-revocation work is preserved UNPUBLISHED on
+work/issue-6-web-pairing-revoke, not part of this P0 build: backend786/worker3570/
+UI3356/110 host tests passed, but new hardware P0 took publication priority.
+Do not duplicate or claim revocation included here; resume after P0 review.
+
 ## 0.7.20 — confirmed LCD restart through shared backend (#6/#24)
 
 Settings → System → Restart remote now opens an explicit confirmation screen,
@@ -26,6 +57,9 @@ Do not replace owner's P0 test0.7.18 mid-test.
 [Contract](docs/RESTART_PL.md). Global backlog and hardware P0 remain open.
 
 ## P0 hardware update — 2026-10-16 09:56 UTC
+
+Historical plan below superseded by10:54 preformatted-image outcome above;
+do not interpret the old pending first-boot plan as permission to repeat erase.
 
 Fresh PR33 comments6212871631/6212940294: owner tested0.7.18, UI/boot/Wi-Fi
 observed working, but SPIFFS remains nonempty/unmounted, workspace unavailable
