@@ -169,6 +169,9 @@ static void idle_check(lv_timer_t *timer)
 static void tick(void *arg) { (void)arg; lv_tick_inc(5); }
 esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void))
 {
+    /* The first-format screen may already have started the task with the
+     * same gate; app_main's later call is then a no-op, not a failure. */
+    if (ui_started && dsr_ui_task_started_with(startup_ready)) return ESP_OK;
     if (!display || ui_started) return ESP_ERR_INVALID_STATE;
     lv_timer_t *idle = lv_timer_create(idle_check, 500, NULL);
     if (!idle) return ESP_ERR_NO_MEM;
@@ -177,6 +180,9 @@ esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void))
     ui_started = true;
     return ESP_OK;
 }
+
+void dsr_board_ui_quiesce(void) { dsr_ui_task_quiesce(); }
+void dsr_board_ui_hold(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 
 esp_err_t dsr_board_init(void)
 {

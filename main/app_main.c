@@ -67,6 +67,8 @@ void app_main(void)
     error = dsr_wifi_start(error == ESP_OK ? &settings : NULL);
     if (error != ESP_OK) ESP_LOGE(tag, "Wi-Fi startup failed: %s", esp_err_to_name(error));
     boot_memory("wifi_ready");
+    /* First boot only: show real format progress instead of a dark LCD. */
+    dsr_storage_set_observer(dsr_ui_storage_observer());
     esp_err_t workspace_error=dsr_workspace_start();
     if(workspace_error!=ESP_OK)ESP_LOGE(tag,"Configuration storage unavailable; existing data preserved: %s",esp_err_to_name(workspace_error));
     else if(error==ESP_OK){esp_err_t panel_error=dsr_panel_start();dsr_config_health_panel(panel_error);if(panel_error!=ESP_OK)ESP_LOGE(tag,"Local HTTPS startup failed: %s",esp_err_to_name(panel_error));}
@@ -78,7 +80,7 @@ void app_main(void)
     if(error!=ESP_OK)ESP_LOGE(tag,"Deferred restart unavailable: %s",esp_err_to_name(error));
     dsr_ui_init();
     boot_memory("ui_constructed");
-    error = dsr_board_start_ui_task(dsr_boot_ready);
+    error = dsr_board_start_ui_task(dsr_boot_ui_gate);
     if (error != ESP_OK) { dsr_boot_diagnostic("ui_task", error); return; }
     error = dsr_board_restore_backlight();
     if (error != ESP_OK) { dsr_boot_diagnostic("backlight", error); return; }

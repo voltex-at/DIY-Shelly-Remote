@@ -10,6 +10,10 @@ esp_err_t dsr_board_init(void);
 lv_display_t *dsr_board_display(void);
 /* The owner waits for startup_ready before handling any LVGL timer/input. */
 esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void));
+/* After closing the gate: wait until the UI task is outside LVGL. */
+void dsr_board_ui_quiesce(void);
+/* Block the calling (main) task so the UI task can render meanwhile. */
+void dsr_board_ui_hold(uint32_t ms);
 esp_err_t dsr_board_set_backlight(uint8_t percent);
 void dsr_board_sleep_display(void);
 esp_err_t dsr_board_restore_backlight(void);

@@ -41,7 +41,7 @@ sources = list(sorted((lvgl / "src").rglob("*.c")))
 sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
             "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_actions.c", "components/dsr_ui/dsr_ui_history.c", "components/dsr_platform/dsr_history_model.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
-sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_icons.c"]
+sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
 sources += [ROOT / "components/dsr_platform/dsr_actions.c", ROOT / "components/dsr_platform/dsr_actions_api.c", ROOT / "components/dsr_platform/dsr_actions_parse.c", ROOT / "components/dsr_platform/dsr_actions_model.c", ROOT / "components/dsr_platform/dsr_activity.c", ROOT / "components/dsr_platform/dsr_fleet.c", ROOT / "tests/ui/native_ota_fixture.c"]
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","components/dsr_platform/dsr_discovery_model.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
@@ -107,3 +107,8 @@ if not args.review:
     ht_binary=build / "test_ht_ui"
     subprocess.run([cc,*flags,*map(str,ht_objects),"-lm","-l:libcjson.so.1","-o",str(ht_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     subprocess.run([str(ht_binary),str(screens)],check=True,cwd=build)
+    provision_object=compile_source(ROOT / "tests/ui/test_provision_ui.c")
+    provision_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[provision_object]
+    provision_binary=build / "test_provision_ui"
+    subprocess.run([cc,*flags,*map(str,provision_objects),"-lm","-l:libcjson.so.1","-o",str(provision_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(provision_binary),str(screens)],check=True,cwd=build)

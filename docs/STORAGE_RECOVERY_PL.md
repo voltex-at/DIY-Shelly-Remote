@@ -43,6 +43,33 @@ Brak dodatkowych zadań, watchdogów, zmian priorytetów ani partycji.
 Test był czerwony na starym `dsr_storage.c` i jest zielony po zmianie.
 Pełne `tools/test.py --sanitize` i `tools/test_config.py --sanitize` są zielone.
 
+**Ekran postępu formatowania (2026-10-17, lokalny patch, NIE na GitHubie).**
+LCD i LVGL są już zainicjowane przed magazynem (`dsr_board_init`). Teraz
+na czas jedynego przebiegu formatowania pojawia się ekran „Przygotowanie
+pamięci” (PL/EN/DE):
+
+- animacja oczekiwania (spinner) i pasek postępu;
+- licznik `N / 992 bloków • %` **odczytywany z Flash** (nagłówki formatera,
+  wyszukiwanie binarne, ≤10 odczytów po 4 B co 500 ms), nie szacowany;
+- czas od startu oraz ostrzeżenie „Nie odłączaj zasilania”;
+- przy wznowieniu: komunikat o przerwanym formatowaniu, a postęp liczony
+  dopiero powyżej starego prefiksu;
+- na koniec „Pamięć gotowa” (0,8 s) albo komunikat o błędzie (4 s).
+
+Renderuje wyłącznie zadanie UI (8 KiB stosu), nigdy stos `app_main`.
+`app_main` buduje i zmienia obiekty tylko przy zamkniętej bramce i po
+potwierdzeniu, że zadanie UI jest poza `lv_timer_handler` (handshake na
+atomikach, `dsr_ui_task_quiesce`). Bramka ekranu nie oznacza „boot READY”:
+nie potwierdza OTA i nie uruchamia usług. Gdy zadanie UI nie wystartuje,
+zachowanie jest jak dawniej (ciemny ekran, format bez zmian).
+
+Testy hostowe: prawdziwy formatter z sondą przed każdym kasowaniem (postęp
+dokładnie = ukończone bloki, przy wznowieniu nigdy powyżej prefiksu); hooki
+dokładnie raz wokół formatu, nigdy dla istniejącego lub odrzuconego FS;
+7 klatek prawdziwego LVGL 320×480 i pamięć LVGL stała po 20 cyklach.
+**Nie sprawdzono na płytce:** płynność animacji przy kasowaniu Flash
+(cache wyłączony na czas każdego sektora) i wpływ na łączny czas formatu.
+
 **Przyczyna przerwania nadal NIEUSTALONA.** Hipotezy, w kolejności
 prawdopodobieństwa:
 

@@ -9,6 +9,11 @@ static atomic_int state = DSR_BOOT_STARTING;
 void dsr_boot_begin(void) { atomic_store(&state, DSR_BOOT_STARTING); }
 dsr_boot_state_t dsr_boot_state(void) { return (dsr_boot_state_t)atomic_load(&state); }
 bool dsr_boot_ready(void) { return dsr_boot_state() == DSR_BOOT_READY; }
+/* First-format progress screen only (#28): opened and closed by app_main's
+ * storage observer while no other UI exists. Never confirms OTA or boot. */
+static atomic_bool provisioning_ui;
+void dsr_boot_provisioning_ui(bool open) { atomic_store(&provisioning_ui, open); }
+bool dsr_boot_ui_gate(void) { return dsr_boot_ready() || atomic_load(&provisioning_ui); }
 bool dsr_boot_finish(void)
 {
     int expected = DSR_BOOT_STARTING;

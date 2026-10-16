@@ -95,6 +95,20 @@ static bool apply_failure;
 esp_err_t dsr_board_apply_display(uint8_t brightness,uint16_t seconds)
 {display_applies++;applied_brightness=brightness;applied_seconds=seconds;return apply_failure?ESP_FAIL:ESP_OK;}
 void dsr_board_sleep_display(void) {}
+/* First-format observer seams (#28); the real gate/handshake is host-tested
+ * in test_boot_memory/test_startup. These only record the call protocol. */
+static bool provision_gate;static unsigned provision_task_starts,provision_quiesces,provision_backlight;
+static uint32_t provision_progress_value;static unsigned provision_progress_reads;
+esp_err_t dsr_board_restore_backlight(void){provision_backlight++;return ESP_OK;}
+bool dsr_boot_ui_gate(void){return provision_gate;}
+void dsr_boot_provisioning_ui(bool open){provision_gate=open;}
+static bool fail_task_start;
+esp_err_t dsr_board_start_ui_task(bool (*ready)(void)){provision_task_starts++;return !fail_task_start&&ready==dsr_boot_ui_gate&&provision_gate?ESP_OK:ESP_ERR_NO_MEM;}
+void dsr_board_ui_quiesce(void){CHECK(!provision_gate);provision_quiesces++;}
+/* Models the UI task rendering while main is blocked with the gate open. */
+static unsigned provision_holds;
+void dsr_board_ui_hold(uint32_t ms){CHECK(provision_gate);provision_holds++;for(uint32_t t=0;t<ms;t+=250){lv_tick_inc(250);lv_timer_handler();}}
+uint32_t dsr_storage_format_progress(void){provision_progress_reads++;return provision_progress_value;}
 bool dsr_board_touch_available(void) {return true;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}

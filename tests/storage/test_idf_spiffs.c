@@ -14,6 +14,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "dsr_storage.h"
+#include "dsr_storage_progress.h"
 #include "dsr_config_health.h"
 
 static unsigned checks, writes, erases, locks;
@@ -89,6 +90,21 @@ static void refused(void)
  CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks&&priority==3);
  dsr_config_health_t h;dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_NONEMPTY);
  CHECK(writes==w&&erases==e&&!memcmp(original,flash,DATA_SIZE));
+}
+static unsigned observer_begins,observer_ends,progress_checks;static bool observer_resume;
+static uint32_t observer_remnant;static esp_err_t observer_result=ESP_OK;
+static void probe_begin(bool resume,uint32_t total,uint32_t remnant_blocks)
+{CHECK(total==DATA_SIZE/4096&&priority==3&&!vfs);observer_begins++;observer_resume=resume;observer_remnant=remnant_blocks;CHECK(dsr_storage_format_progress()==remnant_blocks);}
+static void probe_end(esp_err_t result){CHECK(priority==3);observer_ends++;observer_result=result;}
+static const dsr_storage_observer_t probe_observer={.begin=probe_begin,.end=probe_end};
+/* Called before every sector erase of the real formatter: the Flash probe
+ * must report exactly the blocks already finished, never more. */
+static void progress_hook(void *at,const void *data,size_t size,bool erase)
+{
+ (void)data;(void)size;if(!erase)return;
+ const unsigned block=(unsigned)(((uint8_t *)at-flash)/4096);const uint32_t seen=dsr_storage_format_progress();
+ if(!observer_resume||block>observer_remnant)CHECK(seen==block);else CHECK(seen<=observer_remnant);
+ progress_checks++;
 }
 int main(int argc,char **argv)
 {
@@ -196,6 +212,18 @@ int main(int argc,char **argv)
  /* Corrupt block 900's magic so SPIFFS_mount fails with real lookup data present. */
  for(unsigned block=900;block<902;block++)flash[block*4096+252]=flash[block*4096+253]=0;
  refused();
+ /* First-format observer (#28): begin/end exactly once around each format,
+  * outside the idle-priority window; Flash progress exact and monotonic. */
+ dsr_storage_set_observer(&probe_observer);mutation_hook=progress_hook;
+ memset(flash,0xff,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_OK);ready();
+ CHECK(observer_begins==1&&observer_ends==1&&observer_result==ESP_OK&&!observer_resume&&progress_checks==DATA_SIZE/4096&&dsr_storage_format_progress()==0);
+ roundtrip();CHECK(observer_begins==1&&observer_ends==1); /* existing FS: no hooks */
+ remnant(109);progress_checks=0;CHECK(dsr_storage_mount()==ESP_OK);ready();
+ CHECK(observer_begins==2&&observer_ends==2&&observer_resume&&observer_remnant==109&&progress_checks==DATA_SIZE/4096);unmount();
+ remnant(109);flash[200*4096+10]=0;refused();CHECK(observer_begins==2&&observer_ends==2); /* refusal: no hooks */
+ memset(flash,0xff,DATA_SIZE);interrupted_offset=50*4096;CHECK(dsr_storage_mount()==ESP_FAIL);
+ CHECK(observer_begins==3&&observer_ends==3&&observer_result!=ESP_OK&&dsr_storage_format_progress()==0);
+ interrupted_offset=DATA_SIZE;mutation_hook=NULL;dsr_storage_set_observer(NULL);
  /* A remnant of another geometry (prior 4 MiB length magic) is not ours. */
  memset(flash,0xff,DATA_SIZE);
  for(unsigned block=0;block<109;block++){

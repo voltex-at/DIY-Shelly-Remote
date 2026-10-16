@@ -1,5 +1,6 @@
 #include "dsr_boot.h"
 #include "dsr_board.h"
+#include "dsr_ui.h"
 #include "dsr_platform.h"
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
@@ -31,14 +32,19 @@ const char *dsr_board_hardware_id(void) { return "TEST_ONLY board"; }
 esp_err_t dsr_settings_load(dsr_settings_t *settings) { call('S'); memset(settings,0,sizeof(*settings)); settings->brightness=20;settings->idle_seconds=60; return ESP_OK; }
 esp_err_t dsr_worker_start(void) { call('W'); return worker_error; }
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings) { (void)settings; call('F'); return wifi_error; }
-esp_err_t dsr_workspace_start(void) { call('C'); return storage_error; }
+static const dsr_storage_observer_t fake_observer;
+static unsigned observer_sets;
+const dsr_storage_observer_t *dsr_ui_storage_observer(void) { return &fake_observer; }
+/* Registered before storage, every boot; storage tests own the hook calls. */
+void dsr_storage_set_observer(const dsr_storage_observer_t *o) { CHECK(o==&fake_observer&&trace[at-1]=='F'); observer_sets++; }
+esp_err_t dsr_workspace_start(void) { call('C'); CHECK(observer_sets==1); return storage_error; }
 esp_err_t dsr_panel_start(void) { call('P'); return ESP_OK; }
 esp_err_t dsr_lan_init(void) { call('L'); return ESP_OK; }
 esp_err_t dsr_ble_init(void) { call('E'); return ESP_OK; }
 esp_err_t dsr_restart_start(void) { return restart_error; }
 void dsr_ui_init(void) { call('I'); desired_brightness=20; /* UI fixture loads the saved brightness; real UI separately tested. */ }
 esp_err_t dsr_board_start_ui_task(bool (*ready)(void))
-{ call('T'); CHECK(ready == dsr_boot_ready && !ready()); CHECK(!dsr_ota_boot_confirm()); return ui_error; }
+{ call('T'); CHECK(ready == dsr_boot_ui_gate && !ready()); CHECK(!dsr_ota_boot_confirm()); return ui_error; }
 esp_err_t dsr_board_restore_backlight(void)
 { call('K'); CHECK(desired_brightness==20&&trace[at-2]=='T');restored_brightness=desired_brightness; CHECK(!dsr_boot_ready()); CHECK(!dsr_ota_boot_confirm()); return backlight_error; }
 const esp_partition_t *esp_ota_get_running_partition(void)
@@ -48,7 +54,7 @@ esp_err_t esp_ota_get_state_partition(const esp_partition_t *p,esp_ota_img_state
 esp_err_t esp_ota_mark_app_valid_cancel_rollback(void) { CHECK(!dsr_activity_restart_reserve()); ota_marks++; return confirm_error; }
 static void reset(void)
 {
-    at=ota_reads=ota_marks=reset_reads=0;desired_brightness=70;restored_brightness=0; trace[0]=0; missing_partition=false;
+    at=ota_reads=ota_marks=reset_reads=observer_sets=0;desired_brightness=70;restored_brightness=0; trace[0]=0; missing_partition=false;
     nvs_error=board_error=worker_error=wifi_error=storage_error=ui_error=backlight_error=state_error=confirm_error=ESP_OK;
     restart_error=ESP_OK;
     image_state=ESP_OTA_IMG_PENDING_VERIFY;
@@ -64,6 +70,10 @@ int main(void)
 {
     CHECK(dsr_boot_state() == DSR_BOOT_STARTING && !dsr_boot_ready());
     CHECK(!dsr_ota_boot_confirm() && !ota_reads);
+    /* The first-format screen opens only the UI gate: never boot READY or OTA. */
+    CHECK(!dsr_boot_ui_gate()); dsr_boot_provisioning_ui(true);
+    CHECK(dsr_boot_ui_gate() && !dsr_boot_ready() && !dsr_ota_boot_confirm() && !ota_reads);
+    dsr_boot_provisioning_ui(false); CHECK(!dsr_boot_ui_gate());
     /* Actual app_main returns normally on every injected critical error.
      * No restart/erase API or ESP_ERROR_CHECK substitute is linked here. */
     for (unsigned restart=0; restart<2; restart++) {

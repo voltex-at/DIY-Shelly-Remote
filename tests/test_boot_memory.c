@@ -41,10 +41,11 @@ TaskHandle_t xTaskCreateStatic(void (*entry)(void *), const char *name,
     return task_failure ? NULL : (void *)1;
 }
 uint32_t lv_timer_handler(void)
-{ const uint32_t delays[] = {0, 15, UINT32_MAX}; CHECK(delay_calls < 3); return delays[delay_calls]; }
+{ const uint32_t delays[] = {0, 15, UINT32_MAX}; CHECK(delay_calls < 3 && dsr_ui_task_handler_active()); return delays[delay_calls]; }
 void vTaskDelay(TickType_t ticks)
 {
     if(storage_test){CHECK(ticks==1);storage_delays++;return;}
+    CHECK(!dsr_ui_task_handler_active()); /* never sleeps while inside LVGL */
     if (!allow_run) { CHECK(ticks == 20); held++; longjmp(loop_done,1); }
     const unsigned expected[] = {10, 15, 20}; CHECK(ticks == expected[delay_calls]);
     if (++delay_calls == 3) longjmp(loop_done,1);
@@ -94,6 +95,8 @@ int main(void)
     allow_run=false;
     if (!setjmp(loop_done)) task_entry(NULL);
     CHECK(held == 2 && delay_calls == 3); /* A latched failure closes the gate. */
+    dsr_ui_task_quiesce(); CHECK(!dsr_ui_task_handler_active()); /* returns at once when idle */
+    CHECK(dsr_ui_task_started_with(startup_ready) && !dsr_ui_task_started_with(NULL));
     reset_storage(); mount_error=ESP_OK;
     CHECK(dsr_storage_mount() == ESP_OK && mount_calls == 1 && !format_calls && !read_calls);
     dsr_config_health_t health;dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_READY&&health.storage_error==ESP_OK);

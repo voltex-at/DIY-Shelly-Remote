@@ -1,3 +1,4 @@
+#include "dsr_ui_provision.h"
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
@@ -352,6 +353,7 @@ static void hardware(lv_event_t *event)
 
 void dsr_ui_init(void)
 {
+    dsr_ui_provision_release(); /* first-format screen, if it was shown */
     lv_display_t *display=lv_display_get_default();
     lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),true,&dsr_roboto_14);
     lv_display_set_theme(display,theme);

@@ -1,4 +1,5 @@
 #include "dsr_storage.h"
+#include "dsr_storage_progress.h"
 #include "esp_spiffs.h"
 #include "esp_partition.h"
 #include "esp_log.h"
@@ -6,6 +7,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -35,6 +37,33 @@ static uint8_t header_expected(uint32_t block_count,uint32_t block,size_t index)
 {
     const uint16_t magic=(uint16_t)(0x20140529u^PAGE_BYTES^(block_count-block));
     return index==0?(uint8_t)magic:index==1?(uint8_t)(magic>>8):0u;
+}
+
+static const dsr_storage_observer_t *observer;
+static _Atomic(const esp_partition_t *) progress_partition;
+void dsr_storage_set_observer(const dsr_storage_observer_t *value){observer=value;}
+
+static bool header_exact_at(const esp_partition_t *partition,uint32_t block_count,uint32_t block)
+{
+    uint8_t bytes[4];
+    if(esp_partition_read(partition,(size_t)block*BLOCK_BYTES+HEADER_OFFSET,bytes,sizeof(bytes))!=ESP_OK)return false;
+    for(size_t i=0;i<sizeof(bytes);i++)if(bytes[i]!=header_expected(block_count,block,i))return false;
+    return true;
+}
+/* The formatter writes headers in strictly ascending block order, so the
+ * complete prefix is found by binary search (ceil(log2(993)) = 10 reads).
+ * A block being erased reads as 0xFF and can only LOWER the answer. */
+uint32_t dsr_storage_format_progress(void)
+{
+    const esp_partition_t *partition=atomic_load(&progress_partition);
+    if(!partition)return 0;
+    const uint32_t block_count=(uint32_t)(partition->size/BLOCK_BYTES);
+    uint32_t low=0,high=block_count;
+    while(low<high){
+        const uint32_t middle=low+(high-low+1u)/2u;
+        if(header_exact_at(partition,block_count,middle-1u))low=middle;else high=middle-1u;
+    }
+    return low;
 }
 
 /* Streams the whole partition in <=1 KiB sequential reads (bounded stack).
@@ -135,11 +164,17 @@ esp_err_t dsr_storage_mount(void)
     const UBaseType_t priority=uxTaskPriorityGet(NULL);
     const int64_t started=esp_timer_get_time();
     ESP_LOGI("dsr_storage","format_started pass=1/1 blocks=%u bytes=%u priority=0 resume=%u",(unsigned)(partition->size/BLOCK_BYTES),(unsigned)partition->size,scan==SCAN_REMNANT?1u:0u);
+    /* Optional LCD progress: begin/end run here in the caller, outside the
+     * idle-priority window. The observer reads headers only via Flash. */
+    atomic_store(&progress_partition,partition);
+    if(observer&&observer->begin)observer->begin(scan==SCAN_REMNANT,(uint32_t)(partition->size/BLOCK_BYTES),remnant_blocks);
     vTaskPrioritySet(NULL,tskIDLE_PRIORITY);
     vTaskDelay(1);
     conf.format_if_mount_failed=true;
     error = esp_vfs_spiffs_register(&conf);
     vTaskPrioritySet(NULL,priority);
+    if(observer&&observer->end)observer->end(error);
+    atomic_store(&progress_partition,NULL);
     const int64_t elapsed=esp_timer_get_time()-started;
     ESP_LOGI("dsr_storage","format_finished result=0x%x elapsed_ms=%lld completed=%u/1",(unsigned)error,(long long)(elapsed/1000),error==ESP_OK?1u:0u);
     (void)elapsed; /* Host log shims can discard arguments. */
