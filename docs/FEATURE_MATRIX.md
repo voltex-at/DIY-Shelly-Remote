@@ -1,4 +1,19 @@
-# Matryca funkcji — 0.7.17, rewizja 18
+# Matryca funkcji — 0.7.18, rewizja 19
+
+## #24: jawny Release → signed app validation/discard, nadal bez instalacji
+
+[Kontrakt](OTA_RELEASE_CHAIN_PL.md): full FETCH_OK metadata/parser → actual
+manifest length binding → genuine Ed25519 → signed app/image validation.
+Obie jawne STABLE policies, local version/slot nie z taga; empty production
+trust zawsze zero app requests. Każdy błąd zero out. Brak retained BIN/Flash/
+UI/worker/discovery/cache/retry i zgody wydawcy. Metadata workspace free przed
+następnymi fazami; mały bridge<=1024 i osobne cooperative phase budgets.
+Parent PR44 784f99ae CI38877323489 5/5 i rzeczywisty BIN/ELF/partycje sprawdzone;
+nowy chain wymaga własnych testów/CI/artefaktu. #24 i P0 pozostają otwarte.
+Chain UBSan233256/186385 system,238418/191535 original pinned cJSON PASS;
+70/68 pinned allocation faults. Rzeczywisty parent BIN jako wyłącznie HOST
+fixture9045950/192549 PASS, production zawsze zero app requests. Transport
+SDK/TLS jawnie MODEL, nie hardware/Flash/approved Release. Review bez blockerów.
 
 ## #24: HTTPS metadane jednego jawnego tagu — nadal kandydat
 

@@ -81,7 +81,8 @@ for line in stacks[0].read_text().splitlines():
     require(size <= args.max_frame, f"Fetch frame exceeds budget: {line}")
     require(function not in frames, f"Duplicate fetch frame: {function}")
     frames[function] = size
-public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app", "dsr_ota_fetch_metadata_body"}
+public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app", "dsr_ota_fetch_metadata_body",
+          "dsr_ota_fetch_app_sized", "dsr_ota_fetch_policy_valid"}
 require(public <= set(frames), f"Public fetch stack reports missing: {sorted(public - set(frames))}")
 require(any(name == "fetch" or name.startswith("fetch.") for name in frames),
         "Private shared transport stack report missing")

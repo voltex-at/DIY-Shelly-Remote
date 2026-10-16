@@ -1,4 +1,4 @@
-idf_component_register(SRCS "dsr_ota_manifest.c" "dsr_ota_trust.c" "dsr_ota_image.c" "dsr_ota_fetch.c" "dsr_ota_release.c" "dsr_ota_release_fetch.c"
+idf_component_register(SRCS "dsr_ota_manifest.c" "dsr_ota_trust.c" "dsr_ota_image.c" "dsr_ota_fetch.c" "dsr_ota_release.c" "dsr_ota_release_fetch.c" "dsr_ota_release_chain.c"
     INCLUDE_DIRS "include" PRIV_INCLUDE_DIRS "."
     REQUIRES dsr_core dsr_crypto json mbedtls esp_http_client esp_timer)
 # These backend-only stages have no UI/worker caller yet. Retain the public
@@ -11,5 +11,6 @@ if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--undefined=dsr_ota_fetch_manifest" "-Wl,--undefined=dsr_ota_fetch_app")
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--undefined=dsr_ota_release_candidate_parse")
     target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--undefined=dsr_ota_fetch_release")
+    target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--undefined=dsr_ota_fetch_release_app")
 endif()
 target_compile_options(${COMPONENT_LIB} PRIVATE -fstack-usage)

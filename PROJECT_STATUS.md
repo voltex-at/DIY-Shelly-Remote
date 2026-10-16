@@ -1,5 +1,43 @@
 # Project status
 
+## 0.7.18 — explicit Release → signed app validation/DISCARD (#24)
+
+Public bridge takes explicit release/STABLE and trusted local manifest/STABLE
+policies, never caller-created candidate/verified. Genuine metadata fetch/parser
+then same genuine manifest/app chain; candidate.manifest_size binds actual
+MANIFEST bytes/CL/chunked exact before crypto and app request, not BIN size.
+Tag stays opaque routing, no inferred semver or new same-tag app policy. Each
+phase advances only after full FETCH_OK; every failure zero out, late cancel
+included. Production publisher trust EMPTY -> ZERO app requests. No Flash/sink,
+esp_ota/slot/reboot/UI/worker/latest/discovery/cache/retry or new naming/dev/time
+policy. Success retains no app bytes, not installation or approved Release.
+[Contract and gates](docs/OTA_RELEASE_CHAIN_PL.md).
+
+Bridge heap<=1024; release16KiB/cJSON freed before manifest/app. Compile-time
+phase bounds are not SDK/TLS/cJSON/transitive peak measurements; phase budgets
+remain separate cooperative30s/SDK5s, never hardtotal30s. Existing standalone
+manifest/app APIs retain expectedlength0 behavior; no second verifier/provider.
+Independent tests, cross-review, exact-source CI/artefact remain gates.
+Independent chain UBSan system233256 HOST/186385 empty (66/64 OOM), original
+pinned cJSON238418/191535 (70/68 OOM) PASS. Actual parent PR44 app as HOST-only
+signed fixture9045950/192549 (70/68 OOM) PASS; empty production always0app.
+Opaque tag vs numeric signed version, exact manifest length before key lookup,
+three separate29s phase progress and metadata heap release before manifest
+verified. Coordinator code/memory review without blockers. SDK transport/TLS
+MODEL, crypto/hash genuine, no hardware/Flash proof. Exact-source CI/artefact
+for this chain still separate gate; root repeats independent test corpus.
+Parent PR44 source784f99ae CI38877323489 5/5 PASS; downloaded actual app1776368 B
+SHA1ec31b8ee165a6d99cd2c30d81553c03f0a7989c7a3cd906db3048ac818b21cf,
+ELF5e58e9750f904fdd81409cc79a6ed9ad29880fc762953f33d9322218c93c5932,
+ZIP/source/version/chip/segments/ELF descriptor/unchanged partitions verified.
+Own metadata wrapper frame64 B, shared fetch80 B, BSS/UI stack unchanged.
+
+P0 PR33 still81e734d without physical PASS; main51c5840 unchanged. No erase,
+nonempty format/partitions/main merge/Stable. Publisher anchor/rotation/signed
+Release, correct UTC/real TLS, naming/dev/time/power/consent/serialized install/
+health/rollback/data-retention remain separate gates. Global backlog,24h
+internal history and later optional microSD still required. #24 NOT complete.
+
 ## 0.7.17 — explicit single-Release HTTPS metadata (#24), not updater
 
 Shared existing TLS/framing transport, exact own-repo api.github.com tag URL,

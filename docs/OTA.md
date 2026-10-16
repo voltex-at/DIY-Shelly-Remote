@@ -23,6 +23,10 @@ asset policy, strict JSON and own-repo routing cannot replace signed manifests.
 0.7.17 adds [bounded HTTPS metadata fetch for one explicit tag](OTA_RELEASE_FETCH_PL.md),
 returning only that unverified candidate after close/cleanup. No redirects,
 credentials, latest/list selection, UI or bridge to the signed download chain.
+0.7.18 adds a [public explicit-Release to signed app validation/discard chain](OTA_RELEASE_CHAIN_PL.md).
+It binds candidate manifest length to actual received manifest bytes before crypto
+and app requests, using the same genuine backends. No app bytes are retained,
+Flash/UI/installation or publisher approval; the production truststore stays empty.
 Target certificate date validation is enabled; unset system UTC refuses fetch.
 Trusted time setup and physical TLS validation are still open gates.
 A checksum does not authenticate the publisher. Only deliberately
