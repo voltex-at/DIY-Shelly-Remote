@@ -21,6 +21,7 @@ static dsr_ota_stage_state_t stage=DSR_OTA_STAGE_IDLE;
 static dsr_ota_install_result_t readiness=DSR_INSTALL_OK,install_result=DSR_INSTALL_OK;
 static dsr_ota_fetch_result_t clock_result=DSR_FETCH_OK,catalogue_result=DSR_FETCH_OK,manifest_result=DSR_FETCH_OK;
 static dsr_manifest_result_t manifest_why=DSR_MANIFEST_OK;
+static dsr_ota_release_result_t catalogue_why=DSR_RELEASE_OK;
 static unsigned clock_calls,catalogue_calls,manifest_calls,install_calls;
 static unsigned cancel_at; /* 1 clock, 2 catalogue, 3 manifest, 4 install boot */
 static bool boot_attempted,probe_running;
@@ -66,7 +67,7 @@ dsr_ota_fetch_result_t dsr_ota_discovery_fetch(dsr_ota_channel_t channel,const d
 {
  provider();CHECK(channel==expected_channel&&control&&out&&why&&http);catalogue_calls++;
  memset(out,0,sizeof(*out));strcpy(out->candidate.tag,"v1.2.4");strcpy(out->candidate.manifest_url,url);out->candidate.manifest_size=700;strcpy(out->notes,"Untrusted <b>plain</b> notes");
- *why=DSR_RELEASE_OK;*http=catalogue_status;if(cancel_at==2)dsr_native_ota_cancel();return catalogue_result;
+ *why=catalogue_why;*http=catalogue_status;if(cancel_at==2)dsr_native_ota_cancel();return catalogue_result;
 }
 dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *source,const dsr_ota_policy_t *p,const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why)
 {
@@ -88,7 +89,7 @@ dsr_ota_install_result_t dsr_ota_install(const char *source,const dsr_ota_policy
 static void defaults(void)
 {
  no_memory=false;boot=connected=true;temporary=false;readiness=install_result=DSR_INSTALL_OK;
- clock_result=catalogue_result=manifest_result=DSR_FETCH_OK;manifest_why=DSR_MANIFEST_OK;
+ clock_result=catalogue_result=manifest_result=DSR_FETCH_OK;manifest_why=DSR_MANIFEST_OK;catalogue_why=DSR_RELEASE_OK;
  cancel_at=0;boot_attempted=false;probe_running=true;catalogue_status=200;
  clock_calls=catalogue_calls=manifest_calls=install_calls=0;
 }
@@ -138,6 +139,7 @@ static void lifecycle(void)
  }
  defaults();clock_result=DSR_FETCH_CLOCK;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_STABLE,false)==DSR_OK);CHECK(execute().result!=DSR_OK&&snapshot().error==DSR_NATIVE_ERROR_CLOCK&&!catalogue_calls);
  defaults();catalogue_result=DSR_FETCH_STATUS;catalogue_status=404;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_STABLE,false)==DSR_OK);CHECK(execute().result!=DSR_OK&&snapshot().error==DSR_NATIVE_ERROR_NO_RELEASE&&!manifest_calls);
+ defaults();catalogue_result=DSR_FETCH_RELEASE;catalogue_why=DSR_RELEASE_NOT_FOUND;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_DEV,false)==DSR_OK);CHECK(execute().result!=DSR_OK&&snapshot().error==DSR_NATIVE_ERROR_NO_RELEASE&&!manifest_calls);
  defaults();manifest_result=DSR_FETCH_MANIFEST;manifest_why=DSR_MANIFEST_UNTRUSTED_KEY;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_STABLE,false)==DSR_OK);CHECK(execute().result!=DSR_OK&&snapshot().error==DSR_NATIVE_ERROR_MANIFEST&&snapshot().manifest_result==DSR_MANIFEST_UNTRUSTED_KEY&&!install_calls);
  for(unsigned failure=0;failure<2;failure++){
   available(DSR_OTA_STABLE);install_result=failure?DSR_INSTALL_CONSENT_CHANGED:DSR_INSTALL_CANCELLED;

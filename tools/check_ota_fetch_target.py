@@ -57,10 +57,10 @@ required = {
     "esp_http_client_is_complete_data_received", "esp_http_client_close",
     "esp_http_client_cleanup",
     "dsr_ota_image_create", "dsr_ota_image_update", "dsr_ota_image_finish",
-    "dsr_ota_image_destroy",
+    "dsr_ota_image_destroy", "dsr_ota_image_header_ready",
 }
 allowed = required | {
-    "memcpy", "memset", "strlen", "strncmp", "strcmp", "strcpy", "strchr", "strstr",
+    "memcpy", "memset", "memchr", "memcmp", "strlen", "strncmp", "strcmp", "strcpy", "strchr", "strstr",
     "__stack_chk_fail", "__stack_chk_guard", "_GLOBAL_OFFSET_TABLE_",
     # Compiler arithmetic support on the 32-bit target, not an SDK provider.
     "__udivdi3", "__udivsi3", "__umoddi3",
@@ -82,7 +82,8 @@ for line in stacks[0].read_text().splitlines():
     require(function not in frames, f"Duplicate fetch frame: {function}")
     frames[function] = size
 public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app", "dsr_ota_fetch_metadata_body",
-          "dsr_ota_fetch_app_sized", "dsr_ota_fetch_policy_valid"}
+          "dsr_ota_fetch_app_sized", "dsr_ota_fetch_policy_valid",
+          "dsr_ota_fetch_discovery_body", "dsr_ota_fetch_stream_app"}
 require(public <= set(frames), f"Public fetch stack reports missing: {sorted(public - set(frames))}")
 require(any(name == "fetch" or name.startswith("fetch.") for name in frames),
         "Private shared transport stack report missing")
@@ -118,6 +119,7 @@ args.out.write_text(json.dumps({
     "undefined_symbols": undefined,
     "dependency_scope": "direct undefined symbols in the fetch object",
     "flash_slot_restart_and_trust_provider_direct_dependencies_absent": True,
+    "private_verified_stream_sink_available_to_installer": True,
     "transitive_sdk_tls_stack_and_heap_measured": False,
     "trusted_clock_or_publisher_key_established": False,
     "physical_network_operation_verified": False,

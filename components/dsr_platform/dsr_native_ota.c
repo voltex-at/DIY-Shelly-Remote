@@ -124,7 +124,7 @@ void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event)
   if(fetch!=DSR_FETCH_OK){error=fetch_error(fetch,0);goto finish;}
   dsr_ota_release_result_t release;
   fetch=dsr_ota_discovery_fetch(policy.selected_channel,&control,&actor.discovery,&release,&http_status);
-  if(fetch!=DSR_FETCH_OK){error=fetch_error(fetch,http_status);goto finish;}
+  if(fetch!=DSR_FETCH_OK){error=fetch==DSR_FETCH_RELEASE&&release==DSR_RELEASE_NOT_FOUND?DSR_NATIVE_ERROR_NO_RELEASE:fetch_error(fetch,http_status);goto finish;}
   fetch=dsr_ota_fetch_manifest(actor.discovery.candidate.manifest_url,&policy,&control,&actor.verified,&manifest);
   if(fetch!=DSR_FETCH_OK){error=DSR_NATIVE_ERROR_MANIFEST;goto finish;}
   success=true;
