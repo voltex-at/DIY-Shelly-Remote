@@ -554,9 +554,10 @@ static void __attribute__((noinline)) consume_bind(void)
   if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
  }}
 }
-static void poll(lv_timer_t *timer)
+/* Own the event snapshot in its own frame; callbacks and ordering are unchanged. */
+static void __attribute__((noinline)) consume_worker_event(uint32_t now)
 {
- (void)timer;if(!dsr_activity_begin())return;uint32_t now=lv_tick_get();dsr_event_t event;
+ dsr_event_t event;
  if(dsr_worker_receive(&event)&&event.id==outstanding){
   busy=false;
   bool actor_event=dsr_actions_job_owned(event.id);
@@ -607,6 +608,11 @@ static void poll(lv_timer_t *timer)
   }
   render();
  }
+}
+static void poll(lv_timer_t *timer)
+{
+ (void)timer;if(!dsr_activity_begin())return;uint32_t now=lv_tick_get();
+ consume_worker_event(now);
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
  dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_history_tick();dsr_ui_actions_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);

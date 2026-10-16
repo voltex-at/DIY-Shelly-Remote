@@ -1,8 +1,8 @@
 # #32 — wspólny kreator dodawania na LCD i WWW
 
-Pion UI na istniejących rzeczywistych transportach LAN, AP i BLE B1, zintegrowany
-na bazie Cover 0.7.30-cover-dev (`faa623f`). Ta integracja nie zmienia wersji
-firmware. Ta zmiana nie tworzy nowego skanera, magazynu połączeń ani
+Pion UI na istniejących rzeczywistych transportach LAN, AP i BLE B1. Pierwotny
+checkpoint na Cover (`faa623f`) jest obecnie zintegrowany z grupami/scenami
+PR60 jako kandydat `0.7.32-onboarding-dev` w PR61. Nie tworzy nowego skanera, magazynu połączeń ani
 modelu urządzeń. Nie zawiera prywatnych zdjęć, SSID, adresów ani logo Shelly.
 Kompozycja jest własna; używa istniejącej typografii Roboto i atlasu Material
 Symbols Rounded z zachowanymi licencjami repozytorium.
@@ -18,8 +18,9 @@ przyciski wysokości 48 px i pozostaje poza obszarem przewijania.
 Zaznaczenie metody zmienia wyłącznie radio i obramowanie. Nie wywołuje SDK,
 HTTP, skanu ani zapisu. Dalej jest nieaktywne bez wyboru. Offline blokuje AP
 i LAN z wyjaśnieniem; skan BLE oraz formularz ręczny pozostają dostępne.
-Aktywne kończenie AP/BLE, operacja OTA lub oczekujący pilny STOP Cover blokuje
-rozpoczęcie kolejnego pionu.
+Aktywne kończenie AP/BLE, operacja OTA, oczekujący pilny STOP Cover lub
+BIND blokuje rozpoczęcie kolejnego pionu. BIND obejmuje także kończenie
+workspace oraz prywatnego exact ACK; stary sukces nie zamyka nowej metody.
 Zmiana Wi-Fi i okresowy poll nie przebudowują HOME pod otwartym modalem.
 
 Dalej uruchamia istniejący rzeczywisty skan wybranej metody LAN, BLE lub AP;
@@ -104,6 +105,14 @@ sprawdzeń, w tym Cover-only capabilities, typowany POST i brak pełnego
 potwierdzenia publikacji, gdy config zawiera Switch zamiast żądanego Cover.
 Osobne modele runtime 165, historii 32, AP 46, BLE 28 i słownik locale 2233
 PASS. To wyniki host UBSan/modeli; przeglądarka i target wymagają osobnego CI.
+
+Końcowa integracja z #21 i portem PR50: pełny native UBSan PASS, rzeczywisty
+LVGL 5552 kontroli / 204 kadry, boot14/23/18/25, Cover112/7 i osobny test
+późnego BIND29 PASS. Niezależny test był RED przed blokadą nowej metody,
+potem sprawdził osobno zatrzymany workspace ACK i prywatny ACK. Dziesięć
+cykli zachowuje heap101336→101336 B. Przy limicie własnej ramki network2048 B
+snapshoty event i prywatnego BIND są w osobnych noinline helperach, bez
+zmian kolejności/warunków i bez wzrostu limitów. Target ma własną bramkę.
 
 Nowy plik UI ma raport `.su` w buildzie targetu: maksymalnie 512 B własnej
 ramki i 256 B stałego BSS, oceniane istniejącym audytorem BLE. Nie zwiększono

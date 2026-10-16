@@ -37,6 +37,7 @@ jobs:
           node tests/test_panel_history_model.cjs
           node tests/test_panel_actions_model.cjs
           node tests/test_panel_actions_async.cjs
+          node tests/test_panel_config_reads.cjs
           node tests/test_panel_actions.cjs
           node tests/test_panel_ap_model.cjs
           node tests/test_panel_ble_model.cjs

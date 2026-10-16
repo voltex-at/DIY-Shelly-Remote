@@ -29,3 +29,18 @@ Kontekst aktora, cache i dziennik mają7644B w PSRAM (limit12288B), bez nowego t
 Rzeczywisty LVGL:4682 kontrole/167 ekranów, dodatkowo boot14/23/18/23 oraz Cover89/6. Sprawdzono grupę offline, A auth FAILED przy B SUCCESS, osobny RUN sceny z karty, cancel, UTC/clear i rzeczywiste PL/EN/DE.40 cykli grupy/sceny/aktywność utrzymuje heap90848→90848. Radio, worker i trwały magazyn w tym teście są jawnie modelowane, bez zapisów do urządzenia.
 
 NodeVM wysłanych assetów:38 testów klienta aktora oraz24 niezależne kontrole wyścigów odpowiedzi (stary GET tej samej generation, poprzedni boot, przerwany preflight przy request/json). Każdy odczyt ma własny numer świeżości, a run zachowuje właściciela widoku przez await/catch/finally przed POST; stare finally nie zwalnia nowego sending. Testy klienta obejmują, w tym utrata POST i GET-only, boot/generation/nonce, dirty editor, tłumaczenia i redagowany dziennik. Nowy test Chromium używa wysłanych assetów z modelowanym HTTP; lokalnie brak Chromium, wykonanie pozostaje bramką CI. Test audytora ma1 poprawny i6 odrzucanych syntetycznych przypadków; nie jest dowodem targetu. Target IDF, pełny browser oraz rzeczywiste2 Shelly i restart pozostają osobnymi bramkami integracji/odbioru. Ten checkpoint nie zmienia PROJECT_VER, nie publikuje firmware i nie zapisuje Flash urządzenia.
+
+### Wspólny odczyt konfiguracji i statusu WWW
+
+Opóźnione GET/body nie mogą nadpisać późniejszej edycji, Save, wyniku BIND,
+nowego Reload ani widoku. Odczyt zachowuje właściciela dokumentu, rewizji,
+editSerial i DOM; SaveBEGIN oraz showConfig zmieniają generation także przy
+Save→błąd bez zmiany rewizji. Każdy await i finally sprawdza właściciela.
+Reload podczas trwającego Save nie rozpoczyna GET. Stary status nie zgłasza
+konfliktu ani offline po nowszym sukcesie. Świeży
+status z inną, także niższą rewizją nadal chroni szkic, a jawny Reload może
+porzucić stary szkic, jeśli podczas jego oczekiwania nie było nowych zmian.
+`tests/test_panel_config_reads.cjs` wykonuje wysyłane funkcje: 21 przypadków,
+81 kontroli; stare źródło daje niezależne RED. Save A przy późniejszym szkicu B
+nadal wymaga exact durable ACK A i zachowuje B. DOM/HTTP providers są MODEL;
+przeglądarka ma osobną bramkę CI. Ta ochrona obejmuje też PR61/#32 i następców.
