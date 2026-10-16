@@ -1,0 +1,7 @@
+#pragma once
+/* Pinned ESP-IDF v5.5.4 public available-size API. No write API supplied. */
+#include <stdint.h>
+#include "esp_err.h"
+typedef struct esp_flash_t esp_flash_t;
+extern esp_flash_t *esp_flash_default_chip;
+esp_err_t esp_flash_get_size(esp_flash_t *chip,uint32_t *out_size);

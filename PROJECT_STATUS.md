@@ -1,5 +1,20 @@
 # Project status
 
+## 0.7.10 — dedicated global Settings (#6, existing #24/#25 scope)
+
+Six directly reachable sections separate system preferences from the HOME
+pencil. Appearance uses fresh shared JSON/CAS with dirty/pending guards and
+preserves later edits B after ACK A. Standalone WWW shows actual address,
+readiness and fingerprint; explicit code generation and accepted local OTA
+consent expire visibly. System memory/Flash is read-only hardware information.
+Native signed OTA, LCD restart, session revocation and export/reset remain
+explicitly unavailable, not implemented by this UI stage.
+Local LVGL: 2237 checks / 96 frames; 40 WWW/System cycles preserve heap
+(99704 → 99704 B). Existing isolated review: 2635 checks / 24 frames.
+Production permission helper: 22 checks; system snapshot: 30. Full exact-head
+target CI and hardware acceptance remain separate gates.
+[Scope, remaining backend work and hardware gate](docs/GLOBAL_SETTINGS_PL.md).
+
 ## 0.7.9 — persistent display settings (#6/#24)
 
 Independent existing-backlog stage: brightness and idle timeout use existing
@@ -8,8 +23,9 @@ schema or SPIFFS dependency. Explicit errors distinguish persistence from PWM
 application; restart/wake must retain brightness. P0 SPIFFS and full signed
 OTA/global-settings acceptance remain open.
 Local UBSan: native suite including 3425 worker and 167 startup checks; UI
-1734 checks / 88 frames, review 2635 / 24 frames. Exact-source CI follows the
-final commit; hardware remains pending.
+1734 checks / 88 frames, review 2635 / 24 frames. Source 2641ecd passed CI 5/5
+[run 38839617735](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38839617735);
+downloaded firmware CRC/SHA/segments/version/source verified; hardware pending.
 [Scope and physical acceptance](docs/DISPLAY_SETTINGS_PL.md).
 
 ## 0.7.8 — independent on-demand BAT voltage (#6/#25)

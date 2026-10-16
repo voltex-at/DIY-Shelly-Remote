@@ -8,6 +8,7 @@
 #include "dsr_workspace.h"
 #include "dsr_ble.h"
 #include "esp_app_desc.h"
+#include "dsr_system_info.h"
 #include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"
 #include <assert.h>
 #include <stdio.h>
@@ -23,6 +24,8 @@ void test_workspace_finish(bool success);
 void test_workspace_photos(bool enabled);
 void test_workspace_fault(unsigned fault);
 void test_panel_ready(bool ready);
+void test_ota_accept(bool accepted);
+void test_pair_accept(bool accepted);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
@@ -56,6 +59,9 @@ static void key(lv_obj_t *kb,const char *text)
 }
 
 const esp_app_desc_t *esp_app_get_description(void) {static const esp_app_desc_t d = {.version="0.3.0-wifi-dev"}; return &d;}
+const char *dsr_board_hardware_id(void){return "lcdwiki-es3c35p-n16r8";}
+void dsr_system_info_snapshot(dsr_system_info_t *out)
+{*out=(dsr_system_info_t){.internal_free=140000,.internal_largest=73728,.psram_free=8000000,.flash_bytes=16777216};}
 esp_err_t dsr_board_set_backlight(uint8_t value) {(void)value; return ESP_OK;}
 static unsigned display_applies;
 static uint8_t applied_brightness;static uint16_t applied_seconds;
@@ -171,7 +177,7 @@ static void battery_regression(void)
 static void display_regression(void)
 {
  dsr_sc_appearance(DSR_SC_BLUE,false,0);wifi.connected=false;tick();CHECK(!in_flight);
- dsr_ui_open_settings();click("Settings");CHECK(find_label(lv_screen_active(),"Screen off / touch to wake"));click("Ekran");
+ dsr_ui_open_settings();click("Ekran i komfort");CHECK(find_label(lv_screen_active(),"Screen off / touch to wake"));click("Ekran");
  lv_obj_t *brightness=find_type(lv_screen_active(),&lv_slider_class);
  lv_obj_t *timeout=find_type(lv_screen_active(),&lv_dropdown_class);
  CHECK(brightness&&timeout&&lv_slider_get_value(brightness)==70&&lv_dropdown_get_selected(timeout)==3);
@@ -212,6 +218,56 @@ static cJSON *room_document(void)
 {char *json=dsr_workspace_snapshot();CHECK(json);cJSON *r=cJSON_Parse(json);free(json);CHECK(r);return r;}
 static void publish_document(cJSON *r)
 {char *json=cJSON_PrintUnformatted(r);CHECK(json);CHECK(dsr_workspace_submit(json,dsr_workspace_revision()));free(json);cJSON_Delete(r);}
+static void tap_row(const char *text)
+{
+ lv_obj_t *l=find_label(lv_screen_active(),text);CHECK(l);lv_obj_t *b=lv_obj_get_parent(l);
+ lv_obj_scroll_to_view(b,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());
+ lv_area_t a;lv_obj_get_coords(b,&a);CHECK(a.x1>=0&&a.x2<320&&a.y1>=86&&a.y2<=416&&lv_obj_get_height(b)>=44);
+ tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
+}
+static void global_settings_regression(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);wifi.connected=false;test_workspace_disable();
+ dsr_ui_open_settings();tick();CHECK(find_label(lv_screen_active(),"Ustawienia pilota"));screenshot("150-global-settings");
+ tap_row("Wygląd i język");CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));click("Wstecz");CHECK(find_label(lv_screen_active(),"Ustawienia pilota"));
+ snprintf(wifi.ssid,sizeof(wifi.ssid),"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
+ tap_row("Sieć i połączenia");CHECK(find_label(lv_screen_active(),"Wi-Fi: brak połączenia"));
+ lv_obj_t *ip=find_label(lv_screen_active(),"IPv4: —");CHECK(ip);lv_obj_t *ssid=lv_obj_get_child(lv_obj_get_parent(ip),1);CHECK(lv_obj_get_height(ssid)==20&&lv_obj_get_y(ssid)+lv_obj_get_height(ssid)<lv_obj_get_y(ip));screenshot("151-global-network");
+ tap_row("Bluetooth LE • tylko skan");CHECK(dsr_ui_ble_active());click("Wstecz");CHECK(find_label(lv_screen_active(),"Sieć i połączenia"));click("Wstecz");
+ test_panel_ready(false);tap_row("Panel WWW / bezpieczeństwo");CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("152-global-web-unavailable");
+ tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));click("Wstecz");
+ test_panel_ready(true);tap_row("Panel WWW / bezpieczeństwo");CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));
+ CHECK(find_label(lv_screen_active(),"0123456789ABCDEF0123456789ABCDEF\n0123456789ABCDEF0123456789ABCDEF"));
+ test_pair_accept(false);tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));click("Wstecz");
+ test_pair_accept(true);tap_row("Panel WWW / bezpieczeństwo");
+ tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));lv_tick_inc(120001);tick();CHECK(!find_label(lv_screen_active(),"0123456789abcdef")&&find_label(lv_screen_active(),"Kod parowania wygasł."));click("Wstecz");
+ tap_row("System");tap_row("Informacje i diagnostyka");CHECK(find_label(lv_screen_active(),"lcdwiki-es3c35p-n16r8"));screenshot("153-global-system-info");click("Wstecz");
+ tap_row("System");tap_row("Firmware Update");lv_obj_t *disabled=lv_obj_get_parent(find_label(lv_screen_active(),"Sprawdź aktualizacje • niedostępne"));CHECK(lv_obj_has_state(disabled,LV_STATE_DISABLED));screenshot("154-global-native-ota-unavailable");
+ test_ota_accept(false);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty."));click("Wstecz");
+ tap_row("System");tap_row("Firmware Update");test_ota_accept(true);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu."));lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda na OTA wygasła."));click("Wstecz");
+ test_workspace_enable();cJSON *baseline=room_document();tap_row("Wygląd i język");
+ lv_obj_t *language=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(language);lv_dropdown_set_selected(language,2);lv_obj_send_event(language,LV_EVENT_VALUE_CHANGED,NULL);
+ click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_sc_language()==2&&find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));screenshot("155-global-appearance-german");
+ cJSON *saved=room_document();const char *collections[]={"rooms","devices","scenes","dashboards"};
+ for(unsigned i=0;i<4;i++){CHECK(cJSON_Compare(cJSON_GetObjectItemCaseSensitive(baseline,collections[i]),cJSON_GetObjectItemCaseSensitive(saved,collections[i]),true));}
+ cJSON_Delete(baseline);cJSON_Delete(saved);
+ click("Wstecz");CHECK(find_label(lv_screen_active(),"Ustawienia pilota"));screenshot("156-global-settings-german");
+ tap_row("Wygląd i język");language=find_type(lv_screen_active(),&lv_dropdown_class);lv_dropdown_set_selected(language,1);lv_obj_send_event(language,LV_EVENT_VALUE_CHANGED,NULL);test_workspace_defer(true);click("Zapisz");
+ dsr_ui_open_settings();CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));CHECK(find_label(lv_screen_active(),"Wygląd i język"));
+ lv_dropdown_set_selected(language,0);lv_obj_send_event(language,LV_EVENT_VALUE_CHANGED,NULL);test_workspace_finish(true);dsr_ui_workspace_tick();language=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(language&&lv_dropdown_get_selected(language)==0&&dsr_sc_language()==1);CHECK(find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));
+ dsr_ui_open_settings();CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));click("Zostań");CHECK(lv_dropdown_get_selected(language)==0);
+ dsr_ui_open_settings();click("Odrzuć");CHECK(find_label(lv_screen_active(),"Ustawienia pilota"));test_workspace_defer(false);screenshot("157-global-settings-english");
+ tap_row("Wygląd i język");language=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(lv_dropdown_get_selected(language)==1);
+ lv_dropdown_set_selected(language,0);lv_obj_send_event(language,LV_EVENT_VALUE_CHANGED,NULL);saved=room_document();publish_document(saved);click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
+ dsr_ui_open_settings();click("Odrzuć");dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_ui_open_settings();
+ dsr_ui_edit_dashboard();CHECK(!find_label(lv_screen_active(),"Wygląd i język")&&!find_label(lv_screen_active(),"Urządzenia")&&!find_label(lv_screen_active(),"Zezwól na OTA • 2 minuty"));dsr_ui_open_settings();
+ tap_row("System");tap_row("Konfiguracja wpisów i scen");CHECK(find_label(lv_screen_active(),"Urządzenia")&&find_label(lv_screen_active(),"Sceny"));click("Wstecz");
+ for(unsigned i=0;i<10;i++){tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
+ lv_mem_monitor_t a,b;lv_mem_monitor(&a);
+ for(unsigned i=0;i<40;i++){tap_row("Panel WWW / bezpieczeństwo");click("Wstecz");tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
+ lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Global Settings heap before=%lu after=%lu;40 web/system cycles; host only\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
+ test_workspace_disable();
+}
 static void room_name(const char *name)
 {lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,name);}
 static void room_delete_button(void)
@@ -247,8 +303,9 @@ static void storage_error_regression(void)
  /* All three real pointer targets still open the form with healthy storage. */
  dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
  for(unsigned surface=0;surface<3;surface++){dsr_network_rooms();tap(surface==2?280:160,surface==0?116:surface==1?380:450);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));click("Wstecz");}
- dsr_network_home(NULL);tap(224,116);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));test_panel_ready(false);click("Web Panel • parowanie");CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");click("Diagnostyka");CHECK(find_label(lv_screen_active(),"HTTPS: błąd uruchomienia"));test_panel_ready(true);click("Wstecz");
- dsr_ui_edit_dashboard();click("Web Panel • parowanie");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");click("Wstecz");CHECK(requests==before);test_workspace_disable();
+ dsr_network_home(NULL);tap(224,116);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
+ dsr_ui_open_settings();test_panel_ready(false);click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");test_panel_ready(true);click("Wstecz");
+ click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");CHECK(requests==before);test_workspace_disable();
  test_workspace_enable();
  for(unsigned language=1;language<3;language++){
   cJSON *r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);dsr_network_rooms();test_workspace_fault(1);tap(160,116);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));screenshot(language==1?"125-storage-error-english":"127-storage-error-german");click("Diagnostyka");CHECK(find_label(lv_screen_active(),"Nie kasuj i nie formatuj pamięci."));screenshot(language==1?"126-storage-diagnostics-english":"128-storage-diagnostics-german");test_workspace_fault(0);click("Wstecz");
@@ -477,9 +534,9 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Offline • stan niepotwierdzony")!=NULL);
     ble_regression();
     dsr_ui_open_settings();screenshot("40-settings-menu");
-    click("Podgląd rolety • DEMO");CHECK(find_label(lv_screen_active(),"Pozycja 65%"));CHECK(find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("42-cover-preview-on-device");
+    click("System");click("Podgląd rolety • DEMO");CHECK(find_label(lv_screen_active(),"Pozycja 65%"));CHECK(find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("42-cover-preview-on-device");
     unsigned before_preview=submitted.id;click("Otwórz");CHECK(find_label(lv_screen_active(),"Otwarte 100%"));click("Zamknij");CHECK(find_label(lv_screen_active(),"Zamknięte 0%"));click("Stop");CHECK(submitted.id==before_preview);tap(20,20);CHECK(!find_label(lv_screen_active(),"DEMO • dane przykładowe"));CHECK(find_label(lv_screen_active(),"Desk lamp"));
-    dsr_ui_open_settings();click("Settings");screenshot("41-display-settings");
+    dsr_ui_open_settings();click("Ekran i komfort");screenshot("41-display-settings");
     test_workspace_enable();dsr_ui_edit_dashboard();
     CHECK(find_label(lv_screen_active(),"Edytuj pilot"));screenshot("13-workspace-editor");
     click("Pomieszczenia");click("+ Dodaj wpis");
@@ -515,7 +572,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

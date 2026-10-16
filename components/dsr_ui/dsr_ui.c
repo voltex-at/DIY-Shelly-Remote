@@ -4,12 +4,25 @@
 #include "dsr_ui_style.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
+#include "dsr_workspace.h"
+#include "dsr_system_info.h"
 #include "lvgl.h"
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
 static lv_obj_t *touch_status;
-static lv_obj_t *brightness_text;
 static unsigned touches;
+static lv_obj_t *expiry_label;
+static uint32_t issued_at;
+static bool expiry_pair;
+void dsr_ui_settings_hide(void){expiry_label=NULL;}
+void dsr_ui_settings_tick(void)
+{
+ if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
+  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");expiry_label=NULL;
+ }
+}
 
 void dsr_ui_home(lv_event_t *event);
 static void menu(lv_event_t *event);
@@ -62,7 +75,7 @@ static void shell_navigation(lv_event_t *event)
 {
  unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);
  if(index<2){dsr_network_home(NULL);if(index==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);}
- else if(index==3)menu(NULL);else if(index==4)dsr_network_device(NULL);
+ else if(index==3)dsr_ui_open_settings();else if(index==4)dsr_network_device(NULL);
 }
 
 lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
@@ -70,7 +83,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     dsr_network_reset_view();
     dsr_ui_workspace_hide();
     dsr_mobile_hide();
-    touch_status = brightness_text = NULL;
+    touch_status = NULL;
     dsr_ui_display_hide();
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
@@ -133,40 +146,121 @@ static void colors(lv_event_t *event)
 
 static void sleep_display(lv_event_t *event) { (void)event; dsr_board_sleep_display(); }
 
-static void firmware(lv_event_t *event)
-{
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Firmware Update", true);
-    dsr_ui_label(root, "Current version", 16, 100, 288);
-    dsr_ui_label(root, esp_app_get_description()->version, 16, 133, 288);
-    dsr_ui_label(root, "Lokalna aktualizacja OTA jest dostępna w sparowanym Web Panelu. Wymaga zgody na ekranie pilota.", 16, 200, 288);
-}
-
-static void settings(lv_event_t *event)
-{
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Settings", true);
-    dsr_ui_button(root,"Ekran",12,100,296,dsr_ui_display_open,NULL);
-    dsr_ui_button(root,"Firmware Update",12,160,296,firmware,NULL);
-    dsr_ui_button(root,"Diagnostyka konfiguracji",12,220,296,dsr_ui_config_diagnostics,NULL);
-    dsr_ui_button(root,"Screen off / touch to wake",12,280,296,sleep_display,NULL);
-}
-
-void dsr_ui_open_settings(void) { menu(NULL); }
+void dsr_ui_open_settings(void) { if(dsr_ui_settings_can_open())menu(NULL); }
 
 static void hardware(lv_event_t *event);
 static void cover_preview(lv_event_t *event)
 {(void)event;dsr_mobile_cover_preview();}
+/* Every global section starts with a fresh LCD body; no cached object pointers
+ * survive Back/Home. Pair codes and tokens are never stored in this module. */
+static void settings_back(lv_event_t *event){(void)event;dsr_ui_open_settings();}
+static lv_obj_t *settings_body(const char *title)
+{
+ lv_obj_t *root=dsr_ui_screen(title,false);
+ lv_obj_t *body=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ dsr_ui_button(root,"Wstecz",12,420,296,settings_back,NULL);return body;
+}
+static lv_obj_t *row(lv_obj_t *body,const char *text,int y,lv_event_cb_t action)
+{return dsr_ui_button(body,text,0,y,296,action,NULL);}
+static void unavailable(lv_obj_t *body,const char *text,int y)
+{lv_obj_t *b=row(body,text,y,NULL);lv_obj_add_state(b,LV_STATE_DISABLED);}
+void dsr_ui_settings_network(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Sieć i połączenia");dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);
+ dsr_sc_text(body,wifi.connected?"Wi-Fi: połączono":"Wi-Fi: brak połączenia",4,4,284,&dsr_roboto_16,DSR_SC_TEXT);
+ lv_obj_t *ssid=dsr_sc_text(body,wifi.ssid[0]?wifi.ssid:"—",4,34,284,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_set_height(ssid,20);lv_label_set_long_mode(ssid,LV_LABEL_LONG_MODE_DOTS);
+ char text[48];snprintf(text,sizeof(text),"IPv4: %s",wifi.connected&&wifi.ip[0]?wifi.ip:"—");
+ dsr_sc_text(body,text,4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Wi-Fi setup",98,dsr_network_wifi);row(body,"Bluetooth LE • tylko skan",156,dsr_ui_ble_settings);
+ dsr_sc_text(body,"Parowanie BLE i onboarding AP nie są wdrożone.",4,218,284,&dsr_roboto_12,DSR_SC_MUTED);
+ unavailable(body,"Wi-Fi AP • niedostępne",266);row(body,"Dodaj urządzenie Shelly",324,dsr_network_device);
+ row(body,"Odśwież",382,dsr_ui_settings_network);
+}
+static void web_panel(lv_event_t *event);
+static void pair_browser(lv_event_t *event)
+{
+ (void)event;char code[17]={0};if(dsr_panel_ready())dsr_panel_pair_begin(code);
+ lv_obj_t *body=settings_body("Parowanie Web Panelu");
+ if(!code[0]){dsr_sc_text(body,"Nie utworzono kodu. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);row(body,"Panel WWW / bezpieczeństwo",110,web_panel);return;}
+ dsr_sc_text(body,"Jednorazowy kod • 120 s • 5 prób",4,8,284,&dsr_roboto_14,DSR_SC_MUTED);
+ expiry_label=dsr_sc_text(body,code,4,54,284,&dsr_roboto_18,DSR_SC_TEXT);issued_at=lv_tick_get();expiry_pair=true;memset(code,0,sizeof(code));
+ dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",4,112,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Panel WWW / bezpieczeństwo",214,web_panel);
+}
+static void web_panel(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Panel WWW / bezpieczeństwo");
+ dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);dsr_config_health_t health;dsr_config_health_snapshot(&health);
+ dsr_sc_text(body,dsr_panel_ready()?"HTTPS uruchomiony":"HTTPS niedostępny",4,4,284,&dsr_roboto_16,DSR_SC_TEXT);
+ char address[48];if(wifi.connected&&wifi.ip[0])snprintf(address,sizeof(address),"https://%s",wifi.ip);else snprintf(address,sizeof(address),"IPv4: —");
+ dsr_sc_text(body,address,4,36,284,&dsr_roboto_14,DSR_SC_BLUE);dsr_sc_text(body,"https://shelly-remote.local",4,62,284,&dsr_roboto_14,DSR_SC_BLUE);
+ const char *fp=dsr_tls_fingerprint();char digest[80];snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp?fp:"",fp&&strlen(fp)>32?fp+32:"");
+ dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",4,100,284,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_11,DSR_SC_TEXT);
+ char status[64];snprintf(status,sizeof(status),"SPIFFS: %d / 0x%x",(int)health.storage,(unsigned)health.storage_error);
+ dsr_sc_text(body,status,4,172,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Wygeneruj kod parowania",210,pair_browser);
+ dsr_sc_text(body,"Sesje i unieważnianie: brak widoku LCD. Kod nie jest stałym hasłem.",4,276,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Diagnostyka konfiguracji",340,dsr_ui_config_diagnostics);
+ row(body,"Odśwież",398,web_panel);
+}
+static void ota_allowed(lv_event_t *event)
+{
+ (void)event;bool accepted=dsr_panel_allow_ota();lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
+ lv_obj_t *status=dsr_sc_text(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);
+ if(accepted){expiry_label=status;issued_at=lv_tick_get();expiry_pair=false;}
+ dsr_sc_text(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",4,146,284,&dsr_roboto_14,DSR_SC_MUTED);
+}
+static void firmware(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Firmware Update");
+ dsr_sc_text(body,"Current version",4,4,284,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(body,esp_app_get_description()->version,4,32,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,dsr_board_hardware_id(),4,62,284,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(body,"Kanał: Dev • wersja testowa",4,94,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"Natywne podpisane OTA: niewdrożone (#24). Brak zweryfikowanego wydania.",4,136,284,&dsr_roboto_14,DSR_SC_MUTED);
+ unavailable(body,"Sprawdź aktualizacje • niedostępne",218);unavailable(body,"Zainstaluj • niedostępne",276);
+ row(body,"Zezwól na OTA • 2 minuty",334,ota_allowed);
+}
+static void system_info(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Informacje i diagnostyka");dsr_system_info_t info;dsr_system_info_snapshot(&info);
+ dsr_sc_text(body,esp_app_get_description()->version,4,4,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,dsr_board_hardware_id(),4,36,284,&dsr_roboto_12,DSR_SC_MUTED);
+ char text[160];snprintf(text,sizeof(text),dsr_sc_tr("RAM wolna: %lu B\nNajwiększy blok: %lu B\nPSRAM wolna: %lu B\nFlash dostępna: %lu B / 0x%x"),(unsigned long)info.internal_free,(unsigned long)info.internal_largest,(unsigned long)info.psram_free,(unsigned long)info.flash_bytes,(unsigned)info.flash_error);
+ dsr_sc_text(body,text,4,76,284,&dsr_roboto_14,DSR_SC_TEXT);
+ row(body,"Diagnostyka konfiguracji",194,dsr_ui_config_diagnostics);
+ dsr_sc_text(body,"Restart z LCD: niewdrożony. Eksport i reset: niewdrożone; dane zachowane.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Odśwież",342,system_info);
+}
+static void system_menu(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("System");
+ row(body,"Firmware Update",0,firmware);row(body,"Informacje i diagnostyka",58,system_info);
+ row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
+ row(body,"Podgląd rolety • DEMO",232,cover_preview);unavailable(body,"Restart • niedostępny",290);
+}
+static void screen_settings(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Ekran i komfort");row(body,"Ekran",0,dsr_ui_display_open);
+ row(body,"Screen off / touch to wake",58,sleep_display);
+ dsr_sc_text(body,"Pierwszy dotyk wybudza bez wykonania akcji.",4,128,284,&dsr_roboto_14,DSR_SC_MUTED);
+}
 static void menu(lv_event_t *event)
 {
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Menu", true);
-    dsr_ui_button(root, "Wi-Fi setup", 16, 84, 288, dsr_network_wifi, NULL);
-    dsr_ui_button(root, "Dodaj urządzenie Shelly", 16, 140, 288, dsr_network_device, NULL);
-    dsr_ui_button(root, "Hardware tests", 16, 196, 288, hardware, NULL);
-    dsr_ui_button(root, "Settings", 16, 252, 288, settings, NULL);
-    dsr_ui_button(root, "Podgląd rolety • DEMO", 16, 308, 288, cover_preview, NULL);
-    dsr_ui_button(root, "Bateria i zasilanie", 16, 364, 288, dsr_ui_battery_open, NULL);
+ (void)event;lv_obj_t *root=dsr_ui_screen("Ustawienia pilota",true);
+ lv_obj_t *body=dsr_sc_panel(root,12,86,296,330,DSR_SC_BG,0);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
+ const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_GRID,DSR_ICON_DASHBOARD,DSR_ICON_BATTERY,DSR_ICON_HOME,DSR_ICON_SETTINGS};
+ const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
+ for(unsigned i=0;i<6;i++){
+  lv_obj_t *button=row(body,names[i],(int)i*58,callbacks[i]);lv_obj_t *caption=lv_obj_get_child(button,0);
+  lv_obj_set_width(caption,236);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_LEFT,0);lv_obj_align(caption,LV_ALIGN_LEFT_MID,48,0);
+  dsr_sc_icon(button,icons[i],12,13,22,DSR_SC_BLUE);
+ }
 }
 
 void dsr_ui_home(lv_event_t *event) { dsr_network_home(event); }

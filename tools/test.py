@@ -71,6 +71,18 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     *[str(ROOT/source) for source in ["components/dsr_platform/dsr_battery.c","components/dsr_platform/dsr_worker.c","tests/test_battery.c"]],
                     "-o",str(battery_binary)],check=True,cwd=temp_root,env=test_env)
     subprocess.run([str(battery_binary)],check=True,cwd=temp_root,env=test_env)
+    system_binary=temp_root / "test_system_info"
+    subprocess.run([os.environ.get("CC","cc"),*flags,
+                    *[value for folder in ["tests/system_info","tests/support","components/dsr_platform/include"] for value in ["-I",str(ROOT/folder)]],
+                    *[str(ROOT/source) for source in ["components/dsr_platform/dsr_system_info.c","tests/test_system_info.c"]],
+                    "-o",str(system_binary)],check=True,cwd=temp_root,env=test_env)
+    subprocess.run([str(system_binary)],check=True,cwd=temp_root,env=test_env)
+    permission_binary=temp_root / "test_panel_permission"
+    subprocess.run([os.environ.get("CC","cc"),*flags,
+                    *[value for folder in ["tests/system_info","tests/actor","tests/support","components/dsr_platform","components/dsr_platform/include"] for value in ["-I",str(ROOT/folder)]],
+                    *[str(ROOT/source) for source in ["components/dsr_platform/dsr_panel_permission.c","tests/test_panel_permission.c"]],
+                    "-o",str(permission_binary)],check=True,cwd=temp_root,env=test_env)
+    subprocess.run([str(permission_binary)],check=True,cwd=temp_root,env=test_env)
     boot_binary = temp_root / "test_boot_memory"
     subprocess.run([os.environ.get("CC", "cc"), *flags,
                     "-I", str(ROOT / "tests/boot"), "-I", str(ROOT / "tests/support"),

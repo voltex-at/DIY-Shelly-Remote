@@ -29,9 +29,13 @@ uint32_t dsr_workspace_revision(void){return stored?dsr_config_revision(stored):
 bool dsr_workspace_submit(const char *json,uint32_t revision)
 {if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;}return true;}
 void dsr_workspace_status(bool *busy,char message[96]){*busy=pending!=NULL;message[0]=0;}
-void dsr_panel_pair_begin(char code[17]){strcpy(code,"0123456789abcdef");}
+static bool pair_accepted=true;
+void test_pair_accept(bool accepted){pair_accepted=accepted;}
+void dsr_panel_pair_begin(char code[17]){if(https_ready&&pair_accepted)strcpy(code,"0123456789abcdef");else code[0]=0;}
 void dsr_panel_pair_cancel(void){}
-void dsr_panel_allow_ota(void){}
+static bool ota_accepted=true;
+void test_ota_accept(bool accepted){ota_accepted=accepted;}
+bool dsr_panel_allow_ota(void){return https_ready&&ota_accepted;}
 /* Licensed review photos, available only in the explicit native fixture. */
 static bool photos_enabled;
 static uint16_t photos[2][DSR_PHOTO_BYTES/2];
@@ -43,7 +47,7 @@ void test_workspace_photos(bool enabled)
 }
 const void *dsr_photo_pixels(const char *id){return photos_enabled&&id&&strlen(id)==32&&id[0]>='1'&&id[0]<='2'?photos[id[0]-'1']:NULL;}
 const char *dsr_photo_id(unsigned index){static const char *ids[]={"11111111111111111111111111111111","22222222222222222222222222222222"};return photos_enabled&&index<2?ids[index]:NULL;}
-const char *dsr_tls_fingerprint(void){return "TEST FIXTURE";}
+const char *dsr_tls_fingerprint(void){return "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";}
 bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *c,uint32_t *room){(void)c;(void)room;return false;}
 void dsr_workspace_bind_result(dsr_result_t r){(void)r;}

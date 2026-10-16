@@ -1,4 +1,33 @@
-# Matryca funkcji — 0.7.9, rewizja 10
+# Matryca funkcji — 0.7.10, rewizja 11
+
+## Pełne globalne Ustawienia — #6 / #24 / #25
+
+[Nowa mapa kliknięć i odbiór](GLOBAL_SETTINGS_PL.md). Status poniżej to
+implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
+Źródło 2641ecd z PR #36 ma CI 5/5 w run 38839617735, ale brak physical pass.
+
+| Ekran / element LCD | Backend / odpowiednik Web | Stan i bramka fizyczna |
+| --- | --- | --- |
+| Ustawienia → sześć sekcji | Dedykowane globalne UI | Rzeczywisty scroll/cele; płytka do odbioru |
+| Sieć: Wi-Fi/SSID/IP, skan/zmiana | Istniejący Wi-Fi worker | Odczyt + istniejący backend; LAN/RF regresja |
+| BLE scan / AP / parowanie | Observer BLE; AP/pairing osobno #18/#19 | Scan działa; AP i pairing niewdrożone |
+| Wygląd/język/motyw/akcent/pulpit | Wspólny JSON + CAS / Web config | Save/A-B/conflict testy; restart/sync fizycznie |
+| Ekran: jasność/timeout/sleep/wake | Istniejący NVS, worker, PWM | PR #36 CI 5/5; timeout wybrany i 0=off, wake bez SET do testu |
+| Bateria | GPIO8 ADC / brak Web procentów | PR #35 CI 5/5; multimeter otwarty, procent/niski poziom/charging nieznane |
+| WWW: IPv4/mDNS/TLS/SPIFFS/fingerprint/kod | Istniejący HTTPS/pairing | Jawne generowanie i expiry; realny telefon/preview do testu |
+| WWW: sesje i unieważnianie | Brak LCD API | Not implemented; brak pozornej akcji |
+| System → Firmware Update | Natywny podpisany updater #24 | Not implemented; brak zweryfikowanego Release |
+| System → lokalna zgoda OTA | Istniejący upload HTTPS / 120 s | Bool accepted/expiry i negatywne testy; fizyczny transfer/rollback otwarte |
+| System → build/board/RAM/PSRAM/Flash/diagnostyka | Read-only snapshot i health | Testy realnego adaptera; płytka do odbioru |
+| System → restart/eksport/import/reset | Osobny bezpieczny backend #24 | Not implemented; bez destrukcyjnej atrapy |
+| Ołówek HOME | Tylko pulpity/pokoje; wpisy/sceny w System | Bez ukrytego języka/pairing/OTA; #28 hardware nadal P0 |
+
+Historia #22: obowiązuje **24 h internal** z rzeczywistych pomiarów i bezpieczną
+retencją. Opcjonalna dłuższa historia microSD to osobny późniejszy etap, nie P0.
+Nie wdrożono historii przez dodanie menu. Natywne OTA wymaga zaufanego klucza,
+podpisu, TLS/model/layout/channel/semver/size/SHA, strumieniowego transferu,
+postępu/anulowania, świadomej instalacji, zdrowego boot/rollback oraz faktycznie
+zatwierdzonego podpisanego wydania; lokalny dev upload tego nie zastępuje.
 
 Etap niezależny #6/#24: [trwała jasność i wygaszanie](DISPLAY_SETTINGS_PL.md), bez nowego schematu NVS; odbiór fizyczny otwarty.
 
@@ -136,9 +165,9 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Web Panel: parowanie, kod i fingerprint | Jednorazowy kod, sesja, local HTTPS | Per-device sekret, bez wspólnego hasła | CI tested: logika i browser; fizyczny TLS/pairing do regresji | PR #5; zła sesja, obce Origin/Host, restart i wygasły kod |
 | Zezwól na OTA — 2 minuty | Wybór app BIN / Sprawdź i zainstaluj / restart | Właściwy board, dwa sloty 6 MiB | CI tested: dev uploader i image policy; fizyczny OTA/rollback niepotwierdzony | #24, PR #5; zły board/SHA, przerwanie, NVS/zdjęcia |
 | Firmware Update: aktualna wersja i instrukcja panelu | Lokalna instalacja wyżej | Bez updatera GitHub Releases | CI tested: realna informacja, Not implemented: sprawdź/pobierz/podpis wydawcy | #24; manifest, klucz, TLS i rollback |
-| Suwak jasności + Zapisz | Brak zdalnego suwaka | Istniejący rekord NVS, zachowane Wi-Fi | Implementacja 0.7.9; nowe CI osobno | #6/#24; restart i wybudzenie z zapisaną jasnością |
-| Screen off / touch to wake | Brak zdalnego sterowania | Sterownik ES3C35P | Physically tested historycznie; nowa regresja wymagana | #24; sen 60 s, dotyk, brak niechcianego SET po wybudzeniu |
-| Timeout ekranu + Zapisz | Brak zdalnego sterowania | Istniejący rekord NVS; 0 = bez autooff | Implementacja 0.7.9; nowe CI osobno | #6/#24; fizyczne wygaszenie i first-touch suppression |
+| Suwak jasności + Zapisz | Brak zdalnego suwaka | Istniejący rekord NVS, zachowane Wi-Fi | PR #36 source2641ecd CI 5/5 | #6/#24; restart i wybudzenie z zapisaną jasnością |
+| Screen off / touch to wake | Brak zdalnego sterowania | Sterownik ES3C35P | Physically tested historycznie; nowa regresja wymagana | #24; wybrany timeout, 0=off, dotyk, brak niechcianego SET po wybudzeniu |
+| Timeout ekranu + Zapisz | Brak zdalnego sterowania | Istniejący rekord NVS; 0 = bez autooff | PR #36 source2641ecd CI 5/5 | #6/#24; fizyczne wygaszenie i first-touch suppression |
 | Eksport/import / przywracanie | Brak kompletnego bezpiecznego procesu | Funkcje systemowe planowane | Not implemented | #24; migracja i recovery bez utraty danych |
 | Test dotyku rogi / Back | Podgląd nie zastępuje testu | ST77922 | Physically tested historycznie; nowe CI nie dowodzi hardware | #6; 4 rogi, powrót i orientacja |
 | Test kolorów / nawigacja | Preview 320×480 | ST77922 RGB565 | Physically tested historycznie | #6; nowe zdjęcie LCD i zgodność kolorów |
@@ -169,10 +198,10 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 
 ## Kolejność i bramki
 
-1. Zachować bazę PR #17 i ustawienia; BLE #18 / PR #26 jest pierwszym pilnym etapem.
-2. AP #19 i niezależny multi-device #20; każdy moduł w osobnym Draft PR.
-3. Kontrolery #23 i grupy/sceny #21 po spełnieniu zależności; energia/historia #22.
-4. Podpisany updater/ustawienia #24, dalszy odbiór wyglądu #6/#8.
+1. P0 SPIFFS #28 / PR #33: fizyczny pierwszy boot, workspace/HTTPS, Save/restart; bez ponownego erase bez zgody.
+2. Niezależne Ustawienia/bateria #6/#25 i backend podpisanego OTA #24; osobne Draft PR, klucz/wydanie i hardware nadal bramkami.
+3. AP #19 i BLE #18 według potwierdzonych backendów; #20 oraz #29/#34 respektują zależności magazynu i fizyczny odbiór.
+4. Kontrolery #23 i grupy/sceny #21 po zależnościach; historia 24h internal #22 i widoki #29. microSD osobno później.
 
 Każde przejście statusu musi wskazywać exact source SHA, CI i dowód sprzętowy,
 jeśli używa Physically tested. Nie zamykać #25 ani nie publikować Stable, dopóki

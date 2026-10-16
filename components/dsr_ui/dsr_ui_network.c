@@ -45,6 +45,7 @@ static const char *result_text(dsr_result_t result)
 
 void dsr_network_reset_view(void)
 {
+    dsr_ui_settings_hide();
     dsr_ui_battery_hide();dsr_ui_display_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
@@ -335,7 +336,7 @@ static void poll(lv_timer_t *timer)
     dsr_wifi_ui_tick();
     dsr_ui_lan_tick();
     dsr_ui_ble_tick();
-    dsr_ui_battery_tick();
+    dsr_ui_battery_tick();dsr_ui_settings_tick();
     dsr_ui_workspace_tick();dsr_panel_tick();
     if(!busy){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
         pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);

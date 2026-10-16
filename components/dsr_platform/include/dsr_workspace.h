@@ -21,7 +21,8 @@ void dsr_workspace_status(bool *busy,char message[96]);
  * No shared/factory password. Pairing credentials must never be logged. */
 void dsr_panel_pair_begin(char code[17]);
 void dsr_panel_pair_cancel(void);
-void dsr_panel_allow_ota(void);
+/* True only when the ready panel accepted the physical 120-second window. */
+bool dsr_panel_allow_ota(void);
 esp_err_t dsr_panel_start(void);
 bool dsr_panel_ready(void);
 /* LVGL owns rendering; the server only requests/copies a published frame. */

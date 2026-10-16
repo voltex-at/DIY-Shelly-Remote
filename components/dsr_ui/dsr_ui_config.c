@@ -54,12 +54,13 @@ static bool editor_active;
 static bool own_save;
 static bool dashboard_picker;
 static bool room_editor,room_new,room_deleted;
-static lv_obj_t *room_dialog;
+static lv_obj_t *room_dialog,*settings_dialog;
+static bool settings_context,appearance_editor;
 static unsigned tile_page;
 static cJSON *fields_tile;
 typedef enum {OPEN_OK,OPEN_STORAGE,OPEN_SNAPSHOT_MEMORY,OPEN_PARSE,OPEN_INVALID,OPEN_BASELINE_MEMORY,OPEN_OBJECT_MEMORY,OPEN_PANEL} open_result_t;
 static open_result_t open_error;
-static bool error_return_rooms;
+static bool error_return_rooms,error_return_settings;
 static void config_log(const char *stage,int code)
 {
 #ifdef ESP_PLATFORM
@@ -73,7 +74,28 @@ static void config_log(const char *stage,int code)
 }
 static void clear_draft(void)
 {cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;}
-void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;body=keyboard=status_label=NULL;clear_draft();}
+void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
+static void settings_stay(lv_event_t *event)
+{(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
+static void settings_discard(lv_event_t *event)
+{(void)event;dsr_ui_workspace_hide();dsr_ui_open_settings();}
+bool dsr_ui_settings_can_open(void)
+{
+ if(own_save){if(status_label)dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return false;}
+ if(!editor_active||!draft||(saved_baseline&&cJSON_Compare(draft,saved_baseline,true)))return true;
+ if(settings_dialog)return false;
+ if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
+ if(body)lv_obj_set_height(body,292);
+ settings_dialog=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);
+ lv_obj_set_style_bg_opa(settings_dialog,180,0);lv_obj_add_flag(settings_dialog,LV_OBJ_FLAG_CLICKABLE);
+ lv_obj_t *panel=dsr_sc_panel(settings_dialog,12,117,296,246,DSR_SC_PANEL,14);
+ dsr_sc_text(panel,"Odrzucić zmiany?",14,16,268,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(panel,"Niezapisane zmiany tego formularza zostaną utracone.",14,53,268,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_ui_button(panel,"Zostań",12,188,130,settings_stay,NULL);
+ dsr_ui_button(panel,"Odrzuć",154,188,130,settings_discard,NULL);return false;
+}
+static void return_settings(lv_event_t *event)
+{(void)event;if(dsr_ui_settings_can_open()){dsr_ui_workspace_hide();dsr_ui_open_settings();}}
 static void show_menu(void);
 static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
@@ -95,7 +117,7 @@ static lv_obj_t *screen(const char *title)
  return root;
 }
 static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_network_home(NULL);}
-static void error_back(lv_event_t *e){(void)e;dsr_ui_workspace_hide();if(error_return_rooms)dsr_network_rooms();else dsr_network_home(NULL);}
+static void error_back(lv_event_t *e){(void)e;bool settings=error_return_settings,rooms=error_return_rooms;dsr_ui_workspace_hide();if(settings)dsr_ui_open_settings();else if(rooms)dsr_network_rooms();else dsr_network_home(NULL);}
 static void config_error(open_result_t result);
 static void diagnostics(lv_event_t *event)
 {
@@ -111,10 +133,10 @@ static void diagnostics(lv_event_t *event)
  dsr_ui_button(root,"Wstecz",12,420,296,error_back,NULL);config_log("diagnostics",open_error);
 }
 void dsr_ui_config_diagnostics(lv_event_t *event)
-{dsr_ui_workspace_hide();error_return_rooms=false;open_error=OPEN_OK;diagnostics(event);}
+{if(!dsr_ui_settings_can_open())return;dsr_ui_workspace_hide();error_return_rooms=false;error_return_settings=true;open_error=OPEN_OK;diagnostics(event);}
 static void config_error(open_result_t result)
 {
- clear_draft();editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=NULL;open_error=result;
+ clear_draft();editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=settings_dialog=NULL;open_error=result;
  lv_obj_t *root=screen("Konfiguracja niedostępna");dsr_sc_label_set_text(status_label,"Nie można otworzyć edytora");
  dsr_config_health_t h;dsr_config_health_snapshot(&h);
  const char *reason=result==OPEN_PANEL?"Serwer HTTPS jest niedostępny. Kod parowania nie został utworzony.":result==OPEN_STORAGE?(h.storage==DSR_STORAGE_NONEMPTY?"Magazyn konfiguracji niedostępny: niepusta partycja SPIFFS nie została zamontowana.":"Magazyn konfiguracji jest niedostępny."):result==OPEN_PARSE||result==OPEN_INVALID?"Nie można odczytać poprawnej konfiguracji. Sprawdź pamięć i kopię danych.":"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.";
@@ -376,29 +398,39 @@ static const choice_t language_choice={"language","pl\nen\nde",false},theme_choi
 static const uint32_t colors[]={DSR_SC_BLUE,0x34cbb5,0x8c9dff,0xe4a858};
 static void color_selected(lv_event_t *event){unsigned at=lv_dropdown_get_selected(lv_event_get_target(event));if(at<4)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"accent"),colors[at]);}
 static void appearance(lv_event_t *event)
-{(void)event;editing=draft;lv_obj_t *root=screen("Wygląd i język");add_choice("Język: Polski / English / Deutsch",&language_choice,0);add_choice("Motyw",&theme_choice,80);dsr_sc_text(body,"Kolor akcentu",2,160,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *color=lv_dropdown_create(body);lv_obj_set_pos(color,0,181);lv_obj_set_size(color,284,44);lv_dropdown_set_options(color,dsr_sc_tr("Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu"));unsigned chosen=4;for(unsigned i=0;i<4;i++)if((uint32_t)integer(draft,"accent")==colors[i])chosen=i;lv_dropdown_set_selected(color,chosen);lv_obj_add_event_cb(color,color_selected,LV_EVENT_VALUE_CHANGED,NULL);object_choice("Pulpit startowy","active_dashboard",240);actions(root,menu_event);}
-static void pair_browser(lv_event_t *event)
-{
- (void)event;if(!dsr_panel_ready()){config_error(OPEN_PANEL);return;}char code[17]={0};dsr_panel_pair_begin(code);if(!code[0]){config_error(OPEN_PANEL);return;}lv_obj_t *root=screen("Parowanie Web Panelu");
- dsr_sc_text(body,"https://shelly-remote.local",0,4,284,&dsr_roboto_16,DSR_SC_BLUE);dsr_sc_text(body,"Jednorazowy kod • ważny 2 minuty",0,43,284,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_text(body,code[0]?code:"Panel niedostępny",0,83,284,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",0,128,284,&dsr_roboto_14,DSR_SC_MUTED);
- char digest[80];const char *fp=dsr_tls_fingerprint();snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp,strlen(fp)>32?fp+32:"");dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",0,200,284,&dsr_roboto_11,DSR_SC_MUTED);dsr_sc_text(body,digest,0,223,284,&dsr_roboto_11,DSR_SC_TEXT);actions(root,menu_event);
-}
-static void allow_ota(lv_event_t *event)
-{(void)event;dsr_panel_allow_ota();dsr_sc_label_set_text(status_label,"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.");}
+{(void)event;editing=draft;lv_obj_t *root=screen("Wygląd i język");add_choice("Język: Polski / English / Deutsch",&language_choice,0);add_choice("Motyw",&theme_choice,80);dsr_sc_text(body,"Kolor akcentu",2,160,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *color=lv_dropdown_create(body);lv_obj_set_pos(color,0,181);lv_obj_set_size(color,284,44);lv_dropdown_set_options(color,dsr_sc_tr("Niebieski\nTurkusowy\nLawendowy\nBursztynowy\nWłasny z Web Panelu"));unsigned chosen=4;for(unsigned i=0;i<4;i++)if((uint32_t)integer(draft,"accent")==colors[i])chosen=i;lv_dropdown_set_selected(color,chosen);lv_obj_add_event_cb(color,color_selected,LV_EVENT_VALUE_CHANGED,NULL);object_choice("Pulpit startowy","active_dashboard",240);actions(root,return_settings);}
 static void show_menu(void)
 {
- lv_obj_t *root=screen("Edytuj pilot");const char *labels[]={"Pulpity","Pomieszczenia","Urządzenia","Sceny"},*keys[]={"dashboards","rooms","devices","scenes"};
- for(unsigned i=0;i<4;i++)dsr_ui_button(body,labels[i],0,(int)i*56,284,show_collection,(void *)keys[i]);
- dsr_ui_button(body,"Wygląd i język",0,224,284,appearance,NULL);dsr_ui_button(body,"Web Panel • parowanie",0,280,284,pair_browser,NULL);dsr_ui_button(body,"Zezwól na OTA • 2 minuty",0,336,284,allow_ota,NULL);actions(root,return_home);
+ lv_obj_t *root=screen(settings_context?"Konfiguracja wpisów":"Edytuj pilot");
+ const char *labels[]={"Pulpity","Pomieszczenia","Urządzenia","Sceny"},*keys[]={"dashboards","rooms","devices","scenes"};
+ unsigned first=settings_context?2:0;
+ for(unsigned i=first;i<first+2;i++)dsr_ui_button(body,labels[i],0,(int)(i-first)*56,284,show_collection,(void *)keys[i]);
+ actions(root,settings_context?return_settings:return_home);
+}
+void dsr_ui_config_appearance(lv_event_t *event)
+{
+ (void)event;if(!dsr_ui_settings_can_open())return;
+ settings_context=true;appearance_editor=true;error_return_rooms=false;error_return_settings=true;
+ open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ appearance(NULL);
+}
+void dsr_ui_config_registry(lv_event_t *event)
+{
+ (void)event;if(!dsr_ui_settings_can_open())return;
+ settings_context=true;appearance_editor=false;error_return_rooms=false;error_return_settings=true;
+ open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ show_menu();
 }
 void dsr_ui_edit_dashboard(void)
 {
- error_return_rooms=false;config_log("edit_dashboard",0);open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ settings_context=appearance_editor=error_return_settings=false;error_return_rooms=false;config_log("edit_dashboard",0);open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
  room_editor=room_new=room_deleted=false;room_dialog=NULL;editor_active=true;dashboard_picker=false;tile_page=0;config_log("show_menu",0);show_menu();
 }
 static bool room_begin(void)
 {
- error_return_rooms=true;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return false;}
+ settings_context=appearance_editor=error_return_settings=false;error_return_rooms=true;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return false;}
  editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=false;room_dialog=NULL;
  snprintf(collection_name,sizeof(collection_name),"rooms");return true;
 }
@@ -433,7 +465,7 @@ static void pick_dashboard(lv_event_t *event)
 {cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),(unsigned)(uintptr_t)lv_event_get_user_data(event));save(NULL);}
 void dsr_ui_select_dashboard(void)
 {
- error_return_rooms=false;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ settings_context=appearance_editor=error_return_settings=false;error_return_rooms=false;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
  draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=false;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
@@ -457,6 +489,12 @@ void dsr_ui_workspace_tick(void)
   draft_revision=revision;own_save=false;save_confirmed=true;save_failed=false;
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);
   cJSON_Delete(saved_baseline);saved_baseline=submitted_draft;submitted_draft=NULL;
+  if(appearance_editor){
+   /* Display the acknowledged style A while retaining later draft edits B. */
+   const char *locale=string(saved_baseline,"language");
+   dsr_sc_appearance((uint32_t)integer(saved_baseline,"accent"),!strcmp(string(saved_baseline,"theme"),"midnight"),!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);
+   appearance(NULL);
+  }
   if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);

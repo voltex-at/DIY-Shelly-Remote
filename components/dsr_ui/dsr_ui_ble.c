@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool active,building,detail;
+static bool active,building,detail,from_settings;
 static unsigned selected;
 static uint32_t observed;
 static dsr_ble_snapshot_t scan;
@@ -18,7 +18,7 @@ void dsr_ui_ble_reset(void)
 {if(active&&!building)dsr_ble_cancel();active=false;notice=progress=counter=NULL;}
 static lv_obj_t *screen(void)
 {building=true;lv_obj_t *root=dsr_ui_screen("Bluetooth LE",false);building=false;active=true;return root;}
-static void leave(lv_event_t *event){(void)event;dsr_ble_cancel();dsr_network_device(NULL);}
+static void leave(lv_event_t *event){(void)event;dsr_ble_cancel();if(from_settings)dsr_ui_settings_network(NULL);else dsr_network_device(NULL);}
 static void stop(lv_event_t *event){(void)event;dsr_ble_cancel();if(notice)dsr_sc_label_set_text(notice,"Zatrzymywanie skanu…");}
 static void back(lv_event_t *event){(void)event;detail=false;show_results();}
 static void lan(lv_event_t *event){dsr_ui_lan_open(event);}
@@ -79,7 +79,7 @@ static void show_scanning(void)
  if(!dsr_wifi_connected())dsr_sc_text(root,"Wi-Fi offline • BLE dostępne",16,391,288,&dsr_roboto_11,DSR_SC_BLUE);
  dsr_ui_button(root,"Anuluj",12,420,140,stop,NULL);dsr_ui_button(root,"Wstecz",168,420,140,leave,NULL);
 }
-void dsr_ui_ble_open(lv_event_t *event)
+static void open_ble(lv_event_t *event)
 {
  (void)event;dsr_ble_snapshot(&scan);detail=false;observed=scan.serial;
  if(scan.busy){show_scanning();return;}
@@ -89,6 +89,8 @@ void dsr_ui_ble_open(lv_event_t *event)
  dsr_sc_text(root,"Shelly z reklamowanym RPC oraz Shelly BLU / BTHome. Wykrycie nie oznacza sparowania ani dodania do LAN.",16,248,288,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_ui_button(root,"Wstecz",12,420,140,leave,NULL);dsr_ui_button(root,"Szukaj",168,420,140,start,NULL);
 }
+void dsr_ui_ble_open(lv_event_t *event){from_settings=false;open_ble(event);}
+void dsr_ui_ble_settings(lv_event_t *event){from_settings=true;open_ble(event);}
 void dsr_ui_ble_tick(void)
 {
  if(!active)return;
