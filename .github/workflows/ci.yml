@@ -67,7 +67,9 @@ jobs:
       - name: Verify raw HTTP fragmentation with original pinned IDF parser
         run: python3 tools/test_ota_fetch_parser.py --idf .test-deps/esp-idf --sanitize
       - name: Verify release corpus with original pinned IDF cJSON and full sanitizers
-        run: python3 tools/test_ota_release.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
+        run: |
+          python3 tools/test_ota_release.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
+          python3 tools/test_ota_discovery.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
       - name: Verify single-release HTTPS metadata with original pinned IDF cJSON
         run: python3 tools/test_ota_release_fetch.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
       - name: Verify release-to-signed-app chain with original pinned IDF cJSON
@@ -121,6 +123,7 @@ jobs:
           python3 tools/check_editor_target.py --build-dir build-board --out build-board/EDITOR.json
           python3 tools/check_fleet_target.py --build-dir build-board --out build-board/FLEET.json
           python3 tools/check_ap_target.py --build-dir build-board --out build-board/AP.json
+          python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -161,6 +164,7 @@ jobs:
           cp docs/EDITOR_ACCEPTANCE_PL.md build-board/EDITOR.json build-board/package/
           cp docs/WEB_LOCALE_PL.md build-board/package/
           cp docs/MULTI_DEVICE_PL.md docs/ISSUE19_AP_PL.md build-board/AP.json build-board/FLEET.json build-board/package/
+          cp docs/NATIVE_OTA_PL.md build-board/NATIVE_OTA.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

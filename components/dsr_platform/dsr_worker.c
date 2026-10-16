@@ -1,6 +1,9 @@
 #include "dsr_platform.h"
 #include "dsr_ap_private.h"
 #include "dsr_activity.h"
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_native_ota.h"
+#endif
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -17,7 +20,13 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY){
+        if(job.kind==DSR_JOB_OTA_CHECK||job.kind==DSR_JOB_OTA_INSTALL){
+#ifdef DSR_BOARD_ES3C35P
+            dsr_native_ota_execute(&job,&event);
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
+        } else if(job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY){
             dsr_ap_execute(&job,&event);
         } else if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
             event.result=(job.kind==DSR_JOB_UNBIND?dsr_connection_remove(&job.connection):dsr_connection_publish(&job.connection))==ESP_OK?DSR_OK:DSR_IO;event.layout_id=job.connection.layout_id;
@@ -78,6 +87,9 @@ esp_err_t dsr_worker_start(void)
     available = xSemaphoreCreateBinary();
     if (!jobs || !events || !available) goto fail;
     xSemaphoreGive(available);
+#ifdef DSR_BOARD_ES3C35P
+    (void)dsr_native_ota_init();
+#endif
     if (xTaskCreate(network_task, "dsr_network", 10240, NULL, 4, NULL) != pdPASS) goto fail;
     return ESP_OK;
 fail:
@@ -90,9 +102,15 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_AP_VERIFY) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_OTA_INSTALL) return DSR_INVALID;
     if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;
-    if(job->kind>=DSR_JOB_AP_SCAN){
+    if(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL){
+#ifdef DSR_BOARD_ES3C35P
+        if(!dsr_native_ota_admitted(job->id,job->kind))return DSR_INVALID;
+#else
+        return DSR_UNSUPPORTED;
+#endif
+    } else if(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY){
         if(job->kind==DSR_JOB_AP_INSPECT&&(!job->ap_confirmed||!memchr(job->ap.ssid,0,sizeof(job->ap.ssid))||!dsr_ap_candidate(job->ap.ssid)||job->ap.security!=DSR_WIFI_OPEN))return DSR_INVALID;
         if((job->kind==DSR_JOB_AP_PROVISION||job->kind==DSR_JOB_AP_VERIFY)&&(!memchr(job->ap_identity.ssid,0,sizeof(job->ap_identity.ssid))||!dsr_ap_identity_matches(job->ap_identity.ssid,&job->ap_identity)||!dsr_wifi_settings_valid(&job->settings)))return DSR_INVALID;
         if(job->kind==DSR_JOB_AP_PROVISION&&!job->ap_confirmed)return DSR_INVALID;

@@ -1,4 +1,5 @@
 #include "dsr_ota_release.h"
+#include "dsr_ota_discovery.h"
 #include "cJSON.h"
 #include <stdbool.h>
 #include <string.h>
@@ -141,6 +142,31 @@ dsr_ota_release_result_t dsr_ota_release_policy_check(const dsr_ota_release_poli
  if(!policy||!segment(policy->expected_tag,64)||!segment(policy->manifest_asset,96))return DSR_RELEASE_ARGUMENT;
  return policy->selected_channel==DSR_OTA_STABLE?DSR_RELEASE_OK:DSR_RELEASE_POLICY;
 }
+static dsr_ota_release_result_t candidate_root(const cJSON *root,
+ const dsr_ota_release_policy_t *policy,dsr_ota_release_candidate_t *out)
+{
+ dsr_ota_release_result_t result=DSR_RELEASE_POLICY;
+ const cJSON *draft=field(root,"draft"),*prerelease=field(root,"prerelease"),*assets=field(root,"assets");
+ const char *tag=text(field(root,"tag_name")),*url=text(field(root,"url"));
+ const cJSON *id=field(root,"id");
+ if(!cJSON_IsBool(draft)||!cJSON_IsBool(prerelease)||!cJSON_IsArray(assets)||!tag||!url||!cJSON_IsNumber(id))return DSR_RELEASE_INVALID;
+
+ if(!cJSON_IsFalse(draft)||(policy->selected_channel==DSR_OTA_DEV?!cJSON_IsTrue(prerelease):!cJSON_IsFalse(prerelease))||strcmp(tag,policy->expected_tag)||!api_url(url,id))return result;
+ const cJSON *selected=NULL;unsigned count=0,matches=0;
+ result=DSR_RELEASE_INVALID;
+ for(const cJSON *asset=assets->child;asset;asset=asset->next){
+  if(++count>DSR_OTA_RELEASE_MAX_ASSETS||!cJSON_IsObject(asset))return result;
+  const char *name=text(field(asset,"name"));if(!name)return result;
+  if(!strcmp(name,policy->manifest_asset)){selected=asset;matches++;}
+ }
+ if(matches!=1){result=matches?DSR_RELEASE_AMBIGUOUS:DSR_RELEASE_NOT_FOUND;return result;}
+ const char *state=text(field(selected,"state")),*download=text(field(selected,"browser_download_url"));
+ const cJSON *size=field(selected,"size");
+ if(!state||!download||!cJSON_IsNumber(size))return result;
+ result=DSR_RELEASE_POLICY;
+ if(strcmp(state,"uploaded")||size->valuedouble<1||size->valuedouble>DSR_OTA_MANIFEST_MAX||!download_url(download,policy))return result;
+ strcpy(out->tag,tag);strcpy(out->manifest_url,download);out->manifest_size=(uint32_t)size->valuedouble;return DSR_RELEASE_OK;
+}
 dsr_ota_release_result_t dsr_ota_release_candidate_parse(const void *input,size_t length,
  const dsr_ota_release_policy_t *policy,dsr_ota_release_candidate_t *out)
 {
@@ -155,26 +181,54 @@ dsr_ota_release_result_t dsr_ota_release_candidate_parse(const void *input,size_
  dsr_ota_release_result_t result=DSR_RELEASE_INVALID;
  if(!cJSON_IsObject(root)||!end||!unique(root,0))goto done;
  for(const char *p=end;p<(const char *)input+length;p++)if(!space((unsigned char)*p))goto done;
- const cJSON *draft=field(root,"draft"),*prerelease=field(root,"prerelease"),*assets=field(root,"assets");
- const char *tag=text(field(root,"tag_name")),*url=text(field(root,"url"));
- const cJSON *id=field(root,"id");
- if(!cJSON_IsBool(draft)||!cJSON_IsBool(prerelease)||!cJSON_IsArray(assets)||!tag||!url||!cJSON_IsNumber(id))goto done;
- result=DSR_RELEASE_POLICY;
- if(!cJSON_IsFalse(draft)||!cJSON_IsFalse(prerelease)||strcmp(tag,policy->expected_tag)||!api_url(url,id))goto done;
- const cJSON *selected=NULL;unsigned count=0,matches=0;
- result=DSR_RELEASE_INVALID;
- for(const cJSON *asset=assets->child;asset;asset=asset->next){
-  if(++count>DSR_OTA_RELEASE_MAX_ASSETS||!cJSON_IsObject(asset))goto done;
-  const char *name=text(field(asset,"name"));if(!name)goto done;
-  if(!strcmp(name,policy->manifest_asset)){selected=asset;matches++;}
- }
- if(matches!=1){result=matches?DSR_RELEASE_AMBIGUOUS:DSR_RELEASE_NOT_FOUND;goto done;}
- const char *state=text(field(selected,"state")),*download=text(field(selected,"browser_download_url"));
- const cJSON *size=field(selected,"size");
- if(!state||!download||!cJSON_IsNumber(size))goto done;
- result=DSR_RELEASE_POLICY;
- if(strcmp(state,"uploaded")||size->valuedouble<1||size->valuedouble>DSR_OTA_MANIFEST_MAX||!download_url(download,policy))goto done;
- strcpy(out->tag,tag);strcpy(out->manifest_url,download);out->manifest_size=(uint32_t)size->valuedouble;result=DSR_RELEASE_OK;
+ result=candidate_root(root,policy,out);
 done:
  cJSON_Delete(root);return result;
+}
+
+/* Same strict grammar, decoded-key uniqueness and source identity as the
+ * explicit-tag API above. The new native catalogue is a separate policy. */
+static void plain_notes(const cJSON *body,char out[DSR_OTA_NATIVE_NOTES_MAX+1])
+{
+ size_t used=0;
+ const unsigned char *p=(const unsigned char *)(cJSON_IsString(body)?body->valuestring:"");
+ while(*p){
+  unsigned char c=*p;size_t n=c<0x80?1:c<0xe0?2:c<0xf0?3:4;
+  if((c<32&&c!='\n'&&c!='\t')||c==127){p++;continue;}
+  if(used+n>DSR_OTA_NATIVE_NOTES_MAX)break;
+  if(c=='\t'){out[used++]=' ';p++;continue;}
+  memcpy(out+used,p,n);used+=n;p+=n;
+ }
+ out[used]=0;
+}
+dsr_ota_release_result_t dsr_ota_discovery_parse(const void *input,size_t length,
+ dsr_ota_channel_t channel,dsr_ota_discovery_t *out)
+{
+ if(!out)return DSR_RELEASE_ARGUMENT;
+ memset(out,0,sizeof(*out));
+ if(!input||!length||length>DSR_OTA_RELEASE_MAX||(channel!=DSR_OTA_STABLE&&channel!=DSR_OTA_DEV))return DSR_RELEASE_ARGUMENT;
+ if(!grammar(input,length))return DSR_RELEASE_INVALID;
+ const char *end=NULL;cJSON *root=cJSON_ParseWithLengthOpts(input,length,&end,false);
+ if(!root)return DSR_RELEASE_INVALID;
+ dsr_ota_release_result_t result=DSR_RELEASE_INVALID;
+ if(!end||!unique(root,0))goto done;
+ for(const char *p=end;p<(const char *)input+length;p++)if(!space((unsigned char)*p))goto done;
+ const cJSON *selected=NULL;
+ if(channel==DSR_OTA_STABLE){if(!cJSON_IsObject(root))goto done;selected=root;}
+ else{
+  if(!cJSON_IsArray(root)||cJSON_GetArraySize(root)>5)goto done;
+  const cJSON *entry;
+  cJSON_ArrayForEach(entry,root){
+   if(!cJSON_IsObject(entry)||!cJSON_IsBool(field(entry,"draft"))||!cJSON_IsBool(field(entry,"prerelease")))goto done;
+   if(!selected&&cJSON_IsFalse(field(entry,"draft"))&&cJSON_IsTrue(field(entry,"prerelease")))selected=entry;
+  }
+ }
+ if(!selected){result=DSR_RELEASE_NOT_FOUND;goto done;}
+ const char *tag=text(field(selected,"tag_name"));
+ if(!segment(tag,64)){result=DSR_RELEASE_POLICY;goto done;}
+ dsr_ota_release_policy_t policy={.expected_tag=tag,.manifest_asset=DSR_OTA_NATIVE_MANIFEST_ASSET,.selected_channel=channel};
+ result=candidate_root(selected,&policy,&out->candidate);
+ if(result==DSR_RELEASE_OK){const cJSON *body=field(selected,"body");if(body&&!cJSON_IsNull(body)&&!cJSON_IsString(body))result=DSR_RELEASE_INVALID;else plain_notes(body,out->notes);}
+done:
+ cJSON_Delete(root);if(result!=DSR_RELEASE_OK)memset(out,0,sizeof(*out));return result;
 }

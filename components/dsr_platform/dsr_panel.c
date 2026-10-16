@@ -2,6 +2,7 @@
 #include "dsr_runtime_api.h"
 #include "dsr_panel_permission.h"
 #include "dsr_ota_upload.h"
+#include "dsr_ota_stage.h"
 #include "dsr_ota_image.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
@@ -144,12 +145,13 @@ static esp_err_t ota(httpd_req_t *r)
  if(!slot||r->content_len<512||r->content_len>slot->size)return json(r,"400 Bad Request","{\"error\":\"Upload the application BIN, not a merged USB image\"}");
  char expected[65]={0};if(httpd_req_get_hdr_value_str(r,"X-SHA256",expected,sizeof(expected))!=ESP_OK||strlen(expected)!=64)return json(r,"400 Bad Request","{\"error\":\"SHA256 required\"}");
  uint8_t digest[32];if(!dsr_ota_upload_sha256(expected,64,digest))return json(r,"400 Bad Request","{}");
- if(!dsr_activity_begin())return json(r,"409 Conflict","{\"error\":\"Restart pending; upload not started\"}");
+ dsr_ota_stage_t *stage=dsr_ota_stage_acquire();
+ if(!stage)return json(r,"409 Conflict","{\"error\":\"OTA staging or restart busy; upload not started\"}");
  esp_err_t error=dsr_ota_upload_receive(r,slot,digest);
- if(error!=ESP_OK){dsr_activity_end();return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");}
+ if(error!=ESP_OK){dsr_ota_stage_release(stage);return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");}
  error=esp_ota_set_boot_partition(slot);
- dsr_activity_end();
- if(error!=ESP_OK)return json(r,"500 Internal Server Error","{\"error\":\"Boot slot not changed\"}");
+ if(error!=ESP_OK){dsr_ota_stage_uncertain(stage);return json(r,"500 Internal Server Error","{\"error\":\"Boot selection unconfirmed; OTA blocked until restart\",\"restart_required\":true}");}
+ dsr_ota_stage_commit(stage);
  return json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");
 }
 static esp_err_t restart(httpd_req_t *r)

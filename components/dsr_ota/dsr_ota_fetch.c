@@ -70,6 +70,8 @@ static bool metadata_url(const char *url)
  for(;*p;p++)if(!alnum(*p)&&*p!='-'&&*p!='_'&&*p!='.')return false;
  return true;
 }
+static const char stable_discovery[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/latest";
+static const char dev_discovery[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=5";
 bool dsr_ota_fetch_policy_valid(const dsr_ota_policy_t *policy)
 {
  return policy&&policy->current_version&&bounded_length(policy->current_version,31)<=31
@@ -128,7 +130,8 @@ bad:
 static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
  dsr_ota_image_t *image,dsr_image_result_t *image_why,
- unsigned char *metadata,size_t *metadata_length,size_t expected_manifest_size)
+ unsigned char *metadata,size_t *metadata_length,size_t expected_manifest_size,
+ const dsr_ota_stream_sink_t *sink,bool discovery,int *http_status)
 {
  bool release=metadata!=NULL;
  if(why)*why=DSR_MANIFEST_INVALID;
@@ -138,7 +141,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
  if(!image)memset(out,0,sizeof(*out));
  if(!dsr_ota_fetch_policy_valid(policy)||expected_manifest_size>DSR_OTA_MANIFEST_MAX)return DSR_FETCH_ARGUMENT;
  }
- if(release?!metadata_url(url):!initial_url(url))return DSR_FETCH_URL;
+ if(release?(discovery?(!url||(strcmp(url,stable_discovery)&&strcmp(url,dev_discovery))):!metadata_url(url)):!initial_url(url))return DSR_FETCH_URL;
  if(time(NULL)<(time_t)1735689600)return DSR_FETCH_CLOCK;
  size_t limit=release?16384u:image?out->size:expected_manifest_size?expected_manifest_size:DSR_OTA_MANIFEST_MAX;
  fetch_t *s=calloc(1,sizeof(*s));if(!s)return DSR_FETCH_NOMEM;
@@ -163,6 +166,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
   if(!stopped(s)&&esp_http_client_open(client,0)!=ESP_OK&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)){
    int64_t length=esp_http_client_fetch_headers(client);
+   if(http_status)*http_status=esp_http_client_get_status_code(client);
    if(!stopped(s)){
     int status=esp_http_client_get_status_code(client);
     if(length<0)s->result=DSR_FETCH_IO;
@@ -197,6 +201,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
        dsr_image_result_t result=dsr_ota_image_update(image,buffer,(size_t)n);
        if(image_why)*image_why=result;
        if(result!=DSR_IMAGE_OK){s->result=DSR_FETCH_IMAGE;break;}
+       if(sink&&!sink->write(sink->context,buffer,(size_t)n,dsr_ota_image_header_ready(image))){s->result=DSR_FETCH_IO;break;}
       }
       s->used+=(size_t)n;
       if(s->length_seen&&s->used>s->declared){s->result=DSR_FETCH_SIZE;break;}
@@ -233,37 +238,71 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
 }
 dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why)
-{return fetch(url,policy,control,out,why,NULL,NULL,NULL,NULL,0);}
+{return fetch(url,policy,control,out,why,NULL,NULL,NULL,NULL,0,NULL,false,NULL);}
 
 dsr_ota_fetch_result_t dsr_ota_fetch_metadata_body(const char *url,
  const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length)
 {
  if(length)*length=0;
  if(!body||!length)return DSR_FETCH_ARGUMENT;
- return fetch(url,NULL,control,NULL,NULL,NULL,NULL,body,length,0);
+ return fetch(url,NULL,control,NULL,NULL,NULL,NULL,body,length,0,NULL,false,NULL);
+}
+dsr_ota_fetch_result_t dsr_ota_fetch_discovery_body(dsr_ota_channel_t channel,
+ const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length,int *http_status)
+{
+ if(length)*length=0;
+ if(http_status)*http_status=0;
+ if(!body||!length||(channel!=DSR_OTA_STABLE&&channel!=DSR_OTA_DEV))return DSR_FETCH_ARGUMENT;
+ return fetch(channel==DSR_OTA_STABLE?stable_discovery:dev_discovery,NULL,control,
+  NULL,NULL,NULL,NULL,body,length,0,NULL,true,http_status);
 }
 
 typedef struct {dsr_ota_verified_t verified;dsr_ota_image_t *image;} app_chain_t;
 _Static_assert(sizeof(app_chain_t)<=512,"bounded app-chain workspace");
-dsr_ota_fetch_result_t dsr_ota_fetch_app_sized(const char *url,const dsr_ota_policy_t *policy,
- const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
- dsr_image_result_t *image_why,size_t expected_manifest_size)
+static bool same_consent(const dsr_ota_verified_t *a,const dsr_ota_verified_t *b)
 {
+ return memchr(a->version,0,sizeof(a->version))&&memchr(a->url,0,sizeof(a->url))&&
+  a->size==b->size&&a->channel==b->channel&&!strcmp(a->version,b->version)&&
+  !strcmp(a->url,b->url)&&!memcmp(a->sha256,b->sha256,sizeof(a->sha256));
+}
+static dsr_ota_fetch_result_t app_chain_run(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
+ dsr_image_result_t *image_why,size_t expected_manifest_size,
+ const dsr_ota_verified_t *consent,const dsr_ota_stream_sink_t *sink,bool *consent_changed)
+{
+ if(consent_changed)*consent_changed=false;
  if(why)*why=DSR_MANIFEST_INVALID;
  if(image_why)*image_why=DSR_IMAGE_STATE;
  if(!out)return DSR_FETCH_ARGUMENT;
  memset(out,0,sizeof(*out));
  app_chain_t *chain=calloc(1,sizeof(*chain));if(!chain)return DSR_FETCH_NOMEM;
- dsr_ota_fetch_result_t result=fetch(url,policy,control,&chain->verified,why,NULL,NULL,NULL,NULL,expected_manifest_size);
+ dsr_ota_fetch_result_t result=fetch(url,policy,control,&chain->verified,why,NULL,NULL,NULL,NULL,expected_manifest_size,NULL,false,NULL);
+ if(result==DSR_FETCH_OK&&consent&&!same_consent(consent,&chain->verified)){
+  if(consent_changed)*consent_changed=true;
+  result=DSR_FETCH_ARGUMENT;
+ }
  if(result==DSR_FETCH_OK){
   dsr_image_result_t created=dsr_ota_image_create(&chain->verified,&chain->image);
   if(image_why)*image_why=created;
   if(created!=DSR_IMAGE_OK)result=DSR_FETCH_IMAGE;
-  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why,NULL,NULL,0);
+  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why,NULL,NULL,0,sink,false,NULL);
  }
  dsr_ota_image_destroy(chain->image);
  if(result==DSR_FETCH_OK)*out=chain->verified;
  free(chain);return result;
+}
+dsr_ota_fetch_result_t dsr_ota_fetch_app_sized(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
+ dsr_image_result_t *image_why,size_t expected_manifest_size)
+{return app_chain_run(url,policy,control,out,why,image_why,expected_manifest_size,NULL,NULL,NULL);}
+dsr_ota_fetch_result_t dsr_ota_fetch_stream_app(const char *url,const dsr_ota_policy_t *policy,
+ const dsr_ota_verified_t *consent,const dsr_ota_fetch_control_t *control,
+ const dsr_ota_stream_sink_t *sink,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
+ dsr_image_result_t *image_why,bool *consent_changed)
+{
+ if(consent_changed)*consent_changed=false;
+ if(!consent||!sink||!sink->write){if(out)memset(out,0,sizeof(*out));if(why)*why=DSR_MANIFEST_INVALID;if(image_why)*image_why=DSR_IMAGE_STATE;return DSR_FETCH_ARGUMENT;}
+ return app_chain_run(url,policy,control,out,why,image_why,0,consent,sink,consent_changed);
 }
 dsr_ota_fetch_result_t dsr_ota_fetch_app(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,

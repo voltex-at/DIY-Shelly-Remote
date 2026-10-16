@@ -1,5 +1,6 @@
 /* Real ADC adapter and actual worker routing; synthetic SDK responses only. */
 #include "dsr_platform.h"
+#include "dsr_native_ota.h"
 #include "../components/dsr_platform/dsr_ap_private.h"
 #include "../components/dsr_platform/dsr_activity_internal.h"
 #include "esp_adc/adc_oneshot.h"
@@ -65,6 +66,11 @@ static unsigned ap_executed,ap_prepared,wifi_prepared;
 bool dsr_wifi_temporary_active(void){return temporary_ap;}
 void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY&&!dsr_activity_restart_reserve());ap_executed++;event->result=DSR_OK;}
 void dsr_ap_prepare(void){ap_prepared++;}
+static bool ota_admit;
+static unsigned ota_executed,ota_initialized;
+esp_err_t dsr_native_ota_init(void){ota_initialized++;return ESP_OK;}
+bool dsr_native_ota_admitted(uint32_t id,dsr_job_kind_t kind){CHECK(id&&(kind==DSR_JOB_OTA_CHECK||kind==DSR_JOB_OTA_INSTALL));return ota_admit;}
+void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(ota_admit&&(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL)&&!dsr_activity_restart_reserve());ota_executed++;event->result=DSR_OK;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&bound&&!strcmp(c->device.device_id,"maintenance");}
 void dsr_wifi_prepare_connect(void){wifi_prepared++;}
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *s){(void)s;abort();}
@@ -121,6 +127,13 @@ int main(void)
   dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.layout_id==job.connection.layout_id&&event.result==(n==2?DSR_IO:DSR_OK));admission_open();
  }
  CHECK(publishes==1&&removes==2); /* maintenance offline: zero HTTP calls */
+ CHECK(ota_initialized==1);
+ for(unsigned kind=DSR_JOB_OTA_CHECK;kind<=DSR_JOB_OTA_INSTALL;kind++){
+  dsr_job_t ota={.id=160+kind,.kind=kind};ota_admit=false;CHECK(dsr_worker_submit(&ota)==DSR_INVALID);
+  ota_admit=true;CHECK(dsr_worker_submit(&ota)==DSR_OK);if(!setjmp(stop))worker(NULL);
+  dsr_event_t e;CHECK(dsr_worker_receive(&e)&&e.id==ota.id&&e.result==DSR_OK);admission_open();
+ }
+ CHECK(ota_executed==2);ota_admit=false;
  /* Actual sole-worker router/validator: AP work is admitted offline and while
   * the station is temporarily on an AP, without falling through to relay SET. */
  for(unsigned kind=DSR_JOB_AP_SCAN;kind<=DSR_JOB_AP_VERIFY;kind++){

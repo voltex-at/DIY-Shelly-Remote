@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_native_ota.h"
 #include "dsr_platform.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_workspace.h"
@@ -55,6 +56,7 @@ void dsr_network_reset_view(void)
     dsr_ui_lan_reset();
     dsr_ui_ap_reset();
     dsr_ui_ble_reset();
+    dsr_ui_native_ota_hide();
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
 }
@@ -148,6 +150,18 @@ dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,
  dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
 }
 bool dsr_network_busy(void) { return busy||finishing_bind; }
+dsr_result_t dsr_network_request_ota(dsr_job_kind_t kind,unsigned channel,bool power_confirmed)
+{
+ if(busy||finishing_bind||dsr_ui_ap_active()||dsr_wifi_temporary_active())return DSR_BUSY;
+ dsr_job_t job={.id=++serial,.kind=kind};
+ if(!job.id)job.id=++serial;
+ dsr_result_t result=dsr_native_ota_prepare(job.id,kind,(dsr_ota_channel_t)channel,power_confirmed);
+ if(result!=DSR_OK)return result;
+ result=dsr_worker_submit(&job);
+ if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;}
+ else dsr_native_ota_reject(job.id);
+ return result;
+}
 dsr_result_t dsr_network_request_display(uint8_t brightness,uint16_t seconds)
 {
  if(busy)return DSR_BUSY;
@@ -373,7 +387,8 @@ static void poll(lv_timer_t *timer)
    if(!dsr_endpoint_equal(&s->connection.device,&event.device)||strcmp(s->connection.device.host,event.device.host))event.result=DSR_IDENTITY_MISMATCH;
    s->next_maintenance=event.result==DSR_OK?0:now+5000;
   }
-  if(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)dsr_ui_ap_result(&event,operation);
+  if(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL){/* Fixed synchronized updater snapshot is consumed by its LCD tick. */}
+  else if(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)dsr_ui_ap_result(&event,operation);
   else if(operation==DSR_JOB_DISPLAY_SAVE){if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}dsr_ui_display_result(&event);}
   else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
   else if(operation==DSR_JOB_WIFI_SCAN||operation==DSR_JOB_WIFI_CONNECT){
@@ -406,7 +421,7 @@ static void poll(lv_timer_t *timer)
   render();
  }
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_workspace_tick();dsr_panel_tick();
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_panel_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
  bool ap_available=view==VIEW_HOME&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
  dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);

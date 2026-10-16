@@ -212,23 +212,12 @@ static void web_panel(lv_event_t *event)
  row(body,"Diagnostyka konfiguracji",340,dsr_ui_config_diagnostics);
  row(body,"Odśwież",398,web_panel);
 }
-static void ota_allowed(lv_event_t *event)
+void dsr_ui_web_ota_open(lv_event_t *event)
 {
  (void)event;bool accepted=dsr_panel_allow_ota();lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
  lv_obj_t *status=dsr_sc_text(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);
  if(accepted){expiry_label=status;issued_at=lv_tick_get();expiry_pair=false;}
  dsr_sc_text(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",4,146,284,&dsr_roboto_14,DSR_SC_MUTED);
-}
-static void firmware(lv_event_t *event)
-{
- (void)event;lv_obj_t *body=settings_body("Firmware Update");
- dsr_sc_text(body,"Current version",4,4,284,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(body,esp_app_get_description()->version,4,32,284,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_sc_text(body,dsr_board_hardware_id(),4,62,284,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(body,"Kanał: Dev • wersja testowa",4,94,284,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_sc_text(body,"Natywne podpisane OTA: niewdrożone (#24). Brak zweryfikowanego wydania.",4,136,284,&dsr_roboto_14,DSR_SC_MUTED);
- unavailable(body,"Sprawdź aktualizacje • niedostępne",218);unavailable(body,"Zainstaluj • niedostępne",276);
- row(body,"Zezwól na OTA • 2 minuty",334,ota_allowed);
 }
 static void system_menu(lv_event_t *event);
 static void restart_cancel(lv_event_t *event)
@@ -268,10 +257,11 @@ static void system_info(lv_event_t *event)
 static void system_menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("System");
- row(body,"Firmware Update",0,firmware);row(body,"Informacje i diagnostyka",58,system_info);
+ row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
  row(body,"Podgląd rolety • DEMO",232,cover_preview);row(body,"Restart pilota",290,restart_screen);
 }
+void dsr_ui_system_open(lv_event_t *event){system_menu(event);}
 static void screen_settings(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Ekran i komfort");row(body,"Ekran",0,dsr_ui_display_open);

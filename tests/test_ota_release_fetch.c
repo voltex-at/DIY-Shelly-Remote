@@ -1,6 +1,8 @@
 /* Genuine release parser + fetch. SDK/TLS/cache are explicitly a MODEL.
  * No network, manifest trust, app download, or Flash is proved here. */
 #include "dsr_ota_release_fetch.h"
+#include "dsr_ota_fetch_private.h"
+#include "dsr_ota_discovery.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "cJSON.h"
@@ -24,6 +26,8 @@ static int64_t monotonic,delay;static time_t wall;
 static const char valid[]="{\"id\":123,\"url\":\"https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/123\",\"tag_name\":\"v1.2.4\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"manifest.json\",\"state\":\"uploaded\",\"size\":700,\"browser_download_url\":\"https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/v1.2.4/manifest.json\"}]}";
 static char length_text[32];static unsigned char padded[16386];
 static dsr_ota_release_policy_t policy={"v1.2.4","manifest.json",DSR_OTA_STABLE};
+static const char *discovery_expected;
+static unsigned discovery_parse_calls;
 static bool cancelled(void *p){CHECK(p==&cancel_flag);return cancel_flag;}
 static dsr_ota_fetch_control_t control={cancelled,&cancel_flag};
 esp_err_t esp_crt_bundle_attach(void *p){(void)p;return ESP_OK;}
@@ -34,7 +38,7 @@ esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *c)
 {
  initialized++;CHECK(initialized==1);if(fail_init)return NULL;
  char expected_url[160];snprintf(expected_url,sizeof(expected_url),"https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/tags/%s",policy.expected_tag);
- CHECK(!strcmp(c->url,expected_url));
+ CHECK(!strcmp(c->url,discovery_expected?discovery_expected:expected_url));
  CHECK(c->method==HTTP_METHOD_GET&&c->transport_type==HTTP_TRANSPORT_OVER_SSL);
  CHECK(c->crt_bundle_attach==esp_crt_bundle_attach&&!c->skip_cert_common_name_check&&!c->common_name&&!c->cert_pem);
  CHECK(c->disable_auto_redirect&&c->max_authorization_retries==-1&&c->timeout_ms==5000&&c->buffer_size==1024&&c->buffer_size_tx==4096);
@@ -65,10 +69,20 @@ dsr_ota_release_result_t __wrap_dsr_ota_release_candidate_parse(const void *j,si
  if(postparse==3)monotonic=-1;
  return r;
 }
+dsr_ota_release_result_t __real_dsr_ota_discovery_parse(const void *,size_t,dsr_ota_channel_t,dsr_ota_discovery_t *);
+dsr_ota_release_result_t __wrap_dsr_ota_discovery_parse(const void *j,size_t n,dsr_ota_channel_t channel,dsr_ota_discovery_t *out)
+{
+ discovery_parse_calls++;CHECK(closed==1&&cleaned==1&&owned==1);
+ dsr_ota_release_result_t r=__real_dsr_ota_discovery_parse(j,n,channel,out);
+ if(postparse==1)cancel_flag=true;
+ if(postparse==2)monotonic+=31000000;
+ if(postparse==3)monotonic=-1;
+ return r;
+}
 static void add(const char *k,const char *v){CHECK(client.count<80);client.headers[client.count++]=(header_t){k,v};}
 static void content(const void *p,size_t n){client.body=p;client.length=n;client.declared=(int64_t)n;client.count=0;snprintf(length_text,sizeof(length_text),"%zu",n);add("Content-Length",length_text);}
 static void reset(void)
-{CHECK(!owned);memset(&client,0,sizeof(client));client.status=200;client.complete=true;content(valid,strlen(valid));initialized=opened=closed=cleaned=0;fail_init=fail_set=fail_open=fail_headers=fail_read=fail_close=fail_cleanup=0;allocations=fail_allocation=parse_calls=postparse=0;chunk=1024;cancel_flag=cancel_init=cancel_read=cancel_cleanup=overread=early_complete=late_location=false;monotonic=delay=0;wall=1767225600;policy=(dsr_ota_release_policy_t){"v1.2.4","manifest.json",DSR_OTA_STABLE};}
+{CHECK(!owned);memset(&client,0,sizeof(client));client.status=200;client.complete=true;content(valid,strlen(valid));initialized=opened=closed=cleaned=0;fail_init=fail_set=fail_open=fail_headers=fail_read=fail_close=fail_cleanup=0;allocations=fail_allocation=parse_calls=postparse=0;chunk=1024;cancel_flag=cancel_init=cancel_read=cancel_cleanup=overread=early_complete=late_location=false;monotonic=delay=0;wall=1767225600;discovery_expected=NULL;policy=(dsr_ota_release_policy_t){"v1.2.4","manifest.json",DSR_OTA_STABLE};}
 static void chunked(void){client.count=0;client.chunked=true;add("Transfer-Encoding","chunked");}
 static bool zero(const void *p,size_t n){const unsigned char *s=p;for(size_t i=0;i<n;i++)if(s[i])return false;return true;}
 static dsr_ota_fetch_result_t run(int expected,int detail)
@@ -79,6 +93,43 @@ static dsr_ota_fetch_result_t run(int expected,int detail)
  if(detail>=0)CHECK((int)why==detail);
  if(r==DSR_FETCH_OK){char expected_url[257];snprintf(expected_url,sizeof(expected_url),"https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/%s/%s",policy.expected_tag,policy.manifest_asset);CHECK(!strcmp(out.tag,policy.expected_tag)&&out.manifest_size==700&&!strcmp(out.manifest_url,expected_url));}else CHECK(zero(&out,sizeof(out)));
  CHECK(!owned&&closed==cleaned);if(client.config.url)CHECK(closed==1&&cleaned==1);return r;
+}
+static void test_discovery(void)
+{
+ static const char stable[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/latest";
+ static const char dev[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=5";
+ unsigned char *body=__real_malloc(16385);CHECK(body);size_t length=99;int status=99;
+ reset();CHECK(dsr_ota_fetch_metadata_body(stable,&control,body,&length)==DSR_FETCH_URL&&length==0&&!initialized);
+ reset();CHECK(dsr_ota_fetch_discovery_body((dsr_ota_channel_t)99,&control,body,&length,&status)==DSR_FETCH_ARGUMENT&&length==0&&status==0&&!initialized);
+ reset();discovery_expected=stable;CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_OK&&status==200&&length==strlen(valid)&&!memcmp(body,valid,length)&&!parse_calls&&!owned);
+ reset();discovery_expected=dev;content("[]",2);chunked();chunk=1;CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_DEV,&control,body,&length,&status)==DSR_FETCH_OK&&status==200&&length==2&&!memcmp(body,"[]",2)&&!parse_calls&&!owned);
+ const int statuses[]={404,403,429};
+ for(unsigned i=0;i<3;i++){reset();discovery_expected=stable;client.status=statuses[i];CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_STATUS&&status==statuses[i]&&length==0&&!client.reads&&!parse_calls&&!owned);}
+ reset();discovery_expected=stable;client.status=302;add("Location",stable);CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_REDIRECT&&status==302&&length==0&&initialized==1&&!parse_calls&&!owned);
+ reset();discovery_expected=stable;fail_open=1;CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_IO&&status==0&&length==0&&!owned);
+ reset();discovery_expected=stable;content(padded,16384);CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_OK&&status==200&&length==16384&&!owned);
+ reset();discovery_expected=stable;content(padded,16385);chunked();CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_SIZE&&status==200&&length==0&&!owned);
+ reset();discovery_expected=stable;cancel_cleanup=true;CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_CANCELLED&&status==200&&length==0&&!owned);
+ reset();discovery_expected=stable;wall=0;CHECK(dsr_ota_fetch_discovery_body(DSR_OTA_STABLE,&control,body,&length,&status)==DSR_FETCH_CLOCK&&status==0&&length==0&&!initialized&&!owned);
+ __real_free(body);
+}
+static void test_native_discovery(void)
+{
+ static const char stable[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/latest";
+ static const char dev[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=5";
+ static const char native[]="{\"id\":123,\"url\":\"https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/123\",\"tag_name\":\"v1.2.4\",\"draft\":false,\"prerelease\":false,\"assets\":[{\"name\":\"" DSR_OTA_NATIVE_MANIFEST_ASSET "\",\"state\":\"uploaded\",\"size\":700,\"browser_download_url\":\"https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/v1.2.4/" DSR_OTA_NATIVE_MANIFEST_ASSET "\"}],\"body\":\"plain <b>untrusted</b>\"}";
+ dsr_ota_discovery_t out;dsr_ota_release_result_t why;int status;
+ reset();discovery_expected=stable;content(native,strlen(native));
+ CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==DSR_FETCH_OK&&why==DSR_RELEASE_OK&&status==200&&!owned&&!strcmp(out.notes,"plain <b>untrusted</b>"));unsigned total=allocations;
+ for(size_t n=1;n<=1024;n*=2){reset();discovery_expected=stable;content(native,strlen(native));chunked();chunk=n;CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==DSR_FETCH_OK&&!owned&&client.offset==strlen(native));}
+ for(unsigned n=1;n<=total;n++){reset();discovery_expected=stable;content(native,strlen(native));fail_allocation=n;memset(&out,0xa5,sizeof(out));CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)!=DSR_FETCH_OK&&zero(&out,sizeof(out))&&!owned);}
+ for(unsigned n=1;n<=3;n++){reset();discovery_expected=stable;content(native,strlen(native));postparse=n;CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==(n==1?DSR_FETCH_CANCELLED:DSR_FETCH_TIMEOUT)&&why==DSR_RELEASE_OK&&zero(&out,sizeof(out))&&!owned);}
+ reset();discovery_expected=dev;content("[]",2);CHECK(dsr_ota_discovery_fetch(DSR_OTA_DEV,&control,&out,&why,&status)==DSR_FETCH_RELEASE&&why==DSR_RELEASE_NOT_FOUND&&status==200&&zero(&out,sizeof(out))&&!owned);
+ reset();discovery_expected=stable;client.status=404;CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==DSR_FETCH_STATUS&&status==404&&zero(&out,sizeof(out))&&!owned);
+ reset();wall=0;CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==DSR_FETCH_CLOCK&&status==0&&!initialized&&zero(&out,sizeof(out))&&!owned);
+ reset();cancel_flag=true;CHECK(dsr_ota_discovery_fetch(DSR_OTA_STABLE,&control,&out,&why,&status)==DSR_FETCH_CANCELLED&&!initialized&&!owned);
+ reset();CHECK(dsr_ota_discovery_fetch((dsr_ota_channel_t)99,&control,&out,&why,&status)==DSR_FETCH_ARGUMENT&&status==0&&!initialized&&zero(&out,sizeof(out))&&!owned);
+ CHECK(discovery_parse_calls>10);
 }
 int main(void)
 {
@@ -155,6 +206,8 @@ int main(void)
  CHECK(dsr_ota_fetch_release(NULL,&control,&out,&why)==DSR_FETCH_ARGUMENT&&why==DSR_RELEASE_ARGUMENT&&zero(&out,sizeof(out))&&!initialized&&!allocations);
  reset();CHECK(dsr_ota_fetch_release(&policy,&control,NULL,&why)==DSR_FETCH_ARGUMENT&&why==DSR_RELEASE_INVALID&&!initialized&&!allocations);
  reset();CHECK(dsr_ota_fetch_release(&policy,NULL,&out,NULL)==DSR_FETCH_OK&&!owned&&parse_calls==1);
- printf("PASS: %u release-fetch checks; genuine parser; %u allocation faults; transport MODEL, no HTTPS/Flash/trust proof\n",checks,successful_allocations);
+ test_discovery();
+ test_native_discovery();
+ printf("PASS: %u release-fetch/discovery checks; genuine parser; %u allocation faults; transport MODEL, no HTTPS/Flash/trust proof\n",checks,successful_allocations);
  return 0;
 }

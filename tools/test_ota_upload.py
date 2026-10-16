@@ -54,7 +54,8 @@ with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:
     if args.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
     elif args.ubsan_only:flags+=['-fsanitize=undefined','-fno-omit-frame-pointer']
     for folder in [tmp,ROOT/'tests/ota_upload',ROOT/'tests/ota_image',ROOT/'tests/support',ROOT/'components/dsr_platform/include',ROOT/'components/dsr_platform',ROOT/'components/dsr_ota/include']:flags+=['-I',str(folder)]
-    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_ota_upload.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','tests/test_ota_upload.c']
+    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_ota_stage.c','components/dsr_platform/dsr_ota_upload.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','tests/test_ota_upload.c']
     binary=tmp/'test-upload'
     subprocess.run([os.environ.get('CC','cc'),*flags,*[str(ROOT/s) for s in sources],'-Wl,--wrap=malloc','-Wl,--wrap=calloc','-Wl,--wrap=free','-lcrypto','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
+    subprocess.run([str(binary),'uncertain'],check=True)

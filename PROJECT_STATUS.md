@@ -1,5 +1,27 @@
 # Project status
 
+## 0.7.26 — native signed OTA controller and installer (#24)
+
+Actual LCD Stable/explicit Dev catalogue → genuine signed manifest check →
+one-shot120s physical stable-USB consent → fresh signature/exact tuple →
+bounded inactive-slot stream/write/end/boot selection → manual restart.
+Existing sole worker, no job/event growth; synchronized progress/cancel/hide
+and late results. CHECK never downloads APP. Untrusted release notes render
+as bounded plain labels, independent of publisher authentication.
+
+Shared Web/native staging reserves all writes; confirmed STAGED or uncertain
+boot-selection error blocks further writes until restart, with activity released.
+Exact actual partition preflight, lazy explicit-check SNTP with normal TLS dates,
+no full BIN allocation/replay/automatic restart. [Contract](docs/NATIVE_OTA_PL.md).
+
+Production trust remains EMPTY: no approved key or signed release was introduced,
+so this build refuses installation before APP/Flash. Genuine host signature/
+hash/fetch/image + modeled SDK fault/cancel/concurrency/uncertain suites PASS;
+independent actual actor1936, discovery3316/55cases/61OOM, actual discovery fetch
+136982, SNTP gate162 and LVGL3992/134 frames PASS. Target CI/ELF/BIN audit is a
+separate current-source gate. Physical transfer/rollback/persistence is open;
+no device writes, main merge or Stable publication occurred.
+
 ## 0.7.25 — factory AP onboarding with physical consent (#19)
 
 Real radio scan, temporary BSSID/channel-pinned RAM join, API identity and two

@@ -12,13 +12,18 @@ parser.add_argument("--sanitize", action="store_true")
 parser.add_argument("--ubsan-only", action="store_true", help="For restricted runtimes without LeakSanitizer support")
 args = parser.parse_args()
 subprocess.run(["python3",str(ROOT/"tools/test_ap_target.py")],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_native_ota_target.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/verify_crypto_vendor.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_image.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_upload.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_fetch.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_download.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ota_install.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ota_discovery.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_native_ota_clock.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_native_ota_actor.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_fetch.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_chain.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_restart.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
@@ -82,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     subprocess.run([str(ble_binary)],check=True,cwd=temp_root,env=test_env)
     battery_binary=temp_root / "test_battery"
     subprocess.run([os.environ.get("CC","cc"),*flags,"-DDSR_BOARD_ES3C35P=1",
-                    *[value for folder in ["tests/battery","tests/actor","tests/support","components/dsr_core/include","components/dsr_platform/include"] for value in ["-I",str(ROOT/folder)]],
+                    *[value for folder in ["tests/battery","tests/actor","tests/support","components/dsr_core/include","components/dsr_ota/include","components/dsr_platform/include"] for value in ["-I",str(ROOT/folder)]],
                     *[str(ROOT/source) for source in ["components/dsr_platform/dsr_battery.c","components/dsr_platform/dsr_worker.c","components/dsr_platform/dsr_activity.c","components/dsr_platform/dsr_ap_model.c","components/dsr_platform/dsr_wifi_policy.c","components/dsr_core/dsr_core.c","tests/test_battery.c"]],
                     "-o",str(battery_binary)],check=True,cwd=temp_root,env=test_env)
     subprocess.run([str(battery_binary)],check=True,cwd=temp_root,env=test_env)

@@ -1,4 +1,18 @@
-# Matryca funkcji — 0.7.25, rewizja 26
+# Matryca funkcji — 0.7.26, rewizja 27
+
+## #24: rzeczywisty natywny podpisany updater, wydanie i sprzęt osobno
+
+[Bieżący kontrakt](NATIVE_OTA_PL.md): Stable/explicit Dev, bounded own-repo
+catalogue + genuine signed manifest; CHECK bez APP. LCD pokazuje lokalną i
+zweryfikowaną wersję/rozmiar, niezweryfikowane plain notes, one-shot120s USB
+consent, progress/cancel i manual restart. Istniejący worker/job/event zachowane.
+INSTALL ponownie weryfikuje podpis i dokładną krotkę przed APP/Flash; rzeczywisty
+inactive slot/prefix512/hash/SDK end przed boot selection. Wspólna rezerwacja
+Web/native zatrzaskuje STAGED i UNCERTAIN do restartu. Production trust EMPTY,
+bez zatwierdzonego wydania/klucza, bez device writes. Kod + host/LVGL przechodzą;
+target exact-source CI/artefakt oraz physical install/rollback nadal osobno.
+Historyczne opisy etapów backend-only poniżej nie opisują obecnego kompletnego
+przepływu kodu i nie stanowią odbioru autentycznego wydania ani sprzętu.
 
 
 ## #19: rzeczywiste dodawanie przez otwarty fabryczny AP
@@ -189,7 +203,7 @@ testowego klucza w firmware. Brak pobierania, instalacji i fizycznego odbioru.
 | --- | --- | --- |
 | JSON v2 / canonical bytes / prawdziwy Ed25519 | Implementacja + 117-case niezależny korpus i RFC KAT | Exact CI / footprint / ESP32 stack |
 | Zaufany klucz wydawcy i signed Release | Brak; produkcja zawsze odmawia | Zatwierdzony autentyczny anchor / rotacja / wydanie |
-| HTTPS download / progres / install / rollback z LCD | Backend fetch/validation-discard częściowo; LCD/progres/install/rollback nadal nie | Osobna integracja #24 i rzeczywisty test zachowania danych |
+| HTTPS download / progres / install z LCD | Pełny pion native controller/installer0.7.26, production trust EMPTY | Zatwierdzony anchor/release, exact-source CI/artefakt i fizyczny rollback/zachowanie danych |
 
 PR #37 source f7fb16d: CI 5/5, run 38843761384; firmware integrity zweryfikowana,
 brak physical pass. Statusy historycznych etapów poniżej nie zamykają #24.
@@ -210,7 +224,7 @@ implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
 | Bateria | GPIO8 ADC / brak Web procentów | PR #35 CI 5/5; multimeter otwarty, procent/niski poziom/charging nieznane |
 | WWW: IPv4/mDNS/TLS/SPIFFS/fingerprint/kod | Istniejący HTTPS/pairing | Jawne generowanie i expiry; realny telefon/preview do testu |
 | WWW: sesje i unieważnianie | Brak LCD API | Not implemented; brak pozornej akcji |
-| System → Firmware Update | Natywny podpisany updater #24 | Not implemented; brak zweryfikowanego Release |
+| System → Firmware Update | Natywny podpisany updater #24 | Kod/host/LVGL0.7.26; brak approved publisher anchor/Release i physical pass |
 | System → lokalna zgoda OTA | Istniejący upload HTTPS / 120 s | Bool accepted/expiry i negatywne testy; fizyczny transfer/rollback otwarte |
 | System → build/board/RAM/PSRAM/Flash/diagnostyka | Read-only snapshot i health | Testy realnego adaptera; płytka do odbioru |
 | System → restart | Wspólny backend #24, LCD confirm/cancel | Host/CI/physical gates; bez erase/reset |
@@ -359,7 +373,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Zapisz / Wstecz / status konfliktu / błąd | Save / Reload / dirty/conflict | Async durable configuration | CI tested: immutable submitted A, późniejszy B zachowany | PR #11; partial write i restart, oba interfejsy |
 | Web Panel: parowanie, kod i fingerprint | Jednorazowy kod, sesja, local HTTPS | Per-device sekret, bez wspólnego hasła | CI tested: logika i browser; fizyczny TLS/pairing do regresji | PR #5; zła sesja, obce Origin/Host, restart i wygasły kod |
 | Zezwól na OTA — 2 minuty | Wybór app BIN / Sprawdź i zainstaluj / restart | Właściwy board, dwa sloty 6 MiB | CI tested: dev uploader i image policy; fizyczny OTA/rollback niepotwierdzony | #24, PR #5; zły board/SHA, przerwanie, NVS/zdjęcia |
-| Firmware Update: aktualna wersja i instrukcja panelu | Lokalna instalacja wyżej | Bez updatera GitHub Releases | CI tested: realna informacja, Not implemented: sprawdź/pobierz/podpis wydawcy | #24; manifest, klucz, TLS i rollback |
+| Firmware Update: kanał/check/wersja/notes/zgoda/progres/install/restart | Natywny signed updater oraz osobna lokalna zgoda Web | GitHub catalogue→fresh genuine manifest→inactive SDK stream | Kod/host/LVGL0.7.26; EMPTY trust odmawia przedAPP/Flash | #24; approved anchor/Release, exact-source CI i physical rollback |
 | Suwak jasności + Zapisz | Brak zdalnego suwaka | Istniejący rekord NVS, zachowane Wi-Fi | PR #36 source2641ecd CI 5/5 | #6/#24; restart i wybudzenie z zapisaną jasnością |
 | Screen off / touch to wake | Brak zdalnego sterowania | Sterownik ES3C35P | Physically tested historycznie; nowa regresja wymagana | #24; wybrany timeout, 0=off, dotyk, brak niechcianego SET po wybudzeniu |
 | Timeout ekranu + Zapisz | Brak zdalnego sterowania | Istniejący rekord NVS; 0 = bez autooff | PR #36 source2641ecd CI 5/5 | #6/#24; fizyczne wygaszenie i first-touch suppression |

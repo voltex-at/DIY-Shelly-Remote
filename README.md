@@ -4,7 +4,7 @@
 
 The configuration supports dashboards, rooms, devices, scenes, ordering, card sizes/fields and appearance in both editors. Revisions and two checksummed Flash checkpoints protect concurrent changes and interrupted saves. Room photos are resized in the browser and stored locally. Administrative APIs require physical pairing and authenticated HTTPS. No cloud services or CDN resources are used.
 
-Live communication still controls **one verified Shelly switch/channel** through the preserved transport. Configured cover/sensor entries have no new transport implementation, and scenes have no executor yet. Populated review images are explicitly DEMO. Native/browser tests and target compilation pass; TLS, persistence and OTA on the physical board still require testing. The baseline description below records the preceding 0.2.0 milestone.
+The current development stack supports up to16 independent verified Shelly relay endpoints, factory open-AP onboarding, and a native signed OTA controller/installer. The production publisher trust store remains empty, so no release is approved for native installation. See [current status](PROJECT_STATUS.md) and [native OTA contract](docs/NATIVE_OTA_PL.md). Configured cover/sensor entries have no new transport implementation, and scenes have no executor yet. Populated review images are explicitly DEMO. Physical TLS, persistence, multi-device and OTA/rollback acceptance remain open. The baseline description below records the preceding0.2.0 milestone.
 
 An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
 

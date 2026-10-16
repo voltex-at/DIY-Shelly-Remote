@@ -4,6 +4,7 @@
 #include "dsr_ota_image.h"
 #include "dsr_activity.h"
 #include "dsr_activity_internal.h"
+#include "dsr_ota_stage.h"
 #include "mbedtls/sha256.h"
 #include <openssl/evp.h>
 #include <stdint.h>
@@ -70,8 +71,9 @@ static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 static void accepted(const uint8_t hash[32])
 {CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_OK);CHECK(read_offset==request.content_len&&write_length==request.content_len&&!memcmp(written,source,write_length));CHECK(begins==1&&ends==1&&!aborts&&!boots);CHECK(dsr_test_sha_calls()==receives+3);clean();}
-int main(void)
+int main(int argc,char **argv)
 {
+ CHECK(argc==1||(argc==2&&!strcmp(argv[1],"uncertain")));bool uncertain=argc==2;
  uint8_t hash[32],parsed[32];make_image(100);digest(image,sizeof(image),hash);
  for(unsigned split=1;split<=4096;split++){reset();first_read=split;next_read=IMAGE_SIZE;accepted(hash);}
  const size_t chunks[]={1,2,16,41,42,43,44,127,128,511,512,513,4096};
@@ -107,13 +109,16 @@ int main(void)
  reset();ota_until=now+120000000;header_error=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!ota_until);CHECK(!begins);header_error=false;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden"));
  reset();ota_until=now+120000000;memset(header,'A',64);header[64]=0;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives);
  for(unsigned i=0;i<32;i++)sprintf(header+i*2,"%02x",hash[i]);
- reset();ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"200 OK")&&strstr(response_body,"restart_required"));CHECK(boots==1&&ends==1&&!aborts&&!ota_until);clean();CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden")&&boots==1);
+ reset();dsr_ota_stage_t *held=dsr_ota_stage_acquire();CHECK(held&&dsr_ota_stage_status()==DSR_OTA_STAGE_HELD&&!dsr_ota_stage_acquire());ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&!receives&&!begins&&!boots&&!ota_until);dsr_ota_stage_release(held);clean();
  reset();ota_until=now+120000000;fail_end=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!boots&&!aborts);clean();
- reset();ota_until=now+120000000;fail_boot=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"500 Internal Server Error")&&boots==1);clean();
  reset();ota_until=now+120000000;no_slot=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins);clean();
  reset();ota_until=now+120000000;request.content_len=511;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
  reset();ota_until=now+120000000;slot.size=8191;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
  reset();CHECK(dsr_activity_restart_reserve());CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_STATE&&!receives&&!begins);dsr_activity_restart_cancel();clean();
  reset();CHECK(dsr_activity_restart_reserve());ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&!receives&&!begins&&!boots&&!ota_until);dsr_activity_restart_cancel();clean();
+ /* Any boot choice attempt is terminal for BOTH OTA writers until reboot.
+  * The activity lease is released, so explicit restart remains available. */
+ reset();ota_until=now+120000000;fail_boot=uncertain;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,uncertain?"500 Internal Server Error":"200 OK")&&strstr(response_body,"restart_required"));CHECK(boots==1&&ends==1&&!aborts&&!ota_until);clean();CHECK(dsr_ota_stage_status()==(uncertain?DSR_OTA_STAGE_UNCERTAIN:DSR_OTA_STAGE_STAGED)&&!dsr_ota_stage_acquire());CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden")&&boots==1);
+ ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&boots==1&&begins==1&&!ota_until);clean();
  printf("PASS: %u actual legacy upload/endpoint checks; every first-read boundary, exact captured bytes, real SHA/header/marker, pre-begin rejection, recv/write/end/abort/OOM faults, one-shot approval, atomic lease incl bootslot; NO device Flash/auth/rollback proof\n",checks);return 0;
 }

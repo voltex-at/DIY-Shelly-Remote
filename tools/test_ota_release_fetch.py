@@ -26,8 +26,8 @@ with tempfile.TemporaryDirectory(prefix='dsr-release-fetch-') as folder:
         print(f'Instrumented genuine IDF cJSON {pin}',flush=True)
     else:flags+=['-I','/usr/include/cjson']
     for folder in ['tests/ota_fetch','tests/ota_image','tests/support','components/dsr_ota/include','components/dsr_ota','components/dsr_core/include','components/dsr_crypto/vendor','components/dsr_crypto/vendor/optional','.test-deps']:flags+=['-I',str(ROOT/folder)]
-    sources=['components/dsr_ota/dsr_ota_fetch.c','components/dsr_ota/dsr_ota_release_fetch.c','components/dsr_ota/dsr_ota_release.c','components/dsr_ota/dsr_ota_manifest.c','components/dsr_ota/dsr_ota_trust.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','components/dsr_core/dsr_core.c','components/dsr_crypto/vendor/monocypher.c','components/dsr_crypto/vendor/optional/monocypher-ed25519.c','tests/test_ota_release_fetch.c']
-    wraps=['malloc','calloc','free','time','dsr_ota_release_candidate_parse']
+    sources=['components/dsr_ota/dsr_ota_fetch.c','components/dsr_ota/dsr_ota_release_fetch.c','components/dsr_ota/dsr_ota_discovery_fetch.c','components/dsr_ota/dsr_ota_release.c','components/dsr_ota/dsr_ota_manifest.c','components/dsr_ota/dsr_ota_trust.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','components/dsr_core/dsr_core.c','components/dsr_crypto/vendor/monocypher.c','components/dsr_crypto/vendor/optional/monocypher-ed25519.c','tests/test_ota_release_fetch.c']
+    wraps=['malloc','calloc','free','time','dsr_ota_release_candidate_parse','dsr_ota_discovery_parse']
     binary=tmp/'release-fetch-test'
     subprocess.run([os.environ.get('CC','cc'),*flags,*[str(ROOT/s) for s in sources],*[f'-Wl,--wrap={name}' for name in wraps],*dependency,'-lcrypto','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
