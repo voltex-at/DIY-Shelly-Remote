@@ -25,13 +25,25 @@ Nie wykonano operacji na sprzęcie, erase, merge ani publikacji Stable.
   nie zapisuje ponownie rejestru ani nie narusza pozostałych wpisów.
 - Workspace zachowuje dotychczasowy schema 1 i numeric stable IDs. Nie dodajemy
   pól do publicznego schematu. Sekrety i identity transportu pozostają poza nim.
-  `layout_id=0` oznacza binding oczekujący na publikację; niezerowy wiąże istniejący
-  obiekt. Migrujemy zbiorczo jednym CAS z aktualnego snapshotu, zachowując pokoje,
+  Niezerowy `layout_id` wiąże istniejący obiekt. Historyczny schema-2 wpis z
+  `layout_id=0` pozostaje nieoperacyjny: bez odczytów, SET, runtime WWW i karty
+  fallback. Wymaga świadomego ponownego dodania; sam pasujący host/kanał w układzie
+  nie publikuje takiego wpisu. Wyłącznie rekord odczytany z rzeczywistego starego
+  schema 1 zachowuje dotychczasowy fallback/migrację. Migrujemy zbiorczo jednym
+  CAS z aktualnego snapshotu, zachowując pokoje,
   kafle, sceny i ID. Konflikt CAS ponawia tylko scalenie układu, nigdy SET/BIND.
-- Sukces dodawania następuje po weryfikacji API, zapisie rejestru, dokładnym ACK
-  workspace i trwałym ACK prywatnego mapowania. Przez cały ten etap działa lease
-  blokujący restart. Błąd workspace nie usuwa innych bindingów; rejestr pozostaje
-  możliwy do odzyskania bez ponownego logowania/nowego sprawdzania urządzenia.
+- BIND najpierw weryfikuje API wyłącznie w RAM. Dopiero dokładny trwały ACK
+  workspace pozwala workerowi ponownie sprawdzić mapowanie i zapisać jeden pełny
+  rekord prywatny z końcowym `layout_id`. Po trwałym ACK całego rejestru LCD
+  jeszcze raz sprawdza bieżące mapowanie przed aktywacją. Przed tym punktem nowy
+  endpoint nie jest operacyjny; przy ponownym wiązaniu wcześniejszy host/login
+  oraz inne endpointy pozostają bez zmian. Nie ma kompensacyjnego kasowania.
+- Przez cały etap działa lease blokujący restart. Komunikaty odróżniają błąd
+  weryfikacji, workspace/CAS i zapisu prywatnego powiązania. Po błędzie wymagane
+  jest jawne ponowne dodanie i weryfikacja; zakończona nieudana próba nie wznawia
+  sama zapisu. Restart pomiędzy ACK workspace a zapisem NVS pozostawia kartę
+  niepowiązaną, ze sterowaniem zablokowanym. Błąd commit/readback NVS nadal może
+  oznaczać zapisany nowy rekord; nie obiecujemy rollbacku ani nie odtwarzamy SET.
 - Usunięcie opublikowanego numeric ID z poprawnego workspace kolejkuje oddzielny
   lokalny UNBIND wyłącznie tego endpointu. Usunięty opublikowany ID nie jest
   odtwarzany przez zaległą migrację DHCP/BIND po konflikcie CAS; wynik
@@ -77,6 +89,10 @@ wolnych endpointach odczyty mogą przekroczyć ten próg; nie obiecujemy stałyc
 LAN pokazuje `Już dodane` po stabilnej identity. Wybór nadal pozwala dodać inny
 kanał lub zweryfikować zmianę DHCP. Drugi Shelly nie zastępuje pierwszego.
 Ręczne dodanie zaczyna pusty formularz; nie kopiuje hasła pierwszego urządzenia.
+Shelly BLU Gateway Gen3 (`S3GW-1DBT001`) nie jest endpointem Switch: LAN pokazuje
+jawny brak obsługi przekaźnika, a weryfikacja HTTP odrzuca BIND przed użyciem
+credentials w żądaniu Switch. Dokumentacja producenta:
+https://shelly-api-docs.shelly.cloud/gen2/Devices/Gen3/ShellyBluGwG3/.
 Każda karta i szczegóły korzystają z własnego stanu/W/V/A; brakujące pomiary
 pozostają niedostępne. Gen1 dotychczasowa ścieżka relay nie dopisuje fikcyjnej mocy.
 
@@ -112,6 +128,19 @@ Za istniejącymi bramkami local-origin, boot-ready i parowania:
 7. Równolegle BLE scan, sieć offline/reconnect, lokalny restart i ponowne wejścia
    w UI: brak resetów, stabilny heap. Dołącz wersję/SHA i zanonimizowany wynik;
    CI i obrazy hostowe nie zastępują tego testu.
+8. Przy kontrolowanym błędzie zapisu workspace/NVS nowy endpoint nie otrzymuje
+   sterowania; ponowne wiązanie nie zmienia starego hosta ani danych logowania
+   przed ACK workspace. Po przerwaniu pomiędzy ACK workspace a NVS karta jest
+   niepowiązana. Powtórz świadome dodanie; nie oczekuj automatycznej naprawy.
+
+Regresje hostowe odtwarzają wcześniejszy błąd na źródłach 267c32f, 8735107 i
+d9dbf27: po nieudanym ACK i utracie snapshotu świeży endpoint dostawał aktywny
+fallback oraz SET. Nowe testy wykonują rzeczywisty worker, parser workspace,
+fleet i LVGL z jawnymi providerami SDK/NVS/workspace; obejmują nowe i istniejące
+powiązanie, kanały rodzeństwa, niezależny B, IO/CAS oraz usunięcie Web przed
+zapisem prywatnym i przed aktywacją. Cztery oddzielne procesy startowe sprawdzają
+stare schema-2 ID0, sam ACK workspace, prawdziwe legacy i ID0 pasujące do układu.
+Nie stanowią dowodu fizycznej trwałości ani odbioru flash/radia.
 
 Własne stałe storage: host ABI connection 288 B, fleet około 7.8 KiB; do 16
 mailboxów/runtime i do 16 pozycji migracji. Brak nowego tasku i brak dużej tablicy

@@ -228,3 +228,8 @@
 {"Otwarty setup Gen2+: sprawdź urządzenie, a następnie osobno potwierdź przekazanie Wi-Fi.","Open Gen2+ setup: verify the device, then separately confirm sharing Wi-Fi.","Offenes Gen2+-Setup: Gerät prüfen, dann WLAN-Weitergabe gesondert bestätigen."},
 {"Skan nie dodaje do Wi-Fi. BLU i BTHome nie są obsługiwane przez kreator Wi-Fi.","Scanning does not add to Wi-Fi. The Wi-Fi wizard does not support BLU or BTHome.","Die Suche fügt nicht zum WLAN hinzu. Der WLAN-Assistent unterstützt BLU und BTHome nicht."},
 {"Dodaj przez BLE","Add via BLE","Über BLE hinzufügen"},
+{"Urządzenie zweryfikowane. Konfiguracja zmieniła się. Dodaj ponownie.","Device verified. Configuration changed. Add again.","Gerät geprüft. Konfiguration geändert. Erneut hinzufügen."},
+{"Urządzenie zweryfikowane. Zapis konfiguracji niepotwierdzony. Dodaj ponownie.","Device verified. Configuration save unconfirmed. Add again.","Gerät geprüft. Konfigurationsspeicherung unbestätigt. Erneut hinzufügen."},
+{"Konfiguracja zmieniła się przed zapisem powiązania. Dodaj ponownie.","Configuration changed before binding save. Add again.","Konfiguration vor Speicherung der Verbindung geändert. Erneut hinzufügen."},
+{"Konfiguracja zapisana. Nowe powiązanie niepotwierdzone. Dodaj ponownie.","Configuration saved. New binding unconfirmed. Add again.","Konfiguration gespeichert. Neue Verbindung unbestätigt. Erneut hinzufügen."},
+{"Bramka BLU • przekaźnik nieobsługiwany.","BLU gateway • relay control unsupported.","BLU-Gateway • Relaissteuerung nicht unterstützt."},

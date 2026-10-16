@@ -97,8 +97,21 @@ bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *ro
  if(found){*connection=bind_request;if(room)*room=bind_room;bind_room=UINT32_MAX;memset(&bind_request,0,sizeof(bind_request));bind_waiting=false;}xSemaphoreGive(mutex);return found;
 }
 bool dsr_workspace_take_bind(dsr_connection_t *connection){return dsr_workspace_take_bind_with_room(connection,NULL);}
+void dsr_workspace_bind_result_stage(dsr_result_t result,dsr_bind_stage_t stage)
+{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bool completed=bind_busy;bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":stage==DSR_BIND_PRIVATE?"Workspace saved; private binding unconfirmed; add again":stage==DSR_BIND_WORKSPACE?"Shelly verified; workspace unconfirmed; add again":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":result==DSR_CONFLICT?"Configuration changed; reload and retry adding the device":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);if(completed)dsr_activity_end();}
 void dsr_workspace_bind_result(dsr_result_t result)
-{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bool completed=bind_busy;bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":result==DSR_CONFLICT?"Configuration changed; reload and retry adding the device":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);if(completed)dsr_activity_end();}
+{dsr_workspace_bind_result_stage(result,DSR_BIND_VERIFY);}
+bool dsr_workspace_mapping_matches(const dsr_connection_t *c)
+{
+ if(!c||!c->layout_id)return false;
+ char *json=NULL;if(dsr_workspace_snapshot_checked(&json)!=DSR_SNAPSHOT_OK)return false;
+ cJSON *root=dsr_config_json_depth(json)?cJSON_Parse(json):NULL;free(json);char error[96];bool matches=false;
+ if(root&&dsr_config_validate(root,error)){const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(root,"devices")){
+  const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*host=cJSON_GetObjectItemCaseSensitive(v,"host"),*channel=cJSON_GetObjectItemCaseSensitive(v,"channel");
+  if(id->valuedouble==c->layout_id&&channel->valuedouble==c->device.channel&&!strcmp(host->valuestring,c->device.host))matches=true;
+ }}
+ cJSON_Delete(root);return matches;
+}
 dsr_result_t dsr_workspace_bind_result_code(void)
 {if(!mutex)return DSR_IO;xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=bind_result_code;xSemaphoreGive(mutex);return result;}
 void dsr_workspace_bind_status(bool *pending,char message[64])

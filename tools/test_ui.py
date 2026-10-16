@@ -67,3 +67,14 @@ binary = build / "test_ui"
 subprocess.run([cc, *flags, *map(str, objects), "-lm", "-l:libcjson.so.1", "-o", str(binary)], check=True,
                env=dict(os.environ, TMPDIR=str(build)))
 subprocess.run([str(binary), str(screens)], check=True, cwd=build)
+
+# Independent fresh processes model reboot boundaries using the same genuine
+# UI/fleet objects; no production reset hook or simulated physical acceptance.
+if not args.review:
+    boot_source=ROOT / "tests/ui/test_bind_boot.c"
+    boot_object=compile_source(boot_source)
+    boot_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[boot_object]
+    boot_binary=build / "test_bind_boot"
+    subprocess.run([cc,*flags,*map(str,boot_objects),"-lm","-l:libcjson.so.1","-o",str(boot_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    for mode in range(4):
+        subprocess.run([str(boot_binary),str(screens),str(mode)],check=True,cwd=build)

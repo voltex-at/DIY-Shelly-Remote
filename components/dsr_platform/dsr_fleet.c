@@ -17,7 +17,7 @@ dsr_result_t dsr_fleet_upsert(dsr_fleet_t *f,const dsr_connection_t *c,uint32_t 
   if(strcmp(other->connection.device.host,c->device.host)){discard(other);other->connection.device.online=false;other->next_poll=now;}
   memcpy(other->connection.device.host,c->device.host,sizeof(c->device.host));other->connection.credentials=c->credentials;
  }
- dsr_fleet_slot_t *s=&f->slots[at];uint32_t command_id=s->command_id;discard(s);memset(s,0,sizeof(*s));s->command_id=command_id;s->connection=*c;s->layout_enabled=true;
+ dsr_fleet_slot_t *s=&f->slots[at];uint32_t command_id=s->command_id;discard(s);memset(s,0,sizeof(*s));s->command_id=command_id;s->connection=*c;s->layout_enabled=c->layout_id!=0||c->legacy_fallback;
  s->sample_valid=c->device.online;s->sample_ms=now;s->next_poll=now+5000;return DSR_OK;
 }
 dsr_result_t dsr_fleet_request(dsr_fleet_t *f,unsigned index,bool on,bool wifi,uint32_t now)
@@ -46,7 +46,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
  }
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
   unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
-  if(!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
+  if(s->layout_enabled&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0)return false;
  dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?DSR_JOB_SET_OUTPUT:DSR_JOB_PROBE,.connection=s->connection,.on=s->on};*index=(unsigned)at;return true;

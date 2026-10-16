@@ -17,7 +17,9 @@ typedef struct {
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
 typedef struct {bool has_voltage,has_current;double voltage_v,current_a;} dsr_telemetry_t;
-typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;} dsr_connection_t;
+typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
+/* Volatile origin consumes tail padding; never enters installed raw records. */
+_Static_assert(offsetof(dsr_connection_t,legacy_fallback)==offsetof(dsr_connection_t,layout_id)+4&&sizeof(dsr_connection_t)==offsetof(dsr_connection_t,layout_id)+8,"origin consumes existing connection tail padding");
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
@@ -30,6 +32,8 @@ esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *
 esp_err_t dsr_connection_publish(const dsr_connection_t *connection);
 esp_err_t dsr_connection_remove(const dsr_connection_t *connection);
 bool dsr_connection_valid(const dsr_connection_t *connection, bool bound);
+/* Durable shared mapping guard used before the sole worker publishes NVS. */
+bool dsr_workspace_mapping_matches(const dsr_connection_t *connection);
 /* Initialize once, even without credentials, so scanning is available. */
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings);
 bool dsr_wifi_connected(void);
@@ -81,6 +85,7 @@ typedef struct {
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;
+typedef enum {DSR_BIND_VERIFY,DSR_BIND_WORKSPACE,DSR_BIND_PRIVATE} dsr_bind_stage_t;
 /* One outstanding operation until receive; bounded queues, no command replay. */
 esp_err_t dsr_worker_start(void);
 dsr_result_t dsr_worker_submit(const dsr_job_t *job);

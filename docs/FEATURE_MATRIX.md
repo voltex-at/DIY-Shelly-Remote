@@ -47,7 +47,11 @@ partycje sprawdzone, pełne dowody w PR48; jego nowy UI czeka na fizyczny retest
 [Kontrakt/migracja/test sprzętowy](MULTI_DEVICE_PL.md): rzeczywisty rejestr do16
 endpointów identity/generation/channel, bez zastępowania pierwszego; lazy legacy
 NVS→osobny schema2 blob + exact readback, workspace schema1 bez zmian. Prywatne
-numericID, zbiorczy CAS/exact ACK obu stores, targeted UNBIND, sekrety pozaWWW.
+numericID, RAM verification→zbiorczy CAS/exact ACK workspace→pełny prywatny zapis
+z finalnym ID/exact ACK→świeża kontrola mapowania/aktywacja. Nowy endpoint i stare
+schema2 ID0 nie dostają sterowania przez fallback; prawdziwy legacy zachowany.
+Błąd wymaga jawnego ponownego dodania, bez kompensacyjnego delete/SET replay;
+targeted UNBIND, sekrety pozaWWW. Gateway S3GW-1DBT001 jawnie nieobsługiwany jako relay.
 Per-device state/auth/backoff/FIFO intent; jeden bounded serial worker, brak SET
 replay, obligatory identity+readback, stale15s. LCD LAN `Już dodane`, osobne karty
 W/V/A; authenticated WWW runtime/output API z epoką restartu. To NIE 16 równoległych
@@ -390,7 +394,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
   operacyjny dla jednego wspieranego switch/relay. PROBE ma osobny stan i jedną
   odroczoną intencję SET; nie ma automatycznego replay po błędzie.
 - `LAN choose → HTTP inspect → capabilities → bind_verified → worker BIND →
-  zapis po weryfikacji → migration config → UI`: realne API, nie SSID/name guess.
+  RAM verify → workspace exact durable ACK → full private registry ACK →
+  fresh mapping check → UI`: realne API, nie SSID/name guess.
 - `BLE Szukaj / POST → queue → manager → ble_gap_disc → GAP event → bounded
   parser/snapshot → LCD tick / authenticated GET`: realny adapter, fizyczny RF
   wymaga odbioru. Brak ścieżki GATT write/provisioning.

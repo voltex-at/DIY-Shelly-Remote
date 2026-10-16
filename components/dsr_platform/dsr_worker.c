@@ -29,7 +29,10 @@ static void network_task(void *arg)
         } else if((job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY)||job.kind==DSR_JOB_LAN_STA_VERIFY){
             dsr_ap_execute(&job,&event);
         } else if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
-            event.result=(job.kind==DSR_JOB_UNBIND?dsr_connection_remove(&job.connection):dsr_connection_publish(&job.connection))==ESP_OK?DSR_OK:DSR_IO;event.layout_id=job.connection.layout_id;
+            if(job.kind==DSR_JOB_UNBIND)event.result=dsr_connection_remove(&job.connection)==ESP_OK?DSR_OK:DSR_IO;
+            else if(!dsr_workspace_mapping_matches(&job.connection))event.result=DSR_CONFLICT;
+            else event.result=dsr_connection_save(&job.connection)==ESP_OK?DSR_OK:DSR_IO;
+            event.layout_id=job.connection.layout_id;event.telemetry=job.connection.telemetry;
         } else if(job.kind==DSR_JOB_DISPLAY_SAVE){
             /* Read the latest full NVS record inside the sole worker. Never
              * replay UI-cached credentials over a newer Wi-Fi connection. */
@@ -58,10 +61,8 @@ static void network_task(void *arg)
             event.result = DSR_OFFLINE; event.device.online = false;
         } else if (job.kind == DSR_JOB_BIND) {
             event.result = dsr_http_probe_telemetry(&job.connection,&event.device,&event.telemetry);
-            if (event.result == DSR_OK) {
-                job.connection.device = event.device;
-                if (dsr_connection_save(&job.connection) != ESP_OK||dsr_connection_layout_id(&job.connection,&event.layout_id)!=ESP_OK) event.result = DSR_IO;
-            }
+            /* Verification is RAM-only. The full private record is written by
+             * LAYOUT_PUBLISH only after exact durable workspace ACK. */
         } else {
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :
                 dsr_http_set_output(&job.connection, job.on);

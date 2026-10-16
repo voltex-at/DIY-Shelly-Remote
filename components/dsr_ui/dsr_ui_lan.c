@@ -19,6 +19,7 @@ static uint8_t channels[16];
 static void show_results(void);
 static void show_credentials(void);
 static void show_components(void);
+static bool blu_gateway(void){return !strcmp(selected.model,"S3GW-1DBT001");}
 bool dsr_ui_lan_active(void){return active;}
 
 void dsr_ui_lan_reset(void)
@@ -53,7 +54,7 @@ static lv_obj_t *form(lv_obj_t *root)
 {form_body=dsr_sc_panel(root,0,154,320,214,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);return form_body;}
 static void identity(lv_obj_t *root)
 {
-    lv_obj_t *card=dsr_sc_panel(root,12,83,296,64,DSR_SC_CARD,12);dsr_sc_icon(card,DSR_ICON_PLUG,10,16,32,DSR_SC_TEXT);
+    lv_obj_t *card=dsr_sc_panel(root,12,83,296,64,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,16,32,DSR_SC_TEXT);
     dsr_sc_text(card,selected.model,52,10,234,&dsr_roboto_14,DSR_SC_TEXT);
     char text[80];snprintf(text,sizeof(text),"%s • Gen %u",selected.host,selected.generation);dsr_sc_text(card,text,52,34,234,&dsr_roboto_12,DSR_SC_MUTED);
 }
@@ -87,7 +88,7 @@ static void show_results(void)
     lv_obj_t *list=dsr_sc_panel(root,12,86,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
     for(unsigned i=0;i<snapshot.count;i++){
         const dsr_lan_device_t *d=&snapshot.devices[i];lv_obj_t *card=dsr_sc_button(list,0,(int)i*88,296,80,DSR_SC_CARD,12,choose,(void *)(uintptr_t)i);
-        dsr_sc_icon(card,DSR_ICON_PLUG,10,22,32,DSR_SC_TEXT);dsr_sc_text(card,d->model,52,9,234,&dsr_roboto_14,DSR_SC_TEXT);
+        dsr_sc_icon(card,!strcmp(d->model,"S3GW-1DBT001")?DSR_ICON_INFO:DSR_ICON_PLUG,10,22,32,DSR_SC_TEXT);dsr_sc_text(card,d->model,52,9,234,&dsr_roboto_14,DSR_SC_TEXT);
         char text[80];snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);dsr_sc_text(card,text,52,31,234,&dsr_roboto_12,DSR_SC_MUTED);
         dsr_sc_text(card,dsr_network_endpoint_added(d->id,d->generation==1?DSR_GEN1:DSR_GEN2_PLUS,UINT32_MAX)?"Już dodane":d->auth_required?"Wymaga hasła":"Gotowe do sprawdzenia",52,52,234,&dsr_roboto_12,DSR_SC_BLUE);
     }
@@ -105,15 +106,17 @@ static void show_credentials(void)
 }
 static void bind(lv_event_t *event)
 {
-    (void)event;const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){dsr_sc_label_set_text(notice,"Wpisz nazwę do 47 bajtów.");return;}
+    (void)event;if(blu_gateway()||!capabilities.switches){dsr_sc_label_set_text(notice,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
+    unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=16||!(capabilities.switches&(1u<<channels[selected_channel])))return;
+    const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){dsr_sc_label_set_text(notice,"Wpisz nazwę do 47 bajtów.");return;}
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
     c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)];
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
     if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);dsr_sc_label_set_text(notice,"Sprawdzanie urządzenia przed zapisem…");}
     else dsr_sc_label_set_text(notice,failure(result));
 }
-void dsr_ui_lan_bind_result(dsr_result_t result)
-{if(active&&notice){if(result==DSR_AUTH_REQUIRED)show_credentials();dsr_sc_label_set_text(notice,failure(result));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
+void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage)
+{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY)show_credentials();dsr_sc_label_set_text(notice,stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
 static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie");identity(root);
@@ -128,8 +131,8 @@ static void show_components(void)
     dsr_sc_text(body,"Kanał z odpowiedzi API",16,146,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
     for(unsigned i=0;i<16;i++)if(capabilities.switches&(1u<<i)){char text[16];snprintf(text,sizeof(text),"%s%u",count?"\n":"",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)i;}
     channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
-    notice=dsr_sc_text(root,count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
-    dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);save_button=dsr_ui_button(root,"Zapisz",168,420,140,bind,NULL);if(!count)lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
+    notice=dsr_sc_text(root,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
+    dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);save_button=dsr_ui_button(root,"Zapisz",168,420,140,bind,NULL);if(!count||blu_gateway())lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
 }
 void dsr_ui_lan_tick(void)
 {

@@ -42,6 +42,7 @@ bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t ro
 bool dsr_workspace_take_bind(dsr_connection_t *connection);
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *room);
 void dsr_workspace_bind_result(dsr_result_t result);
+void dsr_workspace_bind_result_stage(dsr_result_t result,dsr_bind_stage_t stage);
 void dsr_workspace_bind_status(bool *busy,char message[64]);
 dsr_result_t dsr_workspace_bind_result_code(void);
 /* Secret-free WWW -> LCD request; the LVGL owner publishes eligibility and

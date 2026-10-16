@@ -22,6 +22,7 @@ static uint32_t serial,outstanding;
 static unsigned active_slot;
 static bool finishing_bind,bind_lease;
 static dsr_result_t bind_transport_result;
+static dsr_bind_stage_t bind_stage;
 static bool storage_error;
 static bool external_bind;
 static bool lan_binding;
@@ -48,6 +49,12 @@ static const char *result_text(dsr_result_t result)
     }
 }
 
+const char *dsr_network_bind_result_text(dsr_result_t result,dsr_bind_stage_t stage)
+{
+ if(stage==DSR_BIND_WORKSPACE)return result==DSR_CONFLICT?"Urządzenie zweryfikowane. Konfiguracja zmieniła się. Dodaj ponownie.":"Urządzenie zweryfikowane. Zapis konfiguracji niepotwierdzony. Dodaj ponownie.";
+ if(stage==DSR_BIND_PRIVATE)return result==DSR_CONFLICT?"Konfiguracja zmieniła się przed zapisem powiązania. Dodaj ponownie.":"Konfiguracja zapisana. Nowe powiązanie niepotwierdzone. Dodaj ponownie.";
+ return result_text(result);
+}
 void dsr_network_reset_view(void)
 {
     dsr_ui_settings_hide();
@@ -83,15 +90,17 @@ static bool binding_target(const dsr_fleet_slot_t *s)
 }
 static void publish_runtime(uint32_t now)
 {
- if(!dsr_workspace_runtime_publish_begin(fleet.count))return;
- for(size_t i=0;i<fleet.count;i++){
+ size_t visible=0;for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].connection.layout_id||fleet.slots[i].connection.legacy_fallback)visible++;
+ if(!dsr_workspace_runtime_publish_begin(visible))return;
+ size_t out=0;for(size_t i=0;i<fleet.count;i++){
+  if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
   const dsr_fleet_slot_t *s=&fleet.slots[i];
   dsr_runtime_device_t r={.device=s->connection.device,.telemetry=s->connection.telemetry,.error=s->result,
    .pending=binding_target(s)||s->queued||(s->in_flight&&s->operation==DSR_JOB_SET_OUTPUT),.has_sample_time=s->sample_valid,
    .sample_age_ms=s->sample_valid?now-s->sample_ms:0,.operation_id=s->command_id};
   r.device.online=r.device.online&&s->layout_enabled&&dsr_wifi_connected()&&s->sample_valid&&now-s->sample_ms<=15000;
   if(!r.device.online){r.device.has_power=false;memset(&r.telemetry,0,sizeof(r.telemetry));}
-  dsr_workspace_runtime_publish_at(i,fleet.count,&r);
+  dsr_workspace_runtime_publish_at(out++,visible,&r);
  }
  dsr_workspace_runtime_publish_end();
 }
@@ -102,9 +111,9 @@ static void render(void)
  snprintf(mobile_model.home_name,sizeof(mobile_model.home_name),"Mój dom");
  char *configuration=dsr_workspace_snapshot();bool layout=configuration&&dsr_mobile_configure(&mobile_model,configuration);free(configuration);
  if(!layout){
-  mobile_model.device_count=(uint8_t)fleet.count;
   for(size_t i=0;i<fleet.count;i++){
-   dsr_mobile_device_t *d=&mobile_model.devices[i];const dsr_device_t *c=&fleet.slots[i].connection.device;
+   if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
+   dsr_mobile_device_t *d=&mobile_model.devices[mobile_model.device_count++];const dsr_device_t *c=&fleet.slots[i].connection.device;
    snprintf(d->name,sizeof(d->name),"%s",c->name);snprintf(d->host,sizeof(d->host),"%s",c->host);d->id=fleet.slots[i].connection.layout_id;
    snprintf(d->model,sizeof(d->model),"Shelly • kanał %u",c->channel);d->channel=c->channel;d->room=DSR_UI_NO_ROOM;d->kind=DSR_DEVICE_RELAY;
   }
@@ -127,7 +136,7 @@ static dsr_result_t submit(dsr_job_kind_t kind,bool on)
  if(kind==DSR_JOB_BIND)for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].queued)return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=kind,.connection=pending,.settings=settings,.on=on};
  dsr_result_t result=dsr_worker_submit(&job);
- if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;if(kind==DSR_JOB_BIND)bind_lease=dsr_activity_begin();}
+ if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;if(kind==DSR_JOB_BIND){bind_stage=DSR_BIND_VERIFY;bind_lease=dsr_activity_begin();}}
  memset(&job,0,sizeof(job));render();return result;
 }
 static bool dispatch(uint32_t now,bool allow_poll)
@@ -375,18 +384,37 @@ static void reconcile_layout(bool allow_storage)
   dsr_fleet_slot_t *s=&fleet.slots[i];bool exists=false;uint32_t id=layout_find(r,&s->connection,&exists);
   if(s->connection.layout_id){s->layout_enabled=id!=0;
    if(allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&!exists&&!busy&&!finishing_bind&&!s->queued&&!s->in_flight){(void)maintenance_submit(DSR_JOB_UNBIND,i,s->connection.layout_id);break;}
-  }else if(allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&id&&!busy&&!finishing_bind){(void)maintenance_submit(DSR_JOB_LAYOUT_PUBLISH,i,id);break;}
+  }else if(s->connection.legacy_fallback&&allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&id&&!busy&&!finishing_bind){(void)maintenance_submit(DSR_JOB_LAYOUT_PUBLISH,i,id);break;}
  }
  cJSON_Delete(r);
 }
+static void queue_verified_migrations(void)
+{
+ /* Stage workspace locators without mutating live siblings or their secrets. */
+ for(size_t i=0;i<fleet.count;i++){
+  const dsr_connection_t *saved=&fleet.slots[i].connection;
+  if(!fleet.slots[i].layout_enabled||dsr_endpoint_equal(&saved->device,&pending.device))continue;
+  if(saved->device.generation==pending.device.generation&&!strcmp(saved->device.device_id,pending.device.device_id)){
+   dsr_connection_t sibling=*saved;memcpy(sibling.device.host,pending.device.host,sizeof(sibling.device.host));dsr_ui_workspace_migrate_bound(&sibling,UINT32_MAX,NULL);memset(&sibling,0,sizeof(sibling));
+  }
+ }
+ dsr_ui_workspace_migrate_bound(&pending,pending_room,NULL);
+}
+static dsr_result_t publish_verified(void)
+{
+ dsr_job_t job={.id=++serial,.kind=DSR_JOB_LAYOUT_PUBLISH,.connection=pending};
+ dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}
+ memset(&job,0,sizeof(job));return result;
+}
 static void finish_bind(dsr_result_t result)
 {
+ if(result!=DSR_OK&&bind_stage==DSR_BIND_WORKSPACE)dsr_ui_workspace_migrate_cancel(&pending.device);
  finishing_bind=false;
  if(bind_lease){bind_lease=false;dsr_activity_end();}
- if(lan_binding){if(result!=DSR_OK)dsr_ui_lan_bind_result(result);lan_binding=false;}
- if(external_bind){dsr_workspace_bind_result(result);external_bind=false;}
+ if(lan_binding){if(result!=DSR_OK)dsr_ui_lan_bind_result(result,bind_stage);lan_binding=false;}
+ if(external_bind){dsr_workspace_bind_result_stage(result,bind_stage);external_bind=false;}
  else if(result==DSR_OK)dsr_network_home(NULL);
- if(message&&result!=DSR_OK)dsr_sc_label_set_text(message,result_text(result));
+ if(message&&result!=DSR_OK)dsr_sc_label_set_text(message,dsr_network_bind_result_text(result,bind_stage));
  pending_room=UINT32_MAX;memset(&pending,0,sizeof(pending));
 }
 static void poll(lv_timer_t *timer)
@@ -395,9 +423,11 @@ static void poll(lv_timer_t *timer)
  if(dsr_worker_receive(&event)&&event.id==outstanding){
   busy=false;
   if(operation==DSR_JOB_UNBIND||operation==DSR_JOB_LAYOUT_PUBLISH){
-   dsr_fleet_slot_t *s=&fleet.slots[active_slot];
-   if(!dsr_endpoint_equal(&s->connection.device,&event.device)||strcmp(s->connection.device.host,event.device.host))event.result=DSR_IDENTITY_MISMATCH;
-   s->next_maintenance=event.result==DSR_OK?0:now+5000;
+   if(finishing_bind&&operation==DSR_JOB_LAYOUT_PUBLISH){if(!dsr_endpoint_equal(&pending.device,&event.device)||strcmp(pending.device.host,event.device.host)||pending.layout_id!=event.layout_id)event.result=DSR_IDENTITY_MISMATCH;}
+   else {dsr_fleet_slot_t *s=&fleet.slots[active_slot];
+    if(!dsr_endpoint_equal(&s->connection.device,&event.device)||strcmp(s->connection.device.host,event.device.host))event.result=DSR_IDENTITY_MISMATCH;
+    s->next_maintenance=event.result==DSR_OK?0:now+5000;
+   }
   }
   if(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL){/* Fixed synchronized updater snapshot is consumed by its LCD tick. */}
   else if(operation==DSR_JOB_LAN_STA_VERIFY)dsr_ui_ble_rpc_result(&event);
@@ -410,20 +440,19 @@ static void poll(lv_timer_t *timer)
   }else if(operation==DSR_JOB_UNBIND){
    if(event.result==DSR_OK){memset(&fleet.slots[active_slot].connection.credentials,0,sizeof(dsr_credentials_t));memmove(&fleet.slots[active_slot],&fleet.slots[active_slot+1],(fleet.count-active_slot-1)*sizeof(fleet.slots[0]));memset(&fleet.slots[--fleet.count],0,sizeof(fleet.slots[0]));}
   }else if(operation==DSR_JOB_LAYOUT_PUBLISH){
-   if(event.result==DSR_OK)fleet.slots[active_slot].connection.layout_id=event.layout_id;
-   if(finishing_bind){cJSON *r=layout_snapshot();bool exists=false;bool valid=r&&layout_find(r,&fleet.slots[active_slot].connection,&exists);cJSON_Delete(r);finish_bind(event.result==DSR_OK&&!valid?DSR_IO:event.result);}
+   if(finishing_bind){
+    cJSON *r=layout_snapshot();bool exists=false;bool valid=r&&layout_find(r,&pending,&exists)==pending.layout_id;cJSON_Delete(r);
+    dsr_result_t result=event.result;if(result==DSR_OK&&!valid)result=DSR_CONFLICT;
+    if(result==DSR_OK){pending.device=event.device;pending.telemetry=event.telemetry;pending.legacy_fallback=false;result=dsr_fleet_upsert(&fleet,&pending,now);}
+    finish_bind(result);
+   }else if(event.result==DSR_OK){fleet.slots[active_slot].connection.layout_id=event.layout_id;fleet.slots[active_slot].connection.legacy_fallback=false;}
   }else if(operation==DSR_JOB_BIND){
    bind_transport_result=event.result;
    if(event.result==DSR_OK){
-    pending.device=event.device;pending.telemetry=event.telemetry;pending.layout_id=event.layout_id;
-    bind_transport_result=dsr_fleet_upsert(&fleet,&pending,now);
-    if(bind_transport_result==DSR_OK){
-     /* Queue all siblings together: one CAS preserves stable workspace IDs,
-      * updates DHCP locators and never races 16 boot-time writes. */
-     for(size_t i=0;i<fleet.count;i++)if(!fleet.slots[i].connection.layout_id||fleet.slots[i].layout_enabled)dsr_ui_workspace_migrate_bound(&fleet.slots[i].connection,
-      dsr_endpoint_equal(&fleet.slots[i].connection.device,&pending.device)?pending_room:UINT32_MAX,NULL);
-     finishing_bind=true;
-    }
+    pending.device=event.device;pending.telemetry=event.telemetry;pending.legacy_fallback=false;
+    int old=dsr_fleet_find(&fleet,&pending.device);pending.layout_id=old>=0?fleet.slots[old].connection.layout_id:0;
+    if(old<0&&fleet.count>=DSR_MAX_DEVICES)bind_transport_result=DSR_FULL;
+    else {bind_stage=DSR_BIND_WORKSPACE;queue_verified_migrations();finishing_bind=true;}
    }
    if(bind_transport_result!=DSR_OK)finish_bind(bind_transport_result);
   }else {
@@ -447,8 +476,8 @@ static void poll(lv_timer_t *timer)
   dsr_result_t result;bool pending_layout=dsr_ui_workspace_migrate_status(&result);
   if(!pending_layout){
    if(result!=DSR_OK)finish_bind(result);
-   else {int at=dsr_fleet_find(&fleet,&pending.device);cJSON *r=layout_snapshot();bool exists=false;uint32_t id=r&&at>=0?layout_find(r,&fleet.slots[at].connection,&exists):0;cJSON_Delete(r);
-    if(!id)finish_bind(DSR_IO);else (void)maintenance_submit(DSR_JOB_LAYOUT_PUBLISH,(unsigned)at,id);
+   else {cJSON *r=layout_snapshot();bool exists=false;uint32_t id=r?layout_find(r,&pending,&exists):0;cJSON_Delete(r);
+    if(!id)finish_bind(DSR_CONFLICT);else {pending.layout_id=id;bind_stage=DSR_BIND_PRIVATE;dsr_result_t admitted=publish_verified();if(admitted!=DSR_OK&&admitted!=DSR_BUSY)finish_bind(admitted);}
    }
   }
  }
@@ -490,6 +519,6 @@ void dsr_network_init(void)
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);
     dsr_connection_t *loaded=calloc(DSR_MAX_DEVICES,sizeof(*loaded));size_t count=0;
     if(!loaded||dsr_connections_load(loaded,DSR_MAX_DEVICES,&count)!=ESP_OK)storage_error=true;
-    if(loaded){for(size_t i=0;i<count;i++){(void)dsr_fleet_upsert(&fleet,&loaded[i],lv_tick_get()-5000);if(!loaded[i].layout_id)dsr_ui_workspace_migrate(&loaded[i]);}memset(loaded,0,DSR_MAX_DEVICES*sizeof(*loaded));free(loaded);}
+    if(loaded){for(size_t i=0;i<count;i++){(void)dsr_fleet_upsert(&fleet,&loaded[i],lv_tick_get()-5000);if(!loaded[i].layout_id&&loaded[i].legacy_fallback)dsr_ui_workspace_migrate(&loaded[i]);}memset(loaded,0,DSR_MAX_DEVICES*sizeof(*loaded));free(loaded);}
     lv_timer_create(poll,200,NULL);
 }

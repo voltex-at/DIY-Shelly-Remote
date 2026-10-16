@@ -242,6 +242,7 @@ static void test_discovery(void)
     data[1].status=429;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_RATE_LIMITED);
     data[0].body=NULL;data[0].status=0;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OFFLINE);
     data[0].body=info1;data[0].status=200;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_IDENTITY_MISMATCH&&used==1);
+    lan_mode=false;step_t gateway[]={{"/shelly","{\"gen\":3,\"id\":\"shellyblugwg3-aabbccddeeff\",\"model\":\"S3GW-1DBT001\"}",200,false,false}};fixture(gateway,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_UNSUPPORTED&&used==1);
     lan_mode=false;strcpy(c.device.device_id,"WRONG-IDENTITY");data[0].body=gen2;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_IDENTITY_MISMATCH&&used==1);
 }
 static void test_multi_registry(void)
@@ -251,10 +252,10 @@ static void test_multi_registry(void)
  typedef struct {dsr_device_t device;dsr_credentials_t credentials;} legacy_t;
  legacy_t legacy={a.device,a.credentials};memcpy(blobs[1],&legacy,sizeof(legacy));sizes[1]=sizeof(legacy);schemas[1]=1;
  dsr_connection_t loaded[DSR_MAX_DEVICES];size_t n=0;
- CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!sizes[2]);
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!sizes[2]&&loaded[0].legacy_fallback);
  dsr_connection_t b=a;strcpy(b.device.device_id,"112233445566");strcpy(b.device.host,"192.168.1.11");strcpy(b.credentials.password,"second-secret");
  CHECK(dsr_connection_save(&b)==ESP_OK);CHECK(!memcmp(blobs[1],&legacy,sizeof(legacy))&&schemas[1]==1);
- CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!strcmp(loaded[0].device.device_id,a.device.device_id)&&!strcmp(loaded[1].credentials.password,"second-secret"));
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!loaded[0].legacy_fallback&&!loaded[1].legacy_fallback&&!strcmp(loaded[0].device.device_id,a.device.device_id)&&!strcmp(loaded[1].credentials.password,"second-secret"));
  a.layout_id=42;CHECK(dsr_connection_publish(&a)==ESP_OK);
  b.layout_id=42;CHECK(dsr_connection_publish(&b)==ESP_ERR_INVALID_ARG);b.layout_id=43;CHECK(dsr_connection_publish(&b)==ESP_OK);
  dsr_connection_t channel=a;channel.device.channel=1;channel.layout_id=0;CHECK(dsr_connection_save(&channel)==ESP_OK);
@@ -270,7 +271,7 @@ static void test_multi_registry(void)
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2);
  for(size_t i=0;i<n;i++){CHECK(strcmp(loaded[i].device.device_id,b.device.device_id));}
  unsigned before_retry=write_opens;CHECK(dsr_connection_remove(&b)==ESP_OK&&write_opens==before_retry);
- CHECK(dsr_connection_remove(&b)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!strcmp(loaded[0].device.device_id,a.device.device_id));
+ CHECK(dsr_connection_remove(&b)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!loaded[0].legacy_fallback&&!loaded[1].legacy_fallback&&!strcmp(loaded[0].device.device_id,a.device.device_id));
  CHECK(dsr_connection_remove(&a)==ESP_OK&&dsr_connection_remove(&channel)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==0);CHECK(!memcmp(blobs[1],&legacy,sizeof(legacy))); /* authoritative empty never resurrects legacy */
  for(unsigned i=0;i<16;i++){a=connection();a.device.generation=DSR_GEN2_PLUS;snprintf(a.device.device_id,sizeof(a.device.device_id),"shelly-%u",i);CHECK(dsr_connection_save(&a)==ESP_OK);}
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==16);strcpy(a.device.device_id,"shelly-overflow");CHECK(dsr_connection_save(&a)!=ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==16);
@@ -283,8 +284,10 @@ static void complete_fleet(dsr_fleet_t *f,unsigned index,const dsr_job_t *job,ds
 }
 static void test_multi_scheduler(void)
 {
- dsr_fleet_t f={0};dsr_connection_t a=connection();strcpy(a.device.device_id,"shelly-A");a.device.generation=DSR_GEN2_PLUS;a.device.online=a.device.has_switch=true;a.device.power_w=12;a.device.has_power=true;a.telemetry=(dsr_telemetry_t){.has_voltage=true,.voltage_v=230};
- dsr_connection_t b=a;strcpy(b.device.host,"192.168.1.11");strcpy(b.device.device_id,"shelly-B");b.device.power_w=55;b.telemetry.voltage_v=240;
+ dsr_fleet_t f={0};dsr_connection_t unpub=connection();strcpy(unpub.device.device_id,"pending");unpub.device.generation=DSR_GEN2_PLUS;unpub.device.online=unpub.device.has_switch=true;
+ CHECK(dsr_fleet_upsert(&f,&unpub,0)==DSR_OK&&!f.slots[0].layout_enabled);CHECK(dsr_fleet_request(&f,0,true,true,0)!=DSR_OK);dsr_job_t none;unsigned absent;CHECK(!dsr_fleet_next(&f,5000,true,&none,&absent));
+ memset(&f,0,sizeof(f));dsr_connection_t a=connection();a.layout_id=1;strcpy(a.device.device_id,"shelly-A");a.device.generation=DSR_GEN2_PLUS;a.device.online=a.device.has_switch=true;a.device.power_w=12;a.device.has_power=true;a.telemetry=(dsr_telemetry_t){.has_voltage=true,.voltage_v=230};
+ dsr_connection_t b=a;b.layout_id=2;strcpy(b.device.host,"192.168.1.11");strcpy(b.device.device_id,"shelly-B");b.device.power_w=55;b.telemetry.voltage_v=240;
  CHECK(dsr_fleet_upsert(&f,&a,0)==DSR_OK&&dsr_fleet_upsert(&f,&b,0)==DSR_OK&&f.count==2);
  dsr_job_t job;unsigned index=99;CHECK(dsr_fleet_next(&f,5000,true,&job,&index)&&index==0&&job.kind==DSR_JOB_PROBE);job.id=1;dsr_fleet_started(&f,index,&job);
  CHECK(dsr_fleet_request(&f,1,true,true,5000)==DSR_OK);CHECK(dsr_fleet_request(&f,1,false,true,5000)==DSR_BUSY);CHECK(!dsr_activity_restart_reserve());

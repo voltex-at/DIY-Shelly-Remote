@@ -624,7 +624,7 @@ static void migration_tick(void)
   if(acknowledged){migration_ack();return;}
   cJSON_Delete(migration_document);migration_document=NULL;
   /* Revision conflicts are retried from a fresh snapshot. Failed Flash ACK
-   * is reported as IO while the durable registry remains recoverable. */
+   * is reported as IO; a BIND caller cancels its unapplied RAM intent. */
   if(revision==migration_revision){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
  }
  if(busy||(migration_failed&&(int32_t)(lv_tick_get()-migration_retry)<0))return;
@@ -659,5 +659,15 @@ void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t 
 }
 bool dsr_ui_workspace_migrate_status(dsr_result_t *result)
 {if(result)*result=migration_result;return migration_count&&!migration_failed;}
+void dsr_ui_workspace_migrate_cancel(const dsr_device_t *device)
+{
+ /* Called only after a failed completed workspace attempt. Do not turn a
+  * reported failure into a surprise later save of the same physical device. */
+ if(!device||migration_document)return;
+ size_t retained=0;
+ for(size_t i=0;i<migration_count;i++)if(migrations[i].device.generation!=device->generation||strcmp(migrations[i].device.device_id,device->device_id))migrations[retained++]=migrations[i];
+ memset(migrations+retained,0,(migration_count-retained)*sizeof(*migrations));migration_count=retained;
+ if(!retained){migration_failed=false;migration_result=DSR_OK;}
+}
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection){dsr_ui_workspace_migrate_bound(connection,UINT32_MAX,NULL);}
 #endif

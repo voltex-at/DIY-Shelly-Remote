@@ -181,11 +181,37 @@ jobs:
           cp managed_components/lvgl__lvgl/LICENCE.txt build-board/package/licenses/LVGL-MIT.txt
           python3 tools/package_licenses.py --idf "$IDF_PATH" --managed managed_components --out build-board/package/licenses/vendor
           printf 'Source commit: %s\nTested commit: %s\n' '${{ github.event.pull_request.head.sha || github.sha }}' "$GITHUB_SHA" > build-board/package/BUILD_COMMIT.txt
-      - name: Retain local switch development firmware
+      - name: Prepare and verify separate FACTORY16MiB and app-only UPDATE packages
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          python3 tools/test_factory.py
+          python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source '${{ github.event.pull_request.head.sha || github.sha }}' --tested "$GITHUB_SHA"
+          CC=gcc python3 tools/test_idf_spiffs.py --idf-source "$IDF_PATH" --cjson-source "$IDF_PATH/components/json/cJSON" --factory-image build-board/installers/FACTORY-CLEAN-16MB/dsrdata.bin --verification-report build-board/installers/FACTORY-CLEAN-16MB/SPIFFS_MOUNT_PROOF.json --ubsan-only
+          cp docs/INSTALL_FACTORY_PL.md docs/STORAGE_RECOVERY_PL.md tools/storage_recovery.py build-board/installers/FACTORY-CLEAN-16MB/
+          cp docs/INSTALL_UPDATE_PL.md build-board/installers/UPDATE-APP-ONLY/
+          cp -r build-board/package/licenses build-board/installers/FACTORY-CLEAN-16MB/
+          cp -r build-board/package/licenses build-board/installers/UPDATE-APP-ONLY/
+          python3 tools/check_factory_package.py --package-dir build-board/installers
+          mkdir build-board/reports
+          cp build-board/package/[A-Z]*.json build-board/package/BUILD_COMMIT.txt build-board/package/dependencies.lock build-board/reports/
+      - name: Retain full clean FACTORY image (destructive installation variant)
         uses: actions/upload-artifact@v4
         with:
-          name: es3c35p-local-switch-NOT-STABLE
-          path: build-board/package/
+          name: es3c35p-FACTORY-CLEAN-16MB-NOT-STABLE
+          path: build-board/installers/FACTORY-CLEAN-16MB/
+          if-no-files-found: error
+      - name: Retain app-only UPDATE (no filesystem or partition image)
+        uses: actions/upload-artifact@v4
+        with:
+          name: es3c35p-UPDATE-APP-ONLY-NOT-STABLE
+          path: build-board/installers/UPDATE-APP-ONLY/
+          if-no-files-found: error
+      - name: Retain build reports (no flashable image)
+        uses: actions/upload-artifact@v4
+        with:
+          name: es3c35p-build-reports-NOT-FIRMWARE
+          path: build-board/reports/
           if-no-files-found: error
       - name: Retain target debug symbols and effective configuration
         uses: actions/upload-artifact@v4

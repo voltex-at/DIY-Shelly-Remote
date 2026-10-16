@@ -1,5 +1,76 @@
 # Magazyn — inicjalizacja 0.7.7 i kopia bez zapisu (#28 / PR #33)
 
+## Dwa warianty instalacji FACTORY i UPDATE (2026-10-16)
+
+W [decyzji właściciela](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217161680)
+potwierdzono włączone Erase All podczas nieudanej instalacji 0.7.25. To kasuje
+wcześniejszą konfigurację; krótki merged BIN kończył się przed dsrdata i nie
+zawierał przygotowanego systemu plików. Nowa relacja o 109/992 blokach pochodzi
+z analizy w odrębnej rozmowie; aktualny dump nie jest dostępny w tej sesji.
+Nie utożsamiamy go z historycznym 313/992 ani nie przypisujemy reset reason.
+
+CI przygotowuje teraz dwa wyraźnie oddzielne artefakty:
+
+- **FACTORY-CLEAN-16MB:** jeden pełny obraz pod0x0, dokładnie16MiB, pusty kompletny
+  SPIFFS992/992 pod0xC20000, oficjalny spiffsgen IDF5.5.4, identyczna geometria
+  i granice. Zawiera też osobne segmenty/offsety. Ten wariant usuwa dane i jest
+  przeznaczony wyłącznie do osobno zatwierdzonego czystego testu.
+- **UPDATE-APP-ONLY:** tylko aplikacja do właściwego slotu, bez erase/DSR obrazu,
+  bootloadera/partycji/otadata. Produkcyjny OTA truststore nadal EMPTY; CI BIN
+  nie jest zatwierdzonym podpisanym wydaniem.
+
+Pełna tablica/MD5,16MiB boundary, każdy segment i każda przerwaFF, CRC32/SHA256,
+app checksum/hash/chip9 oraz montowanie dokładnie tego obrazu na oryginalnym
+IDF są obowiązkowymi bramkami przed uploadem. Weryfikacja hostowa nie zapisuje
+obrazu wejściowego: zapis testowej konfiguracji/remount odbywa się na kopii NOR.
+[Instrukcja FACTORY](INSTALL_FACTORY_PL.md) i [UPDATE](INSTALL_UPDATE_PL.md).
+Nie wykonano device writes, nie proponuje się kolejnego erase przed gotowym
+artefaktem. Factory omija koszt pierwszego formatu na płytce, **nie zamyka
+przyczyny przerwania automatycznego formatowania** ani testu fizycznego.
+
+## Nowy raport 0.7.25 i test trwałości (2026-10-16)
+
+Fizyczny raport dla PR53/source `267c32f` ponownie pokazuje niepusty,
+niezamontowany SPIFFS. Nie ma aktualnego obrazu dsrdata ani pierwszego logu
+nieudanego startu. Dawny obraz z prefiksem 313 bloków nie jest dowodem
+zawartości obecnej partycji. Przyczyna obecnej awarii pozostaje nieustalona.
+
+Porównanie `0790e6e803c0bb8e091117e0cc37a47f8eb7782b` →
+`267c32f31d7d955b26cc611e0ee7685226813ffb` daje **zero zmian** w
+`dsr_storage.c`, `dsr_config_store.c`, obu `sdkconfig.defaults`,
+`boards/lcdwiki-es3c35p/partitions.csv` i `dependencies.lock`.
+Sama zbieżność awarii z aktualizacją nie ustala zmiany geometrii ani kodu
+montowania. Ochrona niepustego magazynu przed formatowaniem pozostaje właściwa.
+
+`python3 tools/test_idf_spiffs.py --ubsan-only` kompiluje niezmienione źródła
+przypiętego IDF 5.5.4 i SPIFFS oraz **rzeczywiste** `dsr_config.c` i
+`dsr_config_store.c`. Ograniczony most hostowy przekazuje ich wywołania plikowe
+do oryginalnej zarejestrowanej tabeli VFS. Nie udaje libc FILE buffering,
+RTOS ani fizycznego sterownika. Model NOR wykonuje AND bitów: zaprogramowane
+zera pozostają zerami, także gdy SPIFFS zapisuje maski flag. Odpowiada to
+domyślnemu `CONFIG_SPI_FLASH_VERIFY_WRITE=n`, potwierdzonemu w retained
+target sdkconfig; nie zmieniamy konfiguracji produkcyjnej ani zależności SDK.
+
+Zestaw zachowuje poprzednie testy blank-check/jednego formatu, przerwania
+formatu po 313 sektorach, błędów I/O, dziesięciu remountów i niezależnego
+obrazu spiffsgen. Nowy przypadek zapisuje 8 pomieszczeń i 16 urządzeń przez
+**1112 rewizji**, aż realny SPIFFS uruchomi GC. Zapis wywołujący GC ma
+70 operacji NOR, w tym jedno kasowanie sektora. Dla każdej operacji odrębny
+proces kończy się natychmiast przed, w połowie i po operacji: **210 przerwań**,
+bez close/unmount/flush po przerwaniu. Po ponownym montowaniu dostępny jest
+dokładnie poprzedni albo kompletny nowy checkpoint; niezmienny plik kontrolny
+64 KiB też pozostaje zgodny. Osobno sprawdzany jest błąd zapisu i brak pełnego
+formatowania podczas remountu. Oryginalne wznowienie przerwanego GC przy mount
+może dokończyć kasowanie jednego sektora; to nie jest format całej partycji.
+
+To **test syntetyczny**, nie odtworzenie raportu właściciela i nie naprawa
+obecnego egzemplarza. Nie obejmuje przerwań zasilania sprzętu, uszkodzeń Flash,
+pełnego VFS/libc, konfliktów z RTOS ani retencji rzeczywistych zdjęć. Procedura
+poniżej służy zachowaniu aktualnej kopii; analizujemy ją dopiero po dołączeniu
+w bieżącej rozmowie, wraz z pierwszym logiem startu i sposobem instalacji
+(APP/OTA czy obraz scalony/Erase All). Nie ma automatycznego formatowania,
+odtwarzania pustego obrazu ani zgody na zapis do urządzenia.
+
 ## Aktualizacja P0: 0.7.6 nie przeszła czystej instalacji
 
 Recenzja opisuje analizę prywatnego odczytu właściciela: poprawny prefiks 313

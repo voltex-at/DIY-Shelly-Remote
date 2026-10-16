@@ -54,6 +54,7 @@ const char *dsr_tls_fingerprint(void){return "0123456789ABCDEF0123456789ABCDEF01
 bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *c,uint32_t *room){(void)c;(void)room;return false;}
 void dsr_workspace_bind_result(dsr_result_t r){(void)r;}
+void dsr_workspace_bind_result_stage(dsr_result_t r,dsr_bind_stage_t stage){(void)r;(void)stage;}
 
 /* Explicit radio fixture. Production dsr_lan.c is not replaced in firmware. */
 static dsr_lan_snapshot_t lan;
@@ -80,10 +81,14 @@ void test_ble_finish(dsr_ble_phase_t phase){dsr_ble_finish(&ble,ble.generation,p
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address)
 {uint8_t addr[6]={(uint8_t)address,2,3,4,5,6};dsr_ble_ingest(&ble,ble.generation,addr,0,-48,bytes,length,lv_tick_get());}
 
-void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device){(void)index;(void)count;(void)device;}
+static bool runtime_capture;static size_t runtime_size;static dsr_runtime_device_t runtime_values[DSR_MAX_DEVICES];
+void test_runtime_capture(bool enabled){runtime_capture=enabled;runtime_size=0;}
+size_t test_runtime_count(void){return runtime_size;}
+const dsr_runtime_device_t *test_runtime_at(size_t index){return index<runtime_size?runtime_values+index:NULL;}
+void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device){if(runtime_capture){if(index>=count||count!=runtime_size)abort();runtime_values[index]=*device;}}
 bool dsr_workspace_take_output(dsr_output_request_t *request){(void)request;return false;}
 
-bool dsr_workspace_runtime_publish_begin(size_t count){(void)count;return false;}
+bool dsr_workspace_runtime_publish_begin(size_t count){if(!runtime_capture)return false;if(count>DSR_MAX_DEVICES)abort();runtime_size=count;return true;}
 void dsr_workspace_runtime_publish_end(void){}
 
 static bool ap_sensitive;

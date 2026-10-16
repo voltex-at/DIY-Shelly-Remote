@@ -30,7 +30,8 @@ int xTaskCreate(void(*callback)(void *),const char *name,unsigned stack,void *ar
 esp_err_t dsr_storage_mount(void)
 {flash_calls++;dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);return ESP_OK;}
 char *dsr_config_store_load(const char *directory,bool *found,char error[96])
-{flash_calls++;CHECK(!strcmp(directory,"/dsr"));*found=false;error[0]=0;return NULL;}
+{flash_calls++;CHECK(!strcmp(directory,"/dsr"));*found=true;error[0]=0;char *json=dsr_config_default();cJSON *root=cJSON_Parse(json);free(json);
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(root,"devices"),cJSON_Parse("{\"id\":42,\"name\":\"Published B\",\"kind\":\"relay\",\"host\":\"192.0.2.11\",\"channel\":1,\"room\":0}"));char *out=cJSON_PrintUnformatted(root);cJSON_Delete(root);return out;}
 bool dsr_config_store_save(const char *directory,const char *json,char error[96])
 {flash_calls++;(void)error;CHECK(!strcmp(directory,"/dsr")&&json);return true;}
 bool dsr_config_store_collect_photos(const char *directory,unsigned *removed,char error[96])
@@ -135,6 +136,16 @@ static void test_ap_handoff(void)
  char *after=dsr_workspace_snapshot();CHECK(after&&!strcmp(before,after));free(before);free(after);
  CHECK(dsr_workspace_revision()==previous_revision&&flash_calls==flashes&&queue_sends==sends);admission_open();
 }
+static unsigned mapping_allocations,mapping_fail;
+static void *mapping_alloc(size_t n){if(++mapping_allocations==mapping_fail)return NULL;return malloc(n);}
+static void test_mapping_guard(void)
+{
+ dsr_connection_t c={.device={.host="192.0.2.11",.channel=1},.layout_id=42};CHECK(dsr_workspace_mapping_matches(&c));
+ c.layout_id=41;CHECK(!dsr_workspace_mapping_matches(&c));c.layout_id=42;c.device.channel=0;CHECK(!dsr_workspace_mapping_matches(&c));c.device.channel=1;strcpy(c.device.host,"192.0.2.12");CHECK(!dsr_workspace_mapping_matches(&c));strcpy(c.device.host,"192.0.2.11");
+ CHECK(!dsr_workspace_mapping_matches(NULL));c.layout_id=0;CHECK(!dsr_workspace_mapping_matches(&c));c.layout_id=42;
+ cJSON_Hooks hooks={.malloc_fn=mapping_alloc,.free_fn=free};mapping_allocations=mapping_fail=0;cJSON_InitHooks(&hooks);CHECK(dsr_workspace_mapping_matches(&c));unsigned count=mapping_allocations;
+ for(unsigned i=1;i<=count;i++){mapping_allocations=0;mapping_fail=i;CHECK(!dsr_workspace_mapping_matches(&c));}cJSON_InitHooks(NULL);CHECK(dsr_workspace_mapping_matches(&c));
+}
 int main(void)
 {
  dsr_runtime_device_t snapshot[DSR_MAX_DEVICES];dsr_output_request_t request;uint32_t operation=123;
@@ -144,7 +155,7 @@ int main(void)
  CHECK(dsr_workspace_ap_handoff(0)==DSR_AP_HANDOFF_UNAVAILABLE);
  dsr_workspace_ap_publish(true,true,0);CHECK(dsr_workspace_ap_handoff(0)==DSR_AP_HANDOFF_UNAVAILABLE);
  CHECK(!dsr_workspace_request_ap_open(0)&&!dsr_workspace_take_ap_open(0)&&flash_calls==0&&queue_sends==0);admission_open();
- CHECK(dsr_workspace_start()==ESP_OK);test_ap_handoff();publish(devices,2);
+ CHECK(dsr_workspace_start()==ESP_OK);test_mapping_guard();test_ap_handoff();publish(devices,2);
  CHECK(dsr_workspace_runtime_snapshot(snapshot,DSR_MAX_DEVICES)==2&&!strcmp(snapshot[0].device.device_id,"shelly-A")&&!strcmp(snapshot[1].device.device_id,"shelly-B"));
 
  uint32_t a=0,b=0;CHECK(dsr_workspace_output_request(&devices[0].device,true,&a)==DSR_OK&&a>0);

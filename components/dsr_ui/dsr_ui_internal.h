@@ -72,6 +72,7 @@ void dsr_ui_select_dashboard(void);
 void dsr_ui_workspace_tick(void);
 void dsr_ui_workspace_hide(void);
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection);
+void dsr_ui_workspace_migrate_cancel(const dsr_device_t *device);
 bool dsr_ui_workspace_migrate_status(dsr_result_t *result);
 bool dsr_network_layout_reserved(uint32_t id);
 bool dsr_network_endpoint_added(const char *id,dsr_generation_t generation,unsigned channel);
@@ -90,6 +91,7 @@ void dsr_ui_ble_open(lv_event_t *event);
 void dsr_ui_ble_tick(void);
 void dsr_ui_ble_reset(void);
 bool dsr_ui_ble_active(void);
-void dsr_ui_lan_bind_result(dsr_result_t result);
+void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage);
+const char *dsr_network_bind_result_text(dsr_result_t result,dsr_bind_stage_t stage);
 dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room);
 #endif

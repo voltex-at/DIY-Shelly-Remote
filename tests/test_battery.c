@@ -60,7 +60,8 @@ static dsr_settings_t display_stored={.ssid="new-network",.password="latest-priv
 static unsigned display_load_error,display_save_error,display_saves;
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
-bool dsr_wifi_connected(void){return false;}
+static bool worker_wifi;
+bool dsr_wifi_connected(void){return worker_wifi;}
 static bool temporary_ap;
 static unsigned ap_executed,ap_prepared,wifi_prepared;
 bool dsr_wifi_temporary_active(void){return temporary_ap;}
@@ -71,16 +72,19 @@ static unsigned ota_executed,ota_initialized;
 esp_err_t dsr_native_ota_init(void){ota_initialized++;return ESP_OK;}
 bool dsr_native_ota_admitted(uint32_t id,dsr_job_kind_t kind){CHECK(id&&(kind==DSR_JOB_OTA_CHECK||kind==DSR_JOB_OTA_INSTALL));return ota_admit;}
 void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(ota_admit&&(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL)&&!dsr_activity_restart_reserve());ota_executed++;event->result=DSR_OK;}
-bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&bound&&!strcmp(c->device.device_id,"maintenance");}
+bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&(!bound||!strcmp(c->device.device_id,"maintenance"));}
 void dsr_wifi_prepare_connect(void){wifi_prepared++;}
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *s){(void)s;abort();}
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *s,dsr_wifi_status_t *d){(void)s;(void)d;abort();}
-dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
+static unsigned bind_probes;static dsr_result_t probe_result=DSR_OK;
+dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){CHECK(worker_wifi&&!dsr_activity_restart_reserve());bind_probes++;*d=c->device;d->online=d->has_switch=probe_result==DSR_OK;*t=(dsr_telemetry_t){.has_voltage=true,.voltage_v=230.0};return probe_result;}
 esp_err_t dsr_connection_layout_id(const dsr_connection_t *c,uint32_t *id){(void)c;(void)id;abort();}
 static unsigned publishes,removes;
 esp_err_t dsr_connection_publish(const dsr_connection_t *c){CHECK(c->layout_id==42&&!dsr_activity_restart_reserve());publishes++;return ESP_OK;}
 esp_err_t dsr_connection_remove(const dsr_connection_t *c){CHECK(!dsr_activity_restart_reserve());removes++;return c->layout_id==42?ESP_OK:ESP_FAIL;}
-esp_err_t dsr_connection_save(const dsr_connection_t *c){(void)c;abort();}
+static bool mapping_allowed=true,private_failure;static dsr_connection_t private_record;
+esp_err_t dsr_connection_save(const dsr_connection_t *c){CHECK(c->layout_id==42&&!dsr_activity_restart_reserve());publishes++;if(private_failure)return ESP_FAIL;private_record=*c;return ESP_OK;}
+bool dsr_workspace_mapping_matches(const dsr_connection_t *c){return mapping_allowed&&c->layout_id==42;}
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
@@ -127,6 +131,20 @@ int main(void)
   dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.layout_id==job.connection.layout_id&&event.result==(n==2?DSR_IO:DSR_OK));admission_open();
  }
  CHECK(publishes==1&&removes==2); /* maintenance offline: zero HTTP calls */
+ /* Actual BIND router: probe never writes, including a rebind with a new
+  * locator/credential. A separate exact mapping guard precedes full save. */
+ private_record=(dsr_connection_t){.device={.device_id="maintenance",.host="192.168.1.10"},.credentials={.password="previous-private"},.layout_id=42};
+ dsr_connection_t prior=private_record;unsigned before_private=publishes;worker_wifi=true;
+ dsr_job_t bind={.id=153,.kind=DSR_JOB_BIND,.connection=prior};strcpy(bind.connection.device.host,"192.168.1.20");strcpy(bind.connection.credentials.password,"replacement-private");
+ CHECK(dsr_worker_submit(&bind)==DSR_OK);if(!setjmp(stop))worker(NULL);dsr_event_t checked;CHECK(dsr_worker_receive(&checked)&&checked.result==DSR_OK&&checked.id==bind.id&&bind_probes==1);
+ CHECK(publishes==before_private&&!memcmp(&prior,&private_record,sizeof(prior)));admission_open();
+ for(unsigned phase=0;phase<3;phase++){
+  mapping_allowed=phase!=0;private_failure=phase==1;dsr_job_t publish=bind;publish.id=154+phase;publish.kind=DSR_JOB_LAYOUT_PUBLISH;
+  CHECK(dsr_worker_submit(&publish)==DSR_OK);if(!setjmp(stop))worker(NULL);dsr_event_t committed;CHECK(dsr_worker_receive(&committed)&&committed.id==publish.id&&committed.result==(phase==0?DSR_CONFLICT:phase==1?DSR_IO:DSR_OK));
+  if(phase<2)CHECK(!memcmp(&prior,&private_record,sizeof(prior)));else CHECK(!strcmp(private_record.device.host,"192.168.1.20")&&!strcmp(private_record.credentials.password,"replacement-private"));
+  CHECK(bind_probes==1&&removes==2);admission_open();
+ }
+ CHECK(publishes==before_private+2);probe_result=DSR_AUTH_REQUIRED;bind.id=157;CHECK(dsr_worker_submit(&bind)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.result==DSR_AUTH_REQUIRED&&publishes==before_private+2&&bind_probes==2);admission_open();worker_wifi=false;private_failure=false;
  CHECK(ota_initialized==1);
  for(unsigned kind=DSR_JOB_OTA_CHECK;kind<=DSR_JOB_OTA_INSTALL;kind++){
   dsr_job_t ota={.id=160+kind,.kind=kind};ota_admit=false;CHECK(dsr_worker_submit(&ota)==DSR_INVALID);

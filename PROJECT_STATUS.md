@@ -1,5 +1,55 @@
 # Project status
 
+## 0.7.28 — P0 durable BIND publication and separate FACTORY/UPDATE packages
+
+BIND verification now stays in RAM. Exact durable workspace ACK precedes one
+full private NVS record with its final layout ID; only matching final ACK and
+fresh mapping activate the endpoint. Failed rebind retains the previous private
+record and sibling channels. Registry-v2 ID0 is quarantined; only proven legacy
+v1 origin keeps its earlier fallback. Explicit retry, Web deletion/CAS and fresh
+boot windows have actual worker/LVGL counterexamples and regression coverage.
+No raw NVS schema/size, partition, mount or automatic formatting change.
+
+Owner [issue28 decision6217161680](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217161680)
+confirms Erase All and requests a complete clean installer. FACTORY16MiB now
+includes preformatted SPIFFS at0xC20000, all992block magic, exact segments and FF
+gaps, partition MD5 and CRC32/SHA256. A separate app-only UPDATE has no storage
+or partition image. Original pinned IDF mount on simulated NOR plus real config
+save/remount is required before upload. This does not explain interrupted blank
+formatting, and does not authorize physical erase/flash or close physical P0.
+[Recovery and installation contracts](docs/STORAGE_RECOVERY_PL.md).
+
+Parent PR54 e69e24a CI38907543775 and PR56 3b96534 CI38910724169 are each5/5 PASS,
+with received BIN/ELF/source/partition proof recorded in their PR bodies. This
+stack includes native signed OTA (production trust EMPTY) and open-window B1
+BLE, not bonding/BLU/BTHome. Current0.7.28 exact-head CI/artifact and physical
+acceptance remain open. History/settings/onboarding and Cover continue in
+isolated host work; do not call the entire backlog complete. No main/Stable,
+user data access, device writes or automation changes.
+
+## P0 — publish a binding only after both durable acknowledgements (#28 / PR53)
+
+HTTP verification is RAM-only. Exact durable workspace ACK precedes the sole
+full private registry save with the final layout ID; a fresh mapping check also
+precedes UI activation. Until then a new endpoint cannot receive a card fallback
+or SET, and rebind preserves the previous private host/credentials and siblings.
+No compensating delete or command replay. Errors distinguish verification,
+workspace/CAS and private persistence; failed attempts require explicit re-add.
+Restart after workspace ACK but before NVS leaves an unbound inactive card.
+Old schema2 ID0 entries are quarantined even if a locator matches; only genuine
+schema1 origin retains legacy fallback. Raw NVS/schema/partitions are unchanged.
+Known BLU Gateway Gen3 has an explicit unsupported-relay message and HTTP guard.
+
+Genuine host worker/workspace/fleet/LVGL regressions cover IO/CAS, siblings and B,
+Web deletion in both finalization windows and four fresh-process restart modes.
+Full portable UBSan exit0: platform1396, worker3684 and workspace/runtime562;
+actual LVGL4227/143 frames plus boot14/20/18/20, review2635/24 frames and
+dictionary2103/266 entries PASS. Deterministic Web runtime47/AP46/BLE28 retained.
+The previous active-fallback/SET counterexample failed on 267c32f, 8735107 and
+d9dbf27 before this fix. SDK/NVS/mount providers remain modeled; no physical
+operations. [Transaction and limits](docs/MULTI_DEVICE_PL.md). Storage mount and
+factory packaging are separate P0 work; this change does not alter them.
+
 ## 0.7.26 — native signed OTA controller and installer (#24)
 
 Actual LCD Stable/explicit Dev catalogue → genuine signed manifest check →
@@ -48,7 +98,7 @@ internalBSS64992 B; two physical Shelly acceptance remains open.
 
 Adding a second verified endpoint retains the first. Private NVS schema2 registry
 with exact reread, legacy record untouched, unchanged workspace schema1/numeric IDs.
-Recoverable registry→layout→mapping ACK, targeted removal, identity checked before
+RAM verification→durable layout ACK→full private registry ACK, targeted removal, identity checked before
 credentials/SET and mandatory readback. Per-endpoint FIFO intent, state/auth/backoff;
 serial bounded transport with honest latency, no automatic SET retry. LCD/W/V/A and
 same authenticated Web runtime/output API, browser commands correlated by epoch/id.

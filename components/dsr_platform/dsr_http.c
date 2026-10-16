@@ -130,6 +130,10 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     cJSON *root = NULL;
     dsr_result_t result = fetch_json(connection, &request, true, &root);
     if (result != DSR_OK) return result;
+    /* BLU Gateway Gen3 has no Switch component. Never route its manual bind
+     * through a relay endpoint or disclose saved relay credentials to it. */
+    const cJSON *model=cJSON_GetObjectItemCaseSensitive(root,"model");
+    if(cJSON_IsString(model)&&!strcmp(model->valuestring,"S3GW-1DBT001")){cJSON_Delete(root);return DSR_UNSUPPORTED;}
     cJSON *gen = cJSON_GetObjectItemCaseSensitive(root, "gen");
     cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
     cJSON *type = cJSON_GetObjectItemCaseSensitive(root, "type");

@@ -74,10 +74,20 @@ static void review_multi_regression(void)
  CHECK(dsr_network_bind_verified(&c,0)==DSR_OK);response=(dsr_event_t){.device=c.device};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(dsr_network_busy()&&publish_jobs==pubs&&requests==network_before+1);CHECK(!dsr_activity_restart_reserve());
  bool pending_config;char message[96];dsr_workspace_status(&pending_config,message);CHECK(pending_config);r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==0);cJSON_Delete(r);
- /* A failed first-store ACK ends this attempt. The verified private endpoint
-  * is recoverable, while the prior workspace and all rooms remain intact. */
- wifi.connected=false;test_workspace_finish(false);tick();CHECK(!dsr_network_busy()&&publish_jobs==pubs&&requests==network_before+1);review_preserved_room();
- test_workspace_defer(false);lv_tick_inc(5001);tick();tick();unsigned cid=review_entry_id("Review C");CHECK(dsr_network_layout_reserved(cid)&&publish_jobs==pubs+1&&requests==network_before+1);review_preserved_room();
+ /* A failed workspace ACK ends the RAM-only attempt. No private mutation
+  * or surprise retry is permitted; the prior workspace/rooms remain intact. */
+ test_workspace_finish(false);tick();CHECK(!dsr_network_busy()&&publish_jobs==pubs&&requests==network_before+1);review_preserved_room();
+ /* P0 physical counterexample: private NVS verification is not publication.
+  * If SPIFFS becomes unavailable after the failed workspace ACK, fallback
+  * must not expose the fresh layout_id0 binding or admit a SET. */
+ test_workspace_raw_fault(1);dsr_network_home(NULL);
+ lv_obj_t *unpublished=find_label(lv_screen_active(),"Review C");
+ if(unpublished){click("Review C");lv_obj_t *power=power_target(lv_screen_active());CHECK(power);unsigned before_set=requests;bool disabled=lv_obj_has_state(power,LV_STATE_DISABLED);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);fprintf(stderr,"P0 unpublished fallback: power_disabled=%u SET_delta=%u\n",(unsigned)disabled,requests-before_set);CHECK(requests==before_set&&disabled);}
+ CHECK(!unpublished);test_workspace_raw_fault(0);wifi.connected=false;tick();dsr_network_home(NULL);
+ test_workspace_defer(false);lv_tick_inc(5001);tick();tick();CHECK(!dsr_network_endpoint_added(c.device.device_id,DSR_GEN2_PLUS,0));r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==0);cJSON_Delete(r);
+ /* Explicit re-add performs read-only verification again, then both ACKs. */
+ wifi.connected=true;CHECK(dsr_network_bind_verified(&c,0)==DSR_OK);wifi.connected=false;response=(dsr_event_t){.device=c.device};deliver(DSR_OK,DSR_WIFI_IDLE);
+ unsigned cid=review_entry_id("Review C");CHECK(dsr_network_layout_reserved(cid)&&publish_jobs==pubs+1&&requests==network_before+2);review_preserved_room();
 
  /* Fail the second-store publication independently of a successful config
   * ACK. It must not repeat BIND/HTTP or lose the already published C entry. */
@@ -85,7 +95,10 @@ static void review_multi_regression(void)
  wifi.connected=true;tick();if(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);response=(dsr_event_t){.device=submitted.connection.device};response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
  maintenance_result=DSR_IO;pubs=publish_jobs;network_before=requests;CHECK(dsr_network_bind_verified(&d,0)==DSR_OK);wifi.connected=false;response=(dsr_event_t){.device=d.device};deliver(DSR_OK,DSR_WIFI_IDLE);
  unsigned did=review_entry_id("Review D");CHECK(!dsr_network_busy()&&!dsr_network_layout_reserved(did)&&dsr_network_layout_reserved(cid)&&publish_jobs==pubs+1&&requests==network_before+1);review_preserved_room();
- maintenance_result=DSR_OK;lv_tick_inc(5001);tick();CHECK(dsr_network_layout_reserved(did)&&publish_jobs==pubs+2&&requests==network_before+1);review_preserved_room();
+ maintenance_result=DSR_OK;lv_tick_inc(5001);tick();CHECK(!dsr_network_layout_reserved(did)&&publish_jobs==pubs+1&&requests==network_before+1);
+ dsr_network_home(NULL);click("Review D");lv_obj_t *unbound_power=power_target(lv_screen_active());CHECK(unbound_power&&lv_obj_has_state(unbound_power,LV_STATE_DISABLED));unsigned no_set=requests;lv_obj_send_event(unbound_power,LV_EVENT_CLICKED,NULL);CHECK(requests==no_set);dsr_network_home(NULL);
+ wifi.connected=true;CHECK(dsr_network_bind_verified(&d,0)==DSR_OK);wifi.connected=false;response=(dsr_event_t){.device=d.device};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(dsr_network_layout_reserved(did)&&publish_jobs==pubs+2&&requests==network_before+2);review_preserved_room();
  /* A long read cannot leave an old online LCD card or active power button
   * past the freshness boundary. No network completion triggers this redraw. */
  wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);

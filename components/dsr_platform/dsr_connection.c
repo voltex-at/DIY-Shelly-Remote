@@ -37,7 +37,7 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found)
     if (error == ESP_OK && (length != sizeof(loaded) || !dsr_connection_valid(&candidate, true))) error = ESP_ERR_INVALID_SIZE;
     if (error == ESP_OK) {
         loaded.device.online = loaded.device.has_switch = loaded.device.has_power = false;
-        candidate.device=loaded.device;*out=candidate;*found=true;
+        candidate.device=loaded.device;candidate.legacy_fallback=true;*out=candidate;*found=true;
     }
     nvs_close(handle);
     return error;
@@ -52,8 +52,9 @@ typedef struct {
 } connection_registry_v2_t;
 static bool same_endpoint(const dsr_device_t *a,const dsr_device_t *b)
 {return !strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->channel==b->channel;}
-static esp_err_t registry_read(connection_registry_v2_t *registry)
+static esp_err_t registry_read_origin(connection_registry_v2_t *registry,bool *legacy_origin)
 {
+    if(legacy_origin)*legacy_origin=false;
     memset(registry,0,sizeof(*registry));registry->schema=2;
     nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
     if(error!=ESP_OK&&error!=ESP_ERR_NVS_NOT_FOUND)return error;
@@ -71,18 +72,20 @@ static esp_err_t registry_read(connection_registry_v2_t *registry)
         }
     }
     dsr_connection_t legacy;bool found=false;error=dsr_connection_load(&legacy,&found);
-    if(error==ESP_OK){memset(registry,0,sizeof(*registry));registry->schema=2;if(found){registry->count=1;registry->items[0].device=legacy.device;registry->items[0].credentials=legacy.credentials;}}
+    if(error==ESP_OK){memset(registry,0,sizeof(*registry));registry->schema=2;if(found){registry->count=1;registry->items[0].device=legacy.device;registry->items[0].credentials=legacy.credentials;if(legacy_origin)*legacy_origin=true;}}
     memset(&legacy,0,sizeof(legacy));return error;
 }
+static esp_err_t registry_read(connection_registry_v2_t *registry)
+{return registry_read_origin(registry,NULL);}
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count)
 {
     if(!out||!count)return ESP_ERR_INVALID_ARG;
     *count=0;connection_registry_v2_t *registry=calloc(1,sizeof(*registry));if(!registry)return ESP_ERR_NO_MEM;
-    esp_err_t error=registry_read(registry);
+    bool legacy_origin=false;esp_err_t error=registry_read_origin(registry,&legacy_origin);
     if(error==ESP_OK&&registry->count>capacity)error=ESP_ERR_INVALID_SIZE;
     if(error==ESP_OK){
         for(uint32_t i=0;i<registry->count;i++){
-            out[i]=(dsr_connection_t){.device=registry->items[i].device,.credentials=registry->items[i].credentials,.layout_id=registry->items[i].layout_id};
+            out[i]=(dsr_connection_t){.device=registry->items[i].device,.credentials=registry->items[i].credentials,.layout_id=registry->items[i].layout_id,.legacy_fallback=legacy_origin};
             out[i].device.online=out[i].device.has_switch=out[i].device.has_power=false;out[i].device.output=false;out[i].device.power_w=0;
         }
         *count=registry->count;
