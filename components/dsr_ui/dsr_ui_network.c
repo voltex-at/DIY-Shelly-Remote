@@ -2,6 +2,7 @@
 #include "dsr_platform.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_workspace.h"
+#include "dsr_board.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +45,7 @@ static const char *result_text(dsr_result_t result)
 
 void dsr_network_reset_view(void)
 {
-    dsr_ui_battery_hide();
+    dsr_ui_battery_hide();dsr_ui_display_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
     dsr_ui_ble_reset();
@@ -99,6 +100,15 @@ static dsr_result_t submit(dsr_job_kind_t kind, bool on)
 }
 
 bool dsr_network_busy(void) { return busy; }
+dsr_result_t dsr_network_request_display(uint8_t brightness,uint16_t seconds)
+{
+ if(busy)return DSR_BUSY;
+ dsr_job_t job={.id=++serial,.kind=DSR_JOB_DISPLAY_SAVE};
+ job.settings.brightness=brightness;job.settings.idle_seconds=seconds;
+ dsr_result_t accepted=dsr_worker_submit(&job);
+ if(accepted==DSR_OK){busy=true;operation=DSR_JOB_DISPLAY_SAVE;outstanding=job.id;}
+ return accepted;
+}
 dsr_result_t dsr_network_request_battery(void)
 {
  if(busy)return DSR_BUSY;
@@ -269,8 +279,11 @@ static void poll(lv_timer_t *timer)
     uint32_t now = lv_tick_get();
     dsr_event_t event;
     if (dsr_worker_receive(&event) && event.id == outstanding) {
-        busy = false; if(operation!=DSR_JOB_BATTERY_READ)last_poll = now;
-        if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
+        busy = false; if(operation!=DSR_JOB_BATTERY_READ&&operation!=DSR_JOB_DISPLAY_SAVE)last_poll = now;
+        if(operation==DSR_JOB_DISPLAY_SAVE){
+            if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}
+            dsr_ui_display_result(&event);
+        } else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
         else if (operation == DSR_JOB_WIFI_SCAN || operation == DSR_JOB_WIFI_CONNECT) {
             if (operation == DSR_JOB_WIFI_CONNECT && event.result == DSR_OK) {
                 settings = wifi_candidate; storage_error = false; saved.device.online = false;
@@ -295,7 +308,7 @@ static void poll(lv_timer_t *timer)
             else if(!command_error)last_result=event.result;
             blocked = event.result == DSR_AUTH_REQUIRED || event.result == DSR_IDENTITY_MISMATCH || event.result == DSR_RATE_LIMITED;
         }
-        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT && operation!=DSR_JOB_BATTERY_READ)
+        if (message && event.result != DSR_OK && operation != DSR_JOB_WIFI_SCAN && operation != DSR_JOB_WIFI_CONNECT && operation!=DSR_JOB_BATTERY_READ && operation!=DSR_JOB_DISPLAY_SAVE)
             dsr_sc_label_set_text(message, result_text(event.result));
         if(queued_output){
             bool on=queued_on;
@@ -347,6 +360,7 @@ void dsr_network_init(void)
     const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
+    dsr_ui_display_init(settings.brightness,settings.idle_seconds);
     bool found = false;
     if (dsr_connection_load(&saved, &found) != ESP_OK) storage_error = true;
     configured = found;

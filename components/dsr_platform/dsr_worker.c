@@ -15,7 +15,21 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_BATTERY_READ){
+        if(job.kind==DSR_JOB_DISPLAY_SAVE){
+            /* Read the latest full NVS record inside the sole worker. Never
+             * replay UI-cached credentials over a newer Wi-Fi connection. */
+            dsr_settings_t current;
+            esp_err_t error=dsr_settings_load(&current);
+            if(error==ESP_OK){
+                current.brightness=job.settings.brightness;
+                current.idle_seconds=job.settings.idle_seconds;
+                error=dsr_settings_save(&current);
+            }
+            event.result=error==ESP_OK?DSR_OK:DSR_IO;
+            event.brightness=job.settings.brightness;
+            event.idle_seconds=job.settings.idle_seconds;
+            memset(&current,0,sizeof(current));
+        } else if(job.kind==DSR_JOB_BATTERY_READ){
 #ifdef DSR_BOARD_ES3C35P
             event.result=dsr_battery_read(&event.battery)==ESP_OK?DSR_OK:DSR_IO;
 #else
@@ -70,8 +84,10 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_BATTERY_READ) return DSR_INVALID;
-    if (job->kind == DSR_JOB_WIFI_CONNECT) {
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_DISPLAY_SAVE) return DSR_INVALID;
+    if(job->kind==DSR_JOB_DISPLAY_SAVE){
+        if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
+    } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
     } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;

@@ -1,13 +1,25 @@
 # Project status
 
+## 0.7.9 — persistent display settings (#6/#24)
+
+Independent existing-backlog stage: brightness and idle timeout use existing
+settings NVS and the existing worker, preserving current Wi-Fi fields. No new
+schema or SPIFFS dependency. Explicit errors distinguish persistence from PWM
+application; restart/wake must retain brightness. P0 SPIFFS and full signed
+OTA/global-settings acceptance remain open.
+Local UBSan: native suite including 3425 worker and 167 startup checks; UI
+1734 checks / 88 frames, review 2635 / 24 frames. Exact-source CI follows the
+final commit; hardware remains pending.
+[Scope and physical acceptance](docs/DISPLAY_SETTINGS_PL.md).
+
 ## 0.7.8 — independent on-demand BAT voltage (#6/#25)
 
 First-stage battery work follows the owner-approved existing backlog while PR #33
 awaits hardware. GPIO8 ADC1, median and IDF calibration run through the existing
 worker without Wi-Fi/workspace; UI exposes voltage/age/errors, no invented charge
 state or percent. No startup/periodic sampling or new task/timer. Host ADC/worker
-3367 checks and native UI regressions pass; exact-source target CI and hardware
-are separate gates. Percent, low battery, runtime and charging remain open.
+3367 checks and native UI regressions pass. Exact-source 37dd187 CI passed 5/5
+[run 38838860433](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38838860433), including actual target build and full sanitizers; hardware remains open. Percent, low battery, runtime and charging remain open.
 [Scope and physical acceptance](docs/BATTERY_VOLTAGE_PL.md).
 
 

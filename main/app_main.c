@@ -73,7 +73,7 @@ void app_main(void)
     boot_memory("ui_constructed");
     error = dsr_board_start_ui_task(dsr_boot_ready);
     if (error != ESP_OK) { dsr_boot_diagnostic("ui_task", error); return; }
-    error = dsr_board_set_backlight(70);
+    error = dsr_board_restore_backlight();
     if (error != ESP_OK) { dsr_boot_diagnostic("backlight", error); return; }
     if (!dsr_boot_finish()) { dsr_boot_diagnostic("startup_state", ESP_ERR_INVALID_STATE); return; }
     boot_memory("ui_started");

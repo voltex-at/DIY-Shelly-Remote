@@ -17,7 +17,7 @@ Documented hardware: 16 MiB QSPI Flash, 8 MiB OPI PSRAM, 320x480 IPS LCD, RGB565
 
 The ST77922 touch block is accessed at I2C address `0x55` using 16-bit register addresses: capability `0x0009`, info `0x0010`, points `0x0014`. That protocol and the module-specific display initialization come from the cited exact-board upstream source; they are not a guessed FT6336 driver. Touch is polled in a separate task; the LVGL read callback only consumes a synchronized sample. If capability probing fails, the screen reports it and automatic screen-off is disabled so diagnostic information stays visible.
 
-## Pin map
+## Pin map (original bringup milestone; later battery stage below)
 
 | Function | GPIO | Treatment |
 | --- | --- | --- |

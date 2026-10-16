@@ -16,6 +16,7 @@ static esp_err_t nvs_error, board_error, worker_error, wifi_error, storage_error
 static esp_err_t ui_error, backlight_error, state_error, confirm_error;
 static esp_ota_img_states_t image_state;
 static bool missing_partition;
+static uint8_t desired_brightness,restored_brightness;
 static const esp_partition_t partition = {0};
 static void call(char code) { CHECK(at+1 < sizeof(trace)); trace[at++]=code; trace[at]=0; }
 const esp_app_desc_t *esp_app_get_description(void)
@@ -23,18 +24,18 @@ const esp_app_desc_t *esp_app_get_description(void)
 esp_err_t nvs_flash_init(void) { call('N'); return nvs_error; }
 esp_err_t dsr_board_init(void) { call('B'); return board_error; }
 const char *dsr_board_hardware_id(void) { return "TEST_ONLY board"; }
-esp_err_t dsr_settings_load(dsr_settings_t *settings) { call('S'); memset(settings,0,sizeof(*settings)); return ESP_OK; }
+esp_err_t dsr_settings_load(dsr_settings_t *settings) { call('S'); memset(settings,0,sizeof(*settings)); settings->brightness=20;settings->idle_seconds=60; return ESP_OK; }
 esp_err_t dsr_worker_start(void) { call('W'); return worker_error; }
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings) { (void)settings; call('F'); return wifi_error; }
 esp_err_t dsr_workspace_start(void) { call('C'); return storage_error; }
 esp_err_t dsr_panel_start(void) { call('P'); return ESP_OK; }
 esp_err_t dsr_lan_init(void) { call('L'); return ESP_OK; }
 esp_err_t dsr_ble_init(void) { call('E'); return ESP_OK; }
-void dsr_ui_init(void) { call('I'); }
+void dsr_ui_init(void) { call('I'); desired_brightness=20; /* UI fixture loads the saved brightness; real UI separately tested. */ }
 esp_err_t dsr_board_start_ui_task(bool (*ready)(void))
 { call('T'); CHECK(ready == dsr_boot_ready && !ready()); CHECK(!dsr_ota_boot_confirm()); return ui_error; }
-esp_err_t dsr_board_set_backlight(uint8_t percent)
-{ call('K'); CHECK(percent == 70 && !dsr_boot_ready()); CHECK(!dsr_ota_boot_confirm()); return backlight_error; }
+esp_err_t dsr_board_restore_backlight(void)
+{ call('K'); CHECK(desired_brightness==20&&trace[at-2]=='T');restored_brightness=desired_brightness; CHECK(!dsr_boot_ready()); CHECK(!dsr_ota_boot_confirm()); return backlight_error; }
 const esp_partition_t *esp_ota_get_running_partition(void)
 { ota_reads++; return missing_partition ? NULL : &partition; }
 esp_err_t esp_ota_get_state_partition(const esp_partition_t *p,esp_ota_img_states_t *state)
@@ -42,7 +43,7 @@ esp_err_t esp_ota_get_state_partition(const esp_partition_t *p,esp_ota_img_state
 esp_err_t esp_ota_mark_app_valid_cancel_rollback(void) { ota_marks++; return confirm_error; }
 static void reset(void)
 {
-    at=ota_reads=ota_marks=0; trace[0]=0; missing_partition=false;
+    at=ota_reads=ota_marks=0;desired_brightness=70;restored_brightness=0; trace[0]=0; missing_partition=false;
     nvs_error=board_error=worker_error=wifi_error=storage_error=ui_error=backlight_error=state_error=confirm_error=ESP_OK;
     image_state=ESP_OTA_IMG_PENDING_VERIFY;
 }
@@ -68,7 +69,7 @@ int main(void)
     reset(); nvs_error=ESP_ERR_INVALID_STATE; app_main(); diagnostic("N");
     reset(); board_error=ESP_FAIL; app_main(); diagnostic("NB");
     reset(); app_main();
-    CHECK(!strcmp(trace,"NBSWFCPLEITK") && dsr_boot_ready());
+    CHECK(!strcmp(trace,"NBSWFCPLEITK") && dsr_boot_ready() && restored_brightness==20);
     CHECK(dsr_ota_boot_confirm() && ota_marks == 1);
     confirm_error=ESP_FAIL; CHECK(!dsr_ota_boot_confirm() && ota_marks == 2);
     confirm_error=ESP_OK; CHECK(dsr_ota_boot_confirm() && ota_marks == 3);

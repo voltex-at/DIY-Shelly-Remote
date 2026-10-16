@@ -57,6 +57,11 @@ static void key(lv_obj_t *kb,const char *text)
 
 const esp_app_desc_t *esp_app_get_description(void) {static const esp_app_desc_t d = {.version="0.3.0-wifi-dev"}; return &d;}
 esp_err_t dsr_board_set_backlight(uint8_t value) {(void)value; return ESP_OK;}
+static unsigned display_applies;
+static uint8_t applied_brightness;static uint16_t applied_seconds;
+static bool apply_failure;
+esp_err_t dsr_board_apply_display(uint8_t brightness,uint16_t seconds)
+{display_applies++;applied_brightness=brightness;applied_seconds=seconds;return apply_failure?ESP_FAIL:ESP_OK;}
 void dsr_board_sleep_display(void) {}
 bool dsr_board_touch_available(void) {return true;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
@@ -162,6 +167,46 @@ static void battery_regression(void)
  lv_mem_monitor(&after_memory);
  printf("Battery UI heap before=%lu after=%lu; 40 open/back cycles; on-demand host ADC fixture\n",(unsigned long)before_memory.free_size,(unsigned long)after_memory.free_size);
  CHECK(after_memory.free_size==before_memory.free_size);
+}
+static void display_regression(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);wifi.connected=false;tick();CHECK(!in_flight);
+ dsr_ui_open_settings();click("Settings");CHECK(find_label(lv_screen_active(),"Screen off / touch to wake"));click("Ekran");
+ lv_obj_t *brightness=find_type(lv_screen_active(),&lv_slider_class);
+ lv_obj_t *timeout=find_type(lv_screen_active(),&lv_dropdown_class);
+ CHECK(brightness&&timeout&&lv_slider_get_value(brightness)==70&&lv_dropdown_get_selected(timeout)==3);
+ screenshot("140-display-default");
+ lv_slider_set_value(brightness,35,LV_ANIM_OFF);lv_obj_send_event(brightness,LV_EVENT_VALUE_CHANGED,NULL);lv_dropdown_set_selected(timeout,0);
+ next_submit_result=DSR_BUSY;click("Zapisz");CHECK(!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+ unsigned before=requests,applies=display_applies;click("Zapisz");
+ CHECK(in_flight&&submitted.kind==DSR_JOB_DISPLAY_SAVE&&submitted.settings.brightness==35&&submitted.settings.idle_seconds==0);
+ CHECK(!submitted.settings.ssid[0]&&!submitted.settings.password[0]);
+ CHECK(lv_obj_has_state(brightness,LV_STATE_DISABLED)&&lv_obj_has_state(timeout,LV_STATE_DISABLED));
+ click("Zapisz");CHECK(requests==before+1);screenshot("141-display-saving");
+ /* Global header Home clears the active LCD directly, bypassing ui_screen. */
+ tap(22,22);CHECK(!find_label(lv_screen_active(),"Wygaszanie ekranu"));
+ response.brightness=35;response.idle_seconds=0;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(display_applies==applies+1&&applied_brightness==35&&applied_seconds==0);
+ dsr_ui_display_open(NULL);brightness=find_type(lv_screen_active(),&lv_slider_class);timeout=find_type(lv_screen_active(),&lv_dropdown_class);
+ CHECK(lv_slider_get_value(brightness)==35&&lv_dropdown_get_selected(timeout)==0);screenshot("142-display-saved");
+ /* Save failure neither applies hardware nor changes cached preferences. */
+ lv_slider_set_value(brightness,80,LV_ANIM_OFF);lv_dropdown_set_selected(timeout,4);click("Zapisz");
+ applies=display_applies;deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(display_applies==applies&&find_label(lv_screen_active(),"Nie potwierdzono zapisu. Spróbuj ponownie."));
+ CHECK(!lv_obj_has_state(brightness,LV_STATE_DISABLED));screenshot("143-display-save-error");
+ tap(160,444);dsr_ui_display_open(NULL);brightness=find_type(lv_screen_active(),&lv_slider_class);CHECK(lv_slider_get_value(brightness)==35);
+ /* Back/reopen retains pending inhibition; response applies independently. */
+ lv_slider_set_value(brightness,55,LV_ANIM_OFF);timeout=find_type(lv_screen_active(),&lv_dropdown_class);lv_dropdown_set_selected(timeout,4);click("Zapisz");tap(160,444);dsr_ui_display_open(NULL);CHECK(find_label(lv_screen_active(),"Zapisywanie ustawień…"));
+ brightness=find_type(lv_screen_active(),&lv_slider_class);CHECK(lv_obj_has_state(brightness,LV_STATE_DISABLED));
+ response.brightness=55;response.idle_seconds=120;apply_failure=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Zapisano. Błąd sterownika ekranu.")&&lv_slider_get_value(brightness)==55&&lv_dropdown_get_selected(find_type(lv_screen_active(),&lv_dropdown_class))==4);screenshot("144-display-driver-error");
+ apply_failure=false;dsr_ui_display_init(20,60);CHECK(applied_brightness==20&&applied_seconds==60);
+ for(unsigned language=1;language<=2;language++){dsr_sc_appearance(DSR_SC_BLUE,false,language);dsr_ui_display_open(NULL);CHECK(find_label(lv_screen_active(),"Wygaszanie ekranu"));screenshot(language==1?"145-display-english":"146-display-german");}
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_ui_display_open(NULL);
+ for(unsigned n=0;n<10;n++){tap(160,444);dsr_ui_display_open(NULL);lv_obj_update_layout(lv_screen_active());}
+ lv_mem_monitor_t a,b;lv_mem_monitor(&a);
+ for(unsigned n=0;n<40;n++){tap(160,444);dsr_ui_display_open(NULL);lv_obj_update_layout(lv_screen_active());}
+ lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);
+ printf("Display UI heap before=%lu after=%lu;40 pending-safe navigation cycles; hardware fixture only\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
 }
 static cJSON *room_document(void)
 {char *json=dsr_workspace_snapshot();CHECK(json);cJSON *r=cJSON_Parse(json);free(json);CHECK(r);return r;}
@@ -470,7 +515,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

@@ -31,6 +31,7 @@ static bool ui_started;
 static bool sleeping;
 static bool consume_until_release;
 static uint8_t desired_brightness = 70;
+static uint16_t idle_seconds = 60;
 static esp_timer_handle_t tick_timer;
 static portMUX_TYPE touch_lock = portMUX_INITIALIZER_UNLOCKED;
 typedef struct { bool pressed; uint16_t x, y; } touch_sample_t;
@@ -49,6 +50,24 @@ esp_err_t dsr_board_set_backlight(uint8_t percent)
     if (percent > 0) desired_brightness = percent;
     return ESP_OK;
 }
+
+esp_err_t dsr_board_apply_display(uint8_t brightness, uint16_t seconds)
+{
+    if(brightness>100||seconds>3600)return ESP_ERR_INVALID_ARG;
+    /* Legacy records accept zero brightness. Keep wake usable, matching the
+     * existing UI minimum; never persist a changed value merely on load. */
+    uint8_t safe_brightness=brightness<10?10:brightness;
+    if(ui_started){
+        esp_err_t error=dsr_board_set_backlight(sleeping?0:safe_brightness);
+        if(error!=ESP_OK)return error;
+    } /* Bootstrap keeps light off until app_main starts the UI task. */
+    desired_brightness=safe_brightness;idle_seconds=seconds;
+    if(display)lv_display_trigger_activity(display);
+    return ESP_OK;
+}
+
+esp_err_t dsr_board_restore_backlight(void)
+{return dsr_board_set_backlight(desired_brightness);}
 
 void dsr_board_sleep_display(void)
 {
@@ -129,7 +148,7 @@ static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
     data->point.y = last_y;
     data->state = LV_INDEV_STATE_RELEASED;
     if (sleeping && sample.pressed) {
-        if (dsr_board_set_backlight(desired_brightness) != ESP_OK) return;
+        if (dsr_board_restore_backlight() != ESP_OK) return;
         sleeping = false;
         consume_until_release = true;
         lv_display_trigger_activity(display);
@@ -144,7 +163,7 @@ static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
 static void idle_check(lv_timer_t *timer)
 {
     (void)timer;
-    if (touch_ready && !sleeping && lv_display_get_inactive_time(display) >= 60000) dsr_board_sleep_display();
+    if (touch_ready && !sleeping && idle_seconds && lv_display_get_inactive_time(display) >= (uint32_t)idle_seconds*1000) dsr_board_sleep_display();
 }
 
 static void tick(void *arg) { (void)arg; lv_tick_inc(5); }

@@ -121,7 +121,7 @@ jobs:
           cp docs/ISSUE15_COVER.md build-board/package/
           cp docs/STABLE_POLLING.md build-board/package/
           cp docs/BLE_PLAN.md build-board/package/
-          cp docs/FEATURE_MATRIX.md docs/BATTERY_VOLTAGE_PL.md build-board/package/
+          cp docs/FEATURE_MATRIX.md docs/BATTERY_VOLTAGE_PL.md docs/DISPLAY_SETTINGS_PL.md build-board/package/
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/
           cp docs/ROOM_EDITOR_PL.md build-board/package/

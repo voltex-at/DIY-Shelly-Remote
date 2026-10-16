@@ -10,7 +10,7 @@
 static lv_obj_t *touch_status;
 static lv_obj_t *brightness_text;
 static unsigned touches;
-static uint8_t brightness = 70;
+
 void dsr_ui_home(lv_event_t *event);
 static void menu(lv_event_t *event);
 
@@ -71,6 +71,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     dsr_ui_workspace_hide();
     dsr_mobile_hide();
     touch_status = brightness_text = NULL;
+    dsr_ui_display_hide();
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
     lv_obj_remove_style_all(root);
@@ -130,15 +131,6 @@ static void colors(lv_event_t *event)
     }
 }
 
-static void change_brightness(lv_event_t *event)
-{
-    uint8_t percent = (uint8_t)lv_slider_get_value(lv_event_get_target(event));
-    if (dsr_board_set_backlight(percent) == ESP_OK) {
-        brightness = percent;
-        dsr_sc_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
-    }
-}
-
 static void sleep_display(lv_event_t *event) { (void)event; dsr_board_sleep_display(); }
 
 static void firmware(lv_event_t *event)
@@ -154,18 +146,10 @@ static void settings(lv_event_t *event)
 {
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Settings", true);
-    brightness_text = dsr_ui_label(root, "", 16, 92, 288);
-    dsr_sc_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
-    lv_obj_t *slider = lv_slider_create(root);
-    lv_obj_set_pos(slider, 24, 144);
-    lv_obj_set_size(slider, 272, 18);
-    lv_slider_set_range(slider, 10, 100);
-    lv_slider_set_value(slider, brightness, LV_ANIM_OFF);
-    lv_obj_add_event_cb(slider, change_brightness, LV_EVENT_VALUE_CHANGED, NULL);
-    dsr_ui_button(root, "Screen off / touch to wake", 16, 204, 288, sleep_display, NULL);
-    dsr_ui_button(root, "Firmware Update", 16, 270, 288, firmware, NULL);
-    dsr_ui_button(root, "Diagnostyka konfiguracji", 16, 326, 288, dsr_ui_config_diagnostics, NULL);
-    dsr_ui_label(root, "Ekran gaśnie po 60 sekundach.\nJasność jest ustawieniem tymczasowym.", 16, 384, 288);
+    dsr_ui_button(root,"Ekran",12,100,296,dsr_ui_display_open,NULL);
+    dsr_ui_button(root,"Firmware Update",12,160,296,firmware,NULL);
+    dsr_ui_button(root,"Diagnostyka konfiguracji",12,220,296,dsr_ui_config_diagnostics,NULL);
+    dsr_ui_button(root,"Screen off / touch to wake",12,280,296,sleep_display,NULL);
 }
 
 void dsr_ui_open_settings(void) { menu(NULL); }

@@ -1,10 +1,12 @@
-# Matryca funkcji — 0.7.8, rewizja 9
+# Matryca funkcji — 0.7.9, rewizja 10
+
+Etap niezależny #6/#24: [trwała jasność i wygaszanie](DISPLAY_SETTINGS_PL.md), bez nowego schematu NVS; odbiór fizyczny otwarty.
 
 Etap niezależny #6/#25: [napięcie BAT na żądanie](BATTERY_VOLTAGE_PL.md).
 
 | Zasilanie pilota | Stan | Bramka |
 | --- | --- | --- |
-| GPIO8 / kalibracja / napięcie / wiek | Implementacja + testy hostowe | Exact-source CI i pomiar multimetrem |
+| GPIO8 / kalibracja / napięcie / wiek | CI 37dd187: 5/5, run 38838860433 | Pomiar multimetrem |
 | Procent / niski poziom / czas pracy / monitoring | Otwarte | Typ ogniwa, kalibracja i istniejący backlog |
 | Obecność ogniwa / USB / ładowanie | Nieznane | Wiarygodny sygnał sprzętowy |
 
@@ -134,9 +136,10 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Web Panel: parowanie, kod i fingerprint | Jednorazowy kod, sesja, local HTTPS | Per-device sekret, bez wspólnego hasła | CI tested: logika i browser; fizyczny TLS/pairing do regresji | PR #5; zła sesja, obce Origin/Host, restart i wygasły kod |
 | Zezwól na OTA — 2 minuty | Wybór app BIN / Sprawdź i zainstaluj / restart | Właściwy board, dwa sloty 6 MiB | CI tested: dev uploader i image policy; fizyczny OTA/rollback niepotwierdzony | #24, PR #5; zły board/SHA, przerwanie, NVS/zdjęcia |
 | Firmware Update: aktualna wersja i instrukcja panelu | Lokalna instalacja wyżej | Bez updatera GitHub Releases | CI tested: realna informacja, Not implemented: sprawdź/pobierz/podpis wydawcy | #24; manifest, klucz, TLS i rollback |
-| Suwak jasności | Brak zdalnego suwaka | Tymczasowe ustawienie sprzętowe | CI tested + historyczny test fizyczny; bez trwałego zapisu | #24; fizyczna zmiana i zachowanie po restarcie |
+| Suwak jasności + Zapisz | Brak zdalnego suwaka | Istniejący rekord NVS, zachowane Wi-Fi | Implementacja 0.7.9; nowe CI osobno | #6/#24; restart i wybudzenie z zapisaną jasnością |
 | Screen off / touch to wake | Brak zdalnego sterowania | Sterownik ES3C35P | Physically tested historycznie; nowa regresja wymagana | #24; sen 60 s, dotyk, brak niechcianego SET po wybudzeniu |
-| Timeout / eksport/import / przywracanie | Brak kompletnego bezpiecznego procesu | Funkcje systemowe planowane | Not implemented; timeout obecnie stały | #24; migracja i recovery bez utraty danych |
+| Timeout ekranu + Zapisz | Brak zdalnego sterowania | Istniejący rekord NVS; 0 = bez autooff | Implementacja 0.7.9; nowe CI osobno | #6/#24; fizyczne wygaszenie i first-touch suppression |
+| Eksport/import / przywracanie | Brak kompletnego bezpiecznego procesu | Funkcje systemowe planowane | Not implemented | #24; migracja i recovery bez utraty danych |
 | Test dotyku rogi / Back | Podgląd nie zastępuje testu | ST77922 | Physically tested historycznie; nowe CI nie dowodzi hardware | #6; 4 rogi, powrót i orientacja |
 | Test kolorów / nawigacja | Preview 320×480 | ST77922 RGB565 | Physically tested historycznie | #6; nowe zdjęcie LCD i zgodność kolorów |
 | Podgląd rolety DEMO / Otwórz / Zamknij / Stop / wyjście | Preview odbija rzeczywisty framebuffer | Wyłącznie jawne DEMO, zero komend do sprzętu | CI tested: izolacja i przywrócenie modelu live | PR #16; fizyczny podgląd, zachowanie bindingu |

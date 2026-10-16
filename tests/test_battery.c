@@ -52,6 +52,10 @@ int xSemaphoreGive(SemaphoreHandle_t h){CHECK(h==&semaphore);semaphore=true;retu
 void vSemaphoreDelete(SemaphoreHandle_t h){(void)h;}
 int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,unsigned priority,TaskHandle_t *out)
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
+static dsr_settings_t display_stored={.ssid="new-network",.password="latest-private-password",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
+static unsigned display_load_error,display_save_error,display_saves;
+esp_err_t dsr_settings_load(dsr_settings_t *out){if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
+esp_err_t dsr_settings_save(const dsr_settings_t *in){display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 bool dsr_wifi_connected(void){return false;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){(void)c;(void)bound;return false;}
 bool dsr_wifi_settings_valid(const dsr_settings_t *s){(void)s;return false;}
@@ -83,5 +87,24 @@ int main(void)
   CHECK(event.result==(n==2?DSR_IO:DSR_OK)&&event.battery.has_voltage==(n==0));
   CHECK(!dsr_worker_receive(&event)&&!adc_live&&!cal_live);
  }
+ /* Display jobs remain functional offline and preserve the newest Wi-Fi
+  * record even if the submitted UI snapshot contains obsolete credentials. */
+ for(unsigned n=0;n<4;n++){
+  display_load_error=n==1;display_save_error=n==2;
+  unsigned before=display_saves;
+  dsr_job_t job={.id=100+n,.kind=DSR_JOB_DISPLAY_SAVE,.settings={.ssid="old",.password="obsolete",.brightness=42,.idle_seconds=n==3?0:47}};
+  CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(dsr_worker_submit(&job)==DSR_BUSY);
+  if(!setjmp(stop))worker(NULL);
+  dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==100+n);
+  CHECK(event.result==((n==1||n==2)?DSR_IO:DSR_OK));
+  CHECK(display_saves==before+(n==1?0:1));
+  CHECK(event.brightness==42&&event.idle_seconds==job.settings.idle_seconds);
+  CHECK(!strcmp(display_stored.ssid,"new-network")&&!strcmp(display_stored.password,"latest-private-password"));
+  CHECK(!memcmp(&event.device,&(dsr_device_t){0},sizeof(event.device)));
+ }
+ dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
+ CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
+ CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;
+ CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);
  printf("PASS: %u battery/worker checks; actual ADC lifecycle/filter/calibration, failure cleanup, 100 cycles, offline/no-binding worker route; synthetic SDK, not physical voltage\n",checks);return 0;
 }
