@@ -2,6 +2,7 @@
  * The fake HTTP transport does not validate IDF's Digest cryptography or radio. */
 #include "dsr_platform.h"
 #include "dsr_fleet.h"
+#include "../components/dsr_platform/dsr_ap_private.h"
 #include "../components/dsr_platform/dsr_activity_internal.h"
 #include "dsr_discovery.h"
 #include "cJSON.h"
@@ -12,7 +13,16 @@
 #include <string.h>
 
 static unsigned checks;
-static bool lan_mode;
+static bool lan_mode,ap_protocol,temporary_ap,cancel_after_drain;
+static const char *transport_host="192.168.1.10",*ap_payload,*ap_content_type;
+static unsigned ap_restores,ap_suspends,ap_connects;
+bool dsr_wifi_temporary_active(void){return temporary_ap;}
+void dsr_wifi_cancel_connect(void){}
+dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out){memset(out,0,sizeof(*out));return DSR_OK;}
+dsr_result_t dsr_wifi_temporary_connect(const dsr_wifi_ap_t *ap,dsr_wifi_status_t *detail){(void)ap;ap_connects++;temporary_ap=true;*detail=DSR_WIFI_CONNECTED;return DSR_OK;}
+dsr_result_t dsr_wifi_restore_home(dsr_wifi_status_t *detail){temporary_ap=false;ap_restores++;*detail=DSR_WIFI_CONNECTED;return DSR_OK;}
+dsr_result_t dsr_lan_suspend(void){ap_suspends++;if(cancel_after_drain)dsr_ap_cancel();return DSR_OK;}
+void dsr_lan_resume(void){}
 int64_t esp_timer_get_time(void){return 0;}
 #define CHECK(expr) do { checks++; if (!(expr)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); assert(expr); } } while (0)
 typedef struct { const char *path, *body; int status; bool post, challenge; } step_t;
@@ -25,20 +35,20 @@ static void fixture(const step_t *data, unsigned length, esp_http_client_auth_ty
 { memcpy(steps, data, length * sizeof(*data)); count = length; used = 0; expected_auth = auth; }
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg)
 {
-    CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == 1);
+    CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
     bool identity = strcmp(steps[used].path, "/shelly") == 0;
     CHECK(cfg->timeout_ms == (lan_mode&&identity?650:3000));
     CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
     if (identity) CHECK(!cfg->username && !cfg->password);
     else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
-    char url[160]; snprintf(url, sizeof(url), "http://192.168.1.10%s", steps[used].path);
+    char url[160]; snprintf(url, sizeof(url), "http://%s%s",transport_host, steps[used].path);
     CHECK(!strcmp(cfg->url, url));
     client = (struct test_client){.cfg = *cfg}; return &client;
 }
 esp_err_t esp_http_client_set_method(esp_http_client_handle_t c, esp_http_client_method_t m)
 { c->post = m == HTTP_METHOD_POST; return ESP_OK; }
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t c, const char *key, const char *value)
-{ (void)c; CHECK(!strcmp(key, "Content-Type") && !strcmp(value, "application/json")); return ESP_OK; }
+{ (void)c; CHECK(!strcmp(key, "Content-Type") && !strcmp(value, ap_protocol?ap_content_type:"application/json")); return ESP_OK; }
 esp_err_t esp_http_client_set_post_field(esp_http_client_handle_t c, const char *body, int length)
 { CHECK(length == (int)strlen(body)); c->body = body; return ESP_OK; }
 static esp_err_t emit(esp_http_client_handle_t c, esp_http_client_event_id_t id, const char *data, int length)
@@ -49,7 +59,7 @@ static esp_err_t emit(esp_http_client_handle_t c, esp_http_client_event_id_t id,
 esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
 {
     const step_t *s = &steps[used]; CHECK(c->post == s->post);
-    if (c->post) CHECK(!strcmp(c->body, "{\"id\":0,\"on\":true}"));
+    if (c->post) CHECK(!strcmp(c->body, ap_protocol?ap_payload:"{\"id\":0,\"on\":true}"));
     emit(c, HTTP_EVENT_HEADERS_SENT, NULL, 0);
     if (s->challenge) {
         emit(c, HTTP_EVENT_ON_DATA, "{\"error\":401}", 13);
@@ -287,8 +297,47 @@ static void test_multi_scheduler(void)
  CHECK(dsr_fleet_upsert(&f,&b,14000)==DSR_OK);CHECK(dsr_fleet_request(&f,1,true,true,30000)==DSR_OFFLINE); /* stale cannot SET */
  printf("Multi memory: connection=%zu slot=%zu fleet=%zu bytes; no extra worker/task\n",sizeof(dsr_connection_t),sizeof(dsr_fleet_slot_t),sizeof(dsr_fleet_t));
 }
+static void test_ap_protocol(void)
+{
+ ap_protocol=lan_mode=true;transport_host="192.168.33.1";dsr_ap_prepare();
+ const char info2[]="{\"gen\":2,\"id\":\"shellyplus1-aabbccddeeff\",\"mac\":\"AABBCCDDEEFF\",\"model\":\"SNSW-001X16EU\",\"auth_en\":false}";
+ const char info1[]="{\"type\":\"SHSW-1\",\"mac\":\"AABBCCDDEEFF\",\"auth\":false}";
+ dsr_ap_identity_t expected;step_t data[]={{"/shelly",info2,200,false,false},{"/rpc/WiFi.SetConfig","{\"restart_required\":false}",200,true,false}};
+ fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_inspect("ShellyPlus1-AABBCCDDEEFF",&expected)==DSR_OK&&used==1);
+ dsr_settings_t home={.ssid="My & WiFi+é",.password="p&+?=x%2F",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
+ ap_payload="{\"config\":{\"sta\":{\"ssid\":\"My & WiFi+é\",\"pass\":\"p&+?=x%2F\",\"enable\":true,\"ipv4mode\":\"dhcp\"}}}";ap_content_type="application/json";
+ fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_OK&&used==2);
+ transport_host="192.168.1.10";data[1]=(step_t){"/rpc/WiFi.GetStatus","{\"status\":\"got ip\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.10\"}",200,false,false};
+ fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_OK&&used==2);
+ data[1].body="{\"status\":\"got ip\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.11\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
+ data[1].body="{\"status\":\"connected\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.10\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
+ data[1].body="{\"status\":\"got ip\",\"ssid\":\"Other home\",\"sta_ip\":\"192.168.1.10\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
+ transport_host="192.168.33.1";data[1]=(step_t){"/rpc/WiFi.SetConfig","{\"restart_required\":false}",200,true,false};
+ data[1].body=NULL;data[1].status=0;fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_OFFLINE&&used==2); /* no credential POST replay */
+ data[1].body="{}";data[1].status=302;fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_BAD_RESPONSE&&used==2);
+ data[0].body="{\"gen\":2,\"id\":\"shellyplus1-112233445566\",\"mac\":\"112233445566\",\"model\":\"TEST\",\"auth_en\":false}";fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_IDENTITY_MISMATCH&&used==1);
+ data[0].body="{\"gen\":2,\"id\":\"shellyplus1-aabbccddeeff\",\"mac\":\"AABBCCDDEEFF\",\"model\":\"TEST\",\"auth_en\":true}";fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_AUTH_REQUIRED&&used==1);
+ data[0].body=info2;dsr_ap_cancel();fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_BUSY&&used==1);dsr_ap_prepare();
+ data[0].body=info1;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_inspect("shelly1-DDEEFF",&expected)==DSR_OK);
+ data[1]=(step_t){"/settings/sta","{\"enabled\":true,\"ssid\":\"My & WiFi+é\",\"ipv4_method\":\"dhcp\"}",200,true,false};
+ ap_payload="enabled=1&ipv4_method=dhcp&ssid=My%20%26%20WiFi%2B%C3%A9&key=p%26%2B%3F%3Dx%252F";ap_content_type="application/x-www-form-urlencoded";
+ fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_OK&&used==2);
+ home.wifi_security=DSR_WIFI_WPA3;CHECK(dsr_http_ap_provision(&expected,&home)==DSR_UNSUPPORTED&&used==2);home.wifi_security=DSR_WIFI_WPA2;
+ transport_host="192.168.1.10";data[1]=(step_t){"/status","{\"wifi_sta\":{\"connected\":true,\"ssid\":\"My & WiFi+é\",\"ip\":\"192.168.1.10\"}}",200,false,false};
+ fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_OK&&used==2);
+ data[1].body="{\"wifi_sta\":{\"connected\":true,\"ssid\":\"Wrong network\",\"ip\":\"192.168.1.10\"}}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
+ CHECK(dsr_ap_candidate("shelly1-DDEEFF")&&dsr_ap_candidate("ShellyPlus1-AABBCCDDEEFF"));CHECK(!dsr_ap_candidate("FreeWifi")&&!dsr_ap_candidate("shelly1-12345Z")&&!dsr_ap_candidate("shelly1-11223344556"));
+ expected.generation=1;CHECK(dsr_ap_identity_matches("shelly1-DDEEFF",&expected)&&!dsr_ap_identity_matches("shelly1-112233",&expected));
+ /* Actual AP worker orchestration restores home and never saves settings. */
+ CHECK(dsr_settings_save(&home)==ESP_OK);unsigned before=write_opens;
+ dsr_job_t job={.kind=DSR_JOB_AP_INSPECT,.ap_confirmed=true,.ap={.ssid="shelly1-DDEEFF",.security=DSR_WIFI_OPEN,.bssid={1,2,3,4,5,6}}};dsr_event_t event={0};
+ transport_host="192.168.33.1";data[0].body=info1;fixture(data,1,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_OK&&temporary_ap&&ap_suspends==1&&write_opens==before);
+ job.kind=DSR_JOB_AP_PROVISION;job.ap_identity=event.ap_identity;job.settings=home;data[1]=(step_t){"/settings/sta","{\"enabled\":true,\"ssid\":\"My & WiFi+é\"}",200,true,false};fixture(data,2,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_OK&&event.ap_write_result==DSR_OK&&!temporary_ap&&ap_restores==1&&write_opens==before&&used==2);
+ job.kind=DSR_JOB_AP_INSPECT;job.ap=(dsr_wifi_ap_t){.ssid="shelly1-DDEEFF"};unsigned connects=ap_connects;cancel_after_drain=true;event=(dsr_event_t){0};fixture(data,0,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_BUSY&&!temporary_ap&&ap_connects==connects&&used==0&&write_opens==before);cancel_after_drain=false;dsr_ap_prepare();
+ ap_protocol=lan_mode=false;transport_host="192.168.1.10";admission_open();
+}
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();
+    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
 }

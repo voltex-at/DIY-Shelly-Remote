@@ -1,4 +1,18 @@
-# Matryca funkcji — 0.7.23, rewizja 24
+# Matryca funkcji — 0.7.25, rewizja 26
+
+
+## #19: rzeczywiste dodawanie przez otwarty fabryczny AP
+
+[Kontrakt i ograniczenia](ISSUE19_AP_PL.md): skan Wi-Fi, BSSID-pinned RAM join,
+tożsamość API, dwie fizyczne zgody, jeden Gen1 form/Gen2+ JSON POST i powrót
+do domu. Exact ID/MAC/generation + STA SSID/IP readback w LAN przed istniejącym
+formularzem i wielourządzeniowym BIND. Dane domowe/rejestr/pokoje nie są kasowane.
+LAN suspend/drain przed zmianą radia, fail-closed SDK restore, cancel/timeout/
+hide-reopen/lateACK i relative deadlines. PL/EN/DE LCD oraz authenticated WWW
+handoff do LCD (bez password API), utrata LAN wyjaśniona, podgląd wstrzymany.
+Zakres: open AP i unauthenticated HTTP; HTTPS/PKI/enhanced-security oraz chronione
+AP jawnie unsupported. To nie pełna zgodność wszystkich generacji/firmware.
+Pełny target CI/artefakt i fizyczny AP→LAN→BIND odbiór pozostają osobnymi bramkami.
 
 ## #5/#6: język Web Panelu niezależny od pilota
 
@@ -24,7 +38,9 @@ Per-device state/auth/backoff/FIFO intent; jeden bounded serial worker, brak SET
 replay, obligatory identity+readback, stale15s. LCD LAN `Już dodane`, osobne karty
 W/V/A; authenticated WWW runtime/output API z epoką restartu. To NIE 16 równoległych
 transportów. Minimum2 fizyczne Shelly, latencja/offline/Wi-Fi+BLE/heap/restart,
-exact-head CI i artefakt są otwarte. Nie zamykać #20 na podstawie testów hostowych.
+fizyczny odbiór pozostaje otwarty. PR51 źródło07331b8 ma exact CI38898040624
+5/5 i pobrany BIN/ELF/FLEET/partycje sprawdzone. Nie zamykać #20 na podstawie
+testów hostowych; AP rozwija to źródło i wymaga własnego CI.
 
 
 ## P0: rzeczywisty odczyt wrócił; poprawki Save/Usuń
@@ -315,7 +331,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Nazwa / pomieszczenie / kanał / Zapisz | Te same pola i binding | Wspierany pojedynczy switch | CI tested: weryfikacja przed zastąpieniem starego bindingu | #7; restart, trwałość, błąd nie kasuje starego |
 | Ponów / Anuluj LAN | Skanuj ponownie / Przerwij | Radio Wi-Fi / LAN | CI tested: oddzielne zadanie i stan | #7; realny timeout i odłączenie Wi-Fi |
 | Dodaj ręcznie IP / klawiatura / sprawdź | Edycja hosta jest definicją; operacyjny binding przez LAN | Wspierany relay/switch | CI tested: lokalny bind, walidacja IPv4/kanału/identity | #7/#8; ręczny IP i błędne dane |
-| Wi-Fi AP | Wi-Fi AP — niewdrożone | Gen1/Gen2+ zgodne z lokalnym provisioningiem | Not implemented: jawnie disabled | #19; AP → domowy LAN, rollback i zachowanie bindingu |
+| Wi-Fi AP | Kreator na LCD; WWW handoff integrowany osobno | Otwarte fabryczne Gen1/Gen2/3/4 z HTTP API bez hasła | Rzeczywisty driver/HTTP/LVGL; fizyczny odbiór i exact CI otwarte | #19; [zakres i odbiór](ISSUE19_AP_PL.md), dwie fizyczne zgody, RAM AP → home LAN → BIND |
 | Bluetooth LE → Szukaj / Anuluj / Ponów | Bluetooth LE • skan, wspólne `/api/v1/ble*` | ESP32-S3 observer + faktyczne legacy ADV | CI tested: rzeczywisty adapter/parsing/UI; właściciel potwierdza odbiór RF, exact SHA niepodany | #18, PR #26; nadal >=10 cykli coexistence i porównanie payloadu |
 | Wynik BLE / szczegóły / RSSI / ostatnia reklama | Grupy i wyniki skanera | RPC UUID, Shelly manufacturer, BTHome v2 | CI tested: bez zgadywania generacji/modelu; wykryto ≠ sparowano | #18; model Wi-Fi i BLU jeśli dostępne, pusty skan, brak radia |
 | Wynik BLE RPC → Szukaj w LAN | Powrót do metod i LAN | Urządzenie faktycznie obecne w LAN | CI tested: przejście do istniejącego kreatora | #7/#18; BLE nie dodaje sam do Wi-Fi |

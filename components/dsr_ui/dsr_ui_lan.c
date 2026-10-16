@@ -145,3 +145,6 @@ void dsr_ui_lan_tick(void)
         else{show_credentials();dsr_sc_label_set_text(notice,failure(snapshot.result));}
     }
 }
+
+void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *caps)
+{if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;show_components();}

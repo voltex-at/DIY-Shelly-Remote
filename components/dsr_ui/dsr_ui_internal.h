@@ -2,6 +2,7 @@
 #define DSR_UI_INTERNAL_H
 #include "lvgl.h"
 #include "dsr_platform.h"
+#include "dsr_discovery.h"
 #include "dsr_ui_style.h"
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width);
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
@@ -22,6 +23,14 @@ void dsr_ui_config_appearance(lv_event_t *event);
 void dsr_ui_config_registry(lv_event_t *event);
 void dsr_network_init(void);
 void dsr_network_start_view(void);
+void dsr_ui_ap_open(lv_event_t *event);
+void dsr_ui_ap_reset(void);
+void dsr_ui_ap_tick(void);
+void dsr_ui_ap_result(const dsr_event_t *event,dsr_job_kind_t kind);
+bool dsr_ui_ap_active(void);
+bool dsr_network_ap_home(char ssid[33]);
+dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,const dsr_ap_identity_t *identity,const char *host,bool confirmed);
+void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *capabilities);
 bool dsr_network_busy(void);
 dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t *settings);
 void dsr_network_wifi_settings(dsr_settings_t *out);

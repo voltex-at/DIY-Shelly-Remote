@@ -3,6 +3,7 @@
 #include "dsr_core.h"
 #include "esp_err.h"
 #include "dsr_battery.h"
+#include "dsr_ap.h"
 
 typedef enum { DSR_WIFI_OPEN, DSR_WIFI_WPA, DSR_WIFI_WPA2, DSR_WIFI_WPA3,
                DSR_WIFI_WPA2_WPA3, DSR_WIFI_UNSUPPORTED } dsr_wifi_security_t;
@@ -34,7 +35,7 @@ esp_err_t dsr_wifi_start(const dsr_settings_t *settings);
 bool dsr_wifi_connected(void);
 #define DSR_WIFI_MAX_NETWORKS 20
 typedef struct {
-    char ssid[33]; int8_t rssi; uint8_t channel; dsr_wifi_security_t security;
+    char ssid[33]; uint8_t bssid[6]; int8_t rssi; uint8_t channel; dsr_wifi_security_t security;
 } dsr_wifi_ap_t;
 typedef struct { dsr_wifi_ap_t items[DSR_WIFI_MAX_NETWORKS]; uint8_t count; } dsr_wifi_scan_t;
 typedef enum {
@@ -49,6 +50,9 @@ bool dsr_wifi_settings_valid(const dsr_settings_t *settings);
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out);
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_status_t *detail);
 void dsr_wifi_cancel_connect(void); /* Nonblocking, safe from UI. */
+bool dsr_wifi_temporary_active(void);
+dsr_result_t dsr_wifi_temporary_connect(const dsr_wifi_ap_t *ap,dsr_wifi_status_t *detail);
+dsr_result_t dsr_wifi_restore_home(dsr_wifi_status_t *detail);
 void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation before queueing. */
 
 /* Worker only. No redirects; Basic Gen1 / SHA-256 Digest Gen2+ via IDF.
@@ -58,20 +62,22 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
     dsr_connection_t connection;
     dsr_settings_t settings;
-    bool on;
+    bool on,ap_confirmed;
+    union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;};
 } dsr_job_t;
 /* Credentials are never returned through the event queue. */
 typedef struct {
     uint32_t id; dsr_result_t result; dsr_device_t device;
     uint32_t layout_id;
+    dsr_result_t ap_write_result;
     dsr_telemetry_t telemetry;
-    dsr_wifi_scan_t scan; dsr_wifi_status_t wifi_detail;
+    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;}; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;

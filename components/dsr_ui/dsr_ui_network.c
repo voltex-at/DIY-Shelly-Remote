@@ -5,6 +5,7 @@
 #include "dsr_board.h"
 #include "dsr_activity.h"
 #include "dsr_fleet.h"
+#include "esp_timer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +53,7 @@ void dsr_network_reset_view(void)
     dsr_ui_battery_hide();dsr_ui_display_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
+    dsr_ui_ap_reset();
     dsr_ui_ble_reset();
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
@@ -133,6 +135,17 @@ static bool dispatch(uint32_t now,bool allow_poll)
  job.id=++serial;dsr_result_t result=dsr_worker_submit(&job);
  if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;active_slot=index;dsr_fleet_started(&fleet,index,&job);render();}
  memset(&job,0,sizeof(job));return true;
+}
+bool dsr_network_ap_home(char ssid[33])
+{if(ssid)snprintf(ssid,33,"%s",settings.ssid);return dsr_wifi_settings_valid(&settings)&&dsr_wifi_connected();}
+dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,const dsr_ap_identity_t *identity,const char *host,bool confirmed)
+{
+ if(busy||finishing_bind||kind<DSR_JOB_AP_SCAN||kind>DSR_JOB_AP_VERIFY)return DSR_BUSY;
+ dsr_job_t job={.id=++serial,.kind=kind,.settings=settings,.ap_confirmed=confirmed};
+ if(ap)job.ap=*ap;
+ if(identity)job.ap_identity=*identity;
+ if(host)snprintf(job.connection.device.host,sizeof(job.connection.device.host),"%s",host);
+ dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
 }
 bool dsr_network_busy(void) { return busy||finishing_bind; }
 dsr_result_t dsr_network_request_display(uint8_t brightness,uint16_t seconds)
@@ -294,10 +307,10 @@ void dsr_network_device(lv_event_t *event)
 {
     (void)event;lv_obj_t *root=dsr_ui_screen("Dodaj urządzenie Shelly",true);
     dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,dsr_ui_lan_open,NULL);
-    lv_obj_t *ap=dsr_ui_button(root,"Wi-Fi AP",12,152,296,NULL,NULL);lv_obj_add_state(ap,LV_STATE_DISABLED);
+    dsr_ui_button(root,"Wi-Fi AP",12,152,296,dsr_ui_ap_open,NULL);
     dsr_ui_button(root,"Bluetooth LE",12,208,296,dsr_ui_ble_open,NULL);
     dsr_ui_button(root,"Dodaj ręcznie (IP)",12,264,296,manual_device,NULL);
-    dsr_ui_label(root,"LAN i skan BLE są dostępne.\nWi-Fi AP i parowanie BLE nie są jeszcze wdrożone.",16,329,288);
+    dsr_ui_label(root,"LAN, fabryczne Wi-Fi AP i skan BLE są dostępne.\nParowanie BLE nie jest jeszcze wdrożone.",16,329,288);
 }
 dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room)
 {
@@ -360,7 +373,8 @@ static void poll(lv_timer_t *timer)
    if(!dsr_endpoint_equal(&s->connection.device,&event.device)||strcmp(s->connection.device.host,event.device.host))event.result=DSR_IDENTITY_MISMATCH;
    s->next_maintenance=event.result==DSR_OK?0:now+5000;
   }
-  if(operation==DSR_JOB_DISPLAY_SAVE){if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}dsr_ui_display_result(&event);}
+  if(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)dsr_ui_ap_result(&event,operation);
+  else if(operation==DSR_JOB_DISPLAY_SAVE){if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}dsr_ui_display_result(&event);}
   else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
   else if(operation==DSR_JOB_WIFI_SCAN||operation==DSR_JOB_WIFI_CONNECT){
    if(operation==DSR_JOB_WIFI_CONNECT&&event.result==DSR_OK){settings=wifi_candidate;storage_error=false;dsr_fleet_wifi(&fleet,false,now);}
@@ -392,7 +406,11 @@ static void poll(lv_timer_t *timer)
   render();
  }
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ble_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_workspace_tick();dsr_panel_tick();
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_workspace_tick();dsr_panel_tick();
+ uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
+ bool ap_available=view==VIEW_HOME&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
+ dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);
+ if(ap_available&&!busy&&!finishing_bind&&dsr_workspace_take_ap_open(handoff_now))dsr_ui_ap_open(NULL);
  if(finishing_bind&&!busy){
   dsr_result_t result;bool pending_layout=dsr_ui_workspace_migrate_status(&result);
   if(!pending_layout){
@@ -415,7 +433,7 @@ static void poll(lv_timer_t *timer)
  reconcile_layout(false);
  bool attempted=dispatch(now,false);
  if(!busy)reconcile_layout(true);
- if(!attempted)(void)dispatch(now,!dsr_wifi_ui_active()&&!dsr_ui_lan_active());
+ if(!attempted)(void)dispatch(now,!dsr_wifi_ui_active()&&!dsr_ui_lan_active()&&!dsr_ui_ap_active());
  /* Freshness can expire while the sole transport is still waiting. Update
   * the LCD once at that transition, rather than rebuilding it every tick. */
  if(view==VIEW_HOME)for(unsigned i=0;i<mobile_model.device_count;i++){

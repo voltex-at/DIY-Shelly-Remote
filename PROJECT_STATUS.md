@@ -1,5 +1,27 @@
 # Project status
 
+## 0.7.25 — factory AP onboarding with physical consent (#19)
+
+Real radio scan, temporary BSSID/channel-pinned RAM join, API identity and two
+LCD consents. Exactly one Gen1 form/Gen2+ JSON Wi-Fi provisioning POST, no
+authorization retry/redirect/reboot; restore home on success/failure/cancel,
+then exact LAN ID/MAC/generation + STA SSID/IP readback before existing BIND.
+Preserves settings/NVS/workspace and other endpoints. LAN drain barrier before
+radio change; SDK restore failure never reconnects an AP as home. Hidden cleanup,
+late ACK, busy verification and uptime deadline regressions covered.
+
+Authenticated WWW opens the actual LCD wizard through a 10-second mailbox;
+no configuration/credentials body and both physical consents remain on LCD.
+Explicit disconnected/unknown/expired states, no POST replay, locale preserves
+DOM. [Protocol/scope/recovery/acceptance](docs/ISSUE19_AP_PL.md).
+Open factory AP with unauthenticated HTTP only; HTTPS/PKI/enhanced-security
+profiles remain unsupported. New target CI/artifact and physical AP acceptance
+are gates; no device writes/main merge/Stable/erase.
+
+Parent PR51 07331b8 exact CI38898040624 5/5, downloaded source/BIN/ELF/FLEET
+verified: app1836112 B SHA2567304ac8598509f215a0c2dbbda285c5ea6afc4cda0f14248cb1d4a961ca114e6,
+internalBSS64992 B; two physical Shelly acceptance remains open.
+
 ## 0.7.23 — persistent independent Shelly relay endpoints (#20)
 
 Adding a second verified endpoint retains the first. Private NVS schema2 registry

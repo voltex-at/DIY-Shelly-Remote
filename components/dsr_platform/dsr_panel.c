@@ -60,9 +60,9 @@ bool dsr_panel_allow_ota(void)
 void dsr_panel_pair_cancel(void)
 {if(lock){xSemaphoreTake(lock,portMAX_DELAY);memset(pairing,0,sizeof(pairing));pair_until=0;xSemaphoreGive(lock);}}
 bool dsr_panel_preview_requested(void)
-{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview;need_preview=false;xSemaphoreGive(lock);return wanted;}
+{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!dsr_ap_sensitive();if(dsr_ap_sensitive())preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)
-{if(!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
+{if(dsr_ap_sensitive()||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
 static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {httpd_resp_set_status(r,status);httpd_resp_set_type(r,"application/json");httpd_resp_set_hdr(r,"Cache-Control","no-store");return httpd_resp_sendstr(r,body);}
 static bool local_request(httpd_req_t *r)
@@ -211,12 +211,29 @@ static esp_err_t runtime_api(httpd_req_t *r)
  }
  return json(r,"404 Not Found","{\"error\":\"Unknown runtime endpoint\"}");
 }
+/* HTTP only queues an LCD opening. The two physical confirmations, radio
+ * handoff and credential disclosure remain owned by the LVGL AP workflow. */
+static esp_err_t ap_handoff_api(httpd_req_t *r)
+{
+ uint32_t now=(uint32_t)(esp_timer_get_time()/1000);
+ if(!strcmp(r->uri,"/api/v1/ap")&&r->method==HTTP_GET){
+  char out[96];snprintf(out,sizeof(out),"{\"handoff\":%u,\"physical_confirmation_required\":true}",(unsigned)dsr_workspace_ap_handoff(now));
+  return json(r,"200 OK",out);
+ }
+ if(!strcmp(r->uri,"/api/v1/ap/open")&&r->method==HTTP_POST){
+  if(r->content_len)return json(r,"400 Bad Request","{\"error\":\"AP handoff accepts no configuration or credentials\"}");
+  bool ok=dsr_wifi_connected()&&dsr_workspace_request_ap_open(now);
+  return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"queued\":true,\"physical_confirmation_required\":true}":"{\"error\":\"AP wizard unavailable; check the remote and home Wi-Fi\"}");
+ }
+ return json(r,"405 Method Not Allowed","{\"error\":\"Unsupported AP handoff request\"}");
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!dsr_boot_ready())return json(r,"503 Service Unavailable","{\"error\":\"Startup incomplete or diagnostic mode; collect USB boot log\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);
  if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output"))return runtime_api(r);
  if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
  if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
@@ -245,7 +262,7 @@ static esp_err_t api(httpd_req_t *r)
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){
   unsigned char *copy=malloc(320*480*2);if(!copy)return json(r,"503 Service Unavailable","{}");
-  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until;need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
+  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||dsr_ap_sensitive();need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
   esp_err_t e;if(ready){httpd_resp_set_type(r,"application/octet-stream");httpd_resp_set_hdr(r,"Cache-Control","no-store");e=httpd_resp_send(r,(const char *)copy,320*480*2);}else e=json(r,"202 Accepted","{\"waiting\":true}");free(copy);return e;
  }
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){

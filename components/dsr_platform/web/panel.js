@@ -3,6 +3,22 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Wi-Fi AP • kreator na pilocie", "Wi-Fi AP • wizard on the remote", "WLAN-AP • Assistent auf der Fernbedienung"],
+ ["Otwórz kreator na pilocie", "Open wizard on the remote", "Assistent auf der Fernbedienung öffnen"],
+ ["Kreator AP wymaga dwóch potwierdzeń na ekranie pilota. Najpierw zatwierdzisz opuszczenie domowej sieci, a potem przekazanie danych Wi-Fi wybranemu Shelly.", "The AP wizard requires two confirmations on the remote. First approve leaving the home network, then sharing Wi-Fi details with the selected Shelly.", "Der AP-Assistent erfordert zwei Bestätigungen auf der Fernbedienung: zuerst das Verlassen des Heimnetzes, dann die Weitergabe der WLAN-Daten an das gewählte Shelly."],
+ ["Podczas połączenia z AP panel utraci dostęp do pilota. Dokończ kroki na pilocie. Po jego powrocie do domu połącz się ponownie z panelem.", "While connected to the AP, the panel will lose access to the remote. Complete the steps on the remote. Reconnect to the panel after it returns home.", "Während der AP-Verbindung verliert das Panel den Zugriff auf die Fernbedienung. Schritte dort abschließen und das Panel nach der Rückkehr ins Heimnetz erneut verbinden."],
+ ["Odczyt dostępności kreatora…", "Checking wizard availability…", "Verfügbarkeit des Assistenten wird geprüft…"],
+ ["Kreator dostępny. Otwórz go i kontynuuj na ekranie pilota.", "Wizard available. Open it and continue on the remote screen.", "Assistent verfügbar. Öffnen und auf der Fernbedienung fortfahren."],
+ ["Żądanie oczekuje na ekran pilota. Nie przekazano danych Wi-Fi.", "Request waiting for the remote screen. No Wi-Fi details have been shared.", "Anfrage wartet auf den Bildschirm der Fernbedienung. Es wurden keine WLAN-Daten weitergegeben."],
+ ["Kreator działa na pilocie. Potwierdzaj kolejne kroki na jego ekranie.", "Wizard active on the remote. Confirm each step on its screen.", "Assistent auf der Fernbedienung aktiv. Schritte auf deren Bildschirm bestätigen."],
+ ["Żądanie wygasło. Sprawdź ekran pilota i spróbuj ponownie.", "Request expired. Check the remote screen and try again.", "Anfrage abgelaufen. Bildschirm der Fernbedienung prüfen und erneut versuchen."],
+ ["Kreator niedostępny. Sprawdź ekran pilota i domowe Wi-Fi.", "Wizard unavailable. Check the remote screen and home Wi-Fi.", "Assistent nicht verfügbar. Bildschirm der Fernbedienung und Heim-WLAN prüfen."],
+ ["Nie potwierdzono otwarcia. Sprawdź ekran pilota; żądanie nie będzie ponawiane automatycznie.", "Opening was not confirmed. Check the remote screen; the request will not be retried automatically.", "Öffnen nicht bestätigt. Bildschirm der Fernbedienung prüfen; die Anfrage wird nicht automatisch wiederholt."],
+ ["Brak połączenia z pilotem. Dokończ na jego ekranie; panel wróci po przywróceniu LAN.", "Remote disconnected. Continue on its screen; the panel will return when LAN is restored.", "Keine Verbindung zur Fernbedienung. Auf deren Bildschirm fortfahren; das Panel kehrt nach Wiederherstellung des LAN zurück."],
+ ["AP handoff accepts no configuration or credentials", "Przekazanie do kreatora AP nie przyjmuje konfiguracji ani haseł", "Die Übergabe an den AP-Assistenten nimmt keine Konfiguration oder Passwörter an"],
+ ["AP wizard unavailable; check the remote and home Wi-Fi", "Kreator AP niedostępny; sprawdź pilot i domowe Wi-Fi", "AP-Assistent nicht verfügbar; Fernbedienung und Heim-WLAN prüfen"],
+ ["Unsupported AP handoff request", "Nieobsługiwane żądanie kreatora AP", "Nicht unterstützte Anfrage an den AP-Assistenten"],
+
  ["Każde powiązanie zachowuje pozostałe urządzenia. Odczyty i polecenia są przypisane do wybranego kanału. Czujniki i rolety wymagają dalszej obsługi protokołu.", "Each binding preserves the other devices. Readings and commands belong to the selected channel. Sensors and covers require further protocol support.", "Jede Verknüpfung erhält die anderen Geräte. Messwerte und Befehle gehören zum gewählten Kanal. Sensoren und Rollläden benötigen weitere Protokollunterstützung."],
  ["Dodanie zachowuje poprzednie urządzenia i ich kanały.", "Adding preserves previous devices and their channels.", "Beim Hinzufügen bleiben bisherige Geräte und deren Kanäle erhalten."],
  ["Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.","Configuration changed; reload and retry adding the device","Konfiguration geändert. Neu laden und Gerät erneut hinzufügen."],
@@ -39,7 +55,7 @@ const WEB_MESSAGES=new Map([
 ].map(([key,en,de])=>[key,{pl:key,en,de}]));
 /* Backend diagnostics use English canonical keys. Their PL entries are given
  * separately above, rather than translating arbitrary user-controlled text. */
-const SERVER_MESSAGE_KEYS=new Set(['Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
+const SERVER_MESSAGE_KEYS=new Set(["AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
 for(const key of SERVER_MESSAGE_KEYS){const row=WEB_MESSAGES.get(key);const pl=row.en;row.en=key;row.pl=pl;}
 const uiTextBindings=new WeakMap(),uiAttributeBindings=new WeakMap();
 const supportedLocale=value=>typeof value==='string'&&['pl','en','de'].includes(value)?value:null;
@@ -148,6 +164,36 @@ function bleView(){
  const cancel=button(m('Anuluj skan BLE'),async()=>{try{await request('ble/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}});cancel.id='ble-cancel';
  const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('BLU może wymagać krótkiego naciśnięcia przycisku. Urządzenie Wi-Fi musi reklamować BLE; konfiguracja RPC może wymagać pairing i włączonego okna konfiguracji.'),'muted'));setTimeout(()=>pollBle(generation),0);return n;
 }
+let apGeneration=0;
+function apView(){
+ const n=box(m('Wi-Fi AP • kreator na pilocie')),generation=++apGeneration;
+ n.append(button(m('← Metody dodawania'),()=>{apGeneration++;lanMode='start';render();}),el('p',m('Kreator AP wymaga dwóch potwierdzeń na ekranie pilota. Najpierw zatwierdzisz opuszczenie domowej sieci, a potem przekazanie danych Wi-Fi wybranemu Shelly.')),el('p',m('Podczas połączenia z AP panel utraci dostęp do pilota. Dokończ kroki na pilocie. Po jego powrocie do domu połącz się ponownie z panelem.'),'muted'));
+ const status=el('p',m('Odczyt dostępności kreatora…'));status.id='ap-status';
+ let posting=false,serial=0;
+ const current=()=>page==='discovery'&&lanMode==='ap'&&generation===apGeneration;
+ const open=button(m('Otwórz kreator na pilocie'),async()=>{
+  if(open.disabled||posting||!current())return;
+  posting=true;open.disabled=true;serial++;setText(status,m('Żądanie oczekuje na ekran pilota. Nie przekazano danych Wi-Fi.'));
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),5000);
+  try{const result=await(await request('ap/open',{method:'POST',signal:controller.signal})).json();if(!result.queued)throw Error('invalid handoff response');}
+  catch{if(current())setText(status,m('Nie potwierdzono otwarcia. Sprawdź ekran pilota; żądanie nie będzie ponawiane automatycznie.'));}
+  finally{clearTimeout(timeout);serial++;posting=false;}
+ },'primary');open.id='ap-open';open.disabled=true;n.append(open,status);
+ async function poll(){
+  if(!current())return;
+  if(posting){setTimeout(poll,800);return;}
+  const token=serial,controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),5000);
+  try{
+   const result=await(await request('ap',{signal:controller.signal})).json();
+   if(!current()||token!==serial||posting)return;
+   const texts=['Kreator niedostępny. Sprawdź ekran pilota i domowe Wi-Fi.','Kreator dostępny. Otwórz go i kontynuuj na ekranie pilota.','Żądanie oczekuje na ekran pilota. Nie przekazano danych Wi-Fi.','Kreator działa na pilocie. Potwierdzaj kolejne kroki na jego ekranie.','Żądanie wygasło. Sprawdź ekran pilota i spróbuj ponownie.'];
+   const state=Number.isInteger(result.handoff)&&result.handoff>=0&&result.handoff<texts.length?result.handoff:0;
+   setText(status,m(texts[state]));open.disabled=state!==1&&state!==4;
+  }catch{if(current()&&token===serial&&!posting){open.disabled=true;setText(status,m('Brak połączenia z pilotem. Dokończ na jego ekranie; panel wróci po przywróceniu LAN.'));}}
+  finally{clearTimeout(timeout);if(current())setTimeout(poll,800);}
+ }
+ setTimeout(poll,0);return n;
+}
 const lanError=code=>({11:m('Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.'),4:m('Błąd logowania. Sprawdź dane.'),5:m('Shelly offline lub brak Wi-Fi.'),9:m('Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.'),10:m('Limit logowań Shelly. Poczekaj przed ponowieniem.')}[code]||m('Nie udało się zweryfikować urządzenia.'));
 function lanInput(parent,label,value='',type='text'){
  const l=el('label',label),i=el('input');i.type=type;i.value=value;setUIAttribute(i,'aria-label',label);i.maxLength=type==='password'?64:47;l.append(i);parent.append(l);return i;
@@ -191,13 +237,14 @@ async function bindLan(name,room,channel,button){
 }
 function discoveryView(){
  if(lanMode==='ble')return bleView();
+ if(lanMode==='ap')return apView();
  const n=box(m('Dodaj urządzenie Shelly'));n.append(button(m('← Urządzenia'),()=>{lanCredentials=null;lanGeneration++;page='devices';render();}));
  if(lanMode==='scan'||lanMode==='inspect'){
   const p=el('p',lanMode==='scan'?m('Wyszukiwanie mDNS i weryfikacja API…'):m('Sprawdzanie wybranego urządzenia…'));p.id='lan-progress';n.append(p,button(m('Przerwij'),async()=>{try{await request('discovery/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}}));return n;
  }
  if(lanMode==='start'){
   n.append(el('p',m('Wyszukaj urządzenia w tej samej sieci lokalnej. Lista zawiera wyłącznie tożsamości potwierdzone odpowiedzią API.')),button(m('Skanuj sieć Wi-Fi'),scanLan,'primary'));
-  const ap=button(m('Wi-Fi AP — niewdrożone'),()=>{});ap.disabled=true;n.append(ap,button(m('Bluetooth LE • skan'),()=>{lanCredentials=null;lanGeneration++;lanMode='ble';render();}));return n;
+  const ap=button(m('Wi-Fi AP • kreator na pilocie'),()=>{lanCredentials=null;lanGeneration++;lanMode='ap';render();});n.append(ap,button(m('Bluetooth LE • skan'),()=>{lanCredentials=null;lanGeneration++;lanMode='ble';render();}));return n;
  }
  if(lanMode==='results'){
   n.append(button(m('Skanuj ponownie'),scanLan));if(!lanSnapshot?.devices.length)empty(n,m('Nie znaleziono Shelly. Sprawdź Wi-Fi, mDNS i izolację klientów.'));

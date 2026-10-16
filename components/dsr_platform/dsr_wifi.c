@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,18 +24,22 @@ static esp_timer_handle_t reconnect_timer;
 static esp_netif_t *station;
 static dsr_settings_t current;
 static dsr_wifi_info_t info;
-static bool initialized, driver_started, manual, auto_connect;
+static bool initialized, driver_started, stop_fence_pending, manual, auto_connect;
 static unsigned retry_seconds = 1;
+static atomic_bool temporary;
+bool dsr_wifi_temporary_active(void){return atomic_load(&temporary);}
 
 void dsr_wifi_get_info(dsr_wifi_info_t *out)
 {
     if (!out) return;
     memset(out, 0, sizeof(*out));
     if (!info_lock) return;
-    xSemaphoreTake(info_lock, portMAX_DELAY); *out = info; xSemaphoreGive(info_lock);
+    xSemaphoreTake(info_lock, portMAX_DELAY); *out = info;
+    if(atomic_load(&temporary)){out->connected=false;out->ip[0]=0;if(out->status==DSR_WIFI_CONNECTED)out->status=DSR_WIFI_CONNECTING;}
+    xSemaphoreGive(info_lock);
 }
 
-bool dsr_wifi_connected(void) { return events && (xEventGroupGetBits(events) & IP_READY) != 0; }
+bool dsr_wifi_connected(void) { return events && !atomic_load(&temporary) && (xEventGroupGetBits(events) & IP_READY) != 0; }
 
 static void reconnect(void *arg)
 {
@@ -93,7 +98,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     }
 }
 
-static esp_err_t start_station(const dsr_settings_t *settings, bool connect)
+static esp_err_t start_station_pinned(const dsr_settings_t *settings, bool connect,const dsr_wifi_ap_t *pin)
 {
     wifi_config_t config = {0};
     if (settings) {
@@ -106,6 +111,7 @@ static esp_err_t start_station(const dsr_settings_t *settings, bool connect)
         config.sta.pmf_cfg.required = settings->wifi_security == DSR_WIFI_WPA3;
         config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
     }
+    if(pin){config.sta.bssid_set=true;memcpy(config.sta.bssid,pin->bssid,6);config.sta.channel=pin->channel;}
     esp_err_t error = esp_wifi_set_config(WIFI_IF_STA, &config);
     if (error != ESP_OK) return error;
     xEventGroupClearBits(events, STA_STARTED | CONNECT_FAILED | IP_READY);
@@ -121,20 +127,27 @@ static esp_err_t start_station(const dsr_settings_t *settings, bool connect)
     return connect ? esp_wifi_connect() : ESP_OK;
 }
 
+static esp_err_t start_station(const dsr_settings_t *settings,bool connect)
+{return start_station_pinned(settings,connect,NULL);}
+
 static esp_err_t stop_station(void)
 {
     (void)esp_timer_stop(reconnect_timer);
     xSemaphoreTake(info_lock, portMAX_DELAY);
     info.status = DSR_WIFI_IDLE; info.connected = false; info.ip[0] = 0;
     xSemaphoreGive(info_lock);
-    xEventGroupClearBits(events, STA_STOPPED | IP_READY | CONNECT_FAILED);
-    if (!driver_started) return ESP_OK;
-    esp_err_t error = esp_wifi_stop();
-    if (error != ESP_OK) return error;
-    driver_started = false;
+    xEventGroupClearBits(events, IP_READY | CONNECT_FAILED);
+    if (driver_started) {
+        xEventGroupClearBits(events, STA_STOPPED);
+        esp_err_t error = esp_wifi_stop();
+        if (error != ESP_OK) return error;
+        driver_started = false; stop_fence_pending = true;
+    }
+    if (!stop_fence_pending) return ESP_OK;
     /* Drain old disconnect/DHCP events before new credentials. An old GOT_IP
      * cannot validate a candidate network after this event-loop fence. */
-    return (xEventGroupWaitBits(events, STA_STOPPED, pdFALSE, pdTRUE, pdMS_TO_TICKS(2000)) & STA_STOPPED) ? ESP_OK : ESP_FAIL;
+    if (!(xEventGroupWaitBits(events, STA_STOPPED, pdFALSE, pdTRUE, pdMS_TO_TICKS(2000)) & STA_STOPPED)) return ESP_FAIL;
+    stop_fence_pending = false; return ESP_OK;
 }
 
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings)
@@ -188,6 +201,7 @@ static void automatic_resume(void)
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out)
 {
     if (!out || !events || !reconnect_timer) return DSR_INVALID;
+    if(atomic_load(&temporary))return DSR_BUSY;
     memset(out, 0, sizeof(*out));
     if (xSemaphoreTake(control, 0) != pdTRUE) return DSR_BUSY;
     xSemaphoreTake(info_lock, portMAX_DELAY); manual = true; xSemaphoreGive(info_lock);
@@ -207,6 +221,7 @@ dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out)
     if (error == ESP_OK) for (unsigned i = 0; i < count; i++) {
         dsr_wifi_ap_t ap = {.rssi = records[i].rssi, .channel = records[i].primary,
                             .security = security(records[i].authmode)};
+        memcpy(ap.bssid,records[i].bssid,6);
         memcpy(ap.ssid, records[i].ssid, 32); ap.ssid[32] = 0;
         if (!ap.ssid[0]) continue;
         unsigned at = 0;
@@ -229,6 +244,7 @@ void dsr_wifi_prepare_connect(void) { if (events) xEventGroupClearBits(events, C
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_status_t *detail)
 {
     if (!detail || !dsr_wifi_settings_valid(settings) || !events || !reconnect_timer) return DSR_INVALID;
+    if(atomic_load(&temporary))return DSR_BUSY;
     if (xSemaphoreTake(control, 0) != pdTRUE) return DSR_BUSY;
     *detail = DSR_WIFI_DRIVER_ERROR;
     xSemaphoreTake(info_lock, portMAX_DELAY); manual = true; xSemaphoreGive(info_lock);
@@ -258,4 +274,57 @@ dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *settings, dsr_wifi_sta
     }
     automatic_resume(); xSemaphoreGive(control);
     return result;
+}
+
+/* The installed home record is never changed by this path. WIFI_STORAGE_RAM
+ * was selected at initialization; AP DHCP cannot call settings_save(). */
+static dsr_result_t restore_home_locked(dsr_wifi_status_t *detail)
+{
+ esp_err_t error=stop_station();xEventGroupClearBits(events,CANCEL);
+ xSemaphoreTake(info_lock,portMAX_DELAY);auto_connect=false;manual=true;xSemaphoreGive(info_lock);
+ if(error==ESP_OK)error=start_station(current.ssid[0]?&current:NULL,current.ssid[0]!=0);
+ dsr_result_t result=DSR_OFFLINE;*detail=DSR_WIFI_DRIVER_ERROR;
+ if(error!=ESP_OK){
+  /* The SDK might still contain the AP profile. Never reconnect/unmask it as
+   * a home network after a failed stop/set/start; explicit restore can retry. */
+  atomic_store(&temporary,true);(void)esp_timer_stop(reconnect_timer);return DSR_IO;
+ }
+ if(current.ssid[0]){
+  EventBits_t bits=xEventGroupWaitBits(events,IP_READY|CONNECT_FAILED,pdFALSE,pdFALSE,pdMS_TO_TICKS(20000));
+  if(bits&IP_READY){*detail=DSR_WIFI_CONNECTED;result=DSR_OK;}
+  else if(bits&CONNECT_FAILED){dsr_wifi_info_t observed;dsr_wifi_get_info(&observed);*detail=observed.status;}
+  else *detail=DSR_WIFI_TIMED_OUT;
+ }
+ /* Home credentials are now known to be installed in RAM even if DHCP failed.
+  * Only this home profile may be retried by the ordinary reconnect timer. */
+ xSemaphoreTake(info_lock,portMAX_DELAY);auto_connect=current.ssid[0]!=0;xSemaphoreGive(info_lock);
+ atomic_store(&temporary,false);automatic_resume();return result;
+}
+dsr_result_t dsr_wifi_temporary_connect(const dsr_wifi_ap_t *ap,dsr_wifi_status_t *detail)
+{
+ if(!ap||!detail||!memchr(ap->ssid,0,sizeof(ap->ssid))||!dsr_ap_candidate(ap->ssid)||ap->security!=DSR_WIFI_OPEN||!events||!reconnect_timer)return DSR_INVALID;
+ bool any=false;for(unsigned i=0;i<6;i++)any|=ap->bssid[i]!=0;if(!any)return DSR_INVALID;
+ if(xSemaphoreTake(control,0)!=pdTRUE)return DSR_BUSY;
+ if(atomic_load(&temporary)||!current.ssid[0]){xSemaphoreGive(control);return DSR_BUSY;}
+ atomic_store(&temporary,true);xSemaphoreTake(info_lock,portMAX_DELAY);manual=true;auto_connect=false;xSemaphoreGive(info_lock);
+ dsr_settings_t candidate={.brightness=70,.idle_seconds=60,.wifi_security=DSR_WIFI_OPEN};snprintf(candidate.ssid,sizeof(candidate.ssid),"%s",ap->ssid);
+ esp_err_t error=stop_station();if(error==ESP_OK)error=start_station_pinned(&candidate,true,ap);memset(&candidate,0,sizeof(candidate));
+ dsr_result_t result=DSR_OFFLINE;*detail=DSR_WIFI_DRIVER_ERROR;
+ if(error==ESP_OK){EventBits_t bits=xEventGroupWaitBits(events,IP_READY|CONNECT_FAILED|CANCEL,pdFALSE,pdFALSE,pdMS_TO_TICKS(20000));
+  if(bits&CANCEL)*detail=DSR_WIFI_CANCELLED;
+  else if(bits&IP_READY){*detail=DSR_WIFI_CONNECTED;result=DSR_OK;}
+  else if(bits&CONNECT_FAILED){dsr_wifi_info_t observed;dsr_wifi_get_info(&observed);*detail=observed.status;}
+  else *detail=DSR_WIFI_TIMED_OUT;
+ }
+ if(result!=DSR_OK){dsr_wifi_status_t restored;if(restore_home_locked(&restored)!=DSR_OK)result=DSR_IO;}
+ xSemaphoreGive(control);return result;
+}
+dsr_result_t dsr_wifi_restore_home(dsr_wifi_status_t *detail)
+{
+ if(!detail||!events||!reconnect_timer)return DSR_INVALID;
+ if(xSemaphoreTake(control,0)!=pdTRUE)return DSR_BUSY;
+ dsr_result_t result;
+ if(atomic_load(&temporary)||!dsr_wifi_connected())result=restore_home_locked(detail);
+ else {result=dsr_wifi_connected()?DSR_OK:DSR_OFFLINE;dsr_wifi_info_t observed;dsr_wifi_get_info(&observed);*detail=observed.status;}
+ xSemaphoreGive(control);return result;
 }

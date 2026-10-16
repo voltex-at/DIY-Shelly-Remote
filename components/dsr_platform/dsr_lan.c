@@ -20,7 +20,7 @@ static QueueHandle_t queue;
 static SemaphoreHandle_t mutex;
 static dsr_lan_snapshot_t state;
 static atomic_bool cancelled;
-static bool busy;
+static bool busy,suspended;
 
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out)
 {
@@ -118,7 +118,7 @@ static bool enqueue(const lan_job_t *job)
 {
     if(!mutex||!queue)return false;
     xSemaphoreTake(mutex,portMAX_DELAY);
-    bool ok=!busy;
+    bool ok=!busy&&!suspended;
     if(ok){atomic_store(&cancelled,false);ok=xQueueSend(queue,job,0)==pdTRUE;
         if(ok){busy=true;state.phase=job->scan?DSR_LAN_SCANNING:DSR_LAN_INSPECTING;state.result=DSR_OK;state.capabilities=(dsr_lan_capabilities_t){0};state.selected=job->device;state.serial++;}}
     xSemaphoreGive(mutex);return ok;
@@ -138,3 +138,18 @@ bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *cr
     xSemaphoreGive(mutex);if(!found||!dsr_wifi_connected())return false;
     job.credentials=*credentials;bool ok=enqueue(&job);memset(&job,0,sizeof(job));return ok;
 }
+
+dsr_result_t dsr_lan_suspend(void)
+{
+ if(!mutex||!queue)return DSR_IO;
+ xSemaphoreTake(mutex,portMAX_DELAY);suspended=true;atomic_store(&cancelled,true);xSemaphoreGive(mutex);
+ int64_t deadline=esp_timer_get_time()+12000000;
+ for(;;){
+  xSemaphoreTake(mutex,portMAX_DELAY);bool running=busy;xSemaphoreGive(mutex);
+  if(!running)return DSR_OK;
+  if(dsr_ap_cancelled()||esp_timer_get_time()>=deadline)return DSR_BUSY;
+  vTaskDelay(pdMS_TO_TICKS(20));
+ }
+}
+void dsr_lan_resume(void)
+{if(mutex){xSemaphoreTake(mutex,portMAX_DELAY);suspended=false;xSemaphoreGive(mutex);}}

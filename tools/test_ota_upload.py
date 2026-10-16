@@ -34,6 +34,12 @@ for name,expected in auth_blocks.items():
         runtime=b' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output"))return runtime_api(r);\n'
         assert block.count(runtime)==1 and block.index(runtime)>block.index(b'if(!authorized(r))'),'Runtime must remain after the unchanged authorization gate'
         block=block.replace(runtime,b'')
+        ap=b' if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);\n'
+        assert block.count(ap)==1 and block.index(ap)>block.index(b'if(!authorized(r))'),'AP handoff must remain behind authorization'
+        block=block.replace(ap,b'')
+        preview=b'esp_timer_get_time()<pair_until||dsr_ap_sensitive()'
+        assert block.count(preview)==1,'Unexpected AP preview gate'
+        block=block.replace(preview,b'esp_timer_get_time()<pair_until')
     assert hashlib.sha256(block).hexdigest()==expected,f'Authentication source changed from 2a3e7dd: {name}'
 print('PASS: local_request/authorized unchanged; full API unchanged after exact approved restart/runtime dispatch normalization vs 2a3e7dd; SOURCE INVARIANCE ONLY, not runtime auth proof',flush=True)
 with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:

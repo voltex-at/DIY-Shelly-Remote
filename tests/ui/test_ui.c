@@ -19,6 +19,7 @@
 
 static unsigned checks;
 static unsigned screenshots,requests;
+static unsigned job_counts[DSR_JOB_AP_VERIFY+1];
 void test_workspace_enable(void);
 void test_workspace_disable(void);
 void test_workspace_defer(bool enabled);
@@ -32,6 +33,11 @@ void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
 void test_ble_finish(dsr_ble_phase_t phase);
+void test_ap_temporary(bool value);
+void test_ap_handoff_request(void);
+bool test_ap_handoff_available(void);
+unsigned test_ap_cancels(void);
+unsigned test_lan_cancels(void);
 #define CHECK(x) do {checks++; if (!(x)) {fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort();}} while(0)
 static dsr_job_t submitted;
 static dsr_event_t response;
@@ -86,11 +92,11 @@ esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count){(void)out;(void)capacity;*count=0;return ESP_OK;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&c->device.host[0]&&(!bound||c->device.device_id[0]);}
-bool dsr_wifi_connected(void) {return wifi.connected;}
+bool dsr_wifi_connected(void) {return wifi.connected&&!dsr_wifi_temporary_active();}
 void dsr_wifi_get_info(dsr_wifi_info_t *out) {*out=wifi;}
 void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);}
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
-{if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;submitted=*job; in_flight=true; return DSR_OK;}
+{if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;job_counts[job->kind]++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
 {if(maintenance_ready&&!hold_maintenance){*out=(dsr_event_t){.id=maintenance.id,.result=maintenance_result,.device=maintenance.connection.device,.layout_id=maintenance.connection.layout_id};maintenance_ready=false;dsr_activity_end();return true;}if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
 
@@ -607,6 +613,76 @@ static void multi_device_regression(void)
  wifi.connected=false;tick();dsr_network_home(NULL);
 }
 #include "review_multi_regression.inc"
+static const dsr_ap_identity_t ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.model="SNSW-001X16EU",.ssid="ShellyPlus1-112233445566",.generation=2};
+static void ap_pick(void)
+{
+ wifi.connected=false;tick();if(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ wifi.connected=true;dsr_ui_ap_open(NULL);unsigned before=requests;CHECK(dsr_ap_sensitive()&&!in_flight);
+ click("Szukaj AP");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN&&requests==before+1&&!submitted.ap_confirmed);
+ response=(dsr_event_t){.scan={.count=3,.items={{.ssid="Home Wi-Fi",.security=DSR_WIFI_WPA2},{.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN,.bssid={1,2,3,4,5,6},.channel=6},{.ssid="ShellyPlus1-AABBCCDDEEFF",.security=DSR_WIFI_WPA2}}}};
+ deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Fabryczne AP Shelly")&&!find_label(lv_screen_active(),"Home Wi-Fi"));
+ before=requests;click("ShellyPlus1-112233445566");CHECK(!in_flight&&requests==before&&find_label(lv_screen_active(),"Połączyć z AP?"));
+}
+static void ap_disclose(void)
+{
+ click("Połącz z AP");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_INSPECT&&submitted.ap_confirmed&&submitted.ap.bssid[0]==1);
+ CHECK(!dsr_activity_restart_reserve());test_ap_temporary(true);response=(dsr_event_t){.ap_identity=ap_identity};deliver(DSR_OK,DSR_WIFI_CONNECTED);
+ CHECK(!in_flight&&find_label(lv_screen_active(),"Przekazać dane Wi-Fi?")&&find_label(lv_screen_active(),ap_identity.id));CHECK(!dsr_wifi_connected());
+ CHECK(!dsr_activity_restart_reserve());
+}
+static void ap_cancel_finish(void)
+{
+ click("Anuluj");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);test_ap_temporary(false);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);
+ CHECK(!dsr_ui_ap_active()&&!dsr_ap_sensitive());wifi.connected=false;tick();if(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+}
+static void ap_regression(void)
+{
+ dsr_settings_t original=stored;dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ /* Authenticated WWW can queue only opening: a busy worker defers consume,
+  * then the actual LCD intro appears without scanning or sharing Wi-Fi. */
+ wifi.connected=false;dsr_network_home(NULL);tick();
+ if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ wifi.connected=true;tick();CHECK(test_ap_handoff_available());unsigned ap_scans=job_counts[DSR_JOB_AP_SCAN];
+ test_ap_handoff_request();bool deferred=in_flight;tick();
+ if(deferred){CHECK(!dsr_ui_ap_active());response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ tick();CHECK(dsr_ui_ap_active()&&find_label(lv_screen_active(),"Dodaj przez Wi-Fi AP")&&job_counts[DSR_JOB_AP_SCAN]==ap_scans);
+ click("Anuluj");CHECK(!dsr_ui_ap_active());wifi.connected=false;tick();
+
+ ap_pick();screenshot("220-ap-connect-consent-pl");ap_disclose();screenshot("221-ap-disclose-pl");unsigned before=job_counts[DSR_JOB_AP_PROVISION];ap_cancel_finish();CHECK(job_counts[DSR_JOB_AP_PROVISION]==before); /* never PROVISION before the second physical consent */
+ /* Hide/reopen while inspection is pending: no new session, no old ACK disclosure. */
+ ap_pick();click("Połącz z AP");unsigned cancelled=test_ap_cancels();dsr_network_home(NULL);dsr_ui_ap_open(NULL);screenshot("229-ap-reopen-debug");CHECK(test_ap_cancels()>cancelled&&find_label(lv_screen_active(),"Kończenie poprzedniej operacji i przywracanie domowego Wi-Fi."));
+ test_ap_temporary(true);response=(dsr_event_t){.ap_identity=ap_identity};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!find_label(lv_screen_active(),"Przekazać dane Wi-Fi?"));CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);
+ /* A failed SDK restore stays masked and holds the session lease. */
+ response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(dsr_wifi_temporary_active()&&!dsr_wifi_connected()&&!dsr_activity_restart_reserve());CHECK(find_label(lv_screen_active(),"Nie przywrócono połączenia. Ustawienia zapisane bez zmian. Anuluj ponawia powrót do domu."));screenshot("222-ap-restore-failed-pl");ap_cancel_finish();
+ /* Timeout after consent also restores, without starting a credential POST. */
+ ap_pick();ap_disclose();before=requests;lv_tick_inc(120001);tick();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE&&requests==before+1);test_ap_temporary(false);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!dsr_ui_ap_active());wifi.connected=false;tick();
+ /* A write timeout is uncertain: restore, verify the actual LAN identity+STA,
+  * then use the genuine component/name/room/channel BIND form. Never replay POST. */
+ ap_pick();ap_disclose();click("Przekaż Wi-Fi");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_PROVISION&&submitted.ap_confirmed&&!strcmp(submitted.ap_identity.id,ap_identity.id));before=requests;
+ test_ap_temporary(false);response=(dsr_event_t){.ap_write_result=DSR_OFFLINE};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(find_label(lv_screen_active(),"Sprawdź w domowej sieci"));
+ test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-112233445566\",\"mac\":\"112233445566\",\"model\":\"SNSW-001X16EU\",\"auth_en\":false}","192.168.1.77");next_submit_result=DSR_BUSY;tick();CHECK(!in_flight&&requests==before);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_VERIFY&&requests==before+1&&!strcmp(submitted.connection.device.host,"192.168.1.77"));
+ response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!find_label(lv_screen_active(),"Nazwa i pomieszczenie"));test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");tick();
+ CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie")&&!dsr_ui_ap_active()&&!dsr_ap_sensitive());CHECK(requests==before+1);screenshot("223-ap-verified-lan-bind-form");wifi.connected=false;dsr_network_home(NULL);tick();
+ for(unsigned language=1;language<=2;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);ap_pick();screenshot(language==1?"224-ap-connect-consent-en":"226-ap-connect-consent-de");ap_disclose();screenshot(language==1?"225-ap-disclose-en":"227-ap-disclose-de");
+  lv_obj_t *label=find_label(lv_screen_active(),"Przekaż nazwę i hasło zapisanej domowej sieci temu urządzeniu. Otwarty AP i HTTP nie zapewniają kryptograficznego uwierzytelnienia.");CHECK(label);bounds(label,324);ap_cancel_finish();
+ }
+ /* Errors after a possible POST never claim that Wi-Fi details were unsent. */
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);ap_pick();ap_disclose();click("Przekaż Wi-Fi");test_ap_temporary(false);response=(dsr_event_t){.ap_write_result=DSR_IDENTITY_MISMATCH};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(find_label(lv_screen_active(),"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane."));screenshot("228-ap-identity-error");click("Anuluj");wifi.connected=false;tick();
+ /* Hidden restore failure retains cleanup ownership and retries after 1 s;
+  * a delayed PROVISION ACK cannot reopen the wizard or start LAN discovery. */
+ ap_pick();ap_disclose();click("Przekaż Wi-Fi");dsr_network_home(NULL);before=job_counts[DSR_JOB_AP_VERIFY];response=(dsr_event_t){.ap_write_result=DSR_OK};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);
+ response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_DRIVER_ERROR);CHECK(!in_flight&&dsr_ui_ap_active()&&!dsr_activity_restart_reserve());tick();CHECK(!in_flight);lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);
+ test_ap_temporary(false);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!dsr_ui_ap_active()&&job_counts[DSR_JOB_AP_VERIFY]==before);wifi.connected=false;tick();if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ /* DHCP-only restore failure releases ownership once the SDK home profile is
+  * installed, with no false BIND or provisioning replay. */
+ ap_pick();ap_disclose();dsr_network_home(NULL);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);test_ap_temporary(false);wifi.connected=false;response=(dsr_event_t){0};deliver(DSR_OFFLINE,DSR_WIFI_TIMED_OUT);CHECK(!dsr_ui_ap_active()&&dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ /* Relative deadlines also work after 24.9 days of LVGL uptime. */
+ lv_tick_inc(UINT32_C(0x80001000)-lv_tick_get());ap_pick();ap_disclose();ap_cancel_finish();
+ ap_pick();ap_disclose();click("Przekaż Wi-Fi");test_ap_temporary(false);response=(dsr_event_t){.ap_write_result=DSR_OK};deliver(DSR_OK,DSR_WIFI_CONNECTED);unsigned cancels=test_lan_cancels();click("Anuluj");CHECK(test_lan_cancels()>cancels);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_RESTORE);test_ap_temporary(false);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);wifi.connected=false;tick();if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ CHECK(!memcmp(&original,&stored,sizeof(stored)));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ printf("AP LCD: two consents, delayed ACK/reopen, failed restore, cancellation, uncertain POST and verified LAN handoff; radio remains a host fixture\n");
+}
 int main(int argc,char **argv)
 {
     CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -721,6 +797,7 @@ int main(int argc,char **argv)
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
     multi_device_regression();review_multi_regression();review_deleted_migration_regression();
+    ap_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

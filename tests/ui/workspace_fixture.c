@@ -56,10 +56,12 @@ void dsr_workspace_bind_result(dsr_result_t r){(void)r;}
 
 /* Explicit radio fixture. Production dsr_lan.c is not replaced in firmware. */
 static dsr_lan_snapshot_t lan;
+static unsigned lan_cancels;
+unsigned test_lan_cancels(void){return lan_cancels;}
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out){*out=lan;}
 bool dsr_lan_scan(void)
 {lan.count=0;lan.phase=dsr_wifi_connected()?DSR_LAN_SCANNING:DSR_LAN_NO_WIFI;lan.serial++;return dsr_wifi_connected();}
-void dsr_lan_cancel(void){lan.phase=DSR_LAN_CANCELLED;lan.serial++;}
+void dsr_lan_cancel(void){lan_cancels++;lan.phase=DSR_LAN_CANCELLED;lan.serial++;}
 bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *credentials)
 {(void)credentials;for(unsigned i=0;i<lan.count;i++)if(!strcmp(lan.devices[i].host,host)&&!strcmp(lan.devices[i].id,id)){lan.selected=lan.devices[i];lan.phase=DSR_LAN_INSPECTING;lan.serial++;return true;}return false;}
 void test_lan_found(const char *identity,const char *host)
@@ -82,3 +84,22 @@ bool dsr_workspace_take_output(dsr_output_request_t *request){(void)request;retu
 
 bool dsr_workspace_runtime_publish_begin(size_t count){(void)count;return false;}
 void dsr_workspace_runtime_publish_end(void){}
+
+static bool ap_sensitive;
+static bool ap_temporary;
+static unsigned ap_cancels;
+void test_ap_temporary(bool value){ap_temporary=value;}
+unsigned test_ap_cancels(void){return ap_cancels;}
+void dsr_ap_visibility(bool visible){ap_sensitive=visible;}
+bool dsr_ap_sensitive(void){return ap_sensitive;}
+void dsr_ap_cancel(void){ap_cancels++;}
+bool dsr_wifi_temporary_active(void){return ap_temporary;}
+/* Handoff provider MODEL; actual workspace TTL/admission tested separately. */
+static bool ap_open_requested,ap_open_available;
+int64_t esp_timer_get_time(void){return (int64_t)lv_tick_get()*1000;}
+void test_ap_handoff_request(void){ap_open_requested=true;}
+bool test_ap_handoff_available(void){return ap_open_available;}
+void dsr_workspace_ap_publish(bool available,bool active,uint32_t now_ms)
+{(void)now_ms;ap_open_available=available&&!active;if(active||!available)ap_open_requested=false;}
+bool dsr_workspace_take_ap_open(uint32_t now_ms)
+{(void)now_ms;bool take=ap_open_requested&&ap_open_available;if(take)ap_open_requested=false;return take;}

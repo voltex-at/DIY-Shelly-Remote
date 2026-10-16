@@ -11,6 +11,7 @@
 #include <string.h>
 
 static unsigned checks;
+static unsigned flash_calls,queue_sends;
 static int lock,queue;
 #define CHECK(value) do{checks++;if(!(value)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#value);abort();}}while(0)
 SemaphoreHandle_t xSemaphoreCreateMutex(void){return &lock;}
@@ -21,20 +22,20 @@ int xSemaphoreGive(SemaphoreHandle_t handle)
 QueueHandle_t xQueueCreate(unsigned count,unsigned bytes)
 {CHECK(count==1&&bytes>0);return &queue;}
 int xQueueSend(QueueHandle_t handle,const void *value,TickType_t wait)
-{(void)value;(void)wait;CHECK(handle==&queue);return pdTRUE;}
+{(void)value;(void)wait;CHECK(handle==&queue);queue_sends++;return pdTRUE;}
 int xQueueReceive(QueueHandle_t handle,void *value,TickType_t wait)
 {(void)handle;(void)value;(void)wait;abort();}
 int xTaskCreate(void(*callback)(void *),const char *name,unsigned stack,void *argument,unsigned priority,TaskHandle_t *out)
 {CHECK(callback&&!strcmp(name,"dsr_config")&&stack==8192&&!argument&&priority==3&&!out);return pdPASS;}
 esp_err_t dsr_storage_mount(void)
-{dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);return ESP_OK;}
+{flash_calls++;dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);return ESP_OK;}
 char *dsr_config_store_load(const char *directory,bool *found,char error[96])
-{CHECK(!strcmp(directory,"/dsr"));*found=false;error[0]=0;return NULL;}
+{flash_calls++;CHECK(!strcmp(directory,"/dsr"));*found=false;error[0]=0;return NULL;}
 bool dsr_config_store_save(const char *directory,const char *json,char error[96])
-{(void)error;CHECK(!strcmp(directory,"/dsr")&&json);return true;}
+{flash_calls++;(void)error;CHECK(!strcmp(directory,"/dsr")&&json);return true;}
 bool dsr_config_store_collect_photos(const char *directory,unsigned *removed,char error[96])
-{CHECK(!strcmp(directory,"/dsr"));*removed=0;error[0]=0;return true;}
-void dsr_photos_load(void){}
+{flash_calls++;CHECK(!strcmp(directory,"/dsr"));*removed=0;error[0]=0;return true;}
+void dsr_photos_load(void){flash_calls++;}
 bool dsr_connection_valid(const dsr_connection_t *connection,bool bound)
 {(void)bound;return connection!=NULL;}
 
@@ -55,13 +56,95 @@ static void take_with_outer(dsr_output_request_t *out)
  CHECK(!dsr_activity_restart_reserve()); /* outer UI poll covers the handoff */
  dsr_activity_end();
 }
+static void test_ap_handoff(void)
+{
+ _Static_assert(DSR_AP_HANDOFF_UNAVAILABLE==0&&DSR_AP_HANDOFF_READY==1&&DSR_AP_HANDOFF_REQUESTED==2&&DSR_AP_HANDOFF_ACTIVE==3&&DSR_AP_HANDOFF_EXPIRED==4,"stable handoff states");
+ unsigned flashes=flash_calls,sends=queue_sends;
+ char *before=dsr_workspace_snapshot();uint32_t previous_revision=dsr_workspace_revision();
+ CHECK(before&&dsr_workspace_ap_handoff(100)==DSR_AP_HANDOFF_UNAVAILABLE);
+ CHECK(!dsr_workspace_request_ap_open(100)&&!dsr_workspace_take_ap_open(100));admission_open();
+ dsr_workspace_ap_publish(true,false,100);CHECK(dsr_workspace_ap_handoff(100)==DSR_AP_HANDOFF_READY);
+ CHECK(dsr_workspace_request_ap_open(100));admission_open(); /* Pending owns no lease. */
+ CHECK(dsr_workspace_ap_handoff(101)==DSR_AP_HANDOFF_REQUESTED);
+ CHECK(!dsr_workspace_request_ap_open(101));admission_open();
+ /* An ordinary UI publication while its worker is BUSY preserves the request
+  * and its original deadline. Polling must not silently extend the TTL. */
+ dsr_workspace_ap_publish(true,false,10099);CHECK(dsr_workspace_ap_handoff(10099)==DSR_AP_HANDOFF_REQUESTED);
+ CHECK(dsr_workspace_take_ap_open(10099));admission_open();
+ CHECK(dsr_workspace_ap_handoff(10100)==DSR_AP_HANDOFF_ACTIVE);
+ CHECK(!dsr_workspace_take_ap_open(10100)&&!dsr_workspace_request_ap_open(10100));admission_open();
+ dsr_workspace_ap_publish(true,false,10200);CHECK(dsr_workspace_ap_handoff(10200)==DSR_AP_HANDOFF_READY);
+
+ /* Another task can sample the same monotonic clock before the request but
+  * acquire the workspace mutex after it. Older GET/publish/take timestamps
+  * must not interpret the unsigned subtraction as almost a full wrap. */
+ CHECK(dsr_workspace_request_ap_open(101));
+ CHECK(dsr_workspace_ap_handoff(100)==DSR_AP_HANDOFF_REQUESTED);
+ dsr_workspace_ap_publish(true,false,100);CHECK(dsr_workspace_ap_handoff(101)==DSR_AP_HANDOFF_REQUESTED);
+ CHECK(dsr_workspace_take_ap_open(100));CHECK(dsr_workspace_ap_handoff(102)==DSR_AP_HANDOFF_ACTIVE);admission_open();
+ dsr_workspace_ap_publish(true,false,103);
+
+ CHECK(dsr_workspace_request_ap_open(20000));
+ CHECK(dsr_workspace_ap_handoff(30000)==DSR_AP_HANDOFF_EXPIRED);
+ CHECK(!dsr_workspace_take_ap_open(30000));admission_open();
+ dsr_workspace_ap_publish(true,false,30001);CHECK(dsr_workspace_ap_handoff(30001)==DSR_AP_HANDOFF_EXPIRED);
+ CHECK(dsr_workspace_request_ap_open(30001));CHECK(dsr_workspace_ap_handoff(30001)==DSR_AP_HANDOFF_REQUESTED);
+ CHECK(dsr_workspace_request_ap_open(40001)); /* Retry can observe expiry itself. */
+ dsr_workspace_ap_publish(false,false,40002);CHECK(dsr_workspace_ap_handoff(40002)==DSR_AP_HANDOFF_UNAVAILABLE);
+ CHECK(!dsr_workspace_take_ap_open(40002)&&!dsr_workspace_request_ap_open(40002));admission_open();
+ dsr_workspace_ap_publish(true,false,40003);CHECK(dsr_workspace_ap_handoff(40003)==DSR_AP_HANDOFF_READY);
+ CHECK(!dsr_workspace_take_ap_open(40003)); /* Unavailable consumed old intent. */
+
+ CHECK(dsr_workspace_request_ap_open(40000));dsr_workspace_ap_publish(true,true,40001);
+ CHECK(dsr_workspace_ap_handoff(40001)==DSR_AP_HANDOFF_ACTIVE&&!dsr_workspace_take_ap_open(40001));
+ dsr_workspace_ap_publish(false,true,40002);CHECK(dsr_workspace_ap_handoff(40002)==DSR_AP_HANDOFF_ACTIVE);
+ dsr_workspace_ap_publish(false,false,40003);CHECK(dsr_workspace_ap_handoff(40003)==DSR_AP_HANDOFF_UNAVAILABLE);
+ dsr_workspace_ap_publish(true,false,40004);CHECK(!dsr_workspace_take_ap_open(40004));admission_open();
+
+ /* Zero is a real timestamp; elapsed arithmetic also crosses UINT32_MAX. */
+ CHECK(dsr_workspace_request_ap_open(0));CHECK(dsr_workspace_take_ap_open(9999));
+ dsr_workspace_ap_publish(true,false,10000);
+ uint32_t near_wrap=UINT32_MAX-5000u;CHECK(dsr_workspace_request_ap_open(near_wrap));
+ CHECK(dsr_workspace_ap_handoff(near_wrap+9999u)==DSR_AP_HANDOFF_REQUESTED);
+ CHECK(!dsr_workspace_take_ap_open(near_wrap+10000u));
+ CHECK(dsr_workspace_ap_handoff(near_wrap+10000u)==DSR_AP_HANDOFF_EXPIRED);admission_open();
+ CHECK(dsr_workspace_request_ap_open(near_wrap));CHECK(dsr_workspace_take_ap_open(near_wrap+9999u));
+ dsr_workspace_ap_publish(true,false,5000);
+
+ /* Restart closes admission without changing an existing intent or creating
+  * a lease. Cancelling that reservation permits the eligible UI to consume. */
+ CHECK(dsr_activity_restart_reserve());CHECK(!dsr_workspace_request_ap_open(6000));
+ CHECK(dsr_workspace_ap_handoff(6000)==DSR_AP_HANDOFF_READY);dsr_activity_restart_cancel();admission_open();
+ CHECK(dsr_workspace_request_ap_open(7000));CHECK(dsr_activity_restart_reserve());
+ CHECK(!dsr_workspace_take_ap_open(7001)&&!dsr_workspace_request_ap_open(7001));
+ CHECK(dsr_workspace_ap_handoff(7001)==DSR_AP_HANDOFF_REQUESTED);dsr_activity_restart_cancel();
+ CHECK(dsr_workspace_take_ap_open(7002));admission_open();
+ dsr_workspace_ap_publish(true,false,7003);
+ CHECK(dsr_activity_begin());CHECK(dsr_workspace_request_ap_open(8000));CHECK(!dsr_activity_restart_reserve());
+ CHECK(dsr_workspace_take_ap_open(8001));CHECK(!dsr_activity_restart_reserve());dsr_activity_end();admission_open();
+ dsr_workspace_ap_publish(true,false,8002);
+
+ /* AP messages have no payload. They neither overwrite a credential-bearing
+  * binding mailbox nor submit any configuration/flash operation. */
+ dsr_connection_t binding={.credentials={.username="fixture-owner",.password="private-binding-value"}};
+ strcpy(binding.device.device_id,"shelly-isolated");CHECK(dsr_workspace_bind_with_room(&binding,17));
+ CHECK(dsr_workspace_request_ap_open(9000)&&dsr_workspace_take_ap_open(9001));CHECK(!dsr_activity_restart_reserve());
+ dsr_connection_t taken;uint32_t room=0;CHECK(dsr_workspace_take_bind_with_room(&taken,&room));
+ CHECK(room==17&&!strcmp(taken.device.device_id,binding.device.device_id)&&!strcmp(taken.credentials.username,binding.credentials.username)&&!strcmp(taken.credentials.password,binding.credentials.password));dsr_workspace_bind_result(DSR_OK);admission_open();
+ memset(&taken,0,sizeof(taken));memset(&binding,0,sizeof(binding));dsr_workspace_ap_publish(true,false,9002);
+ char *after=dsr_workspace_snapshot();CHECK(after&&!strcmp(before,after));free(before);free(after);
+ CHECK(dsr_workspace_revision()==previous_revision&&flash_calls==flashes&&queue_sends==sends);admission_open();
+}
 int main(void)
 {
  dsr_runtime_device_t snapshot[DSR_MAX_DEVICES];dsr_output_request_t request;uint32_t operation=123;
  CHECK(dsr_workspace_runtime_snapshot(snapshot,DSR_MAX_DEVICES)==0);
  dsr_runtime_device_t devices[2]={device("shelly-A",0),device("shelly-B",1)};
  CHECK(dsr_workspace_output_request(&devices[0].device,true,&operation)==DSR_INVALID&&operation==123);admission_open();
- CHECK(dsr_workspace_start()==ESP_OK);publish(devices,2);
+ CHECK(dsr_workspace_ap_handoff(0)==DSR_AP_HANDOFF_UNAVAILABLE);
+ dsr_workspace_ap_publish(true,true,0);CHECK(dsr_workspace_ap_handoff(0)==DSR_AP_HANDOFF_UNAVAILABLE);
+ CHECK(!dsr_workspace_request_ap_open(0)&&!dsr_workspace_take_ap_open(0)&&flash_calls==0&&queue_sends==0);admission_open();
+ CHECK(dsr_workspace_start()==ESP_OK);test_ap_handoff();publish(devices,2);
  CHECK(dsr_workspace_runtime_snapshot(snapshot,DSR_MAX_DEVICES)==2&&!strcmp(snapshot[0].device.device_id,"shelly-A")&&!strcmp(snapshot[1].device.device_id,"shelly-B"));
 
  uint32_t a=0,b=0;CHECK(dsr_workspace_output_request(&devices[0].device,true,&a)==DSR_OK&&a>0);
@@ -108,6 +191,6 @@ int main(void)
  CHECK(dsr_workspace_output_request(NULL,true,&operation)==DSR_INVALID);
  CHECK(dsr_workspace_output_request(&devices[0].device,true,NULL)==DSR_INVALID);admission_open();
  CHECK(dsr_activity_restart_reserve());CHECK(dsr_workspace_output_request(&devices[0].device,true,&operation)==DSR_BUSY);dsr_activity_restart_cancel();admission_open();
- printf("PASS: %u actual workspace/runtime checks; identity mailboxes, compaction, count0, per-endpoint admission and restart handoff; RTOS/Flash/HTTP MODEL\n",checks);
+ printf("PASS: %u actual workspace/runtime checks; AP handoff TTL/wrap/restart, identity mailboxes, compaction, count0 and per-endpoint admission; RTOS/Flash/HTTP MODEL\n",checks);
  return 0;
 }

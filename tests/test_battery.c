@@ -1,5 +1,6 @@
 /* Real ADC adapter and actual worker routing; synthetic SDK responses only. */
 #include "dsr_platform.h"
+#include "../components/dsr_platform/dsr_ap_private.h"
 #include "../components/dsr_platform/dsr_activity_internal.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -59,9 +60,13 @@ static unsigned display_load_error,display_save_error,display_saves;
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 bool dsr_wifi_connected(void){return false;}
+static bool temporary_ap;
+static unsigned ap_executed,ap_prepared,wifi_prepared;
+bool dsr_wifi_temporary_active(void){return temporary_ap;}
+void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY&&!dsr_activity_restart_reserve());ap_executed++;event->result=DSR_OK;}
+void dsr_ap_prepare(void){ap_prepared++;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&bound&&!strcmp(c->device.device_id,"maintenance");}
-bool dsr_wifi_settings_valid(const dsr_settings_t *s){(void)s;return false;}
-void dsr_wifi_prepare_connect(void){abort();}
+void dsr_wifi_prepare_connect(void){wifi_prepared++;}
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *s){(void)s;abort();}
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *s,dsr_wifi_status_t *d){(void)s;(void)d;abort();}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
@@ -116,6 +121,19 @@ int main(void)
   dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.layout_id==job.connection.layout_id&&event.result==(n==2?DSR_IO:DSR_OK));admission_open();
  }
  CHECK(publishes==1&&removes==2); /* maintenance offline: zero HTTP calls */
+ /* Actual sole-worker router/validator: AP work is admitted offline and while
+  * the station is temporarily on an AP, without falling through to relay SET. */
+ for(unsigned kind=DSR_JOB_AP_SCAN;kind<=DSR_JOB_AP_VERIFY;kind++){
+  dsr_job_t ap={.id=170+kind,.kind=kind,.ap_confirmed=true,.settings={.ssid="Home",.password="private-home-psk",.wifi_security=DSR_WIFI_WPA2}};
+  if(kind==DSR_JOB_AP_INSPECT)ap.ap=(dsr_wifi_ap_t){.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN,.bssid={1,2,3,4,5,6}};
+  else ap.ap_identity=(dsr_ap_identity_t){.ssid="ShellyPlus1-112233445566",.id="shellyplus1-112233445566",.mac="112233445566",.generation=2};
+  strcpy(ap.connection.device.host,"192.168.1.10");temporary_ap=true;CHECK(dsr_worker_submit(&ap)==DSR_OK);if(!setjmp(stop))worker(NULL);
+  dsr_event_t e;CHECK(dsr_worker_receive(&e)&&e.id==ap.id&&e.result==DSR_OK);admission_open();
+ }
+ CHECK(ap_executed==5&&ap_prepared==2&&wifi_prepared==1);
+ dsr_job_t ap={.kind=DSR_JOB_AP_INSPECT,.ap={.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN}};
+ CHECK(dsr_worker_submit(&ap)==DSR_INVALID);ap.ap_confirmed=true;ap.ap.security=DSR_WIFI_WPA2;CHECK(dsr_worker_submit(&ap)==DSR_INVALID);
+ dsr_job_t blocked={.kind=DSR_JOB_BATTERY_READ};CHECK(dsr_worker_submit(&blocked)==DSR_BUSY);temporary_ap=false;
  dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;

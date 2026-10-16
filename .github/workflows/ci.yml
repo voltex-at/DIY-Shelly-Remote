@@ -34,6 +34,7 @@ jobs:
           node tests/test_panel.cjs
           node tests/test_panel_runtime.cjs
           node tests/test_panel_runtime_model.cjs
+          node tests/test_panel_ap_model.cjs
           node tests/test_web_locale_dictionary.cjs
           node tests/test_panel_locale.cjs
       - uses: actions/upload-artifact@v4
@@ -119,6 +120,7 @@ jobs:
           python3 tools/check_restart_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/RESTART.json
           python3 tools/check_editor_target.py --build-dir build-board --out build-board/EDITOR.json
           python3 tools/check_fleet_target.py --build-dir build-board --out build-board/FLEET.json
+          python3 tools/check_ap_target.py --build-dir build-board --out build-board/AP.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -158,7 +160,7 @@ jobs:
           cp docs/RESTART_PL.md build-board/RESTART.json build-board/package/
           cp docs/EDITOR_ACCEPTANCE_PL.md build-board/EDITOR.json build-board/package/
           cp docs/WEB_LOCALE_PL.md build-board/package/
-          cp docs/MULTI_DEVICE_PL.md build-board/FLEET.json build-board/package/
+          cp docs/MULTI_DEVICE_PL.md docs/ISSUE19_AP_PL.md build-board/AP.json build-board/FLEET.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

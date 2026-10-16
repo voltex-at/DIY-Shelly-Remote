@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--sanitize", action="store_true")
 parser.add_argument("--ubsan-only", action="store_true", help="For restricted runtimes without LeakSanitizer support")
 args = parser.parse_args()
+subprocess.run(["python3",str(ROOT/"tools/test_ap_target.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/verify_crypto_vendor.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_image.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
@@ -23,6 +24,8 @@ subprocess.run(["python3",str(ROOT/"tools/test_ota_release_chain.py"),*( ["--san
 subprocess.run(["python3",str(ROOT/"tools/test_restart.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_runtime_api.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_runtime_mailbox.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ap_handoff.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_lan_barrier.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     temp_root = Path(tmp).resolve()
     binary = temp_root / "test_core"
@@ -45,13 +48,13 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     if not (json_include / "cJSON.h").exists():
         raise SystemExit("Install libcjson-dev to run platform fixtures")
     platform_binary = temp_root / "test_platform"
-    subprocess.run([os.environ.get("CC", "cc"), *flags,
+    subprocess.run([os.environ.get("CC", "cc"), *flags, "-DDSR_BOARD_ES3C35P=1",
                     "-I", str(ROOT / "tests/support"), "-I", str(json_include),
                     "-I", str(ROOT / "components/dsr_core/include"),
                     "-I", str(ROOT / "components/dsr_platform/include"),
                     "-I", str(ROOT / "components/dsr_config/include"),
                     *[str(ROOT / source) for source in [
-                        "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c",
+                        "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c", "components/dsr_platform/dsr_ap.c", "components/dsr_platform/dsr_ap_model.c",
                         "components/dsr_platform/dsr_discovery_model.c", "components/dsr_config/dsr_config.c",
                         "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_fleet.c", "components/dsr_platform/dsr_settings.c",
                         "components/dsr_platform/dsr_wifi_policy.c", "components/dsr_platform/dsr_activity.c",
@@ -65,7 +68,7 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     "-I", str(ROOT / "components/dsr_core/include"),
                     "-I", str(ROOT / "components/dsr_platform/include"),
                     str(ROOT / "components/dsr_platform/dsr_wifi.c"),
-                    str(ROOT / "components/dsr_platform/dsr_wifi_policy.c"),
+                    str(ROOT / "components/dsr_platform/dsr_wifi_policy.c"), str(ROOT / "components/dsr_platform/dsr_ap_model.c"),
                     str(ROOT / "tests/test_wifi.c"), "-o", str(wifi_binary)],
                    check=True, cwd=temp_root, env=test_env)
     subprocess.run([str(wifi_binary)], check=True, cwd=temp_root, env=test_env)
@@ -80,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     battery_binary=temp_root / "test_battery"
     subprocess.run([os.environ.get("CC","cc"),*flags,"-DDSR_BOARD_ES3C35P=1",
                     *[value for folder in ["tests/battery","tests/actor","tests/support","components/dsr_core/include","components/dsr_platform/include"] for value in ["-I",str(ROOT/folder)]],
-                    *[str(ROOT/source) for source in ["components/dsr_platform/dsr_battery.c","components/dsr_platform/dsr_worker.c","components/dsr_platform/dsr_activity.c","tests/test_battery.c"]],
+                    *[str(ROOT/source) for source in ["components/dsr_platform/dsr_battery.c","components/dsr_platform/dsr_worker.c","components/dsr_platform/dsr_activity.c","components/dsr_platform/dsr_ap_model.c","components/dsr_platform/dsr_wifi_policy.c","components/dsr_core/dsr_core.c","tests/test_battery.c"]],
                     "-o",str(battery_binary)],check=True,cwd=temp_root,env=test_env)
     subprocess.run([str(battery_binary)],check=True,cwd=temp_root,env=test_env)
     system_binary=temp_root / "test_system_info"

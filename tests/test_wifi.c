@@ -25,8 +25,9 @@ static esp_event_handler_t handler;
 static wifi_config_t config;
 static wifi_ap_record_t aps[48];static uint16_t ap_count;
 static bool scan_error,records_error,save_error,pending_connect,driver_memory,inject_old_ip;
-static unsigned connects,saves,stops,clears;
+static unsigned connects,saves,stops,clears,starts,configs;
 static enum {SUCCESS,BAD_PASSWORD,NOT_FOUND,TIMEOUT,CANCELLED} outcome;
+static unsigned ap_outcome,pending_outcome;static bool fail_stop,fail_set,fail_start,missing_stop_ack;
 static dsr_settings_t persisted;
 
 static void got_ip(void)
@@ -42,10 +43,10 @@ EventBits_t xEventGroupWaitBits(EventGroupHandle_t g,EventBits_t b,int clear,int
     (void)all;(void)timeout;
     if(!(g->bits&b)&&pending_connect) {
         pending_connect=false;
-        if(outcome==SUCCESS)got_ip();
-        else if(outcome==BAD_PASSWORD)disconnect(WIFI_REASON_AUTH_FAIL);
-        else if(outcome==NOT_FOUND)disconnect(WIFI_REASON_NO_AP_FOUND);
-        else if(outcome==CANCELLED)dsr_wifi_cancel_connect();
+        if(pending_outcome==SUCCESS)got_ip();
+        else if(pending_outcome==BAD_PASSWORD)disconnect(WIFI_REASON_AUTH_FAIL);
+        else if(pending_outcome==NOT_FOUND)disconnect(WIFI_REASON_NO_AP_FOUND);
+        else if(pending_outcome==CANCELLED)dsr_wifi_cancel_connect();
     }
     EventBits_t result=g->bits;if(clear)g->bits&=~b;return result;
 }
@@ -65,11 +66,11 @@ esp_err_t esp_timer_stop(esp_timer_handle_t t) {t->armed=false;return ESP_OK;}
 esp_err_t esp_wifi_init(const wifi_init_config_t *init) {(void)init;return ESP_OK;}
 esp_err_t esp_wifi_set_storage(int storage) {CHECK(storage==WIFI_STORAGE_RAM);return ESP_OK;}
 esp_err_t esp_wifi_set_mode(int mode) {CHECK(mode==WIFI_MODE_STA);return ESP_OK;}
-esp_err_t esp_wifi_set_config(int interface,const wifi_config_t *c) {(void)interface;config=*c;return ESP_OK;}
-esp_err_t esp_wifi_start(void) {handler(NULL,WIFI_EVENT,WIFI_EVENT_STA_START,NULL);return ESP_OK;}
+esp_err_t esp_wifi_set_config(int interface,const wifi_config_t *c) {(void)interface;configs++;if(fail_set)return ESP_FAIL;config=*c;return ESP_OK;}
+esp_err_t esp_wifi_start(void) {starts++;if(fail_start)return ESP_FAIL;handler(NULL,WIFI_EVENT,WIFI_EVENT_STA_START,NULL);return ESP_OK;}
 esp_err_t esp_wifi_stop(void)
-{stops++;pending_connect=false;if(inject_old_ip)got_ip();handler(NULL,WIFI_EVENT,WIFI_EVENT_STA_STOP,NULL);return ESP_OK;}
-esp_err_t esp_wifi_connect(void) {connects++;pending_connect=true;return ESP_OK;}
+{stops++;if(fail_stop)return ESP_FAIL;pending_connect=false;if(inject_old_ip)got_ip();if(!missing_stop_ack)handler(NULL,WIFI_EVENT,WIFI_EVENT_STA_STOP,NULL);return ESP_OK;}
+esp_err_t esp_wifi_connect(void) {connects++;pending_connect=true;pending_outcome=config.sta.bssid_set?ap_outcome:(unsigned)outcome;return ESP_OK;}
 esp_err_t esp_wifi_scan_start(const wifi_scan_config_t *scan,bool block)
 {CHECK(block&&!scan->show_hidden);driver_memory=true;return scan_error?ESP_FAIL:ESP_OK;}
 esp_err_t esp_wifi_scan_get_ap_records(uint16_t *count,wifi_ap_record_t *records)
@@ -122,6 +123,46 @@ int main(void)
     CHECK(connect_candidate(&s,&detail)==DSR_OK&&config.sta.threshold.authmode==WIFI_AUTH_OPEN);
     disconnect(WIFI_REASON_NO_AP_FOUND);CHECK(timer.armed&&timer.delay==1000000);
     unsigned before=connects;timer.callback(NULL);CHECK(connects==before+1);
+    dsr_settings_t home_before=persisted;unsigned saves_before=saves;
+    dsr_wifi_ap_t ap={.ssid="shelly1-AABBCC",.bssid={2,3,4,5,6,7},.security=DSR_WIFI_OPEN,.channel=6};
+    outcome=SUCCESS;inject_old_ip=true;
+    for(unsigned failure=0;failure<=4;failure++){
+     ap_outcome=failure;dsr_wifi_prepare_connect();dsr_result_t result=dsr_wifi_temporary_connect(&ap,&detail);
+     CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
+     if(failure==SUCCESS){
+      CHECK(result==DSR_OK&&dsr_wifi_temporary_active()&&!dsr_wifi_connected());
+      dsr_wifi_get_info(&info);CHECK(!info.connected&&!info.ip[0]&&info.status!=DSR_WIFI_CONNECTED);
+      CHECK(config.sta.bssid_set&&!memcmp(config.sta.bssid,ap.bssid,6)&&config.sta.channel==6&&!memcmp(config.sta.ssid,ap.ssid,strlen(ap.ssid)));
+      CHECK(dsr_wifi_scan(&scan)==DSR_BUSY&&dsr_wifi_connect_saved(&s,&detail)==DSR_BUSY);
+      CHECK(dsr_wifi_restore_home(&detail)==DSR_OK);
+     }else CHECK(result==DSR_OFFLINE);
+     CHECK(!dsr_wifi_temporary_active()&&dsr_wifi_connected()&&!config.sta.bssid_set&&!memcmp(config.sta.ssid,home_before.ssid,strlen(home_before.ssid)));
+     CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
+    }
+    for(unsigned failure=0;failure<3;failure++){
+     ap_outcome=SUCCESS;dsr_wifi_prepare_connect();CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_OK);
+     fail_stop=failure==0;fail_set=failure==1;fail_start=failure==2;
+     CHECK(dsr_wifi_restore_home(&detail)==DSR_IO&&dsr_wifi_temporary_active()&&!dsr_wifi_connected()&&!timer.armed);
+     unsigned attempts=connects;timer.callback(NULL);CHECK(connects==attempts); /* cannot auto-reconnect old AP as home */
+     CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
+     fail_stop=fail_set=fail_start=false;CHECK(dsr_wifi_restore_home(&detail)==DSR_OK&&dsr_wifi_connected()&&!dsr_wifi_temporary_active());
+    }
+    /* SDK stop success is not the event-loop fence. A missing STOP ACK must
+     * survive retry, even when driver_started is already false. */
+    ap_outcome=SUCCESS;dsr_wifi_prepare_connect();CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_OK);
+    missing_stop_ack=true;unsigned old_starts=starts,old_configs=configs,old_connects=connects,old_stops=stops;
+    CHECK(dsr_wifi_restore_home(&detail)==DSR_IO&&dsr_wifi_temporary_active()&&!dsr_wifi_connected());
+    CHECK(stops==old_stops+1&&starts==old_starts&&configs==old_configs&&connects==old_connects&&config.sta.bssid_set);
+    CHECK(dsr_wifi_restore_home(&detail)==DSR_IO&&dsr_wifi_temporary_active()&&!dsr_wifi_connected());
+    CHECK(stops==old_stops+1&&starts==old_starts&&configs==old_configs&&connects==old_connects);
+    got_ip();dsr_wifi_get_info(&info);CHECK(!info.connected&&!info.ip[0]&&!dsr_wifi_connected());
+    unsigned attempts=connects;timer.callback(NULL);CHECK(connects==attempts&&!timer.armed);
+    CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
+    missing_stop_ack=false;handler(NULL,WIFI_EVENT,WIFI_EVENT_STA_STOP,NULL); /* late real fence */
+    CHECK(dsr_wifi_restore_home(&detail)==DSR_OK&&!dsr_wifi_temporary_active()&&dsr_wifi_connected());
+    CHECK(stops==old_stops+1&&starts==old_starts+1&&configs==old_configs+1&&connects==old_connects+1&&!config.sta.bssid_set);
+    ap.security=DSR_WIFI_WPA2;CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_INVALID);ap.security=DSR_WIFI_OPEN;memset(ap.bssid,0,6);CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_INVALID);
+    CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
     puts("Wi-Fi fixture: real lifecycle, scan cap/dedupe, old-event fence, credentials saved only after IP, rollback/cancel, security and reconnect");
     printf("PASS: %u Wi-Fi lifecycle checks\n",checks);return 0;
 }

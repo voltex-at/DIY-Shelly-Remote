@@ -104,6 +104,49 @@ dsr_result_t dsr_workspace_bind_result_code(void)
 void dsr_workspace_bind_status(bool *pending,char message[64])
 {if(!mutex){*pending=false;message[0]=0;return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=bind_busy;snprintf(message,64,"%s",bind_message);xSemaphoreGive(mutex);}
 
+/* A single flag and timestamp cross the HTTP/LVGL boundary. The consumer
+ * reserves ACTIVE under the same mutex, so a second request cannot race the
+ * screen transition. No credentials, flash queue or long-lived lease here. */
+#define AP_OPEN_TTL_MS UINT32_C(10000)
+static dsr_ap_handoff_t ap_handoff;
+static uint32_t ap_requested_ms;
+static void ap_expire(uint32_t now_ms)
+{
+ /* Callers capture the shared clock before taking this mutex; another task
+  * may publish a newer request first. A stale sample is not an expired TTL. */
+ if(ap_handoff==DSR_AP_HANDOFF_REQUESTED&&(int32_t)(now_ms-ap_requested_ms)>=(int32_t)AP_OPEN_TTL_MS){ap_handoff=DSR_AP_HANDOFF_EXPIRED;ap_requested_ms=0;}
+}
+void dsr_workspace_ap_publish(bool available,bool active,uint32_t now_ms)
+{
+ if(!workspace_ready())return;
+ xSemaphoreTake(mutex,portMAX_DELAY);
+ if(active||!available){ap_handoff=active?DSR_AP_HANDOFF_ACTIVE:DSR_AP_HANDOFF_UNAVAILABLE;ap_requested_ms=0;}
+ else if(ap_handoff==DSR_AP_HANDOFF_UNAVAILABLE||ap_handoff==DSR_AP_HANDOFF_ACTIVE)ap_handoff=DSR_AP_HANDOFF_READY;
+ else ap_expire(now_ms);
+ xSemaphoreGive(mutex);
+}
+bool dsr_workspace_request_ap_open(uint32_t now_ms)
+{
+ if(!workspace_ready())return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);ap_expire(now_ms);
+ bool accepted=(ap_handoff==DSR_AP_HANDOFF_READY||ap_handoff==DSR_AP_HANDOFF_EXPIRED)&&dsr_activity_begin();
+ if(accepted){ap_handoff=DSR_AP_HANDOFF_REQUESTED;ap_requested_ms=now_ms;dsr_activity_end();}
+ xSemaphoreGive(mutex);return accepted;
+}
+bool dsr_workspace_take_ap_open(uint32_t now_ms)
+{
+ if(!workspace_ready())return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);ap_expire(now_ms);
+ bool accepted=ap_handoff==DSR_AP_HANDOFF_REQUESTED&&dsr_activity_begin();
+ if(accepted){ap_handoff=DSR_AP_HANDOFF_ACTIVE;ap_requested_ms=0;dsr_activity_end();}
+ xSemaphoreGive(mutex);return accepted;
+}
+dsr_ap_handoff_t dsr_workspace_ap_handoff(uint32_t now_ms)
+{
+ if(!workspace_ready())return DSR_AP_HANDOFF_UNAVAILABLE;
+ xSemaphoreTake(mutex,portMAX_DELAY);ap_expire(now_ms);dsr_ap_handoff_t value=ap_handoff;xSemaphoreGive(mutex);return value;
+}
+
 /* Mutex also protects cross-task command admission; no HTTP thread may touch
  * LVGL or copy credentials. One mailbox per endpoint prevents duplicate SET. */
 static dsr_runtime_device_t runtime[DSR_MAX_DEVICES];

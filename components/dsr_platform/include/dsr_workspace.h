@@ -44,6 +44,21 @@ bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *ro
 void dsr_workspace_bind_result(dsr_result_t result);
 void dsr_workspace_bind_status(bool *busy,char message[64]);
 dsr_result_t dsr_workspace_bind_result_code(void);
+/* Secret-free WWW -> LCD request; the LVGL owner publishes eligibility and
+ * calls take only when it can open the local wizard. Worker BUSY may defer
+ * take without making the wizard unavailable. All callers use the same
+ * monotonic millisecond clock. Pending requests expire after 10 seconds.
+ * No flash work or retained activity lease: a restart may discard a request.
+ * The LCD caller covers take -> wizard admission with its own activity. */
+typedef enum {
+ DSR_AP_HANDOFF_UNAVAILABLE=0,DSR_AP_HANDOFF_READY=1,
+ DSR_AP_HANDOFF_REQUESTED=2,DSR_AP_HANDOFF_ACTIVE=3,
+ DSR_AP_HANDOFF_EXPIRED=4
+} dsr_ap_handoff_t;
+void dsr_workspace_ap_publish(bool available,bool active,uint32_t now_ms);
+bool dsr_workspace_request_ap_open(uint32_t now_ms);
+bool dsr_workspace_take_ap_open(uint32_t now_ms);
+dsr_ap_handoff_t dsr_workspace_ap_handoff(uint32_t now_ms);
 /* Secret-free live data; UI owns providers, HTTP receives copies only. */
 typedef struct {
  dsr_device_t device;

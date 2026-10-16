@@ -1,4 +1,5 @@
 #include "dsr_platform.h"
+#include "dsr_ap_private.h"
 #include "dsr_activity.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -16,7 +17,9 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
+        if(job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY){
+            dsr_ap_execute(&job,&event);
+        } else if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
             event.result=(job.kind==DSR_JOB_UNBIND?dsr_connection_remove(&job.connection):dsr_connection_publish(&job.connection))==ESP_OK?DSR_OK:DSR_IO;event.layout_id=job.connection.layout_id;
         } else if(job.kind==DSR_JOB_DISPLAY_SAVE){
             /* Read the latest full NVS record inside the sole worker. Never
@@ -87,15 +90,22 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_UNBIND) return DSR_INVALID;
-    if(job->kind==DSR_JOB_DISPLAY_SAVE){
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_AP_VERIFY) return DSR_INVALID;
+    if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;
+    if(job->kind>=DSR_JOB_AP_SCAN){
+        if(job->kind==DSR_JOB_AP_INSPECT&&(!job->ap_confirmed||!memchr(job->ap.ssid,0,sizeof(job->ap.ssid))||!dsr_ap_candidate(job->ap.ssid)||job->ap.security!=DSR_WIFI_OPEN))return DSR_INVALID;
+        if((job->kind==DSR_JOB_AP_PROVISION||job->kind==DSR_JOB_AP_VERIFY)&&(!memchr(job->ap_identity.ssid,0,sizeof(job->ap_identity.ssid))||!dsr_ap_identity_matches(job->ap_identity.ssid,&job->ap_identity)||!dsr_wifi_settings_valid(&job->settings)))return DSR_INVALID;
+        if(job->kind==DSR_JOB_AP_PROVISION&&!job->ap_confirmed)return DSR_INVALID;
+        if(job->kind==DSR_JOB_AP_VERIFY&&!dsr_ipv4_valid(job->connection.device.host))return DSR_INVALID;
+    } else if(job->kind==DSR_JOB_DISPLAY_SAVE){
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
     } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (!dsr_activity_begin()) { xSemaphoreGive(available); return DSR_BUSY; }
-    if (job->kind == DSR_JOB_WIFI_CONNECT) dsr_wifi_prepare_connect();
+    if (job->kind == DSR_JOB_WIFI_CONNECT||job->kind==DSR_JOB_AP_INSPECT) dsr_wifi_prepare_connect();
+    if(job->kind==DSR_JOB_AP_SCAN||job->kind==DSR_JOB_AP_INSPECT)dsr_ap_prepare();
     if (xQueueSend(jobs, job, 0) != pdTRUE) { dsr_activity_end(); xSemaphoreGive(available); return DSR_BUSY; }
     return DSR_OK;
 }

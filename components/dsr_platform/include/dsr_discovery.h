@@ -39,6 +39,9 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
 esp_err_t dsr_lan_init(void);
 bool dsr_lan_scan(void);
 void dsr_lan_cancel(void);
+/* Worker-only radio handoff barrier; rejects new LAN jobs until resume. */
+dsr_result_t dsr_lan_suspend(void);
+void dsr_lan_resume(void);
 bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *credentials);
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out);
 #endif
