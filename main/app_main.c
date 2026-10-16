@@ -10,6 +10,7 @@
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
 #include "dsr_boot.h"
+#include "dsr_restart.h"
 #include "dsr_config_health.h"
 #include "esp_heap_caps.h"
 static void boot_memory(const char *stage)
@@ -69,6 +70,8 @@ void app_main(void)
     if(dsr_lan_init()!=ESP_OK)ESP_LOGE(tag,"LAN discovery unavailable");
     if(dsr_ble_init()!=ESP_OK)ESP_LOGE(tag,"BLE scanner unavailable");
     boot_memory("discovery_ready");
+    error=dsr_restart_start();
+    if(error!=ESP_OK)ESP_LOGE(tag,"Deferred restart unavailable: %s",esp_err_to_name(error));
     dsr_ui_init();
     boot_memory("ui_constructed");
     error = dsr_board_start_ui_task(dsr_boot_ready);

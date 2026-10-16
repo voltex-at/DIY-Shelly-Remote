@@ -1,4 +1,5 @@
 #include "dsr_workspace.h"
+#include "dsr_activity.h"
 #include "esp_spiffs.h"
 #include "mbedtls/sha256.h"
 #include <dirent.h>
@@ -25,12 +26,13 @@ bool dsr_photo_save(const char *id,const void *data,size_t size)
  if(!valid_id(id)||size!=PHOTO_BYTES||!content_id(id,data))return false;
  if(dsr_photo_pixels(id))return true;
  if(count>=16)return false;
- size_t total,used;if(esp_spiffs_info("dsrdata",&total,&used)!=ESP_OK||used+PHOTO_BYTES+65536>total*3/4)return false;
- void *copy=malloc(size);if(!copy)return false;memcpy(copy,data,size);
+ if(!dsr_activity_begin())return false;
+ size_t total,used;if(esp_spiffs_info("dsrdata",&total,&used)!=ESP_OK||used+PHOTO_BYTES+65536>total*3/4){dsr_activity_end();return false;}
+ void *copy=malloc(size);if(!copy){dsr_activity_end();return false;}memcpy(copy,data,size);
  char path[64];snprintf(path,sizeof(path),"/dsr/p%s.rgb",id);FILE *f=fopen(path,"wb");bool ok=false;
  if(f){ok=fwrite(data,1,size,f)==size&&fflush(f)==0&&fsync(fileno(f))==0;if(fclose(f))ok=false;}
- if(!ok){free(copy);return false;}
- memcpy(photos[count].id,id,33);photos[count].pixels=copy;count++;return true;
+ if(!ok){free(copy);dsr_activity_end();return false;}
+ memcpy(photos[count].id,id,33);photos[count].pixels=copy;count++;dsr_activity_end();return true;
 }
 void dsr_photos_load(void)
 {

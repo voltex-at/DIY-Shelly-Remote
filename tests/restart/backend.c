@@ -1,0 +1,69 @@
+/* Actual backend + atomics. FreeRTOS and ESP shutdown are a host MODEL. */
+#define _POSIX_C_SOURCE 200809L
+#include "dsr_restart.h"
+#include "dsr_activity.h"
+#include "dsr_activity_internal.h"
+#include "freertos/task.h"
+#include <pthread.h>
+#include <setjmp.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static atomic_uint checks;
+static unsigned creates,notifies,notifications,waits,delays,restarts,deletes;
+static bool boot,create_fail,notify_fail;
+static int task_marker;static TaskFunction_t task;
+static jmp_buf scheduler;
+#define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
+bool dsr_boot_ready(void){return boot;}
+BaseType_t xTaskCreate(TaskFunction_t fn,const char *name,uint32_t stack,void *arg,UBaseType_t priority,TaskHandle_t *out)
+{creates++;CHECK(fn&&!strcmp(name,"dsr_restart")&&stack==4096&&!arg&&priority==1&&out);CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE);if(create_fail)return pdFALSE;task=fn;*out=&task_marker;return pdPASS;}
+BaseType_t xTaskNotifyGive(TaskHandle_t handle)
+{notifies++;CHECK(handle==&task_marker&&dsr_activity_restart_pending()&&!dsr_activity_begin()&&!restarts);if(notify_fail)return pdFALSE;notifications++;return pdPASS;}
+uint32_t ulTaskNotifyTake(BaseType_t clear,TickType_t timeout)
+{waits++;CHECK(clear==pdTRUE&&timeout==portMAX_DELAY);if(!notifications)longjmp(scheduler,1);unsigned n=notifications;notifications=0;return n;}
+void vTaskDelay(TickType_t ticks){CHECK(ticks==500&&!restarts);delays++;}
+void esp_restart(void){CHECK(boot&&dsr_activity_restart_pending()&&!dsr_activity_begin()&&!restarts&&delays);CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE);restarts++;}
+void vTaskDelete(TaskHandle_t handle){CHECK(!handle&&restarts==1&&!deletes);deletes++;}
+static void dispatch(void){CHECK(task);if(!setjmp(scheduler))task(NULL);}
+static pthread_barrier_t barrier;
+static dsr_restart_result_t requests[8];
+static void *requester(void *id){int r=pthread_barrier_wait(&barrier);if(r!=0&&r!=PTHREAD_BARRIER_SERIAL_THREAD)abort();requests[*(unsigned *)id]=dsr_restart_request();return NULL;}
+int main(int argc,char **argv)
+{
+ CHECK(argc==2);boot=true;
+ if(!strcmp(argv[1],"before-start")){
+  CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE&&!notifies&&!restarts);
+ }else if(!strcmp(argv[1],"create-fail")){
+  create_fail=true;CHECK(dsr_restart_start()==ESP_ERR_NO_MEM);CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE);
+  create_fail=false;CHECK(dsr_restart_start()==ESP_ERR_INVALID_STATE&&creates==1);CHECK(dsr_activity_begin());dsr_activity_end();
+ }else{
+  CHECK(dsr_restart_start()==ESP_OK&&creates==1&&task);CHECK(dsr_restart_start()==ESP_ERR_INVALID_STATE&&creates==1);
+  if(!strcmp(argv[1],"boot")){
+   boot=false;CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE&&!notifies);CHECK(dsr_activity_begin());dsr_activity_end();
+  }else if(!strcmp(argv[1],"busy")){
+   CHECK(dsr_activity_begin());CHECK(dsr_restart_request()==DSR_RESTART_BUSY&&!notifies&&!dsr_activity_restart_pending());dsr_activity_end();
+   CHECK(dsr_restart_request()==DSR_RESTART_ACCEPTED&&!restarts);dispatch();CHECK(restarts==1&&deletes==1);
+  }else if(!strcmp(argv[1],"notify-fail")){
+   notify_fail=true;CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE&&!notifications&&!dsr_activity_restart_pending());CHECK(dsr_activity_begin());dsr_activity_end();
+   notify_fail=false;CHECK(dsr_restart_request()==DSR_RESTART_ACCEPTED);dispatch();CHECK(restarts==1&&notifies==2);
+  }else if(!strcmp(argv[1],"boot-lost")){
+   CHECK(dsr_restart_request()==DSR_RESTART_ACCEPTED);boot=false;dispatch();CHECK(!restarts&&!dsr_activity_restart_pending());CHECK(dsr_activity_begin());dsr_activity_end();
+   boot=true;CHECK(dsr_restart_request()==DSR_RESTART_ACCEPTED);dispatch();CHECK(restarts==1&&delays==2);
+  }else if(!strcmp(argv[1],"spurious")){
+   notifications=1;dispatch();CHECK(!restarts&&!dsr_activity_restart_pending());CHECK(dsr_activity_begin());dsr_activity_end();
+  }else if(!strcmp(argv[1],"once")){
+   CHECK(dsr_restart_request()==DSR_RESTART_ACCEPTED&&!restarts&&notifications==1);CHECK(dsr_restart_request()==DSR_RESTART_BUSY&&notifies==1);
+   dispatch();CHECK(restarts==1&&deletes==1);CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE&&!dsr_activity_begin());dsr_activity_restart_cancel();CHECK(!dsr_activity_begin());
+  }else if(!strcmp(argv[1],"race")){
+   pthread_t threads[8];unsigned ids[8];CHECK(!pthread_barrier_init(&barrier,NULL,8));
+   for(unsigned i=0;i<8;i++){ids[i]=i;CHECK(!pthread_create(&threads[i],NULL,requester,&ids[i]));}
+   for(unsigned i=0;i<8;i++)CHECK(!pthread_join(threads[i],NULL));
+   unsigned accepted=0,busy=0;for(unsigned i=0;i<8;i++){accepted+=requests[i]==DSR_RESTART_ACCEPTED;busy+=requests[i]==DSR_RESTART_BUSY;}
+   CHECK(accepted==1&&busy==7&&notifies==1&&!restarts);dispatch();CHECK(restarts==1&&deletes==1);CHECK(!pthread_barrier_destroy(&barrier));
+  }else CHECK(false);
+ }
+ printf("PASS: %u actual restart backend checks (%s); FreeRTOS/shutdown MODEL\n",checks,argv[1]);return 0;
+}

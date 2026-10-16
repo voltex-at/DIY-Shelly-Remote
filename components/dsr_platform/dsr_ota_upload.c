@@ -1,5 +1,6 @@
 #include "dsr_ota_upload.h"
 #include "dsr_ota_image.h"
+#include "dsr_activity.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,11 +24,12 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
 {
  if(!r||!slot||!expected||r->content_len<512||r->content_len>slot->size
     ||r->content_len>DSR_OTA_IMAGE_MAX_SIZE)return ESP_ERR_INVALID_ARG;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
  struct upload_buffers *buffers=malloc(sizeof(*buffers));
- if(!buffers)return ESP_ERR_NO_MEM;
+ if(!buffers){dsr_activity_end();return ESP_ERR_NO_MEM;}
  dsr_ota_image_t *image=NULL;
  /* Explicit legacy checksum path: never pretend X-SHA256 is verified metadata. */
- if(dsr_ota_image_create_dev_checksum(r->content_len,expected,&image)!=DSR_IMAGE_OK){free(buffers);return ESP_FAIL;}
+ if(dsr_ota_image_create_dev_checksum(r->content_len,expected,&image)!=DSR_IMAGE_OK){free(buffers);dsr_activity_end();return ESP_FAIL;}
  size_t received=0,first_size=0;esp_ota_handle_t handle=0;bool live=false;
  esp_err_t error=ESP_OK;
  while(received<r->content_len){
@@ -56,5 +58,5 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
   live=false;
  }
  if(live)esp_ota_abort(handle);
- dsr_ota_image_destroy(image);free(buffers);return error;
+ dsr_ota_image_destroy(image);free(buffers);dsr_activity_end();return error;
 }

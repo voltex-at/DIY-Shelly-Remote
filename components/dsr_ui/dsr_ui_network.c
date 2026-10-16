@@ -3,6 +3,7 @@
 #include "dsr_ui_mobile.h"
 #include "dsr_workspace.h"
 #include "dsr_board.h"
+#include "dsr_activity.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -277,6 +278,9 @@ dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32
 static void poll(lv_timer_t *timer)
 {
     (void)timer;
+    /* Overlap worker event release with BIND migration / queued SET / workspace
+     * admission. A restart cannot slip into that otherwise unprotected gap. */
+    if(!dsr_activity_begin())return;
     uint32_t now = lv_tick_get();
     dsr_event_t event;
     if (dsr_worker_receive(&event) && event.id == outstanding) {
@@ -348,6 +352,7 @@ static void poll(lv_timer_t *timer)
     if (configured && wifi && !busy && !blocked && !dsr_wifi_ui_active() && !dsr_ui_lan_active() && now - last_poll >= 5000) {
         last_poll = now; (void)submit(DSR_JOB_PROBE, false);
     }
+    dsr_activity_end();
 }
 
 void dsr_network_start_view(void)

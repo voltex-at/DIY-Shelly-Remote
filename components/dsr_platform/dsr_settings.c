@@ -1,5 +1,6 @@
 #include "dsr_platform.h"
 #include "nvs.h"
+#include "dsr_activity.h"
 #include <string.h>
 
 static bool valid(const dsr_settings_t *s)
@@ -37,12 +38,14 @@ esp_err_t dsr_settings_load(dsr_settings_t *out)
 esp_err_t dsr_settings_save(const dsr_settings_t *settings)
 {
     if (!valid(settings)) return ESP_ERR_INVALID_ARG;
+    if (!dsr_activity_begin()) return ESP_ERR_INVALID_STATE;
     nvs_handle_t handle;
     esp_err_t error = nvs_open("dsr_cfg", NVS_READWRITE, &handle);
-    if (error != ESP_OK) return error;
+    if (error != ESP_OK) { dsr_activity_end(); return error; }
     error = nvs_set_blob(handle, "settings", settings, sizeof(*settings));
     if (error == ESP_OK) error = nvs_set_u32(handle, "schema", 2);
     if (error == ESP_OK) error = nvs_commit(handle);
     nvs_close(handle);
+    dsr_activity_end();
     return error;
 }

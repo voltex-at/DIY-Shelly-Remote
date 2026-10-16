@@ -9,6 +9,7 @@
 #include "dsr_ble.h"
 #include "esp_app_desc.h"
 #include "dsr_system_info.h"
+#include "../../components/dsr_platform/dsr_activity_internal.h"
 #include "src/widgets/buttonmatrix/lv_buttonmatrix_private.h"
 #include <assert.h>
 #include <stdio.h>
@@ -76,9 +77,9 @@ bool dsr_wifi_connected(void) {return wifi.connected;}
 void dsr_wifi_get_info(dsr_wifi_info_t *out) {*out=wifi;}
 void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);}
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
-{if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);requests++;submitted=*job; in_flight=true; return DSR_OK;}
+{if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
-{if(!result_ready)return false; *out=response; result_ready=false; in_flight=false; return true;}
+{if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
 
 static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 {

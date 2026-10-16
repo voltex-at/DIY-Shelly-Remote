@@ -1,6 +1,7 @@
 /* Runs actual HTTP parsing, binding checks and NVS adapters with real cJSON.
  * The fake HTTP transport does not validate IDF's Digest cryptography or radio. */
 #include "dsr_platform.h"
+#include "../components/dsr_platform/dsr_activity_internal.h"
 #include "dsr_discovery.h"
 #include "cJSON.h"
 #include "esp_http_client.h"
@@ -65,18 +66,21 @@ esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { (void)c; used++;
 static unsigned char blobs[2][1024];
 static size_t sizes[2]; static uint32_t schemas[2];
 static bool fail_commit;
+static unsigned write_opens,nvs_fault;
+static bool writing[2];
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
-{ *h = !strcmp(name, "dsr_cfg") ? 0 : 1; return mode == NVS_READONLY && !sizes[*h] ? ESP_ERR_NVS_NOT_FOUND : ESP_OK; }
+{ *h = !strcmp(name, "dsr_cfg") ? 0 : 1;if(mode==NVS_READWRITE){CHECK(!dsr_activity_restart_reserve());write_opens++;if(nvs_fault==1)return ESP_FAIL;writing[*h]=true;}return mode == NVS_READONLY && !sizes[*h] ? ESP_ERR_NVS_NOT_FOUND : ESP_OK; }
 esp_err_t nvs_get_u32(nvs_handle_t h, const char *key, uint32_t *out)
 { (void)key; *out = schemas[h]; return ESP_OK; }
 esp_err_t nvs_set_u32(nvs_handle_t h, const char *key, uint32_t value)
-{ (void)key; schemas[h] = value; return ESP_OK; }
+{ (void)key;CHECK(writing[h]&&!dsr_activity_restart_reserve());if(nvs_fault==3)return ESP_FAIL;schemas[h] = value; return ESP_OK; }
 esp_err_t nvs_get_blob(nvs_handle_t h, const char *key, void *out, size_t *size)
 { (void)key; if (*size < sizes[h]) return ESP_ERR_INVALID_SIZE; memcpy(out, blobs[h], sizes[h]); *size = sizes[h]; return ESP_OK; }
 esp_err_t nvs_set_blob(nvs_handle_t h, const char *key, const void *data, size_t size)
-{ (void)key; CHECK(size <= sizeof(blobs[h])); memcpy(blobs[h], data, size); sizes[h] = size; return ESP_OK; }
-esp_err_t nvs_commit(nvs_handle_t h) { (void)h; return fail_commit ? ESP_FAIL : ESP_OK; }
-void nvs_close(nvs_handle_t h) { (void)h; }
+{ (void)key; CHECK(writing[h]&&!dsr_activity_restart_reserve()&&size <= sizeof(blobs[h]));if(nvs_fault==2)return ESP_FAIL;memcpy(blobs[h], data, size); sizes[h] = size; return ESP_OK; }
+esp_err_t nvs_commit(nvs_handle_t h) { CHECK(writing[h]&&!dsr_activity_restart_reserve());return fail_commit||nvs_fault==4 ? ESP_FAIL : ESP_OK; }
+void nvs_close(nvs_handle_t h) { if(writing[h])CHECK(!dsr_activity_restart_reserve());writing[h]=false; }
+static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 
 static const char gen2[] = "{\"gen\":2,\"id\":\"shellyplus1-AABBCCDDEEFF\"}";
 static const char gen1[] = "{\"type\":\"SHSW-1\",\"mac\":\"aabbccddeeff\"}";
@@ -179,6 +183,17 @@ static void test_storage(void)
     sizes[1]--; CHECK(dsr_connection_load(&out, &found) == ESP_ERR_INVALID_SIZE && !found);
     fail_commit = true; CHECK(dsr_connection_save(&c) == ESP_FAIL); fail_commit = false;
     memset(c.credentials.username, 'a', sizeof(c.credentials.username)); CHECK(!dsr_connection_valid(&c, true));
+    admission_open();
+    c=connection();c.device.generation=DSR_GEN1;strcpy(c.device.device_id,"AABBCCDDEEFF");
+    settings=(dsr_settings_t){.brightness=70,.idle_seconds=60};
+    for(unsigned fault=0;fault<=4;fault++){
+        nvs_fault=fault;unsigned before=write_opens;
+        CHECK((dsr_settings_save(&settings)==ESP_OK)==(fault==0));CHECK(write_opens==before+1&&!writing[0]);admission_open();
+        before=write_opens;CHECK((dsr_connection_save(&c)==ESP_OK)==(fault==0));CHECK(write_opens==before+1&&!writing[1]);admission_open();
+    }
+    nvs_fault=0;unsigned before=write_opens;
+    CHECK(dsr_settings_save(NULL)==ESP_ERR_INVALID_ARG&&dsr_connection_save(NULL)==ESP_ERR_INVALID_ARG&&write_opens==before);admission_open();
+    CHECK(dsr_activity_restart_reserve());CHECK(dsr_settings_save(&settings)==ESP_ERR_INVALID_STATE&&dsr_connection_save(&c)==ESP_ERR_INVALID_STATE&&write_opens==before);dsr_activity_restart_cancel();admission_open();
 }
 static void test_discovery(void)
 {

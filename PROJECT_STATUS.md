@@ -1,5 +1,57 @@
 # Project status
 
+## P0 hardware update — 2026-10-16 09:56 UTC
+
+Fresh PR33 comments6212871631/6212940294: owner tested0.7.18, UI/boot/Wi-Fi
+observed working, but SPIFFS remains nonempty/unmounted, workspace unavailable
+and HTTPS not started. This does NOT exercise the blank-only initialization fix;
+the merged app image does not touch dsrdata. No new physical app/ELF hash log,
+blank-format/workspace/HTTPS/Rooms persistence acceptance yet.
+
+Owner separately authorized ONE dsrdata-only erase at0xC20000 length0x3E0000,
+end0x1000000, performed LOCALLY by owner with existing private backup. This is
+not full-flash/NVS/bootloader/OTA-slot permission or an automated recovery rule;
+do not repeat erase. Await uninterrupted FIRST boot log on existing0.7.18,
+format result/timing/reset reason, workspace/HTTPS READY and retained Salon.
+No remote device action performed here; raw backups/photos/network data private.
+[Evidence and scope](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6212940294).
+
+## 0.7.19 — atomic operation admission and deferred restart (#24/#6)
+
+Shared single-word atomic admission spans queued/running/event-pending writes
+and real UI poll handoff to persistent follow-up. Restart reserves only idle;
+new operations refuse thereafter. NVS settings/connection, workspace save/bind,
+pair token, photo fsync/cache, OTA receive+boot selection and boot health write
+are covered. No snapshot-only check. Boot-only provisioning/GC/TLS remain before
+boot-ready; no SPIFFS mount/format changes. Underflow failclosed, no public reset.
+[Contract/inventory/tests](docs/RESTART_PL.md).
+
+Dedicated deferred dispatcher, configured stack4096/priority1, static<=16 plus
+atomic word4; SDK/TCB/shutdown/transitive peak not measured. IDF atomic32 wrappers
+permitted for PSRAM workaround, not a lock-free/wait-free claim. Task/notify/
+boot failures do not restart or leave a false accepted reservation. At most one
+dispatch500ms outside LVGL/HTTP, no application mutex held through shutdown.
+Existing authenticated Web restart now uses shared ACCEPTED/BUSY/UNAVAILABLE,
+200/409/503; auth/local-only preserved. Source API guard normalizes only exact
+restart routing line, not skipped. LCD confirmation still NEXT, not completed.
+
+Independent atomic16052/dispatcher131/pair+restart97 and uploader234559 UBSan
+PASS; root full native and real UI2334/96 PASS, including receive-handoff
+admission attempt. More writer faults/cross-review/exact target/CI/artifact
+still gates. No physical restart, persistence/data-retention or P0 acceptance.
+Final independent actual-writer UBSan: NVS935, worker3534, workspace123 and
+photos101 PASS; fault cleanup reopens admission and accepted restart admits
+no new write. Root read these genuine source harnesses and repeats full native;
+RTOS/NVS/filesystem/shutdown providers remain MODEL. Both cross-reviews without
+blockers. Startup nonfatal dispatcher failure and boot-health write guard covered.
+Parent PR45 source0790e6e8 CI38878544578 5/5, actual BIN/ELF/segments/partitions
+and full genuine chain with two software SHA providers verified; full OTA still
+open with empty publisher trust and unresolved owner-approved Release/time/etc.
+
+P0 PR33 remains81e734d with no new physical PASS, main51c5840 unchanged. No
+erase/nonempty-format/partition/main merge/auto-merge/Stable. Global Settings,
+full backlog/history24h internal/later optional microSD remain required.
+
 ## 0.7.18 — explicit Release → signed app validation/DISCARD (#24)
 
 Public bridge takes explicit release/STABLE and trusted local manifest/STABLE

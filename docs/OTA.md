@@ -67,6 +67,12 @@ numeric local release bases, not arbitrary build suffixes.
 
 ## Local upload status
 
+0.7.19 adds a [shared atomic activity/restart admission backend](RESTART_PL.md).
+Upload admission spans receive/end and boot selection; boot health writes are
+also protected. Auth/local-only and one-shot consent remain. The existing Web
+restart now defers outside its callback and refuses while operations are pending.
+LCD confirmation and physical restart/data-retention acceptance remain separate.
+
 Implemented as an authenticated, origin-checked development endpoint with a
 one-attempt local authorization window. Board/slot/hash/image checks are active;
 publisher signatures remain future work. Port 80 only redirects GET to HTTPS.

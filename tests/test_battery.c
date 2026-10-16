@@ -1,5 +1,6 @@
 /* Real ADC adapter and actual worker routing; synthetic SDK responses only. */
 #include "dsr_platform.h"
+#include "../components/dsr_platform/dsr_activity_internal.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "freertos/task.h"
@@ -10,6 +11,7 @@
 #include <string.h>
 #include <setjmp.h>
 static unsigned checks,mode,reads,adc_live,cal_live,adc_deletes,cal_deletes;
+static bool worker_context,fail_queue;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static int adc_token,cal_token;
 esp_err_t adc_oneshot_io_to_channel(int gpio,adc_unit_t *unit,adc_channel_t *channel)
@@ -22,7 +24,7 @@ esp_err_t adc_cali_create_scheme_curve_fitting(const adc_cali_curve_fitting_conf
 {CHECK(c->unit_id==0&&c->chan==7&&c->atten==12&&c->bitwidth==12&&!cal_live);if(mode==5)return ESP_ERR_NOT_SUPPORTED;cal_live++;*h=&cal_token;return ESP_OK;}
 esp_err_t adc_oneshot_read(adc_oneshot_unit_handle_t h,adc_channel_t channel,int *raw)
 {
- CHECK(h==&adc_token&&channel==7);reads++;
+ CHECK(h==&adc_token&&channel==7);if(worker_context)CHECK(!dsr_activity_restart_reserve());reads++;
  static const int values[]={3000,2005,1999,2002,2001,2000,1998,2003,0,4095};
  CHECK(reads<=10);*raw=mode==7?4095:mode==8?0:mode==9?-1:values[reads-1];
  return mode==6&&reads==4?ESP_FAIL:ESP_OK;
@@ -42,7 +44,7 @@ static void (*worker)(void *);static jmp_buf stop;
 QueueHandle_t xQueueCreate(unsigned count,unsigned size)
 {CHECK(count==1&&queue_count<2&&size<=sizeof(queues[0].data));queue_t *q=&queues[queue_count++];q->size=size;return q;}
 int xQueueSend(QueueHandle_t handle,const void *data,TickType_t wait)
-{(void)wait;queue_t *q=handle;CHECK(!q->occupied);memcpy(q->data,data,q->size);q->occupied=true;return pdTRUE;}
+{(void)wait;queue_t *q=handle;CHECK(!q->occupied&&!dsr_activity_restart_reserve());if(q==&queues[0]&&fail_queue)return pdFALSE;memcpy(q->data,data,q->size);q->occupied=true;return pdTRUE;}
 int xQueueReceive(QueueHandle_t handle,void *data,TickType_t wait)
 {queue_t *q=handle;if(!q->occupied){if(wait)longjmp(stop,1);return pdFALSE;}memcpy(data,q->data,q->size);q->occupied=false;return pdTRUE;}
 void vQueueDelete(QueueHandle_t q){(void)q;}
@@ -54,8 +56,8 @@ int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
 static dsr_settings_t display_stored={.ssid="new-network",.password="latest-private-password",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
 static unsigned display_load_error,display_save_error,display_saves;
-esp_err_t dsr_settings_load(dsr_settings_t *out){if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
-esp_err_t dsr_settings_save(const dsr_settings_t *in){display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
+esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
+esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 bool dsr_wifi_connected(void){return false;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){(void)c;(void)bound;return false;}
 bool dsr_wifi_settings_valid(const dsr_settings_t *s){(void)s;return false;}
@@ -66,6 +68,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,
 esp_err_t dsr_connection_save(const dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
+static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 int main(void)
 {
  CHECK(dsr_battery_read(NULL)==ESP_ERR_INVALID_ARG);
@@ -81,11 +84,11 @@ int main(void)
  CHECK(dsr_worker_start()==ESP_OK&&worker&&queue_count==2);
  for(unsigned n=0;n<3;n++){
   reset(n==1?5:n==2?6:0);dsr_job_t job={.id=n+1,.kind=DSR_JOB_BATTERY_READ};
-  CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(dsr_worker_submit(&job)==DSR_BUSY);
-  if(!setjmp(stop))worker(NULL);
+  CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(!dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&job)==DSR_BUSY);
+  worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=false;CHECK(!dsr_activity_restart_reserve());
   dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==n+1);
   CHECK(event.result==(n==2?DSR_IO:DSR_OK)&&event.battery.has_voltage==(n==0));
-  CHECK(!dsr_worker_receive(&event)&&!adc_live&&!cal_live);
+  CHECK(!dsr_worker_receive(&event)&&!adc_live&&!cal_live);admission_open();
  }
  /* Display jobs remain functional offline and preserve the newest Wi-Fi
   * record even if the submitted UI snapshot contains obsolete credentials. */
@@ -93,18 +96,25 @@ int main(void)
   display_load_error=n==1;display_save_error=n==2;
   unsigned before=display_saves;
   dsr_job_t job={.id=100+n,.kind=DSR_JOB_DISPLAY_SAVE,.settings={.ssid="old",.password="obsolete",.brightness=42,.idle_seconds=n==3?0:47}};
-  CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(dsr_worker_submit(&job)==DSR_BUSY);
+  CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(!dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&job)==DSR_BUSY);
   if(!setjmp(stop))worker(NULL);
+  CHECK(!dsr_activity_restart_reserve());
   dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==100+n);
   CHECK(event.result==((n==1||n==2)?DSR_IO:DSR_OK));
   CHECK(display_saves==before+(n==1?0:1));
   CHECK(event.brightness==42&&event.idle_seconds==job.settings.idle_seconds);
   CHECK(!strcmp(display_stored.ssid,"new-network")&&!strcmp(display_stored.password,"latest-private-password"));
-  CHECK(!memcmp(&event.device,&(dsr_device_t){0},sizeof(event.device)));
+  CHECK(!memcmp(&event.device,&(dsr_device_t){0},sizeof(event.device)));admission_open();
  }
  dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);
+ admission_open();
+ dsr_job_t admitted={.id=200,.kind=DSR_JOB_BATTERY_READ};
+ fail_queue=true;CHECK(dsr_worker_submit(&admitted)==DSR_BUSY&&!queues[0].occupied&&semaphore);admission_open();fail_queue=false;
+ CHECK(dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&admitted)==DSR_BUSY&&!queues[0].occupied&&semaphore);dsr_activity_restart_cancel();admission_open();
+ reset(0);CHECK(dsr_worker_submit(&admitted)==DSR_OK&&!dsr_activity_restart_reserve());worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=false;
+ CHECK(!dsr_activity_restart_reserve());dsr_event_t final_event;CHECK(dsr_worker_receive(&final_event)&&final_event.id==200);admission_open();
  printf("PASS: %u battery/worker checks; actual ADC lifecycle/filter/calibration, failure cleanup, 100 cycles, offline/no-binding worker route; synthetic SDK, not physical voltage\n",checks);return 0;
 }

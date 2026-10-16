@@ -24,21 +24,28 @@ for name,expected in auth_blocks.items():
     end=re.search(rb'^static\b',panel_bytes[start.end():],re.M)
     assert end,f'Missing end of authentication block: {name}'
     block=panel_bytes[start.start():start.end()+end.start()]
+    if name=='api':
+        # Deliberately approved restart dispatch change ONLY. The complete API
+        # block still hashes against the old baseline after this exact rewrite.
+        new=b' if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST)return restart(r);\n'
+        old=b' if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST){esp_err_t e=json(r,"200 OK","{\\"restarting\\":true}");vTaskDelay(pdMS_TO_TICKS(500));esp_restart();return e;}\n'
+        assert block.count(new)==1,'Unexpected restart route; normalization must stay exact'
+        block=block.replace(new,old)
     assert hashlib.sha256(block).hexdigest()==expected,f'Authentication source changed from 2a3e7dd: {name}'
-print('PASS: local_request/authorized/api byte-identical to 2a3e7dd; SOURCE INVARIANCE ONLY, not runtime auth proof',flush=True)
+print('PASS: local_request/authorized unchanged; full API unchanged after exact approved restart-line normalization vs 2a3e7dd; SOURCE INVARIANCE ONLY, not runtime auth proof',flush=True)
 with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:
     tmp=Path(tmp)
     panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
     start=panel.index('static esp_err_t ota(httpd_req_t *r)')
-    end=panel.index('static cJSON *lan_device_json',start)
+    end=panel.index('static esp_err_t restart',start)
     endpoint=panel[start:end]
     assert 'dsr_ota_upload_receive' in endpoint,'Endpoint not integrated with production receiver'
     (tmp/'ota_endpoint.inc').write_text(endpoint)
     flags=['-std=c11','-Wall','-Wextra','-Werror','-Wpedantic','-g']
     if args.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
     elif args.ubsan_only:flags+=['-fsanitize=undefined','-fno-omit-frame-pointer']
-    for folder in [tmp,ROOT/'tests/ota_upload',ROOT/'tests/ota_image',ROOT/'tests/support',ROOT/'components/dsr_platform',ROOT/'components/dsr_ota/include']:flags+=['-I',str(folder)]
-    sources=['components/dsr_platform/dsr_ota_upload.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','tests/test_ota_upload.c']
+    for folder in [tmp,ROOT/'tests/ota_upload',ROOT/'tests/ota_image',ROOT/'tests/support',ROOT/'components/dsr_platform/include',ROOT/'components/dsr_platform',ROOT/'components/dsr_ota/include']:flags+=['-I',str(folder)]
+    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_ota_upload.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','tests/test_ota_upload.c']
     binary=tmp/'test-upload'
     subprocess.run([os.environ.get('CC','cc'),*flags,*[str(ROOT/s) for s in sources],'-Wl,--wrap=malloc','-Wl,--wrap=calloc','-Wl,--wrap=free','-lcrypto','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

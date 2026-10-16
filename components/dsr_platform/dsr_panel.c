@@ -5,6 +5,8 @@
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
 #include "dsr_platform.h"
+#include "dsr_activity.h"
+#include "dsr_restart.h"
 #include "esp_http_server.h"
 #include "esp_https_server.h"
 #include "esp_random.h"
@@ -115,6 +117,7 @@ static esp_err_t pair(httpd_req_t *r)
 {
  char *data=body(r,16);if(!data)return json(r,"400 Bad Request","{\"error\":\"Enter the 16-character code shown on the remote\"}");
  char token[65];uint8_t digest[32];esp_err_t result=ESP_FAIL;
+ if(!dsr_activity_begin()){memset(data,0,strlen(data));free(data);return json(r,"409 Conflict","{\"error\":\"Restart pending; pairing not saved\"}");}
  xSemaphoreTake(lock,portMAX_DELAY);
  bool valid=esp_timer_get_time()<pair_until&&attempts++<5&&strlen(data)==16&&equal(pairing,data,16);
  if(valid){
@@ -123,6 +126,7 @@ static esp_err_t pair(httpd_req_t *r)
   if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;pair_until=0;memset(pairing,0,sizeof(pairing));}
  }
  xSemaphoreGive(lock);memset(data,0,strlen(data));free(data);
+ dsr_activity_end();
  if(!valid)return json(r,"401 Unauthorized","{\"error\":\"Pairing expired, locked or invalid; reopen pairing on the remote\"}");
  if(result!=ESP_OK)return json(r,"503 Service Unavailable","{\"error\":\"Pairing could not be saved\"}");
  char cookie[160];snprintf(cookie,sizeof(cookie),"dsr_session=%s; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000",token);memset(token,0,sizeof(token));
@@ -136,10 +140,20 @@ static esp_err_t ota(httpd_req_t *r)
  if(!slot||r->content_len<512||r->content_len>slot->size)return json(r,"400 Bad Request","{\"error\":\"Upload the application BIN, not a merged USB image\"}");
  char expected[65]={0};if(httpd_req_get_hdr_value_str(r,"X-SHA256",expected,sizeof(expected))!=ESP_OK||strlen(expected)!=64)return json(r,"400 Bad Request","{\"error\":\"SHA256 required\"}");
  uint8_t digest[32];if(!dsr_ota_upload_sha256(expected,64,digest))return json(r,"400 Bad Request","{}");
+ if(!dsr_activity_begin())return json(r,"409 Conflict","{\"error\":\"Restart pending; upload not started\"}");
  esp_err_t error=dsr_ota_upload_receive(r,slot,digest);
- if(error!=ESP_OK)return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");
- if(esp_ota_set_boot_partition(slot)!=ESP_OK)return json(r,"500 Internal Server Error","{\"error\":\"Boot slot not changed\"}");
+ if(error!=ESP_OK){dsr_activity_end();return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");}
+ error=esp_ota_set_boot_partition(slot);
+ dsr_activity_end();
+ if(error!=ESP_OK)return json(r,"500 Internal Server Error","{\"error\":\"Boot slot not changed\"}");
  return json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");
+}
+static esp_err_t restart(httpd_req_t *r)
+{
+ dsr_restart_result_t result=dsr_restart_request();
+ if(result==DSR_RESTART_ACCEPTED)return json(r,"200 OK","{\"restarting\":true}");
+ return json(r,result==DSR_RESTART_BUSY?"409 Conflict":"503 Service Unavailable",
+  result==DSR_RESTART_BUSY?"{\"error\":\"Operation pending; retry restart after saving finishes\"}":"{\"error\":\"Restart service unavailable\"}");
 }
 static cJSON *lan_device_json(const dsr_lan_device_t *d)
 {
@@ -219,7 +233,7 @@ static esp_err_t api(httpd_req_t *r)
   bool ok=at==r->content_len&&dsr_photo_save(id,data,at);free(data);return json(r,ok?"200 OK":"400 Bad Request",ok?"{\"saved\":true}":"{\"error\":\"Nie zapisano zdjęcia: suma kontrolna, pamięć lub limit 16 zdjęć. Zapisz usunięcie nieużywanych zdjęć i uruchom pilot ponownie, aby odzyskać miejsce.\"}");
  }
  if(!strcmp(r->uri,"/api/v1/ota")&&r->method==HTTP_POST)return ota(r);
- if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST){esp_err_t e=json(r,"200 OK","{\"restarting\":true}");vTaskDelay(pdMS_TO_TICKS(500));esp_restart();return e;}
+ if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST)return restart(r);
  return json(r,"404 Not Found","{\"error\":\"Unknown API route\"}");
 }
 static esp_err_t asset(httpd_req_t *r)

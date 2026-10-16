@@ -1,4 +1,24 @@
-# Matryca funkcji — 0.7.18, rewizja 19
+# Matryca funkcji — 0.7.19, rewizja 20
+
+P0 aktualizacja09:56UTC: właściciel potwierdził boot/UI/Wi-Fi0.7.18, lecz
+SPIFFS nadal niepusty/niezamontowany, workspace/HTTPS niedostępne. To nie próba
+blank format. Nowa osobna zgoda obejmuje JEDEN lokalny erase tylko dsrdata;
+właściciel wykonuje test i zbiera pierwszy log. Brak nowego physical PASS,
+bez prawa do full erase/NVS/OTA slotów lub powtórzenia. Prywatne dane poza repo.
+[Aktualny dowód i zgoda](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6212940294).
+
+## #24/#6: bezpieczny backend restartu, LCD confirm jeszcze następny
+
+[Kontrakt/inventory](RESTART_PL.md): atomic admission queued/running/event i
+real poll handoff; NVS/workspace/bind/pair/photo/OTA+slot/boot health covered.
+Dedicated dispatcher stack4096 priority1, one-shot poza LVGL/HTTP; Web restart
+zachowuje auth/local-only i jawnie odmawia409/503. Nie ma erase/reset/formatu.
+Atomic16052/dispatcher131/panel97/upload234559 UBSan i UI2334/96 PASS;
+pozostałe writer faults/exact CI/ELF i physical restart/retention osobne bramki.
+LCD potwierdzenie/anulowanie nadal niewdrożone, #24/#6/P0 niezamknięte.
+Actual-writer UBSan: NVS935/worker3534/workspace123/photos101 PASS, failure cleanup
+i odmowa po restart admission; niezależny review bez blockerów. Nadal HOST MODEL
+providerów NVS/RTOS/filesystem/Flash, nie odbiór fizyczny.
 
 ## #24: jawny Release → signed app validation/discard, nadal bez instalacji
 

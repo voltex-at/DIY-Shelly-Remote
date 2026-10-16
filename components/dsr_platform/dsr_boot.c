@@ -1,4 +1,5 @@
 #include "dsr_boot.h"
+#include "dsr_activity.h"
 #include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -34,7 +35,10 @@ bool dsr_ota_boot_confirm(void)
     /* USB provisioning may have no OTA selection record. Do not write one. */
     if (error == ESP_ERR_NOT_FOUND) return true;
     if (error != ESP_OK) return false;
-    if (image_state == ESP_OTA_IMG_PENDING_VERIFY)
-        return esp_ota_mark_app_valid_cancel_rollback() == ESP_OK;
+    if (image_state == ESP_OTA_IMG_PENDING_VERIFY) {
+        if(!dsr_activity_begin())return false;
+        bool confirmed=esp_ota_mark_app_valid_cancel_rollback()==ESP_OK;
+        dsr_activity_end();return confirmed;
+    }
     return image_state == ESP_OTA_IMG_VALID || image_state == ESP_OTA_IMG_UNDEFINED;
 }

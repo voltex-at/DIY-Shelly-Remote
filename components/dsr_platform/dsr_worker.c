@@ -1,4 +1,5 @@
 #include "dsr_platform.h"
+#include "dsr_activity.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -91,8 +92,9 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
     } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
+    if (!dsr_activity_begin()) { xSemaphoreGive(available); return DSR_BUSY; }
     if (job->kind == DSR_JOB_WIFI_CONNECT) dsr_wifi_prepare_connect();
-    if (xQueueSend(jobs, job, 0) != pdTRUE) { xSemaphoreGive(available); return DSR_BUSY; }
+    if (xQueueSend(jobs, job, 0) != pdTRUE) { dsr_activity_end(); xSemaphoreGive(available); return DSR_BUSY; }
     return DSR_OK;
 }
 
@@ -100,5 +102,8 @@ bool dsr_worker_receive(dsr_event_t *event)
 {
     if (!events || !event || xQueueReceive(events, event, 0) != pdTRUE) return false;
     xSemaphoreGive(available);
+    /* Event handoff must be covered by the consumer's outer activity until
+     * all persistent follow-ups are admitted (the production UI poll does so). */
+    dsr_activity_end();
     return true;
 }

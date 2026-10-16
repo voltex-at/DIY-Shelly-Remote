@@ -1,5 +1,6 @@
 #include "dsr_workspace.h"
 #include "dsr_storage.h"
+#include "dsr_activity.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -33,6 +34,7 @@ static void config_task(void *argument)
   if(next){free(current);current=next;revision=dsr_config_revision(next);snprintf(status,sizeof(status),"Saved revision %lu",(unsigned long)revision);}
   else snprintf(status,sizeof(status),"%s",error[0]?error:"Save failed");
   busy=false;xSemaphoreGive(mutex);
+  dsr_activity_end();
  }
 }
 esp_err_t dsr_workspace_start(void)
@@ -76,7 +78,7 @@ bool dsr_workspace_submit(const char *json,uint32_t expected)
  char *copy=malloc(strlen(json)+1);if(!copy)return false;strcpy(copy,json);
  xSemaphoreTake(mutex,portMAX_DELAY);
  bool ok=!busy&&revision==expected;
- if(ok){request_t req={copy,expected};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok){busy=true;snprintf(status,sizeof(status),"Saving…");}}
+ if(ok){ok=dsr_activity_begin();if(ok){request_t req={copy,expected};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok){busy=true;snprintf(status,sizeof(status),"Saving…");}else dsr_activity_end();}}
  xSemaphoreGive(mutex);if(!ok)free(copy);return ok;
 }
 void dsr_workspace_status(bool *pending,char message[96])
@@ -85,7 +87,7 @@ bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t ro
 {
  if(!workspace_ready()||!dsr_connection_valid(connection,false))return false;
  xSemaphoreTake(mutex,portMAX_DELAY);
- bool ok=!bind_busy;if(ok){bind_request=*connection;bind_room=room;bind_result_code=DSR_BUSY;bind_waiting=bind_busy=true;snprintf(bind_message,sizeof(bind_message),"Checking Shelly identity…");}xSemaphoreGive(mutex);return ok;
+ bool ok=!bind_busy&&dsr_activity_begin();if(ok){bind_request=*connection;bind_room=room;bind_result_code=DSR_BUSY;bind_waiting=bind_busy=true;snprintf(bind_message,sizeof(bind_message),"Checking Shelly identity…");}xSemaphoreGive(mutex);return ok;
 }
 bool dsr_workspace_bind(const dsr_connection_t *connection){return dsr_workspace_bind_with_room(connection,UINT32_MAX);}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *room)
@@ -96,7 +98,7 @@ bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *ro
 }
 bool dsr_workspace_take_bind(dsr_connection_t *connection){return dsr_workspace_take_bind_with_room(connection,NULL);}
 void dsr_workspace_bind_result(dsr_result_t result)
-{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);}
+{if(!mutex)return;xSemaphoreTake(mutex,portMAX_DELAY);bool completed=bind_busy;bind_busy=false;bind_result_code=result;snprintf(bind_message,sizeof(bind_message),"%s",result==DSR_OK?"Shelly verified and saved":result==DSR_AUTH_REQUIRED?"Authentication failed; check Shelly credentials":result==DSR_OFFLINE?"Shelly offline / Wi-Fi disconnected":"Shelly check failed; previous binding retained");xSemaphoreGive(mutex);if(completed)dsr_activity_end();}
 dsr_result_t dsr_workspace_bind_result_code(void)
 {if(!mutex)return DSR_IO;xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=bind_result_code;xSemaphoreGive(mutex);return result;}
 void dsr_workspace_bind_status(bool *pending,char message[64])

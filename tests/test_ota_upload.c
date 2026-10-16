@@ -2,6 +2,8 @@
  * only in host memory. This fixture performs no device writes or HTTP auth. */
 #include "dsr_ota_upload.h"
 #include "dsr_ota_image.h"
+#include "dsr_activity.h"
+#include "dsr_activity_internal.h"
 #include "mbedtls/sha256.h"
 #include <openssl/evp.h>
 #include <stdint.h>
@@ -36,19 +38,19 @@ static void digest(const unsigned char *bytes,size_t length,uint8_t out[32])
 static void reset(void)
 {CHECK(!owned&&!dsr_test_sha_live()&&!live);allocations=allocation_fail=0;read_offset=write_length=0;source_length=IMAGE_SIZE;first_read=next_read=4096;receives=begins=writes=ends=aborts=boots=fail_receive=fail_write=0;receive_error=HTTPD_SOCK_ERR_TIMEOUT;fail_begin=fail_end=fail_boot=oversize_receive=no_slot=header_error=false;slot.size=0x600000;request.content_len=IMAGE_SIZE;response_status[0]=response_body[0]=0;dsr_test_sha_fault(0);memcpy(source,image,sizeof(image));}
 int httpd_req_recv(httpd_req_t *r,char *buffer,size_t length)
-{CHECK(r==&request&&length>0&&length<=4096);receives++;if(receives==fail_receive)return receive_error;if(oversize_receive)return (int)length+1;size_t n=receives==1?first_read:next_read;if(n>length)n=length;if(n>source_length-read_offset)n=source_length-read_offset;memcpy(buffer,source+read_offset,n);read_offset+=n;return (int)n;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(r==&request&&length>0&&length<=4096);receives++;if(receives==fail_receive)return receive_error;if(oversize_receive)return (int)length+1;size_t n=receives==1?first_read:next_read;if(n>length)n=length;if(n>source_length-read_offset)n=source_length-read_offset;memcpy(buffer,source+read_offset,n);read_offset+=n;return (int)n;}
 esp_err_t esp_ota_begin(const esp_partition_t *p,size_t size,esp_ota_handle_t *handle)
-{CHECK(p==&slot&&size==request.content_len&&read_offset>=512&&!live&&!begins);begins++;*handle=17;if(fail_begin)return ESP_FAIL;live=true;return ESP_OK;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(p==&slot&&size==request.content_len&&read_offset>=512&&!live&&!begins);begins++;*handle=17;if(fail_begin)return ESP_FAIL;live=true;return ESP_OK;}
 esp_err_t esp_ota_write(esp_ota_handle_t handle,const void *data,size_t length)
-{CHECK(handle==17&&live&&length&&write_length+length<=sizeof(written));writes++;if(writes==fail_write)return ESP_FAIL;memcpy(written+write_length,data,length);write_length+=length;return ESP_OK;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(handle==17&&live&&length&&write_length+length<=sizeof(written));writes++;if(writes==fail_write)return ESP_FAIL;memcpy(written+write_length,data,length);write_length+=length;return ESP_OK;}
 esp_err_t esp_ota_end(esp_ota_handle_t handle)
-{CHECK(handle==17&&live&&write_length==request.content_len&&!ends&&!aborts);ends++;live=false;return fail_end?ESP_FAIL:ESP_OK;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(handle==17&&live&&write_length==request.content_len&&!ends&&!aborts);ends++;live=false;return fail_end?ESP_FAIL:ESP_OK;}
 esp_err_t esp_ota_abort(esp_ota_handle_t handle)
-{CHECK(handle==17&&live&&!ends&&!aborts);aborts++;live=false;return ESP_OK;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(handle==17&&live&&!ends&&!aborts);aborts++;live=false;return ESP_OK;}
 const esp_partition_t *esp_ota_get_next_update_partition(const esp_partition_t *start)
 {CHECK(!start);return no_slot?NULL:&slot;}
 esp_err_t esp_ota_set_boot_partition(const esp_partition_t *p)
-{CHECK(p==&slot&&ends==1&&!aborts&&!live);boots++;return fail_boot?ESP_FAIL:ESP_OK;}
+{CHECK(!dsr_activity_restart_reserve());CHECK(p==&slot&&ends==1&&!aborts&&!live);boots++;return fail_boot?ESP_FAIL:ESP_OK;}
 esp_err_t httpd_req_get_hdr_value_str(httpd_req_t *r,const char *name,char *out,size_t capacity)
 {CHECK(r==&request&&!strcmp(name,"X-SHA256"));if(header_error||strlen(header)>=capacity)return ESP_FAIL;strcpy(out,header);return ESP_OK;}
 
@@ -65,7 +67,7 @@ static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {CHECK(r==&request);snprintf(response_status,sizeof(response_status),"%s",status);snprintf(response_body,sizeof(response_body),"%s",body);return ESP_OK;}
 #include "ota_endpoint.inc"
 
-static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live);}
+static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 static void accepted(const uint8_t hash[32])
 {CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_OK);CHECK(read_offset==request.content_len&&write_length==request.content_len&&!memcmp(written,source,write_length));CHECK(begins==1&&ends==1&&!aborts&&!boots);CHECK(dsr_test_sha_calls()==receives+3);clean();}
 int main(void)
@@ -111,5 +113,7 @@ int main(void)
  reset();ota_until=now+120000000;no_slot=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins);clean();
  reset();ota_until=now+120000000;request.content_len=511;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
  reset();ota_until=now+120000000;slot.size=8191;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
- printf("PASS: %u actual legacy upload/endpoint checks; every first-read boundary, exact captured bytes, real SHA/header/marker, pre-begin rejection, recv/write/end/abort/OOM faults, one-shot approval; NO device Flash/auth/rollback proof\n",checks);return 0;
+ reset();CHECK(dsr_activity_restart_reserve());CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_STATE&&!receives&&!begins);dsr_activity_restart_cancel();clean();
+ reset();CHECK(dsr_activity_restart_reserve());ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&!receives&&!begins&&!boots&&!ota_until);dsr_activity_restart_cancel();clean();
+ printf("PASS: %u actual legacy upload/endpoint checks; every first-read boundary, exact captured bytes, real SHA/header/marker, pre-begin rejection, recv/write/end/abort/OOM faults, one-shot approval, atomic lease incl bootslot; NO device Flash/auth/rollback proof\n",checks);return 0;
 }

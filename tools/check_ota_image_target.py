@@ -104,9 +104,11 @@ if args.upload:
         "esp_ota_end", "esp_ota_abort", "dsr_ota_image_create_dev_checksum",
         "dsr_ota_image_update", "dsr_ota_image_header_ready",
         "dsr_ota_image_finish", "dsr_ota_image_destroy",
+        "dsr_activity_begin", "dsr_activity_end",
     }
     upload_allowed = upload_required | {
-        "memcpy", "memset", "__stack_chk_fail", "__stack_chk_guard", "_GLOBAL_OFFSET_TABLE_",
+        "memcpy", "memset", "dsr_activity_begin", "dsr_activity_end",
+        "__stack_chk_fail", "__stack_chk_guard", "_GLOBAL_OFFSET_TABLE_",
     }
     unexpected = set(upload_undefined) - upload_allowed
     require(not unexpected, f"Unexpected receiver dependency (no boot/partition selection): {sorted(unexpected)}")

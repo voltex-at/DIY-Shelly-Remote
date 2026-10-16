@@ -1,5 +1,6 @@
 #include "dsr_platform.h"
 #include "nvs.h"
+#include "dsr_activity.h"
 #include <string.h>
 /* Exact schema-1 layout from before volatile telemetry was added. Keeping the
  * persistent type explicit preserves installed bindings across OTA updates. */
@@ -44,9 +45,10 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found)
 esp_err_t dsr_connection_save(const dsr_connection_t *connection)
 {
     if (!dsr_connection_valid(connection, true)) return ESP_ERR_INVALID_ARG;
+    if (!dsr_activity_begin()) return ESP_ERR_INVALID_STATE;
     nvs_handle_t handle;
     esp_err_t error = nvs_open("dsr_device", NVS_READWRITE, &handle);
-    if (error != ESP_OK) return error;
+    if (error != ESP_OK) { dsr_activity_end(); return error; }
     connection_record_v1_t saved={.device=connection->device,.credentials=connection->credentials};
     saved.device.online = saved.device.has_switch = saved.device.has_power = false;
     saved.device.output = false; saved.device.power_w = 0;
@@ -54,5 +56,6 @@ esp_err_t dsr_connection_save(const dsr_connection_t *connection)
     if (error == ESP_OK) error = nvs_set_u32(handle, "schema", 1);
     if (error == ESP_OK) error = nvs_commit(handle);
     nvs_close(handle);
+    dsr_activity_end();
     return error;
 }
