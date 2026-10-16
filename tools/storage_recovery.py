@@ -132,8 +132,11 @@ def spiffs_candidates(data, page_size=256, block_size=4096, name_length=32, meta
             chunks.append(item[3][5:])
         else:
             content = b"".join(chunks)[:size]
-            known = name in (b"config0.dat", b"config1.dat")
-            label = name.decode("ascii") if known else "object.bin"
+            # IDF VFS/spiffsgen store absolute-looking SPIFFS names.
+            # Normalize only this optional prefix, never export arbitrary paths.
+            basename = name[1:] if name.startswith(b"/") else name
+            known = basename in (b"config0.dat", b"config1.dat")
+            label = basename.decode("ascii") if known else "object.bin"
             files.append({"object": obj & 0x7FFF, "header_offset": pos, "file": label,
                           "bytes": size, "sha256": sha(content),
                           "checkpoint_crc_valid": checkpoint(content) if known else None,

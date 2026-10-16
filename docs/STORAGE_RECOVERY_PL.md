@@ -123,6 +123,8 @@ Pełna instrukcja instalacji jest również w BOOT_MEMORY_FIX_PL.md.
    osobnej płytce/kopii testowej, bez niszczenia obecnego egzemplarza.
 
 Automaty: rzeczywisty LVGL, błędy alokatora cJSON, siedem procesów startu
-workspace, negatywne mount/read/ENOMEM oraz 8 testów offline analizy i backupu.
+workspace, negatywne mount/read/ENOMEM oraz 9 testów offline analizy i backupu,
+w tym stały syntetyczny obraz z rzeczywistego spiffsgen.py ESP-IDF v5.5.4
+(ścieżki /config0.dat i plik 51200 B z kolejnymi indeksami).
 Nie zastępują testu USB/radia/Flash na ES3C35P. PR #33 pozostaje Draft;
 odbiór #28 i zależny rozwój #20/#29 są zablokowane do naprawy magazynu.

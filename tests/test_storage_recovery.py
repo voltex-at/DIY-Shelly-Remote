@@ -1,5 +1,6 @@
 """Offline synthetic images; no USB, user dump, secrets or repair in CI."""
 import hashlib
+import base64
 import importlib.util
 from pathlib import Path
 import struct
@@ -56,6 +57,17 @@ def filesystem(content=b"TEST", filename=b"object", formatted_blocks=None):
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_actual_idf_generator_reference(self):
+        data = zlib.decompress(base64.b64decode((ROOT / "tests/storage/spiffs-idf-5.5.4.zlib.base64").read_bytes(), validate=False))
+        self.assertEqual(r.sha(data), "bd0be5201aa20655b2885a39b017070523bb8c44f275d837a200c949179fb544")
+        report, files = r.analyze(data)
+        self.assertEqual(report["matching_length_magic_blocks"], 992)
+        self.assertEqual(len(files), 2)
+        config = next(f for f in files if f["file"] == "config0.dat")
+        self.assertTrue(config["checkpoint_crc_valid"])
+        large = next(f for f in files if f["bytes"] == 51200)
+        self.assertEqual(large["_content"], bytes(range(256)) * 200)
+
     def test_table_and_md5(self):
         self.assertTrue(r.partitions(table())["md5_verified"])
         for at in [0, 8, 192 + 16]:
@@ -96,7 +108,7 @@ class RecoveryTests(unittest.TestCase):
     def test_checkpoint_crc(self):
         payload = b'{"schema":1,"revision":7}'
         content = struct.pack("<4I", 0x44535231, len(payload), zlib.crc32(payload), 7) + payload
-        data, pages, _ = filesystem(content, b"config0.dat")
+        data, pages, _ = filesystem(content, b"/config0.dat")
         _, files = r.analyze(data)
         self.assertTrue(files[0]["checkpoint_crc_valid"])
         data[pages[0] * 256 + 5 + 8] ^= 1

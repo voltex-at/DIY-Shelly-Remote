@@ -30,8 +30,10 @@ Local UBSan: 1627 integrated LVGL checks / 73 frames, including EN/DE diagnostic
 captures, 2635 review / 24 frames, core 94/platform 847/Wi-Fi 222/
 BLE 2138/config 265/boot-storage 15948/startup 163. Seven actual workspace
 startup scenarios cover unavailable Flash, bad checkpoints, read-only save,
-mutex/queue/task OOM and snapshot OOM; eight offline tests cover backup,
+mutex/queue/task OOM and snapshot OOM; nine offline tests cover backup,
 geometry/length magic, complete/long indexes, torn/ambiguous pages and CRC.
+A fixed synthetic image from the actual IDF 5.5.4 generator independently
+checks slash-prefixed VFS names and exact multi-index file recovery.
 Exact-source target/sanitizer/browser CI and real LVGL diagnostics 320×480
 are required; no physical pass or main merge is claimed.
 
