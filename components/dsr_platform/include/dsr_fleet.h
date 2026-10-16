@@ -26,6 +26,8 @@ int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);
 dsr_result_t dsr_fleet_request(dsr_fleet_t *fleet,unsigned index,bool on,bool wifi,uint32_t now);
 dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *fleet,unsigned index,dsr_cover_intent_t intent,bool wifi,uint32_t now);
+/* Explicit read-only GET may be queued without a current sample. */
+dsr_result_t dsr_fleet_ht_refresh(dsr_fleet_t *fleet,unsigned index,bool wifi,uint32_t now);
 dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *fleet,unsigned index,dsr_rgb_intent_t intent,bool wifi,uint32_t now);
 dsr_result_t dsr_fleet_light_request(dsr_fleet_t *fleet,unsigned index,dsr_light_intent_t intent,bool wifi,uint32_t now);
 void dsr_fleet_cancel_queued(dsr_fleet_t *fleet,unsigned index);

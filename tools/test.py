@@ -13,6 +13,8 @@ parser.add_argument("--ubsan-only", action="store_true", help="For restricted ru
 args = parser.parse_args()
 subprocess.run(["python3",str(ROOT/"tools/test_factory.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ap_target.py")],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_fleet_target.py")],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ht_core_review.py")],check=True)
 for tool in ['test_actions_target.py','test_actions_model.py','test_actions_parse.py','test_actions_schema.py','test_actions_workspace.py','test_actions_runtime.py','test_actions_worker.py','test_actions_http_uncertainty.py']:
     subprocess.run(['python3',str(ROOT/'tools'/tool),*((["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else []) if not tool.endswith('target.py') else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_native_ota_target.py")],check=True)

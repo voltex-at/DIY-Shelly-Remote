@@ -16,17 +16,22 @@ typedef struct {
 } dsr_settings_t;
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
-typedef struct {bool has_voltage,has_current,has_energy;union{dsr_cover_status_t cover;dsr_light_status_t light;dsr_rgb_status_t rgb;};double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
+/* Explicit family-owned union. HT4 never exposes its sensor values as W/V/A/Wh. */
+typedef struct {
+ union {struct {bool has_voltage,has_current,has_energy;};struct {bool has_temperature,has_humidity,has_battery;};};
+ union {dsr_cover_status_t cover;dsr_light_status_t light;dsr_rgb_status_t rgb;dsr_ht_status_t ht;};
+ union {struct {double voltage_v,current_a,energy_wh;};struct {double temperature_c,humidity_pct,battery_pct;};};
+} dsr_telemetry_t;
 typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
 /* Volatile origin consumes tail padding; never enters installed raw records. */
 _Static_assert(offsetof(dsr_connection_t,legacy_fallback)==offsetof(dsr_connection_t,layout_id)+4&&sizeof(dsr_connection_t)==offsetof(dsr_connection_t,layout_id)+8,"origin consumes existing connection tail padding");
-_Static_assert(sizeof(dsr_cover_status_t)==5&&sizeof(dsr_light_status_t)==5&&sizeof(dsr_rgb_status_t)==5&&sizeof(dsr_rgb_intent_t)==4&&sizeof(dsr_telemetry_t)==32&&sizeof(dsr_connection_t)==296,"typed status occupies the existing five telemetry bytes");
+_Static_assert(sizeof(dsr_cover_status_t)==5&&sizeof(dsr_light_status_t)==5&&sizeof(dsr_rgb_status_t)==5&&sizeof(dsr_ht_status_t)==5&&sizeof(dsr_rgb_intent_t)==4&&sizeof(dsr_telemetry_t)==32&&sizeof(dsr_connection_t)==296,"typed status occupies the existing five telemetry bytes");
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
 esp_err_t dsr_settings_save(const dsr_settings_t *settings);
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found);
-/* Typed schema-5 registry; frozen v1/v2 Switch0, v3 Cover and v4 Light import. */
+/* Typed schema-6 registry; frozen v1/v2 Switch0, v3 Cover, v4 Light, v5 RGB import. */
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count);
 esp_err_t dsr_connection_save(const dsr_connection_t *connection);
 esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id);

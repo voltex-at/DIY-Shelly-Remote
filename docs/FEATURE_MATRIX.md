@@ -1,5 +1,9 @@
 # Matryca funkcji — 0.7.33, rewizja 34
 
+[H&T Gen3](HT_GEN3_PL.md): exact S3SN-0U12A/gen3, typed kind4, jeden GetStatus
+z temperaturą/RH/baterią, read-only LCD/WWW i jawny Refresh. Uśpienie także USB;
+czas odpowiedzi ≠ czas pomiaru. Historia/sterowanie/pozostałe sensory nieobsługiwane.
+
 ## #23: RGB Plus RGBW PM — lokalny pełny pion
 
 [Kontrakt RGB3](RGB_GEN2_PL.md): wyłącznie SNDC-0D4P10WW Gen2 już w profilu

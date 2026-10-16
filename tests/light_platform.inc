@@ -55,11 +55,11 @@ static void test_light_opposite_transition(void)
 static void test_light_persistence_scheduler(void)
 {
  memset(sizes,0,sizeof(sizes));memset(schemas,0,sizeof(schemas));
- dsr_connection_t c=light_connection();c.layout_id=43;CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==5);
+ dsr_connection_t c=light_connection();c.layout_id=43;CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==6);
  dsr_connection_t loaded[16];size_t count;unsigned writes=write_opens;
  CHECK(dsr_connections_load(loaded,16,&count)==ESP_OK&&count==1&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_LIGHT&&loaded[0].layout_id==43&&!loaded[0].legacy_fallback&&write_opens==writes&&!loaded[0].device.online);
  ((uint32_t*)blobs[2])[0]=3;CHECK(dsr_connections_load(loaded,16,&count)!=ESP_OK&&!count&&dsr_connection_save(&c)!=ESP_OK&&write_opens==writes); /* v3 kind2 is corrupt, not an extension. */
- ((uint32_t*)blobs[2])[0]=6;CHECK(dsr_connections_load(loaded,16,&count)!=ESP_OK&&!count&&dsr_connection_remove(&c)!=ESP_OK&&write_opens==writes);
+ ((uint32_t*)blobs[2])[0]=7;CHECK(dsr_connections_load(loaded,16,&count)!=ESP_OK&&!count&&dsr_connection_remove(&c)!=ESP_OK&&write_opens==writes);
  ((uint32_t*)blobs[2])[0]=4;
  c.layout_id=0;CHECK(dsr_connection_remove(&c)==ESP_OK&&dsr_connection_save(&c)==ESP_OK);writes=write_opens;CHECK(dsr_connections_load(loaded,16,&count)==ESP_OK&&count==1&&!loaded[0].layout_id&&!loaded[0].legacy_fallback&&write_opens==writes);dsr_fleet_t quarantined={0};CHECK(dsr_fleet_upsert(&quarantined,&loaded[0],0)==DSR_OK&&!quarantined.slots[0].layout_enabled&&dsr_fleet_light_request(&quarantined,0,(dsr_light_intent_t){.command=DSR_LIGHT_ON},true,0)==DSR_IDENTITY_MISMATCH);c.layout_id=43;
  c.device.online=true;c.telemetry.light=(dsr_light_status_t){.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.brightness=38};dsr_fleet_t f={0};CHECK(dsr_fleet_upsert(&f,&c,0)==DSR_OK);

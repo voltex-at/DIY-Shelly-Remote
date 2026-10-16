@@ -202,9 +202,9 @@ size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capac
 }
 static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_intent_t intent,dsr_rgb_intent_t rgb,uint32_t *operation_id)
 {
- if(!mutex||!device||!operation_id||device->endpoint_kind>DSR_ENDPOINT_RGB)return DSR_INVALID;
+ if(!mutex||!device||!operation_id||device->endpoint_kind>DSR_ENDPOINT_HT)return DSR_INVALID;
  dsr_light_intent_t light={.command=intent.command,.brightness=intent.position};
- bool is_light=device->endpoint_kind==DSR_ENDPOINT_LIGHT,is_rgb=device->endpoint_kind==DSR_ENDPOINT_RGB;
+ bool is_light=device->endpoint_kind==DSR_ENDPOINT_LIGHT,is_rgb=device->endpoint_kind==DSR_ENDPOINT_RGB,sensor=device->endpoint_kind==DSR_ENDPOINT_HT;
  if(is_rgb&&!dsr_rgb_intent_valid(rgb))return DSR_INVALID;
  if(is_light&&!dsr_light_intent_valid(light))return DSR_INVALID;
  bool cover=device->endpoint_kind==DSR_ENDPOINT_COVER,stop=cover&&intent.command==DSR_COVER_STOP;
@@ -215,9 +215,9 @@ static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_
   int free_slot=-1,queued_slot=-1;for(size_t j=0;j<DSR_MAX_DEVICES;j++){if(!output_waiting[j]&&free_slot<0)free_slot=(int)j;if(output_waiting[j]&&endpoint(&outputs[j].device,device))queued_slot=(int)j;}
   bool replace=stop&&queued_slot>=0&&outputs[queued_slot].cover.command!=DSR_COVER_STOP;if(replace)free_slot=queued_slot;
   if((queued_slot>=0&&!replace)||(!stop&&(r->pending||dsr_actions_reserved(device)))||(stop&&r->stop_pending)||free_slot<0)result=DSR_BUSY;
-  else if(stop?!r->can_stop:(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000))result=DSR_OFFLINE;
-  else if(cover?!dsr_cover_can_move(&r->telemetry.cover,intent):is_light?!dsr_light_can_set(&r->telemetry.light,light):is_rgb?!dsr_rgb_can_set(&r->telemetry.rgb,rgb):!r->device.has_switch)result=DSR_UNSUPPORTED;
-  else if(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED)result=r->error;
+  else if(sensor?!r->can_refresh:stop?!r->can_stop:(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000))result=DSR_OFFLINE;
+  else if(sensor?false:cover?!dsr_cover_can_move(&r->telemetry.cover,intent):is_light?!dsr_light_can_set(&r->telemetry.light,light):is_rgb?!dsr_rgb_can_set(&r->telemetry.rgb,rgb):!r->device.has_switch)result=DSR_UNSUPPORTED;
+  else if(!sensor&&(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED))result=r->error;
   else if(!replace&&!dsr_activity_begin())result=DSR_BUSY;
   else {if(!++output_serial)++output_serial;outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=output_serial};if(cover)outputs[free_slot].cover=intent;if(is_light)outputs[free_slot].light=light;if(is_rgb)outputs[free_slot].rgb=rgb;output_waiting[free_slot]=true;r->pending=true;if(stop)r->stop_pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;if(stop)dsr_actions_mode_block();}
   break;
@@ -232,6 +232,8 @@ dsr_result_t dsr_workspace_light_request(const dsr_device_t *device,dsr_light_in
 {if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_LIGHT)return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){.command=intent.command,.position=intent.brightness},(dsr_rgb_intent_t){0},operation_id);}
 dsr_result_t dsr_workspace_rgb_request(const dsr_device_t *device,dsr_rgb_intent_t intent,uint32_t *operation_id)
 {if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_RGB)return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){0},intent,operation_id);}
+dsr_result_t dsr_workspace_ht_refresh(const dsr_device_t *device,uint32_t *operation_id)
+{if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_HT)return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){0},(dsr_rgb_intent_t){0},operation_id);}
 bool dsr_workspace_take_output(dsr_output_request_t *request)
 {
  if(!mutex||!request)return false;

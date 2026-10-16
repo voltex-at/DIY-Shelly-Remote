@@ -50,7 +50,7 @@ static void failed(dsr_result_t result)
  phase=ERROR;
  const char *text=result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane.":
   result==DSR_AUTH_REQUIRED?"Urządzenie wymaga zabezpieczonego BLE lub logowania. Ten kreator obsługuje otwarte okno konfiguracji.":
-  result==DSR_UNSUPPORTED?"Wymagany przekaźnik Gen2+ w otwartym oknie setup oraz HTTP w LAN. Bonding i fabryczne HTTPS 2.0 nie są obsługiwane.":
+  result==DSR_UNSUPPORTED?"Wymagany obsługiwany Gen2+ lub H&T Gen3 w otwartym setup oraz HTTP w LAN. Bonding i fabryczne HTTPS 2.0 nie są obsługiwane.":
   "Nie potwierdzono urządzenia w domowej sieci. Zapis Wi-Fi mógł dotrzeć; nie zostanie automatycznie ponowiony.";
  if(dsr_ble_rpc_active()||waiting){dsr_ble_rpc_cancel(session.generation);cleanup=true;back_after_cleanup=false;}
  else release();
@@ -110,7 +110,7 @@ void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate)
  lv_obj_t *root=screen("Dodać przez Bluetooth?");
  line(root,selected.name[0]?selected.name:"Shelly • reklamowane RPC",100,&dsr_roboto_18);
  dsr_sc_text(root,"Pilot pozostaje w domowej sieci. Najpierw sprawdzi rzeczywiste GATT i tożsamość. Sama reklama BLE nie potwierdza autentyczności.",16,151,288,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(root,"Tylko własny Shelly Gen2+ z przekaźnikiem, roletą lub Light w otwartym setup. Hasło Wi-Fi wymaga kolejnej zgody.",16,294,288,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(root,"Tylko obsługiwany Shelly Gen2+ lub H&T Gen3 w otwartym setup. Hasło Wi-Fi wymaga kolejnej zgody.",16,294,288,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Sprawdź BLE",connect_device);
 }
 void dsr_ui_ble_rpc_result(const dsr_event_t *event)
@@ -165,7 +165,7 @@ void dsr_ui_ble_rpc_tick(void)
    inspecting=false;
    if(lan_copy->phase!=DSR_LAN_INSPECTED){failed(lan_copy->result);return;}
    if(!same(&lan_copy->selected,&found)||strcmp(lan_copy->selected.host,found.host)){failed(DSR_IDENTITY_MISMATCH);return;}
-   if(!lan_copy->capabilities.switches&&!lan_copy->capabilities.covers&&!lan_copy->capabilities.lights&&!lan_copy->capabilities.rgbs){failed(DSR_UNSUPPORTED);return;}
+   if(!lan_copy->capabilities.switches&&!lan_copy->capabilities.covers&&!lan_copy->capabilities.lights&&!lan_copy->capabilities.rgbs&&!lan_copy->capabilities.ht){failed(DSR_UNSUPPORTED);return;}
    dsr_lan_capabilities_t caps=lan_copy->capabilities;active=false;release();dsr_ui_lan_adopt(&found,&caps);
   }
  }

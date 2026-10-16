@@ -100,3 +100,10 @@ if not args.review:
     rgb_binary=build / "test_rgb_ui"
     subprocess.run([cc,*flags,*map(str,rgb_objects),"-lm","-l:libcjson.so.1","-o",str(rgb_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     subprocess.run([str(rgb_binary),str(screens)],check=True,cwd=build)
+
+if not args.review:
+    ht_object=compile_source(ROOT / "tests/ui/test_ht_ui.c")
+    ht_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[ht_object]
+    ht_binary=build / "test_ht_ui"
+    subprocess.run([cc,*flags,*map(str,ht_objects),"-lm","-l:libcjson.so.1","-o",str(ht_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(ht_binary),str(screens)],check=True,cwd=build)

@@ -23,7 +23,7 @@
  }
  function draw(){
   clearTimeout(ageTimer);if(!current())return;root.replaceChildren(node('h2',tr('title')));
-  const age=Math.max(0,performance.now()-received),fresh=devices.filter(d=>d.online&&d.has_power&&Number.isFinite(d.power_w)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms+age<=15000);
+  const age=Math.max(0,performance.now()-received),fresh=devices.filter(d=>kind(d)!==4&&d.online&&d.has_power&&Number.isFinite(d.power_w)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms+age<=15000);
   root.append(node('p',fresh.length?`${tr('sum')}: ${fresh.reduce((s,d)=>s+d.power_w,0).toLocaleString(document.documentElement.lang,{maximumFractionDigits:2})} W (${fresh.length}/${devices.length})`:tr('missing')),node('p',tr('partial'),'muted'));
   if(!devices.length){root.append(node('p',tr('empty')));return;}
   if(!devices.some(d=>key(d)===chosen)){chosen=key(devices[0]);series=null;message='';}
@@ -39,7 +39,7 @@
   try{const response=await request('history/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:d.device_id,generation:d.generation,kind:kind(d),channel:d.channel,hours:range})});const data=await response.json();if(current()&&token===serial&&chosen===selected&&hours===range){if(!validSeries(data,d))throw Error('history shape');series=data;message='';draw();}}
   catch{if(current()&&token===serial){series=null;message='unavailable';draw();}}finally{fetching=false;if(current()&&(chosen!==selected||hours!==range))refresh();}
  }
- window.dsrHistorySnapshot=(snapshot,started=performance.now())=>{devices=Array.isArray(snapshot?.devices)?snapshot.devices.filter(d=>d.device_id&&(d.generation===1||d.generation===2)&&[0,1,2,3].includes(kind(d))):[];devices=devices.filter((d,i,a)=>a.findIndex(x=>key(x)===key(d))===i);received=started;draw();refresh();};
+ window.dsrHistorySnapshot=(snapshot,started=performance.now())=>{devices=Array.isArray(snapshot?.devices)?snapshot.devices.filter(d=>d.device_id&&(d.generation===1||d.generation===2)&&[0,1,2,3,4].includes(kind(d))):[];devices=devices.filter((d,i,a)=>a.findIndex(x=>key(x)===key(d))===i);received=started;draw();refresh();};
  window.dsrHistoryMount=parent=>{++serial;root=node('section',undefined,'box history-section');parent.append(root);queueMicrotask(()=>{draw();refresh();});};
  window.dsrHistoryRefresh=refresh;
  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});

@@ -34,6 +34,61 @@ dsr_result_t dsr_shelly_parse_identity(const cJSON *r,dsr_lan_device_t *out)
 }
 dsr_result_t dsr_lan_parse_identity(const cJSON *r,const char *host,dsr_lan_device_t *out)
 {if(!out||!dsr_ipv4_valid(host))return DSR_BAD_RESPONSE;dsr_result_t result=dsr_shelly_parse_identity(r,out);if(result==DSR_OK)strcpy(out->host,host);return result;}
+static bool ht_unique(const cJSON *r)
+{
+ if(cJSON_IsObject(r))for(const cJSON *a=r->child;a;a=a->next){if(!a->string)return false;for(const cJSON *b=a->next;b;b=b->next)if(!b->string||!strcmp(a->string,b->string))return false;}
+ for(const cJSON *v=r?r->child:NULL;v;v=v->next)if(!ht_unique(v))return false;
+ return true;
+}
+static bool ht_number(const cJSON *v,double lo,double hi,bool *has,double *value)
+{
+ *has=false;*value=0;if(!v||cJSON_IsNull(v))return true;
+ if(!cJSON_IsNumber(v)||!isfinite(v->valuedouble)||v->valuedouble<lo||v->valuedouble>hi)return false;
+ *has=true;*value=v->valuedouble;return true;
+}
+static bool ht_errors(const cJSON *o,bool *has)
+{
+ const cJSON *errors=get(o,"errors");*has=false;if(!errors)return true;
+ if(!cJSON_IsArray(errors)||cJSON_GetArraySize(errors)>16)return false;
+ for(const cJSON *v=errors->child;v;v=v->next){if(!cJSON_IsString(v)||!v->valuestring[0]||strlen(v->valuestring)>64)return false;*has=true;}
+ return true;
+}
+dsr_result_t dsr_ht_parse(const cJSON *r,dsr_telemetry_t *out)
+{
+ if(!out||!cJSON_IsObject(r)||!ht_unique(r))return DSR_BAD_RESPONSE;
+ const cJSON *t=get(r,"temperature:0"),*h=get(r,"humidity:0"),*p=get(r,"devicepower:0");
+ if(!cJSON_IsObject(t)||!cJSON_IsObject(h)||!cJSON_IsObject(p))return DSR_UNSUPPORTED;
+ if(!integral(get(t,"id"),0,0)||!integral(get(h,"id"),0,0)||!integral(get(p,"id"),0,0))return DSR_BAD_RESPONSE;
+ dsr_telemetry_t sample={0};bool te=false,he=false,pe=false,reported=false;
+ /* Defensive adapter bounds. The API does not publish a numeric tC range;
+  * the model's rated ambient 0..40 C is not a wire-validation range. */
+ if(!ht_number(get(t,"tC"),-273.15,1000,&sample.has_temperature,&sample.temperature_c)||!ht_errors(t,&reported))te=true;
+ te|=reported;reported=false;
+ if(!ht_number(get(h,"rh"),0,100,&sample.has_humidity,&sample.humidity_pct)||!ht_errors(h,&reported))he=true;
+ he|=reported;reported=false;
+ if(!ht_errors(p,&reported))pe=true;
+ pe|=reported;
+ const cJSON *fahrenheit=get(t,"tF");bool has_f;double f;
+ if(!ht_number(fahrenheit,-459.67,1832,&has_f,&f))te=true;
+ const cJSON *battery=get(p,"battery"),*external=get(p,"external");
+ /* A malformed optional power section invalidates power only. It must not
+  * suppress independently valid Celsius or humidity from this same bundle. */
+ if(battery&&!cJSON_IsNull(battery)){
+  bool has_v;double v;
+  if(!cJSON_IsObject(battery)||!ht_number(get(battery,"percent"),0,100,&sample.has_battery,&sample.battery_pct)||!ht_number(get(battery,"V"),0,20,&has_v,&v))pe=true;
+ }
+ if(external&&!cJSON_IsNull(external)){
+  if(!cJSON_IsObject(external))pe=true;
+  else {const cJSON *present=get(external,"present");
+   if(present&&!cJSON_IsNull(present)){if(!cJSON_IsBool(present))pe=true;else {sample.ht.flags|=DSR_HT_EXTERNAL_KNOWN;if(cJSON_IsTrue(present))sample.ht.flags|=DSR_HT_EXTERNAL_PRESENT;}}
+  }
+ }
+ sample.ht.flags|=DSR_HT_VALID;
+ if(te){sample.ht.errors|=DSR_HT_TEMPERATURE_ERROR;sample.has_temperature=false;sample.temperature_c=0;}
+ if(he){sample.ht.errors|=DSR_HT_HUMIDITY_ERROR;sample.has_humidity=false;sample.humidity_pct=0;}
+ if(pe){sample.ht.errors|=DSR_HT_POWER_ERROR;sample.has_battery=false;sample.battery_pct=0;sample.ht.flags&=(uint8_t)~(DSR_HT_EXTERNAL_KNOWN|DSR_HT_EXTERNAL_PRESENT);}
+ *out=sample;return DSR_OK;
+}
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_lan_capabilities_t *out)
 {
     if(!out||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
@@ -61,6 +116,9 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
             }else if(!strncmp(v->string,"temperature:",12)||!strncmp(v->string,"humidity:",9)||!strncmp(v->string,"devicepower:",12))caps.sensors=cJSON_IsObject(v)||caps.sensors;
         }
     }else return DSR_UNSUPPORTED;
+    if(generation==3&&get(r,"temperature:0")&&get(r,"humidity:0")&&get(r,"devicepower:0")){
+        dsr_telemetry_t sample;dsr_result_t result=dsr_ht_parse(r,&sample);if(result!=DSR_OK)return result;caps.ht=true;
+    }
     *out=caps;return DSR_OK;
 }
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *d)

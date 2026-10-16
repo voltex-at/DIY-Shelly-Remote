@@ -25,7 +25,7 @@ async function fixture(cover=false){
  root.append(workspace);workspace.append(parent);
  const document={documentElement:{lang:'en'},createElement:tag=>new Node(tag),querySelector:selector=>selector==='#workspace'?workspace:null};
  const makeDevice=(device_id,channel)=>({device_id,generation:2,channel,host:'192.0.2.'+(channel+10),name:device_id,online:true,output:false,has_switch:true,has_power:true,power_w:2.5,has_voltage:false,has_current:false,pending:false,error:0,sample_age_ms:0,operation_id:0});
- const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover===3)Object.assign(devices[0],{endpoint_kind:3,has_switch:false,has_rgb:true,rgb:[12,34,56],brightness:38,can_rgb:true,transitioning:false,rgb_error:false});else if(cover===2)Object.assign(devices[0],{endpoint_kind:2,has_switch:false,has_brightness:true,brightness:38,can_light:true,transitioning:false,has_brightness_target:false,brightness_target:0,light_errors:0,light_conditions:0});else if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
+ const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover===4)Object.assign(devices[0],{endpoint_kind:4,channel:0,online:false,output:null,has_switch:false,has_power:false,can_refresh:true,has_sample_time:true,has_temperature:true,temperature_c:-12.5,has_humidity:true,humidity_pct:0,has_battery:true,battery_pct:0,external_present:false,sensor_errors:0,measurement_time_known:false});else if(cover===3)Object.assign(devices[0],{endpoint_kind:3,has_switch:false,has_rgb:true,rgb:[12,34,56],brightness:38,can_rgb:true,transitioning:false,rgb_error:false});else if(cover===2)Object.assign(devices[0],{endpoint_kind:2,has_switch:false,has_brightness:true,brightness:38,can_light:true,transitioning:false,has_brightness_target:false,brightness_target:0,light_errors:0,light_conditions:0});else if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
  const state={boot:17,devices,gets:0,posts:[],dropPost:false,stale:null,hold:false,release:null};
  const context={window:{},document,page:'devices',config:null,queueMicrotask,performance:{now:()=>clock},
   MutationObserver:class{constructor(fn){observer=fn;}observe(){}},
@@ -34,7 +34,7 @@ async function fixture(cover=false){
    if(options?.method==='POST'){
     const body=JSON.parse(options.body);state.posts.push(body);
     const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel&&(item.endpoint_kind??0)===(body.endpoint_kind??0));assert(d);
-    eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':body.endpoint_kind===3?'devices/rgb':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
+    eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':body.endpoint_kind===3?'devices/rgb':body.endpoint_kind===4?'devices/refresh':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
     return{json:async()=>({accepted:true,operation_id:d.operation_id,boot_id:state.boot})};
    }
    eq(route,'devices/runtime');state.gets++;
@@ -55,6 +55,13 @@ async function fixture(cover=false){
  return{state,context,view,cards,button,advance,mount,locale:lang=>{document.documentElement.lang=lang;observer();},refresh:()=>context.window.dsrRuntimeRefresh()};
 }
 (async()=>{
+ {
+  const f=await fixture(4),card=f.cards()[0],actions=card.children[5];eq(actions.children.length,2);ok(actions.children[1].hidden);ok(!f.button(0).disabled);ok(card.children[2].textContent.includes('-12.5 °C'));ok(card.children[2].textContent.includes('0 % RH'));ok(card.children[2].textContent.includes('0 %'));ok(!card.children[2].textContent.includes(' W'));ok(card.children[1].textContent.includes('No response'));
+  const before=f.state.gets;f.advance(20001);ok(card.children[3].textContent.includes('20 s'));eq(f.state.gets,before);f.locale('de');ok(card.children[3].textContent.includes('20 s'));eq(f.cards()[0],card);
+  await f.button(0).listeners.click();eq(f.state.posts.length,1);eq(f.state.posts[0],{device_id:'shelly-a',generation:2,channel:0,endpoint_kind:4});ok(f.button(0).disabled);await f.button(0).listeners.click();eq(f.state.posts.length,1);
+  const d=f.state.devices[0];d.pending=false;d.online=true;d.sample_age_ms=0;d.temperature_c=null;d.has_temperature=false;d.battery_pct=null;d.has_battery=false;d.external_present=null;await f.refresh();ok(!f.button(0).disabled);ok(card.children[2].textContent.includes('— °C'));ok(card.children[2].textContent.includes('0 % RH'));eq(f.state.posts.length,1);
+  d.can_refresh=false;d.online=false;await f.refresh();await f.button(0).listeners.click();eq(f.state.posts.length,1);
+ }
  {
   const f=await fixture(3),card=f.cards()[0],range=card.children[5].children.find(n=>n.type==='range'),toggle=card.children[7],panel=card.children[8],color=panel.children[0],apply=panel.children[2];
   ok(!f.button(0).disabled);eq(color.value,'#0c2238');ok(apply.disabled);toggle.listeners.click();ok(!panel.hidden);eq(f.state.posts.length,0);

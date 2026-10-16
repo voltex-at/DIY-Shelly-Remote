@@ -107,10 +107,10 @@ static void bind(lv_event_t *event)
 {
     (void)event;if(blu_gateway()||!channel_count){dsr_sc_label_set_text(notice,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
     unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=channel_count)return;
-    unsigned code=channels[selected_channel];if(!(((code&192)==192?capabilities.rgbs:code&128?capabilities.covers:code&64?capabilities.lights:capabilities.switches)&(1u<<(code&15))))return;
+    unsigned code=channels[selected_channel];bool supported=(code&16)?capabilities.ht:((((code&192)==192)?capabilities.rgbs:code&128?capabilities.covers:code&64?capabilities.lights:capabilities.switches)&(1u<<(code&15)))!=0;if(!supported)return;
     const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){dsr_sc_label_set_text(notice,"Wpisz nazwę do 47 bajtów.");return;}
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
-    c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=(code&192)==192?DSR_ENDPOINT_RGB:(code&128)?DSR_ENDPOINT_COVER:(code&64)?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;
+    c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=code&16?DSR_ENDPOINT_HT:(code&192)==192?DSR_ENDPOINT_RGB:(code&128)?DSR_ENDPOINT_COVER:(code&64)?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
     if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);dsr_sc_label_set_text(notice,"Sprawdzanie urządzenia przed zapisem…");}
     else dsr_sc_label_set_text(notice,failure(result));
@@ -130,6 +130,7 @@ static void show_components(void)
     room=lv_dropdown_create(body);lv_obj_set_pos(room,16,94);lv_obj_set_size(room,288,44);lv_dropdown_set_options(room,options);
     dsr_sc_text(body,"Kanał z odpowiedzi API",16,146,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
     for(unsigned kind=0;kind<4;kind++)for(unsigned i=0;i<16;i++)if((kind?(selected.generation>=2?(kind==1?capabilities.covers:kind==2?capabilities.lights:capabilities.rgbs):0):capabilities.switches)&(1u<<i)){char text[24];snprintf(text,sizeof(text),"%s%s %u",count?"\n":"",kind==1?"Cover":kind==2?"Light":kind==3?"RGB":"Switch",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(i|(kind==1?128:kind==2?64:kind==3?192:0));}
+    if(capabilities.ht&&selected.generation==3&&!strcmp(selected.model,DSR_HT_MODEL)&&count<sizeof(channels)){strncat(options,count?"\nH&T 0":"H&T 0",sizeof(options)-strlen(options)-1);channels[count++]=16;}
     channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     notice=dsr_sc_text(root,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
     save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);if(!count||blu_gateway())lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);

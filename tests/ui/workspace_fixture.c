@@ -109,6 +109,10 @@ static unsigned rgb_requests;
 unsigned test_rgb_requests(void){return rgb_requests;}
 dsr_result_t dsr_workspace_rgb_request(const dsr_device_t *device,dsr_rgb_intent_t intent,uint32_t *id)
 {if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.rgb=intent,.operation_id=++cover_serial};*id=cover_serial;rgb_requests++;cover_waiting=true;return DSR_OK;}
+static unsigned ht_requests;
+unsigned test_ht_requests(void){return ht_requests;}
+dsr_result_t dsr_workspace_ht_refresh(const dsr_device_t *device,uint32_t *id)
+{if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.operation_id=++cover_serial};*id=cover_serial;ht_requests++;cover_waiting=true;return DSR_OK;}
 bool dsr_workspace_take_output(dsr_output_request_t *request){if(!cover_waiting)return false;*request=cover_request;cover_waiting=false;memset(&cover_request,0,sizeof(cover_request));dsr_activity_end();return true;}
 
 bool dsr_workspace_runtime_publish_begin(size_t count){if(!runtime_capture)return false;if(count>DSR_MAX_DEVICES)abort();runtime_size=count;return true;}

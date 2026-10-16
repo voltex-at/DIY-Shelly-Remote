@@ -235,6 +235,12 @@ int main(void)
  CHECK(dsr_workspace_light_request(&rgb.device,(dsr_light_intent_t){.command=DSR_LIGHT_ON},&operation)==DSR_UNSUPPORTED&&dsr_workspace_output_request(&rgb.device,true,&operation)==DSR_UNSUPPORTED);
  CHECK(dsr_workspace_rgb_request(&rgb.device,(dsr_rgb_intent_t){.command=DSR_RGB_SET_COLOR,.rgb={255,17,0}},&operation)==DSR_OK);CHECK(dsr_workspace_rgb_request(&rgb.device,(dsr_rgb_intent_t){.command=DSR_RGB_OFF},&operation)==DSR_BUSY);take_with_outer(&request);CHECK(request.device.endpoint_kind==DSR_ENDPOINT_RGB&&request.rgb.command==DSR_RGB_SET_COLOR&&request.rgb.rgb[0]==255&&request.rgb.rgb[1]==17&&request.rgb.rgb[2]==0&&request.operation_id==operation);admission_open();
  for(unsigned condition=0;condition<5;condition++){rgb.pending=false;rgb.device.online=condition!=0;rgb.sample_age_ms=condition==1?15001:0;rgb.error=condition==2?DSR_AUTH_REQUIRED:DSR_OK;rgb.telemetry.rgb.flags=DSR_RGB_VALID|(condition==3?DSR_RGB_ERROR:condition==4?DSR_RGB_TRANSITION:0);publish(&rgb,1);CHECK(dsr_workspace_rgb_request(&rgb.device,(dsr_rgb_intent_t){.command=DSR_RGB_ON},&operation)==(condition<2?DSR_OFFLINE:condition==2?DSR_AUTH_REQUIRED:DSR_UNSUPPORTED));admission_open();}
+ dsr_runtime_device_t ht=device("htg3",0);ht.device.endpoint_kind=DSR_ENDPOINT_HT;ht.device.has_switch=false;ht.device.online=false;ht.has_sample_time=false;ht.can_refresh=true;ht.error=DSR_AUTH_REQUIRED;publish(&ht,1);
+ CHECK(dsr_workspace_output_request(&ht.device,true,&operation)==DSR_UNSUPPORTED&&dsr_workspace_light_request(&ht.device,(dsr_light_intent_t){.command=DSR_LIGHT_ON},&operation)==DSR_UNSUPPORTED);
+ CHECK(dsr_workspace_ht_refresh(&ht.device,&operation)==DSR_OK&&operation);CHECK(dsr_workspace_ht_refresh(&ht.device,&operation)==DSR_BUSY);take_with_outer(&request);CHECK(request.device.endpoint_kind==DSR_ENDPOINT_HT&&request.operation_id==operation);admission_open();
+ ht.pending=false;ht.can_refresh=false;publish(&ht,1);CHECK(dsr_workspace_ht_refresh(&ht.device,&operation)!=DSR_OK);admission_open();
+ ht.can_refresh=true;publish(&ht,1);dsr_device_t foreign=ht.device;foreign.channel=1;CHECK(dsr_workspace_ht_refresh(&foreign,&operation)!=DSR_OK);foreign=ht.device;foreign.endpoint_kind=DSR_ENDPOINT_SWITCH;CHECK(dsr_workspace_ht_refresh(&foreign,&operation)==DSR_UNSUPPORTED);admission_open();
+
  printf("PASS: %u actual workspace/runtime checks; AP handoff TTL/wrap/restart, identity mailboxes, compaction, count0 and per-endpoint admission; RTOS/Flash/HTTP MODEL\n",checks);
  return 0;
 }

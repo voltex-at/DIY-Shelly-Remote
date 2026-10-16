@@ -31,12 +31,12 @@ for name,expected in auth_blocks.items():
         old=b' if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST){esp_err_t e=json(r,"200 OK","{\\"restarting\\":true}");vTaskDelay(pdMS_TO_TICKS(500));esp_restart();return e;}\n'
         assert block.count(new)==1,'Unexpected restart route; normalization must stay exact'
         block=block.replace(new,old)
-        runtime=b' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb"))return runtime_api(r);\n'
+        runtime=b' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb")||!strcmp(r->uri,"/api/v1/devices/refresh"))return runtime_api(r);\n'
         assert block.count(runtime)==1 and block.index(runtime)>block.index(b'if(!authorized(r))'),'Runtime must remain after the unchanged authorization gate'
         block=block.replace(runtime,b'')
         # The typed BIND extension validates a public family discriminator;
         # unchanged origin/boot/pairing gates above still own every route.
-        typed=b'  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER&&endpoint_kind->valuedouble!=DSR_ENDPOINT_LIGHT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_RGB))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)connection.device.generation=DSR_GEN2_PLUS;}}\n'
+        typed=b'  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER&&endpoint_kind->valuedouble!=DSR_ENDPOINT_LIGHT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_RGB&&endpoint_kind->valuedouble!=DSR_ENDPOINT_HT))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)connection.device.generation=DSR_GEN2_PLUS;}}\n'
         assert block.count(typed)==1,'Unexpected typed BIND validation change'
         block=block.replace(typed,b'')
         ap=b' if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);\n'

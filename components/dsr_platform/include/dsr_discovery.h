@@ -10,7 +10,8 @@ typedef struct {
     uint8_t generation;
     bool auth_required;
 } dsr_lan_device_t;
-typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors;} dsr_lan_capabilities_t;
+typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors,ht;} dsr_lan_capabilities_t;
+_Static_assert(sizeof(dsr_lan_capabilities_t)==10,"HT capability uses existing padding");
 typedef enum {DSR_LAN_IDLE,DSR_LAN_SCANNING,DSR_LAN_DONE,DSR_LAN_CANCELLED,
               DSR_LAN_NO_WIFI,DSR_LAN_INSPECTING,DSR_LAN_INSPECTED,DSR_LAN_ERROR} dsr_lan_phase_t;
 typedef struct {
@@ -27,6 +28,8 @@ typedef struct {char hosts[DSR_LAN_MAX_HOSTS][16];uint8_t count;} dsr_lan_plan_t
 /* Portable parsers. No model-name capability guesses and no fabricated rows. */
 dsr_result_t dsr_shelly_parse_identity(const cJSON *json,dsr_lan_device_t *out);
 dsr_result_t dsr_lan_parse_identity(const cJSON *json,const char *host,dsr_lan_device_t *out);
+/* Valid HT bundle requires all three actual ID0 components; measurements may be null/missing. */
+dsr_result_t dsr_ht_parse(const cJSON *json,dsr_telemetry_t *out);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);
 bool dsr_lan_plan_add(dsr_lan_plan_t *plan,const char *host,const char *local,const char *mask);

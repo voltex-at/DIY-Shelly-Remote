@@ -24,10 +24,11 @@ require(type(memory['internal_bss_bytes']) is int and 8192 <= memory['internal_b
 require(memory['lvgl_pool']['bytes'] == 131072 and memory['ui_stack']['bytes'] == 8192,
         'Existing PSRAM LVGL pool/internal UI stack changed')
 units = {
-    'dsr_fleet': (512, {'dsr_fleet_request', 'dsr_fleet_light_request', 'dsr_fleet_rgb_request', 'dsr_fleet_next', 'dsr_fleet_complete'}),
+    'dsr_fleet': (512, {'dsr_fleet_request', 'dsr_fleet_light_request', 'dsr_fleet_rgb_request', 'dsr_fleet_ht_refresh', 'dsr_fleet_next', 'dsr_fleet_complete'}),
+    'dsr_discovery_model': (512, {'dsr_ht_parse', 'dsr_lan_parse_capabilities'}),
     'dsr_connection': (1024, {'dsr_connections_load', 'dsr_connection_save', 'dsr_connection_publish', 'dsr_connection_remove'}),
-    'dsr_runtime_api': (512, {'dsr_runtime_json', 'dsr_output_parse', 'dsr_light_parse', 'dsr_rgb_parse'}),
-    'dsr_workspace': (1024, {'dsr_workspace_output_request', 'dsr_workspace_light_request', 'dsr_workspace_rgb_request', 'dsr_workspace_take_output', 'dsr_workspace_runtime_snapshot'}),
+    'dsr_runtime_api': (512, {'dsr_runtime_json', 'dsr_output_parse', 'dsr_light_parse', 'dsr_rgb_parse', 'dsr_ht_refresh_parse'}),
+    'dsr_workspace': (1024, {'dsr_workspace_output_request', 'dsr_workspace_light_request', 'dsr_workspace_rgb_request', 'dsr_workspace_ht_refresh', 'dsr_workspace_take_output', 'dsr_workspace_runtime_snapshot'}),
     'dsr_ui_network': (2048, {'dsr_network_init'}),
     'dsr_ui_config': (1024, {'dsr_ui_workspace_migrate_status'}),
     'dsr_worker': (2048, {'dsr_worker_submit'}),

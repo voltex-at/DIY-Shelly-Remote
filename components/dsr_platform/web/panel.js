@@ -4,6 +4,7 @@
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
  ["Rodzina API", "API family", "API-Familie"],
+ ["H&T Gen3 • read only", "H&T Gen3 • read only", "H&T Gen3 • nur lesen"],
  ["Light poza grupami Switch", "Light excluded from Switch groups", "Light außerhalb von Switch-Gruppen"],
  ["Grupy", "Groups", "Gruppen"],
  ["Grupa", "Group", "Gruppe"],
@@ -32,7 +33,7 @@ const WEB_MESSAGES=new Map([
  ["Otwórz kreator BLE na pilocie","Open BLE wizard on the remote","BLE-Assistent auf der Fernbedienung öffnen"],
  ["Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.","Complete the wizard on the remote LCD. Both consents require a screen touch; the web request alone sends no Wi-Fi details.","Assistent auf dem LCD abschließen. Beide Zustimmungen erfordern eine Berührung; die Web-Anfrage allein sendet keine WLAN-Daten."],
  ["Skan działa na pilocie. Dla reklamowanego RPC możesz otworzyć prawdziwy kreator na LCD. Dopiero dwie fizyczne zgody pozwalają sprawdzić urządzenie i przekazać Wi-Fi. Reklama nie dowodzi autentyczności.","The scan runs on the remote. For advertised RPC you can open a real LCD wizard. Two physical consents are required to verify the device and share Wi-Fi. Advertisements do not prove authenticity.","Die Suche läuft auf der Fernbedienung. Für beworbenes RPC lässt sich der echte LCD-Assistent öffnen. Zwei physische Zustimmungen sind für Geräteprüfung und WLAN-Weitergabe nötig. Werbung beweist keine Echtheit."],
- ["Tylko przekaźniki Gen2+ w otwartym oknie setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.","Only Gen2+ relays in an open setup window, without bonding and with LAN HTTP. Factory HTTPS 2.0, BLU, BTHome and secured devices are unsupported by this wizard. The remote stays on LAN.","Nur Gen2+-Relais mit offenem Setup, ohne Bonding und mit HTTP im LAN. Werks-HTTPS 2.0, BLU, BTHome und gesicherte Geräte werden nicht unterstützt. Pilot bleibt im LAN."],
+ ["Tylko obsługiwany Gen2+ lub H&T Gen3 w otwartym setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.","Only supported Gen2+ or H&T Gen3 in open setup, without bonding and with LAN HTTP. Factory HTTPS 2.0, BLU, BTHome and secured devices are unsupported by this wizard. The remote stays on LAN.","Nur unterstütztes Gen2+ oder H&T Gen3 mit offenem Setup, ohne Bonding und mit HTTP im LAN. Werks-HTTPS 2.0, BLU, BTHome und gesicherte Geräte werden nicht unterstützt. Pilot bleibt im LAN."],
  ["Expected current BLE scan serial and index only","Wymagany wyłącznie numer bieżącego skanu BLE i indeks","Nur aktuelle BLE-Suchnummer und Index erwartet"],
  ["BLE wizard unavailable; refresh the scan and check the remote","Kreator BLE niedostępny; odśwież skan i sprawdź pilot","BLE-Assistent nicht verfügbar; Suche aktualisieren und Fernbedienung prüfen"],
 
@@ -223,7 +224,7 @@ function manualOnboarding(parent){
  onboardingSteps(parent,3);parent.append(el('p',m('Zaawansowane: adres, tożsamość API i stan zostaną sprawdzone przed dodaniem.')));
  const form=el('div',undefined,'fields');parent.append(form);
  const host=lanInput(form,m('Adres IPv4 Shelly'),manualDraft.host),name=lanInput(form,m('Nazwa urządzenia'),manualDraft.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]),channel=lanInput(form,m('Kanał 0–15'),manualDraft.channel,'number'),user=lanInput(form,m('Login'),manualDraft.username),password=lanInput(form,m('Hasło Shelly'),manualDraft.password,'password');
- const family=lanSelect(form,m('Rodzina API'),[['','Switch / Relay'],['cover','Cover Gen2+'],['light','Light Gen2+'],['rgb','RGB Plus RGBW PM']]);family.value=manualDraft.family;
+ const family=lanSelect(form,m('Rodzina API'),[['','Switch / Relay'],['cover','Cover Gen2+'],['light','Light Gen2+'],['rgb','RGB Plus RGBW PM'],['sensor','H&T Gen3 • read only']]);family.value=manualDraft.family;
  room.value=String(manualDraft.room);channel.min=0;channel.max=15;channel.step=1;
  const inputs={host,name,room,channel,username:user,password,family};for(const [key,input]of Object.entries(inputs))input.addEventListener('input',()=>manualDraft[key]=input.value);
  const apply=button(m('Sprawdź i zapisz połączenie'),()=>{
@@ -265,7 +266,7 @@ function bleView(){
  onboardingSteps(n,2);
  const start=button(m('Szukaj BLE'),async()=>{try{await request('ble/scan',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}},'primary');start.id='ble-start';
  const cancel=button(m('Anuluj skan BLE'),async()=>{try{await request('ble/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}});cancel.id='ble-cancel';
- const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('Tylko przekaźniki Gen2+ w otwartym oknie setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.'),'muted'));scheduleBle(generation,0);return n;
+ const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('Tylko obsługiwany Gen2+ lub H&T Gen3 w otwartym setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.'),'muted'));scheduleBle(generation,0);return n;
 }
 let apGeneration=0;
 function apView(){
@@ -336,7 +337,7 @@ async function pollLan(generation){
 }
 async function bindLan(name,room,channel,button,manual=false){
  if(button.disabled||page!=='discovery')return;const generation=++lanGeneration;
- button.disabled=true;const cover=String(channel).startsWith('cover:'),light=String(channel).startsWith('light:'),rgb=String(channel).startsWith('rgb:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover||light?String(channel).slice(6):rgb?String(channel).slice(4):channel),...lanCredentials};if(cover||light||rgb)body.endpoint_kind=cover?1:rgb?3:2;
+ button.disabled=true;const cover=String(channel).startsWith('cover:'),light=String(channel).startsWith('light:'),rgb=String(channel).startsWith('rgb:'),sensor=String(channel).startsWith('sensor:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover||light?String(channel).slice(6):rgb?String(channel).slice(4):sensor?String(channel).slice(7):channel),...lanCredentials};if(cover||light||rgb||sensor)body.endpoint_kind=sensor?4:cover?1:rgb?3:2;
  try{
   await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!onboardingCurrent(generation))return;notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
   for(let i=0;i<100;i++){
@@ -346,7 +347,7 @@ async function bindLan(name,room,channel,button,manual=false){
    if(s.device_busy||s.busy)continue;
    if(s.device_result!==0){if(s.device_result===4&&!manual){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
    const configResponse=await request('config');if(!onboardingCurrent(generation))return;
-   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&(d.kind==='light')===([2,3].includes(body.endpoint_kind))&&d.room===body.room&&d.name===body.name);
+   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&(d.kind==='light')===([2,3].includes(body.endpoint_kind))&&(d.kind==='sensor')===(body.endpoint_kind===4)&&d.room===body.room&&d.name===body.name);
    page='devices';lanCredentials=null;invalidateOnboarding();showConfig(current);notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
   }
   throw failure(m('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.'));
@@ -374,6 +375,7 @@ function discoveryView(){
  }
  const name=lanInput(form,m('Nazwa urządzenia'),lanSelected.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]);
  const channels=[];for(let kind=0;kind<4;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?(kind===1?lanSnapshot.capabilities.covers:kind===2?lanSnapshot.capabilities.lights:lanSnapshot.capabilities.rgbs):0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`${kind===1?'cover':kind===2?'light':'rgb'}:${i}`:i,`${kind===1?'Cover':kind===2?'Light':kind===3?'RGB':'Switch'} ${i}`]);
+ if(lanSnapshot.capabilities.ht===true&&lanSelected.generation===3&&lanSelected.model==='S3SN-0U12A')channels.push(['sensor:0','H&T Gen3 • read only']);
  const channel=lanSelect(form,m('Kanał z odpowiedzi API'),channels.length?channels:[['',m('Brak obsługiwanego kanału')]]);
  n.append(el('p',m('Dodanie zachowuje poprzednie urządzenia i ich kanały.')));
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);

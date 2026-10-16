@@ -614,7 +614,7 @@ static bool migration_match(const cJSON *v,const migration_t *m)
 {
  if(!dsr_endpoint_layout_matches(m->device.endpoint_kind,string(v,"kind")))return false;
  if(m->layout_id)return (uint32_t)integer(v,"id")==m->layout_id;
- if(m->device.endpoint_kind==DSR_ENDPOINT_RGB)return false; /* New typed RGB never converts a host-only Light card. */
+ if((m->device.endpoint_kind==DSR_ENDPOINT_RGB||m->device.endpoint_kind==DSR_ENDPOINT_HT))return false; /* New typed RGB/H&T never convert host-only display cards. */
  if(integer(v,"channel")!=m->device.channel)return false;
  /* An unpublished endpoint may adopt legacy layout only if another durable
   * endpoint does not already own that numeric ID. */
@@ -658,7 +658,7 @@ static void migration_ack(void)
 {
  size_t count=0;for(size_t i=0;i<migration_count;i++){
   if(migrations[i].version>migration_submitted)migrations[count++]=migrations[i];
-  else if(migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB&&migrations[i].candidate_id)dsr_network_migrated_layout(&migrations[i].device,migrations[i].candidate_id);
+  else if((migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB||migrations[i].device.endpoint_kind==DSR_ENDPOINT_HT)&&migrations[i].candidate_id)dsr_network_migrated_layout(&migrations[i].device,migrations[i].candidate_id);
  }
  memset(migrations+count,0,(migration_count-count)*sizeof(*migrations));migration_count=count;
  cJSON_Delete(migration_document);migration_document=NULL;migration_failed=false;migration_result=migration_count?DSR_BUSY:DSR_OK;
@@ -675,7 +675,7 @@ static void migration_tick(void)
   cJSON_Delete(migration_document);migration_document=NULL;
   /* Revision conflicts are retried from a fresh snapshot. Failed Flash ACK
    * is reported as IO; a BIND caller cancels its unapplied RAM intent. */
-  bool rgb_unconfirmed=false;for(size_t i=0;i<migration_count;i++)if(migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB&&!migrations[i].layout_id&&migrations[i].candidate_id)rgb_unconfirmed=true;
+  bool rgb_unconfirmed=false;for(size_t i=0;i<migration_count;i++)if((migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB||migrations[i].device.endpoint_kind==DSR_ENDPOINT_HT)&&!migrations[i].layout_id&&migrations[i].candidate_id)rgb_unconfirmed=true;
   if(rgb_unconfirmed&&revision!=migration_revision){migration_failed=true;migration_result=DSR_CONFLICT;migration_retry=lv_tick_get()+5000;return;}
   if(revision==migration_revision){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
  }

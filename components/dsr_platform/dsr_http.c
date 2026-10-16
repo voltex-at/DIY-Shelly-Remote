@@ -128,6 +128,7 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
     result=fetch_json(&c,&request,false,&json);memset(&c,0,sizeof(c));
     if(result==DSR_OK)result=dsr_lan_parse_capabilities(json,expected->generation,out);
     if(result==DSR_OK&&out->rgbs&&strcmp(observed.model,DSR_RGB_MODEL))result=DSR_UNSUPPORTED;
+    if(result==DSR_OK&&out->ht&&(observed.generation!=3||strcmp(observed.model,DSR_HT_MODEL)))out->ht=false;
     cJSON_Delete(json);return result;
 }
 
@@ -157,6 +158,12 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
         const cJSON *rgb_gen=cJSON_GetObjectItemCaseSensitive(root,"gen");
         if(!light_unique(root)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
         if(!cJSON_IsNumber(rgb_gen)||rgb_gen->valuedouble!=2||connection->device.channel!=0||!cJSON_IsString(model)||strcmp(model->valuestring,DSR_RGB_MODEL)||!cJSON_IsString(profile)||strcmp(profile->valuestring,"rgb")){cJSON_Delete(root);return DSR_UNSUPPORTED;}
+    }
+    if(cJSON_IsString(model)&&!strcmp(model->valuestring,DSR_HT_MODEL)&&connection->device.endpoint_kind!=DSR_ENDPOINT_HT){cJSON_Delete(root);return DSR_UNSUPPORTED;}
+    if(connection->device.endpoint_kind==DSR_ENDPOINT_HT){
+        const cJSON *physical_gen=cJSON_GetObjectItemCaseSensitive(root,"gen");
+        if(!light_unique(root)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+        if(connection->device.channel!=0||!cJSON_IsNumber(physical_gen)||physical_gen->valuedouble!=3||!cJSON_IsString(model)||strcmp(model->valuestring,DSR_HT_MODEL)){cJSON_Delete(root);return DSR_UNSUPPORTED;}
     }
     cJSON *gen = cJSON_GetObjectItemCaseSensitive(root, "gen");
     cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
@@ -287,6 +294,12 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
     dsr_result_t result;
+    if(device->endpoint_kind==DSR_ENDPOINT_HT){
+        if(device->generation!=DSR_GEN2_PLUS||device->channel!=0)return DSR_UNSUPPORTED;
+        memset(&request,0,sizeof(request));strcpy(request.path,"/rpc/Shelly.GetStatus");cJSON *root=NULL;
+        result=fetch_json(connection,&request,false,&root);if(result==DSR_OK)result=dsr_ht_parse(root,&connection->telemetry);cJSON_Delete(root);
+        device->has_switch=device->has_power=device->output=false;device->power_w=0;device->online=result==DSR_OK;return result;
+    }
     if(device->endpoint_kind==DSR_ENDPOINT_COVER||device->endpoint_kind==DSR_ENDPOINT_LIGHT||device->endpoint_kind==DSR_ENDPOINT_RGB){
         if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
         memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/%s.GetStatus?id=%u",device->endpoint_kind==DSR_ENDPOINT_COVER?"Cover":device->endpoint_kind==DSR_ENDPOINT_RGB?"RGB":"Light",device->channel);result=DSR_OK;
@@ -372,6 +385,7 @@ dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
 {
+    if(connection&&connection->device.endpoint_kind==DSR_ENDPOINT_HT)return DSR_UNSUPPORTED;
     dsr_result_t result = verify(connection);
     if (result != DSR_OK) return result;
     if (connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->device.has_switch) return DSR_UNSUPPORTED;
