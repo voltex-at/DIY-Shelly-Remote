@@ -61,6 +61,7 @@ const char *dsr_network_bind_result_text(dsr_result_t result,dsr_bind_stage_t st
 }
 void dsr_network_reset_view(void)
 {
+    dsr_ui_onboarding_reset();
     dsr_ui_settings_hide();
     dsr_ui_battery_hide();dsr_ui_display_hide();
     dsr_ui_history_hide();
@@ -225,6 +226,7 @@ dsr_result_t dsr_network_request_station(const dsr_lan_device_t *identity)
  dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
 }
 bool dsr_network_busy(void) { return busy||finishing_bind||dsr_worker_stop_pending(); }
+bool dsr_network_bind_busy(void){return finishing_bind||(busy&&operation==DSR_JOB_BIND);}
 bool dsr_network_ota_busy(void){return busy&&(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL);}
 dsr_result_t dsr_network_request_ota(dsr_job_kind_t kind,unsigned channel,bool power_confirmed)
 {
@@ -358,14 +360,14 @@ static void hide_keyboard(lv_event_t *event)
     if (!keyboard || !form) return;
     lv_keyboard_set_textarea(keyboard, NULL);
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_set_height(form, 300);
+    lv_obj_set_height(form, 268);dsr_onboarding_keyboard(lv_screen_active(),false);
 }
 
 static void focus_field(lv_event_t *event)
 {
     lv_obj_t *field = lv_event_get_target(event);
     if (!keyboard || !form) return;
-    lv_obj_set_height(form, 121);
+    lv_obj_set_height(form, 96);dsr_onboarding_keyboard(lv_screen_active(),true);
     dsr_ui_keyboard_focus(keyboard,field);
     lv_obj_scroll_to_view(field, LV_ANIM_OFF);
 }
@@ -389,9 +391,9 @@ static lv_obj_t *field(unsigned index, const char *caption, const char *text, un
 
 static void form_start(const char *title)
 {
-    lv_obj_t *root = dsr_ui_screen(title, true);
-    message = dsr_ui_label(root, "Enter the device address and login.", 16, 77, 288);
-    form = lv_obj_create(root); lv_obj_set_pos(form, 12, 115); lv_obj_set_size(form, 296, 300);
+    lv_obj_t *root = dsr_onboarding_screen(title,3);
+    message = dsr_ui_label(root, "Enter the device address and login.", 16, 91, 288);
+    form = lv_obj_create(root); lv_obj_set_pos(form, 12, 134); lv_obj_set_size(form, 296, 268);
     lv_obj_set_style_pad_all(form, 8, 0); lv_obj_set_style_border_width(form, 0, 0);
     lv_obj_set_style_bg_color(form, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_style_text_color(form, lv_color_hex(0xf0f4fb), 0);
@@ -445,18 +447,16 @@ static void manual_device(lv_event_t *event)
     field(4, "Shelly password (optional)", "", 64, true);
     dsr_ui_label(form,"Rodzina API",0,420,268);
     endpoint_choice=lv_dropdown_create(form);lv_obj_set_pos(endpoint_choice,0,444);lv_obj_set_size(endpoint_choice,268,44);lv_dropdown_set_options(endpoint_choice,"Switch / Relay\nCover Gen2+");
-    dsr_ui_button(form, "Check & save device", 0, 508, 268, bind_device, NULL);
-    dsr_ui_label(form, "Do 16 endpointów Switch/Cover.\nCover wymaga Gen2+ i aktywnego profilu rolety.\nZmiana profilu nie jest wykonywana.\nDane logowania w niezaszyfrowanym NVS.", 0, 572, 268);
+    dsr_onboarding_footer(lv_screen_active(),"Anuluj",dsr_network_device,"Check & save device",bind_device);
+    dsr_ui_label(form, "Do 16 endpointów Switch/Cover.\nCover wymaga Gen2+ i aktywnego profilu rolety.\nZmiana profilu nie jest wykonywana.\nDane logowania w niezaszyfrowanym NVS.", 0, 508, 268);
 }
 
 void dsr_network_device(lv_event_t *event)
 {
-    (void)event;lv_obj_t *root=dsr_ui_screen("Dodaj urządzenie Shelly",true);
-    dsr_ui_button(root,"Skanuj sieć Wi-Fi",12,96,296,dsr_ui_lan_open,NULL);
-    dsr_ui_button(root,"Wi-Fi AP",12,152,296,dsr_ui_ap_open,NULL);
-    dsr_ui_button(root,"Bluetooth LE",12,208,296,dsr_ui_ble_open,NULL);
-    dsr_ui_button(root,"Dodaj ręcznie (IP)",12,264,296,manual_device,NULL);
-    dsr_ui_label(root,"LAN, fabryczne Wi-Fi AP i skan BLE są dostępne.\nParowanie BLE nie jest jeszcze wdrożone.",16,329,288);
+    (void)event;
+    dsr_network_home(NULL);
+    dsr_network_reset_view();dsr_mobile_hide(); /* Freeze HOME behind modal. */
+    dsr_ui_onboarding_open(manual_device);
 }
 dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room)
 {
@@ -527,7 +527,7 @@ static void finish_bind(dsr_result_t result)
  if(bind_lease){bind_lease=false;dsr_activity_end();}
  if(lan_binding){if(result!=DSR_OK)dsr_ui_lan_bind_result(result,bind_stage);lan_binding=false;}
  if(external_bind){dsr_workspace_bind_result_stage(result,bind_stage);external_bind=false;}
- else if(result==DSR_OK)dsr_network_home(NULL);
+ else if(result==DSR_OK&&!dsr_ui_onboarding_active())dsr_network_home(NULL);
  if(message&&result!=DSR_OK)dsr_sc_label_set_text(message,dsr_network_bind_result_text(result,bind_stage));
  pending_room=UINT32_MAX;memset(&pending,0,sizeof(pending));
 }
@@ -600,7 +600,7 @@ static void poll(lv_timer_t *timer)
   render();
  }
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_panel_tick();dsr_ui_history_tick();dsr_ui_actions_tick();
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_history_tick();dsr_ui_actions_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
  bool ap_available=view==VIEW_HOME&&!dsr_ui_ble_rpc_active()&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
  dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);

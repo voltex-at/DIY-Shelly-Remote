@@ -1,5 +1,22 @@
 # Project status
 
+## 0.7.32 — shared device onboarding candidate
+
+The LCD opens one method sheet above the suspended HOME view, with explicit
+Next for Bluetooth, factory AP, LAN or advanced manual IP. Shared steps, lists,
+keyboard and fixed footers keep the same flow in PL/EN/DE. Web preserves method,
+DOM, locale and session ownership while using the existing transport contracts.
+AP/B1 retain both physical consents and typed identity verification before BIND.
+
+Integrated with PR60 groups/scenes/activity and the existing PR50 revocation
+port. Full native UBSan and actual LVGL5552/204, Cover112/7 and restart14/23/18/25
+passed. Independent review reproduced a late prior BIND taking over a newly
+started method; Next now waits through RAM, workspace and private ACK stages.
+Its actual LCD regression passes29 checks. Late LAN/Web replies also retain
+session ownership. This source still needs exact-source target/browser CI and
+received-artifact verification. Physical RF, first boot and retention remain
+open; no hardware writes or Stable publication.
+
 ## 0.7.31 — shared groups, scenes and volatile activity candidate
 
 The scene card now runs explicit actions; its editor is separate. Groups have

@@ -17,7 +17,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));
    eq(route,'ble');const captured=state;if(holdGet)await new Promise(r=>releaseGet=r);
    return{json:async()=>({serial:42,handoff:captured,phase:3,busy:false,elapsed_ms:0,devices:[{kind:1,name:'BLU',rssi:-30,age_ms:0},{kind:0,name:'Own RPC',rssi:-40,age_ms:0}]})};
   }};
- vm.runInNewContext(source.slice(begin,end)+';globalThis.makeBleView=bleView;',context);
+ vm.runInNewContext(source.slice(source.indexOf('function onboardingSteps('),source.indexOf('function updateOnboardingChoice('))+source.slice(begin,end)+';globalThis.makeBleView=bleView;',context);
  const view=context.makeBleView(),list=nodes.get('#ble-results'),start=nodes.get('#ble-start');
  async function advance(ms){clock+=ms;const due=[...timers].filter(([,t])=>t.at<=clock);for(const [id,t]of due){timers.delete(id);t.fn();}await flush();}
  const findOpen=()=>list.children.flatMap(n=>n.children||[]).find(n=>n.tag==='button');

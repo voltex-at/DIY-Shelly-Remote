@@ -9,6 +9,24 @@ const WEB_MESSAGES=new Map([
  ["Nowa grupa", "New group", "Neue Gruppe"],
  ["Grupa: do 16 kanałów Switch, jawne Włącz i Wyłącz.", "Group: up to 16 Switch channels, explicit On and Off.", "Gruppe: bis zu 16 Switch-Kanäle, explizit Ein und Aus."],
  ["Actions unavailable", "Wykonawca niedostępny", "Ausführung nicht verfügbar"],
+ ["Anuluj","Cancel","Abbrechen"],
+ ["Krok {0} z 3", "Step {0} of 3", "Schritt {0} von 3"],
+ ["Sieć lokalna", "Local network", "Lokales Netzwerk"],
+ ["Reklamy BLE • także bez Wi-Fi", "BLE advertisements • also without Wi-Fi", "BLE-Advertisements • auch ohne WLAN"],
+ ["Otwarty punkt dostępowy Shelly", "Shelly open access point", "Offener Shelly-Zugangspunkt"],
+ ["Urządzenia w domowej sieci", "Devices on your home network", "Geräte im Heimnetz"],
+ ["Brak połączenia z pilotem. Odśwież panel.", "Remote unreachable. Refresh the panel.", "Fernbedienung nicht erreichbar. Panel aktualisieren."],
+ ["Dodaj ręcznie (IP)", "Add manually (IP)", "Manuell hinzufügen (IP)"],
+ ["Adres IP • zaawansowane", "IP address • advanced", "IP-Adresse • erweitert"],
+ ["Dalej", "Next", "Weiter"],
+ ["Zaawansowane: adres, tożsamość API i stan zostaną sprawdzone przed dodaniem.", "Advanced: address, API identity and state will be checked before adding.", "Erweitert: Adresse, API-Identität und Zustand werden vor dem Hinzufügen geprüft."],
+ ["Kanał 0–15", "Channel 0–15", "Kanal 0–15"],
+ ["Sprawdź adres, nazwę i kanał 0–15.", "Check the address, name and channel 0–15.", "Adresse, Name und Kanal 0–15 prüfen."],
+ ["Shelly • reklamowane RPC", "Shelly • advertised RPC", "Shelly • beworbenes RPC"],
+ ["Nierozpoznane urządzenie", "Unrecognized device", "Nicht erkanntes Gerät"],
+ ["Reklama: {0}", "Advertisement: {0}", "Advertisement: {0}"],
+ ["bez nazwy", "unnamed", "ohne Namen"],
+
  ["Otwórz kreator BLE na pilocie","Open BLE wizard on the remote","BLE-Assistent auf der Fernbedienung öffnen"],
  ["Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.","Complete the wizard on the remote LCD. Both consents require a screen touch; the web request alone sends no Wi-Fi details.","Assistent auf dem LCD abschließen. Beide Zustimmungen erfordern eine Berührung; die Web-Anfrage allein sendet keine WLAN-Daten."],
  ["Skan działa na pilocie. Dla reklamowanego RPC możesz otworzyć prawdziwy kreator na LCD. Dopiero dwie fizyczne zgody pozwalają sprawdzić urządzenie i przekazać Wi-Fi. Reklama nie dowodzi autentyczności.","The scan runs on the remote. For advertised RPC you can open a real LCD wizard. Two physical consents are required to verify the device and share Wi-Fi. Advertisements do not prove authenticity.","Die Suche läuft auf der Fernbedienung. Für beworbenes RPC lässt sich der echte LCD-Assistent öffnen. Zwei physische Zustimmungen sind für Geräteprüfung und WLAN-Weitergabe nötig. Werbung beweist keine Echtheit."],
@@ -105,7 +123,8 @@ function field(parent,label,value,fn,type='text'){const l=el('label',label),i=el
 function select(parent,label,value,options,fn){const l=el('label',label),s=el('select');setUIAttribute(s,'aria-label',label);for(const [v,t]of options){const o=el('option',t);o.value=v;s.append(o);}s.value=String(value);s.addEventListener('change',()=>{fn(s.value);changed();});l.append(s);parent.append(l);return s;}
 function nextId(items){return Math.max(0,...items.map(x=>x.id))+1;}
 async function request(path,options={}){const r=await fetch('/api/v1/'+path,{...options,headers:{'X-DSR-Request':'1',...(options.headers||{})}});if(r.status===401){$('#workspace').hidden=true;$('#pairing').hidden=false;throw failure(m('Parowanie wymagane'));}if(!r.ok){let e;try{e=await r.json();}catch{}const error=failure(e?.error?serverMessage(e.error):m('Błąd {0}',r.status));error.httpStatus=r.status;throw error;}return r;}
-async function load(){try{const r=await request('config');config=await r.json();dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}catch(e){notice(e.uiMessage||serverMessage(e.message));}}
+function showConfig(next){config=next;dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}
+async function load(){try{const r=await request('config');showConfig(await r.json());}catch(e){notice(e.uiMessage||serverMessage(e.message));}}
 function box(title){const n=el('div',undefined,'box');if(title)n.append(el('h2',title));return n;}
 function empty(parent,text){parent.append(el('p',text,'empty'));}
 function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&config.devices.some(d=>d.room===id)){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
@@ -154,6 +173,52 @@ function editTile(d,t){
 }
 function appearance(){const n=box(m('Wygląd i język')),f=el('div',undefined,'fields');n.append(f,el('p',m('Język pilota jest wspólnym ustawieniem i wymaga zapisu w pilocie.'),'muted'),el('p',m('Język Web Panelu: preferencja tej przeglądarki, wybierana w nagłówku. Nie wymaga zapisu w pilocie.'),'muted'));select(f,m('Język pilota'),config.language,[['pl','Polski'],['en','English'],['de','Deutsch']],v=>config.language=v);select(f,m('Motyw'),config.theme,[['graphite',m('Grafit')],['midnight',m('Nocny')]],v=>config.theme=v);field(f,m('Kolor akcentu'),'#'+config.accent.toString(16).padStart(6,'0'),v=>config.accent=parseInt(v.slice(1),16),'color');return n;}
 function system(){const n=box(m('Aktualizacja OTA'));n.append(el('p',m('Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.')));const f=el('input');f.type='file';f.accept='.bin';setUIAttribute(f,'aria-label',m('Plik aplikacji BIN'));n.append(f,button(m('Sprawdź i zainstaluj OTA'),async()=>{if(!f.files[0])return;try{const data=await f.files[0].arrayBuffer();notice(m('Wysyłanie obrazu do nieaktywnej partycji…'));const r=await request('ota',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SHA256':sha256(new Uint8Array(data))},body:data});const result=await r.json();if(result.installed){notice(m('Obraz zweryfikowany. Uruchom ponownie pilot, aby go zastosować.'));n.append(button(m('Uruchom ponownie'),async()=>{await request('restart',{method:'POST'});notice(m('Pilot uruchamia się ponownie…'));}));}}catch(e){notice(e.uiMessage||serverMessage(e.message));}},'primary'));n.append(el('p',m('Najpierw zweryfikuj źródło pliku. Suma SHA256 sprawdza przesyłanie, a nie podpis wydawcy. To rozwojowy instalator lokalny.'),'muted'));return n;}
+/* Selection is local state. Only an explicit Next can enter a real method. */
+let onboardingChoice=null,onboardingStarting=false,onboardingNext=null,onboardingCards=[],remoteReachable=true;
+// Every async LAN owner keeps this epoch across all awaits. Reopening or
+// leaving invalidates it before a late response can touch the current view.
+function onboardingCurrent(generation){return page==='discovery'&&generation===lanGeneration;}
+function invalidateOnboarding(){lanGeneration++;onboardingStarting=false;}
+function onboardingSteps(parent,step){
+ const head=el('div',undefined,'onboarding-steps');head.append(el('p',m('Krok {0} z 3',step),'muted'));
+ const track=el('div',undefined,'onboarding-track');for(let i=0;i<3;i++)track.append(el('span',undefined,i<step?'reached':''));head.append(track);parent.append(head);
+}
+function updateOnboardingChoice(){
+ if(page!=='discovery'||lanMode!=='start'||!onboardingNext)return;
+ for(const row of onboardingCards){const selected=onboardingChoice===row.id,available=row.id==='ble'||remoteReachable;
+  row.node.disabled=!available;row.node.classList.toggle('selected',selected);row.node.setAttribute('aria-pressed',String(selected));row.radio.textContent=selected?'●':'○';setText(row.detail,m(available?row.description:'Brak połączenia z pilotem. Odśwież panel.'));
+ }
+ onboardingNext.disabled=onboardingStarting||!onboardingChoice||(onboardingChoice!=='ble'&&!remoteReachable);
+}
+function onboardingMethods(parent){
+ onboardingCards=[];onboardingSteps(parent,1);
+ const list=el('div',undefined,'onboarding-methods');
+ for(const [id,name,description,symbol]of [['ble','Bluetooth LE • skan','Reklamy BLE • także bez Wi-Fi','BLE'],['ap','Wi-Fi AP • kreator na pilocie','Otwarty punkt dostępowy Shelly','AP'],['lan','Sieć lokalna','Urządzenia w domowej sieci','LAN']]){
+  const node=button(undefined,()=>{if(node.disabled||onboardingStarting)return;onboardingChoice=id;updateOnboardingChoice();},'onboarding-method');setUIAttribute(node,'aria-label',m(name));
+  const body=el('span',undefined,'grow'),detail=el('span',m(description),'muted'),radio=el('span','○','onboarding-radio');body.append(el('strong',m(name)),detail);node.append(el('span',symbol,'onboarding-symbol'),body,radio);list.append(node);onboardingCards.push({id,node,detail,radio,description});
+ }
+ const advanced=button(m('Dodaj ręcznie (IP)'),()=>{if(advanced.disabled||onboardingStarting)return;onboardingChoice='manual';updateOnboardingChoice();},'onboarding-advanced');setUIAttribute(advanced,'aria-label',m('Dodaj ręcznie (IP)'));
+ const advancedRadio=el('span','○','onboarding-radio');advanced.append(advancedRadio);list.append(advanced);onboardingCards.push({id:'manual',node:advanced,detail:el('span'),radio:advancedRadio,description:'Adres IP • zaawansowane'});parent.append(list);
+ const footer=el('div',undefined,'onboarding-footer');onboardingNext=button(m('Dalej'),async()=>{
+  if(onboardingStarting||!onboardingChoice||page!=='discovery'||lanMode!=='start'||(onboardingChoice!=='ble'&&!remoteReachable))return;
+  onboardingStarting=true;updateOnboardingChoice();const method=onboardingChoice,generation=++lanGeneration;
+  try{if(method==='lan')await scanLan(generation);else{lanCredentials=null;lanMode=method;render();}}
+  finally{if(onboardingCurrent(generation)){onboardingStarting=false;updateOnboardingChoice();}}
+ },'primary');footer.append(button(m('Anuluj'),()=>{invalidateOnboarding();onboardingChoice=null;onboardingCards=[];onboardingNext=null;page='devices';render();}),onboardingNext);parent.append(footer);updateOnboardingChoice();
+}
+let manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0};
+function manualOnboarding(parent){
+ onboardingSteps(parent,3);parent.append(el('p',m('Zaawansowane: adres, tożsamość API i stan zostaną sprawdzone przed dodaniem.')));
+ const form=el('div',undefined,'fields');parent.append(form);
+ const host=lanInput(form,m('Adres IPv4 Shelly'),manualDraft.host),name=lanInput(form,m('Nazwa urządzenia'),manualDraft.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]),channel=lanInput(form,m('Kanał 0–15'),manualDraft.channel,'number'),user=lanInput(form,m('Login'),manualDraft.username),password=lanInput(form,m('Hasło Shelly'),manualDraft.password,'password');
+ room.value=String(manualDraft.room);channel.min=0;channel.max=15;channel.step=1;
+ const inputs={host,name,room,channel,username:user,password};for(const [key,input]of Object.entries(inputs))input.addEventListener('input',()=>manualDraft[key]=input.value);
+ const apply=button(m('Sprawdź i zapisz połączenie'),()=>{
+  if(apply.disabled)return;
+  if(!host.value.trim()||!name.value.trim()||!Number.isInteger(Number(channel.value))||Number(channel.value)<0||Number(channel.value)>15)return notice(m('Sprawdź adres, nazwę i kanał 0–15.'));
+  lanSelected={host:host.value.trim(),id:'',model:m('Adres IP • zaawansowane'),name:name.value};lanCredentials={username:user.value,password:password.value};bindLan(name.value,room.value,channel.value,apply,true);
+ },'primary');const footer=el('div',undefined,'onboarding-footer');footer.append(apply);parent.append(footer);
+}
 let lanBound=[];
 const alreadyBound=(d,channel)=>lanBound.some(b=>b.device_id===d.id&&b.generation===(d.generation===1?1:2)&&(channel===undefined||b.channel===channel));
 let lanMode='start',lanSelected=null,lanCredentials=null,lanSnapshot=null,lanGeneration=0;
@@ -169,7 +234,7 @@ async function pollBle(generation){
   $('#ble-start').disabled=s.busy||blePosting||s.handoff===2||s.handoff===3;$('#ble-cancel').disabled=!s.busy;list.replaceChildren();
   for(const [kind,heading] of [[0,m('Shelly • RPC / konfiguracja')],[1,m('Shelly BLU')],[2,m('Pozostałe reklamy')]]){
    const rows=s.devices.map((d,index)=>({...d,index})).filter(d=>d.kind===kind);if(!rows.length)continue;list.append(el('h3',heading));
-   for(const d of rows){const card=el('div',undefined,'row');card.append(el('strong',d.model||d.name||m('Nieznany model')),el('span',m('{0} dBm · Wykryto, nie sparowano',d.rssi)));if(d.kind===0){const open=button(m('Otwórz kreator BLE na pilocie'),async()=>{
+   for(const d of rows){const card=el('div',undefined,'row');card.append(el('strong',d.model||m(d.kind===0?'Shelly • reklamowane RPC':'Nierozpoznane urządzenie')),el('span',m('Reklama: {0}',d.name||m('bez nazwy'))),el('span',m('{0} dBm · Wykryto, nie sparowano',d.rssi)));if(d.kind===0){const open=button(m('Otwórz kreator BLE na pilocie'),async()=>{
      if(open.disabled||blePosting||generation!==bleGeneration)return;
      blePosting=true;bleEpoch++;open.disabled=true;
      try{const result=await(await request('ble/open',{method:'POST',body:JSON.stringify({serial:s.serial,index:d.index})})).json();if(generation===bleGeneration&&result.queued)setText(status,m('Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.'));}
@@ -184,6 +249,7 @@ async function pollBle(generation){
 function bleView(){
  const n=box(m('Bluetooth LE • skan')),generation=++bleGeneration;
  n.append(button(m('← Metody dodawania'),()=>{bleGeneration++;lanMode='start';render();}),el('p',m('Skan działa na pilocie. Dla reklamowanego RPC możesz otworzyć prawdziwy kreator na LCD. Dopiero dwie fizyczne zgody pozwalają sprawdzić urządzenie i przekazać Wi-Fi. Reklama nie dowodzi autentyczności.')));
+ onboardingSteps(n,2);
  const start=button(m('Szukaj BLE'),async()=>{try{await request('ble/scan',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}},'primary');start.id='ble-start';
  const cancel=button(m('Anuluj skan BLE'),async()=>{try{await request('ble/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}});cancel.id='ble-cancel';
  const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('Tylko przekaźniki Gen2+ w otwartym oknie setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.'),'muted'));scheduleBle(generation,0);return n;
@@ -192,6 +258,7 @@ let apGeneration=0;
 function apView(){
  const n=box(m('Wi-Fi AP • kreator na pilocie')),generation=++apGeneration;
  n.append(button(m('← Metody dodawania'),()=>{apGeneration++;lanMode='start';render();}),el('p',m('Kreator AP wymaga dwóch potwierdzeń na ekranie pilota. Najpierw zatwierdzisz opuszczenie domowej sieci, a potem przekazanie danych Wi-Fi wybranemu Shelly.')),el('p',m('Podczas połączenia z AP panel utraci dostęp do pilota. Dokończ kroki na pilocie. Po jego powrocie do domu połącz się ponownie z panelem.'),'muted'));
+ onboardingSteps(n,2);
  const status=el('p',m('Odczyt dostępności kreatora…'));status.id='ap-status';
  let posting=false,serial=0;
  const current=()=>page==='discovery'&&lanMode==='ap'&&generation===apGeneration;
@@ -223,53 +290,66 @@ function lanInput(parent,label,value='',type='text'){
  const l=el('label',label),i=el('input');i.type=type;i.value=value;setUIAttribute(i,'aria-label',label);i.maxLength=type==='password'?64:47;l.append(i);parent.append(l);return i;
 }
 function lanSelect(parent,label,items){const l=el('label',label),s=el('select');setUIAttribute(s,'aria-label',label);for(const [value,name]of items){const o=el('option',name);o.value=value;s.append(o);}l.append(s);parent.append(l);return s;}
-function openDiscovery(){if(dirty||saving)return notice(m('Zapisz szkic konfiguracji przed dodaniem połączenia.'));page='discovery';lanMode='start';lanCredentials=null;lanGeneration++;render();}
-async function scanLan(){
- try{lanBound=(await(await request('devices/runtime')).json()).devices||[];await request('discovery/scan',{method:'POST'});notice(m('Wyszukiwanie urządzeń…'));lanMode='scan';render();pollLan(++lanGeneration);}catch(e){notice(e.uiMessage||serverMessage(e.message));}
+function openDiscovery(){if(dirty||saving)return notice(m('Zapisz szkic konfiguracji przed dodaniem połączenia.'));invalidateOnboarding();onboardingChoice=null;manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0};page='discovery';lanMode='start';lanCredentials=null;render();}
+async function scanLan(generation){
+ if(!Number.isSafeInteger(generation))generation=++lanGeneration; // DOM click passes an Event.
+ if(!onboardingCurrent(generation))return;
+ try{
+  const response=await request('devices/runtime');if(!onboardingCurrent(generation))return;
+  const snapshot=await response.json();if(!onboardingCurrent(generation))return;
+  lanBound=snapshot.devices||[];await request('discovery/scan',{method:'POST'});if(!onboardingCurrent(generation))return;
+  notice(m('Wyszukiwanie urządzeń…'));lanMode='scan';render();pollLan(generation);
+ }catch(e){if(onboardingCurrent(generation))notice(e.uiMessage||serverMessage(e.message));}
 }
 async function inspectLan(device,credentials){
+ if(page!=='discovery')return;const generation=++lanGeneration;
  lanSelected=device;
  if(device.auth_required&&!credentials){lanMode='credentials';render();return;}
  lanCredentials=credentials||{username:'',password:''};
- try{await request('discovery/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:device.host,id:device.id,...lanCredentials})});notice(m('Sprawdzanie urządzenia…'));lanMode='inspect';render();pollLan(++lanGeneration);}catch(e){notice(e.uiMessage||serverMessage(e.message));}
+ try{await request('discovery/inspect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:device.host,id:device.id,...lanCredentials})});if(!onboardingCurrent(generation))return;notice(m('Sprawdzanie urządzenia…'));lanMode='inspect';render();pollLan(generation);}catch(e){if(onboardingCurrent(generation))notice(e.uiMessage||serverMessage(e.message));}
 }
 async function pollLan(generation){
- if(page!=='discovery'||generation!==lanGeneration)return;
+ if(!onboardingCurrent(generation))return;
  try{
-  lanSnapshot=await(await request('discovery')).json();const s=lanSnapshot;
+  const response=await request('discovery');if(!onboardingCurrent(generation))return;
+  const s=await response.json();if(!onboardingCurrent(generation))return;lanSnapshot=s;
   if(s.phase===1||s.phase===5){const progress=$('#lan-progress');if(progress)setText(progress,s.phase===1?m('Weryfikacja API: {0} / {1}',s.probed,s.total):m('Odczyt możliwości urządzenia…'));setTimeout(()=>pollLan(generation),800);return;}
   if(lanMode==='scan'){lanMode='results';render();if(s.phase===4)notice(m('Najpierw połącz Wi-Fi.'));}
   else if(lanMode==='inspect'){
-   if(s.phase===6&&s.selected.id===lanSelected.id){lanMode='components';render();notice(m('Możliwości urządzenia potwierdzone odpowiedzią API.'));}
+   if(s.phase===6&&s.selected?.id===lanSelected.id&&s.selected.host===lanSelected.host&&s.selected.generation===lanSelected.generation){lanMode='components';render();notice(m('Możliwości urządzenia potwierdzone odpowiedzią API.'));}
    else{lanMode='credentials';render();notice(lanError(s.result));}
   }
- }catch(e){notice(e.uiMessage||serverMessage(e.message));}
+ }catch(e){if(onboardingCurrent(generation))notice(e.uiMessage||serverMessage(e.message));}
 }
-async function bindLan(name,room,channel,button){
- button.disabled=true;const cover=String(channel).startsWith('cover:');const body={host:lanSelected.host,expected_id:lanSelected.id,name,room:Number(room),channel:Number(cover?String(channel).slice(6):channel),...lanCredentials};if(cover)body.endpoint_kind=1;
+async function bindLan(name,room,channel,button,manual=false){
+ if(button.disabled||page!=='discovery')return;const generation=++lanGeneration;
+ button.disabled=true;const cover=String(channel).startsWith('cover:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover?String(channel).slice(6):channel),...lanCredentials};if(cover)body.endpoint_kind=1;
  try{
-  await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
+  await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!onboardingCurrent(generation))return;notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
   for(let i=0;i<100;i++){
-   await new Promise(r=>setTimeout(r,250));const s=await(await request('status')).json();
+   await new Promise(r=>setTimeout(r,250));if(!onboardingCurrent(generation))return;
+   const response=await request('status');if(!onboardingCurrent(generation))return;
+   const s=await response.json();if(!onboardingCurrent(generation))return;
    if(s.device_busy||s.busy)continue;
-   if(s.device_result!==0){if(s.device_result===4){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
-   const current=await(await request('config')).json();const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&d.room===body.room&&d.name===body.name);
-   page='devices';lanCredentials=null;lanGeneration++;await load();notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
+   if(s.device_result!==0){if(s.device_result===4&&!manual){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
+   const configResponse=await request('config');if(!onboardingCurrent(generation))return;
+   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&d.room===body.room&&d.name===body.name);
+   page='devices';lanCredentials=null;invalidateOnboarding();showConfig(current);notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
   }
   throw failure(m('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.'));
- }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{body.password='';button.disabled=false;}
+ }catch(e){if(onboardingCurrent(generation))notice(e.uiMessage||serverMessage(e.message));}finally{body.password='';if(onboardingCurrent(generation))button.disabled=false;}
 }
 function discoveryView(){
  if(lanMode==='ble')return bleView();
  if(lanMode==='ap')return apView();
- const n=box(m('Dodaj urządzenie Shelly'));n.append(button(m('← Urządzenia'),()=>{lanCredentials=null;lanGeneration++;page='devices';render();}));
+ const n=box(m('Dodaj urządzenie Shelly'));n.append(button(m('← Urządzenia'),()=>{invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingChoice=null;onboardingCards=[];onboardingNext=null;page='devices';render();}));
  if(lanMode==='scan'||lanMode==='inspect'){
-  const p=el('p',lanMode==='scan'?m('Wyszukiwanie mDNS i weryfikacja API…'):m('Sprawdzanie wybranego urządzenia…'));p.id='lan-progress';n.append(p,button(m('Przerwij'),async()=>{try{await request('discovery/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}}));return n;
+  onboardingSteps(n,2);
+  const p=el('p',lanMode==='scan'?m('Wyszukiwanie mDNS i weryfikacja API…'):m('Sprawdzanie wybranego urządzenia…'));p.id='lan-progress';n.append(p,button(m('Przerwij'),async()=>{const generation=++lanGeneration;lanMode='scan';try{await request('discovery/cancel',{method:'POST'});if(onboardingCurrent(generation))pollLan(generation);}catch(e){if(onboardingCurrent(generation))notice(e.uiMessage||serverMessage(e.message));}}));return n;
  }
- if(lanMode==='start'){
-  n.append(el('p',m('Wyszukaj urządzenia w tej samej sieci lokalnej. Lista zawiera wyłącznie tożsamości potwierdzone odpowiedzią API.')),button(m('Skanuj sieć Wi-Fi'),scanLan,'primary'));
-  const ap=button(m('Wi-Fi AP • kreator na pilocie'),()=>{lanCredentials=null;lanGeneration++;lanMode='ap';render();});n.append(ap,button(m('Bluetooth LE • skan'),()=>{lanCredentials=null;lanGeneration++;lanMode='ble';render();}));return n;
- }
+ if(lanMode==='start'){onboardingMethods(n);return n;}
+ if(lanMode==='manual'){manualOnboarding(n);return n;}
+ onboardingSteps(n,lanMode==='components'?3:2);
  if(lanMode==='results'){
   n.append(button(m('Skanuj ponownie'),scanLan));if(!lanSnapshot?.devices.length)empty(n,m('Nie znaleziono Shelly. Sprawdź Wi-Fi, mDNS i izolację klientów.'));
   for(const d of lanSnapshot?.devices||[]){const row=el('div',undefined,'row'),text=el('div',undefined,'grow');text.append(el('h3',d.model),el('p',m('{0} · Gen {1} · {2}',d.host,d.generation,d.auth_required?m('Wymaga hasła'):m('Bez hasła'))),el('p',d.id,'muted'));if(alreadyBound(d))text.append(el('p',m('Już dodane'),'tag'));row.append(text,button(m('Sprawdź urządzenie'),()=>inspectLan(d)));n.append(row);}return n;
@@ -286,7 +366,7 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;if(page!=='discovery'){lanCredentials=null;lanGeneration++;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(page==='devices'&&window.dsrHistoryMount)window.dsrHistoryMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(page==='devices'&&window.dsrHistoryMount)window.dsrHistoryMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 async function save(){
  if(!dirty||saving||conflict)return;
@@ -305,7 +385,7 @@ async function save(){
   if(!acknowledged)throw failure(m('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.'));
  }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;}
 }
-async function poll(){if(!config||$('#workspace').hidden)return;try{const s=await(await request('status')).json();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else await load();}const r=await request('preview.raw');if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));}}}catch(e){setText($('#connection'),m('Brak połączenia'));}finally{if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrHistoryRefresh)window.dsrHistoryRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}
+async function poll(){if(!config||$('#workspace').hidden)return;try{const s=await(await request('status')).json();remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else await load();}const r=await request('preview.raw');if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));}}}catch(e){remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrHistoryRefresh)window.dsrHistoryRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}
 async function uploadPhoto(file,room){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw failure(m('Wybierz JPG, PNG lub WebP do 15 MB.'));
  const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw failure(m('Zbyt duże zdjęcie.'));}

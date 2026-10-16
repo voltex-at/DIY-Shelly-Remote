@@ -21,7 +21,7 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve));let checks=0;const o
    if(holdGet)await new Promise(resolve=>releaseGet=resolve);
    if(failGet)throw Error('offline');return{json:async()=>({handoff:captured})};
   }};
- vm.runInNewContext(source.slice(begin,end)+';globalThis.makeApView=apView;',context);
+ vm.runInNewContext(source.slice(source.indexOf('function onboardingSteps('),source.indexOf('function updateOnboardingChoice('))+source.slice(begin,end)+';globalThis.makeApView=apView;',context);
  const view=context.makeApView(),open=view.children.find(n=>n.id==='ap-open'),status=view.children.find(n=>n.id==='ap-status');
  async function advance(ms){clock+=ms;const due=[...timers].filter(([,t])=>t.at<=clock);for(const [id,t]of due){timers.delete(id);t.fn();}await flush();}
  eq(posts,0);ok(open.disabled);await advance(0);ok(!open.disabled);eq(gets,1);

@@ -267,3 +267,23 @@
 {"Do 16 endpointów Switch/Cover.\nCover wymaga Gen2+ i aktywnego profilu rolety.\nZmiana profilu nie jest wykonywana.\nDane logowania w niezaszyfrowanym NVS.","Up to 16 Switch/Cover endpoints.\nCover requires Gen2+ and an active cover profile.\nThe profile is not changed.\nCredentials in unencrypted NVS.","Bis zu 16 Switch/Cover-Endpunkte.\nCover erfordert Gen2+ und ein aktives Rollladenprofil.\nDas Profil wird nicht geändert.\nZugangsdaten in unverschlüsseltem NVS."},
 
 {"Historia rolet nie jest obsługiwana", "Cover history is not supported", "Rollladenverlauf wird nicht unterstützt"},
+
+/* Unified production onboarding shell, repo-owned composition. */
+{"Bluetooth","Bluetooth","Bluetooth"},
+{"Sieć lokalna","Local network","Lokales Netzwerk"},
+{"Dodaj urządzenie","Add device","Gerät hinzufügen"},
+{"Krok 1 z 3","Step 1 of 3","Schritt 1 von 3"},
+{"Krok %u z 3","Step %u of 3","Schritt %u von 3"},
+{"Reklamy BLE • także bez Wi-Fi","BLE discovery • works offline","BLE-Suche • auch ohne WLAN"},
+{"Otwarty punkt dostępowy Shelly","Open Shelly access point","Offener Shelly-Zugangspunkt"},
+{"Urządzenia w domowej sieci","Devices on your home network","Geräte im Heimnetz"},
+{"Najpierw połącz domowe Wi-Fi","Connect home Wi-Fi first","Zuerst Heim-WLAN verbinden"},
+{"Więcej opcji poniżej","More options below","Weitere Optionen unten"},
+{"Nierozpoznane urządzenie","Unrecognized device","Nicht erkanntes Gerät"},
+{"Reklama: %s","Advertised: %s","Werbung: %s"},
+{"bez nazwy","unnamed","ohne Namen"},
+{"Wykryto • %d dBm • niesparowane","Detected • %d dBm • unpaired","Erkannt • %d dBm • ungekoppelt"},
+{"API • wymaga hasła","API • password required","API • Passwort erforderlich"},
+{"Zweryfikowano API","API verified","API geprüft"},
+
+{"Nie potwierdzono modelu ani RPC. Ta reklama nie umożliwia dodania do Wi-Fi.","Model and RPC are unverified. This advertisement cannot be used to add Wi-Fi.","Modell und RPC sind nicht bestätigt. Diese Werbung ermöglicht kein Hinzufügen zum WLAN."},

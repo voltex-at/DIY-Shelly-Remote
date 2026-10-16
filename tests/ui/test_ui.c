@@ -138,7 +138,7 @@ static void screenshot(const char *name)
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
     lv_obj_t *badge=NULL;
     unsigned frame=(unsigned)strtoul(name,NULL,10);
-    unsigned badge_y=frame>=180&&frame<=199?8:frame>=160&&frame<=177?195:frame>=130?80:8;
+    unsigned badge_y=frame>=300?8:frame>=180&&frame<=199?8:frame>=160&&frame<=177?195:frame>=130?80:8;
     if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
@@ -163,6 +163,13 @@ static void click(const char *text)
     lv_obj_t *label=find_label(lv_screen_active(),text);if(!label)fprintf(stderr,"Missing UI label: %s\n",text);CHECK(label!=NULL);
     (void)lv_obj_send_event(lv_obj_get_parent(label),LV_EVENT_CLICKED,NULL);
     lv_obj_update_layout(lv_screen_active());
+}
+/* Legacy flow setup is explicit: choosing a radio card never navigates. */
+static void choose_method(const char *label)
+{
+ const char *method=!strcmp(label,"Bluetooth LE")?"Bluetooth":!strcmp(label,"Skanuj sieć Wi-Fi")?"Sieć lokalna":label;
+ lv_obj_t *text=find_label(lv_screen_active(),method);CHECK(text);
+ lv_obj_scroll_to_view(lv_obj_get_parent(text),LV_ANIM_OFF);click(method);click("Dalej");
 }
 static lv_obj_t *power_target(lv_obj_t *root)
 {
@@ -542,7 +549,7 @@ static void rooms_regression(void)
  dsr_network_rooms();dsr_ui_edit_room(1);click("Wstecz");lv_refr_now(display);lv_mem_monitor_t memory_before,memory_after;lv_mem_monitor(&memory_before);
  for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
  printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
- test_workspace_photos(false);dsr_network_home(NULL);tap(188,116);CHECK(find_label(lv_screen_active(),"Bluetooth LE"));dsr_network_home(NULL);
+ test_workspace_photos(false);dsr_network_home(NULL);tap(188,116);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
 }
 static void p0_generic(const char *collection,const char *name)
 {dsr_ui_edit_dashboard();click(collection);if(name)click(name);}
@@ -639,7 +646,7 @@ static void polling_regression(void)
 }
 static void ble_regression(void)
 {
- dsr_network_device(NULL);click("Bluetooth LE");CHECK(find_label(lv_screen_active(),"Wyszukaj urządzenia w pobliżu"));screenshot("80-ble-start");click("Szukaj");tick();CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("81-ble-scanning");
+ dsr_network_device(NULL);choose_method("Bluetooth LE");CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("80-ble-start");tick();CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("81-ble-scanning");
  const uint8_t rpc[]={17,7,0x5f,0x44,0x49,0x5f,0x43,0x56,0x53,0x5f,0x43,0x50,0x52,0x5f,0x53,0x4f,0x6d,0x5f};
  const uint8_t blu[]={6,0xff,0xa9,0x0b,0x0b,2,0},bthome[]={6,0x16,0xd2,0xfc,0x40,1,92};
  /* The native worker may keep polling the relay while BLE owns its own task. */
@@ -786,6 +793,7 @@ static void ap_regression(void)
  printf("AP LCD: two consents, delayed ACK/reopen, failed restore, cancellation, uncertain POST and verified LAN handoff; radio remains a host fixture\n");
 }
 #include "ble_rpc_regression.inc"
+#include "onboarding_regression.inc"
 int main(int argc,char **argv)
 {
     CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -818,7 +826,7 @@ int main(int argc,char **argv)
     deliver(DSR_OK,DSR_WIFI_CONNECTED);char ip_label[64];snprintf(ip_label,sizeof(ip_label),dsr_sc_tr("IP address: %s"),"192.168.1.42");CHECK(find_label(lv_screen_active(),ip_label)!=NULL);screenshot("06-connected");
     click("Continue");CHECK(find_label(lv_screen_active(),"Brak urządzeń")!=NULL);
     CHECK(find_label(lv_screen_active(),"ON")==NULL);screenshot("07-home");
-    dsr_network_device(NULL);screenshot("14-add-device-wizard");click("Dodaj ręcznie (IP)");screenshot("08-device-form");
+    dsr_network_device(NULL);screenshot("14-add-device-wizard");choose_method("Dodaj ręcznie (IP)");screenshot("08-device-form");
     password=find_type(lv_screen_active(),&lv_textarea_class);CHECK(password!=NULL);
     foreground=lv_obj_get_style_text_color(password,LV_PART_MAIN);CHECK(foreground.red>200);
     dsr_network_wifi(NULL);tick();deliver(DSR_OK,DSR_WIFI_IDLE);click("Guest network");
@@ -838,7 +846,7 @@ int main(int argc,char **argv)
     printf("UI heap before=%u after=%u largest=%u\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
     fflush(stdout);CHECK(after.free_size+1024>=before.free_size);
     test_workspace_enable(); /* Fresh bindings require durable shared ACK. */
-    dsr_network_device(NULL);click("Dodaj ręcznie (IP)");password=find_type(lv_screen_active(),&lv_textarea_class);
+    dsr_network_device(NULL);choose_method("Dodaj ręcznie (IP)");password=find_type(lv_screen_active(),&lv_textarea_class);
     lv_textarea_set_text(password,"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
     response.device=(dsr_device_t){.host="192.168.1.77",.name="Desk lamp",.device_id="shellyplus1-AABBCCDDEEFF",
         .generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true,.has_power=true,.power_w=4.1};
@@ -883,7 +891,7 @@ int main(int argc,char **argv)
     CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
     dsr_network_home(NULL);dsr_ui_workspace_tick();
     wifi.connected=false;dsr_ui_lan_open(NULL);tick();CHECK(find_label(lv_screen_active(),"Najpierw połącz Wi-Fi"));screenshot("19-lan-no-wifi");
-    wifi.connected=true;dsr_network_device(NULL);click("Skanuj sieć Wi-Fi");tick();CHECK(dsr_ui_lan_active());screenshot("15-lan-scanning");
+    wifi.connected=true;dsr_network_device(NULL);choose_method("Skanuj sieć Wi-Fi");tick();CHECK(dsr_ui_lan_active());screenshot("15-lan-scanning");
     const char info[]="{\"gen\":2,\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"auth_en\":true}";
     test_lan_found(info,"192.168.1.88");tick();CHECK(find_label(lv_screen_active(),"SNSW-002P16EU"));screenshot("16-lan-results");click("SNSW-002P16EU");
     unsigned skip=1;password=nth_type(lv_screen_active(),&lv_textarea_class,&skip);CHECK(password);
@@ -901,7 +909,7 @@ int main(int argc,char **argv)
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();revoke_regression();restart_regression();
     multi_device_regression();device_settings_regression();history_regression();actions_regression();bind_rebind_regression();review_multi_regression();review_deleted_migration_regression();
-    ap_regression();native_ota_regression();rpc_regression();
+    ap_regression();native_ota_regression();rpc_regression();onboarding_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

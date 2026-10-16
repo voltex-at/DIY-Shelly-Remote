@@ -30,7 +30,7 @@ void dsr_ui_ble_rpc_reset(void)
 }
 static lv_obj_t *screen(const char *title)
 {
- building=true;lv_obj_t *root=dsr_ui_screen(title,false);building=false;
+ building=true;lv_obj_t *root=dsr_onboarding_screen(title,session.has_identity?3:2);building=false;
  active=true;dsr_ble_rpc_visibility(true);
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *child=lv_obj_get_child(root,(int)i);if(lv_obj_check_type(child,&lv_label_class)&&lv_obj_get_style_y(child,0)==46){lv_label_set_long_mode(child,LV_LABEL_LONG_CLIP);dsr_sc_label_set_text(child,title);break;}}
  return root;
@@ -43,7 +43,7 @@ static void line(lv_obj_t *root,const char *value,int y,const lv_font_t *font)
 static void message(const char *title,const char *text)
 {
  lv_obj_t *root=screen(title);dsr_sc_text(root,text,16,105,288,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_ui_button(root,"Anuluj",12,420,296,cancel,NULL);
+ dsr_onboarding_footer(root,"Anuluj",cancel,NULL,NULL);
 }
 static void failed(dsr_result_t result)
 {
@@ -96,7 +96,7 @@ static void disclose(void)
  char home[33]={0};(void)dsr_network_ap_home(home);line(root,home,161,&dsr_roboto_16);memset(home,0,sizeof(home));
  dsr_sc_text(root,"Przekaż nazwę i hasło zapisanej sieci temu Shelly. Otwarte GATT nie uwierzytelnia kryptograficznie urządzenia; użyj tylko własnego sprzętu.",16,205,288,&dsr_roboto_14,DSR_SC_TEXT);
  dsr_sc_text(root,"Osobne potwierdzenie na pilocie. Podgląd WWW jest wstrzymany.",16,330,288,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_ui_button(root,"Anuluj",12,420,140,cancel,NULL);dsr_ui_button(root,"Przekaż Wi-Fi",168,420,140,apply,NULL);
+ dsr_onboarding_footer(root,"Anuluj",cancel,"Przekaż Wi-Fi",apply);
 }
 void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate)
 {
@@ -111,7 +111,7 @@ void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate)
  line(root,selected.name[0]?selected.name:"Shelly • reklamowane RPC",100,&dsr_roboto_18);
  dsr_sc_text(root,"Pilot pozostaje w domowej sieci. Najpierw sprawdzi rzeczywiste GATT i tożsamość. Sama reklama BLE nie potwierdza autentyczności.",16,151,288,&dsr_roboto_16,DSR_SC_TEXT);
  dsr_sc_text(root,"Tylko własny Shelly Gen2+ z przekaźnikiem lub roletą w otwartym setup. Hasło Wi-Fi wymaga kolejnej zgody.",16,294,288,&dsr_roboto_14,DSR_SC_MUTED);
- dsr_ui_button(root,"Anuluj",12,420,140,cancel,NULL);dsr_ui_button(root,"Sprawdź BLE",168,420,140,connect_device,NULL);
+ dsr_onboarding_footer(root,"Anuluj",cancel,"Sprawdź BLE",connect_device);
 }
 void dsr_ui_ble_rpc_result(const dsr_event_t *event)
 {

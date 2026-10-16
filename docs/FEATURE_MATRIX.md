@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.31, rewizja 32
+# Matryca funkcji — 0.7.32, rewizja 33
 
 ## #21: rzeczywiste grupy, sceny i dziennik RAM — kandydat integracji
 
@@ -15,6 +15,18 @@ przeglądarka i odbiór fizyczny pozostają osobnymi bramkami tego kandydata.
 Baza PR58/f240d15 (historia/settings/zdjęcia) i PR59/a194554 (Cover/P0 resetlog)
 ma exact-head5/5 CI oraz odebrane zweryfikowane BIN/ELF/FS i rendery. Baza nie
 oznacza fizycznego odbioru nowych funkcji ani zamknięcia przerywanego blank format.
+
+## #32: wspólny kreator dodawania (integracja z grupami i scenami)
+
+[Kontrakt UI i granice dowodów](ISSUE32_ONBOARDING_PL.md): własny arkusz LCD
+nad zatrzymanym HOME, lokalny wybór BLE/AP/LAN/ręczny, jawny Dalej, offline,
+stałe przyciski i wspólne kroki/listy/stopki. Reklama BLE nie staje się
+modelem ani API identity. AP/B1 zachowują obie fizyczne zgody i cleanup.
+WWW zachowuje DOM/locale/wybór i używa prawdziwych istniejących ścieżek.
+Actual LVGL i host modele nie są dowodem RF, Flash ani odzyskania SPIFFS/BIND.
+Pełne host/LVGL5552/204 i izolowany późny BIND29 przechodzą. Dalej czeka na
+koniec poprzedniego BIND, łącznie z workspace/private ACK. Odbiór sprzętowy
+i dokładne CI pozostają osobnymi bramkami.
 
 ## #24: rzeczywisty natywny podpisany updater, wydanie i sprzęt osobno
 

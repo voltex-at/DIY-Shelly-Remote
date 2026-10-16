@@ -12,6 +12,7 @@ units = {
     "dsr_ble_rpc_protocol": (1024, {"dsr_rpc_stream_begin", "dsr_rpc_stream_next", "dsr_rpc_stream_complete", "dsr_rpc_request", "dsr_rpc_response", "dsr_rpc_identity", "dsr_rpc_setup_policy"}),
     "dsr_ble_handoff": (256, {"dsr_ble_handoff_parse"}),
     "dsr_ui_ble_rpc": (1024, {"dsr_ui_ble_rpc_open", "dsr_ui_ble_rpc_tick", "dsr_ui_ble_rpc_result"}),
+    "dsr_ui_onboarding": (512, {"dsr_ui_onboarding_open", "dsr_ui_onboarding_tick", "dsr_ui_onboarding_reset", "dsr_ui_onboarding_active", "dsr_onboarding_screen", "dsr_onboarding_footer", "dsr_onboarding_keyboard", "dsr_onboarding_result"}),
     "dsr_http": (2048, {"dsr_http_lan_verify_station"}),
     "dsr_worker": (2048, {"dsr_worker_submit"}),
     "dsr_ui_network": (2048, {"dsr_network_request_station", "dsr_network_init"}),
@@ -32,6 +33,7 @@ with tempfile.TemporaryDirectory(prefix="dsr-ap-audit-") as temp:
         (folder / "dsr_ble.c.obj").write_text("00000000 00001000 b state\n")
         (folder / "dsr_ble_rpc.c.obj").write_text("00000000 00001000 b state\n")
         (folder / "dsr_ui_ble_rpc.c.obj").write_text("00000000 00000500 b state\n")
+        (folder / "dsr_ui_onboarding.c.obj").write_text("00000000 00000100 b state\n")
     def check(expected):
         r = subprocess.run([sys.executable, str(ROOT / "tools/check_ble_target.py"), "--build-dir", str(folder), "--out", str(folder / "BLE.json")], env=env, capture_output=True, text=True)
         assert (r.returncode == 0) == expected, r.stdout + r.stderr
@@ -43,4 +45,6 @@ with tempfile.TemporaryDirectory(prefix="dsr-ap-audit-") as temp:
     fixture();(folder / "dsr_ble_handoff.c.su").write_text("");check(False)
     fixture();(folder / "dsr_ui_ble_rpc.c.obj").write_text("00000000 00001025 b state\n");check(False)
     fixture();memory = json.loads((folder / "BOOT_MEMORY.json").read_text());memory["internal_bss_bytes"] = 81921;(folder / "BOOT_MEMORY.json").write_text(json.dumps(memory));check(False)
-print("PASS: BLE target auditor 1 positive + 7 rejection fixtures (synthetic reports, not target evidence)")
+    fixture();(folder / "dsr_ui_onboarding.c.su").write_text("dsr_ui_onboarding.c:1:1:dsr_onboarding_screen\t528\tstatic\n");check(False)
+    fixture();(folder / "dsr_ui_onboarding.c.obj").write_text("00000000 00000257 b state\n");check(False)
+print("PASS: BLE/onboarding target auditor 1 positive + 9 rejection fixtures (synthetic reports, not target evidence)")

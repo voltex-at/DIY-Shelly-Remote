@@ -66,11 +66,12 @@ void dsr_workspace_bind_result_stage(dsr_result_t r,dsr_bind_stage_t stage){(voi
 
 /* Explicit radio fixture. Production dsr_lan.c is not replaced in firmware. */
 static dsr_lan_snapshot_t lan;
-static unsigned lan_cancels;
+static unsigned lan_cancels,lan_scans;
+unsigned test_lan_scans(void){return lan_scans;}
 unsigned test_lan_cancels(void){return lan_cancels;}
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out){*out=lan;}
 bool dsr_lan_scan(void)
-{lan.count=0;lan.phase=dsr_wifi_connected()?DSR_LAN_SCANNING:DSR_LAN_NO_WIFI;lan.serial++;return dsr_wifi_connected();}
+{lan_scans++;lan.count=0;lan.phase=dsr_wifi_connected()?DSR_LAN_SCANNING:DSR_LAN_NO_WIFI;lan.serial++;return dsr_wifi_connected();}
 void dsr_lan_cancel(void){lan_cancels++;lan.phase=DSR_LAN_CANCELLED;lan.serial++;}
 bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *credentials)
 {(void)credentials;for(unsigned i=0;i<lan.count;i++)if(!strcmp(lan.devices[i].host,host)&&!strcmp(lan.devices[i].id,id)){lan.selected=lan.devices[i];lan.phase=DSR_LAN_INSPECTING;lan.serial++;return true;}return false;}
@@ -82,8 +83,10 @@ void test_lan_inspected(dsr_result_t result,const char *components)
 /* Explicit host BLE provider; the production NimBLE adapter is never replaced
  * in the board build. Advertisement bytes still pass the real C parser. */
 static dsr_ble_snapshot_t ble;
+static unsigned ble_scans;
+unsigned test_ble_scans(void){return ble_scans;}
 void dsr_ble_snapshot(dsr_ble_snapshot_t *out){*out=ble;out->snapshot_ms=lv_tick_get();}
-bool dsr_ble_scan(void){if(ble.busy)return false;dsr_ble_begin(&ble,lv_tick_get());ble.phase=DSR_BLE_SCANNING;return true;}
+bool dsr_ble_scan(void){ble_scans++;if(ble.busy)return false;dsr_ble_begin(&ble,lv_tick_get());ble.phase=DSR_BLE_SCANNING;return true;}
 void dsr_ble_cancel(void){if(ble.busy)dsr_ble_finish(&ble,ble.generation,DSR_BLE_CANCELLED,lv_tick_get());}
 void test_ble_finish(dsr_ble_phase_t phase){dsr_ble_finish(&ble,ble.generation,phase,lv_tick_get());}
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address)

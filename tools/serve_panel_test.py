@@ -120,7 +120,11 @@ class Handler(BaseHTTPRequestHandler):
             lan.update(phase=6 if correct else 7,result=0 if correct else 4,selected=lan_device,serial=lan['serial']+1,capabilities={key:getattr(caps,key) for key,_ in LanCaps._fields_})
             return self.send(202,{'checking':True})
         if self.path=='/api/v1/devices/bind':
-            data=json.loads(body);assert data['expected_id']==lan_device['id'] and data['password']=='test-lan-password' and data['channel'] in [1,4]
+            data=json.loads(body)
+            # Manual IP intentionally omits optional expected_id. The radio
+            # provider still represents the same verified identity/host; this
+            # harness does not claim that a physical probe took place.
+            assert data.get('expected_id',lan_device['id'])==lan_device['id'] and data['host']==lan_device['host'] and data['password']=='test-lan-password' and data['channel'] in [1,4]
             with mutex:
                 draft=json.loads(config);ident=max([d['id'] for d in draft['devices']]+[0])+1
                 draft['devices'].append({'id':ident,'name':data['name'],'host':data['host'],'channel':data['channel'],'room':data['room'],'kind':'relay'})

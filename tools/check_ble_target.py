@@ -24,6 +24,7 @@ units = {
     "dsr_ble_rpc_protocol": (1024, {"dsr_rpc_stream_begin", "dsr_rpc_stream_next", "dsr_rpc_stream_complete", "dsr_rpc_request", "dsr_rpc_response", "dsr_rpc_identity", "dsr_rpc_setup_policy"}),
     "dsr_ble_handoff": (256, {"dsr_ble_handoff_parse"}),
     "dsr_ui_ble_rpc": (1024, {"dsr_ui_ble_rpc_open", "dsr_ui_ble_rpc_tick", "dsr_ui_ble_rpc_result"}),
+    "dsr_ui_onboarding": (512, {"dsr_ui_onboarding_open", "dsr_ui_onboarding_tick", "dsr_ui_onboarding_reset", "dsr_ui_onboarding_active", "dsr_onboarding_screen", "dsr_onboarding_footer", "dsr_onboarding_keyboard", "dsr_onboarding_result"}),
     "dsr_http": (2048, {"dsr_http_lan_verify_station"}),
     "dsr_worker": (2048, {"dsr_worker_submit"}),
     "dsr_ui_network": (2048, {"dsr_network_request_station", "dsr_network_init"}),
@@ -44,7 +45,7 @@ for unit, (maximum, public) in units.items():
     require(public <= {name.split(".")[0] for name in frames}, f"BLE RPC public frames missing: {unit}")
     reports[unit] = {"maximum_own_frame_bytes": maximum, "own_frames": frames}
 states = {}
-for unit, maximum in [("dsr_ble", 2048), ("dsr_ble_rpc", 2048), ("dsr_ui_ble_rpc", 1024)]:
+for unit, maximum in [("dsr_ble", 2048), ("dsr_ble_rpc", 2048), ("dsr_ui_ble_rpc", 1024), ("dsr_ui_onboarding", 256)]:
     objects = sorted(a.build_dir.rglob(unit + ".c.obj"))
     require(len(objects) == 1, f"Expected one BLE RPC object: {unit}")
     table = subprocess.check_output(["xtensa-esp32s3-elf-nm", "-S", "--radix=d", str(objects[0])], text=True)

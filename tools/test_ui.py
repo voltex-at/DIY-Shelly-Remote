@@ -38,7 +38,7 @@ includes = [lvgl, ROOT / "tests/ui", ROOT / "tests/actions", ROOT / "tests/histo
             ROOT / "components/dsr_ui"]
 flags += [item for folder in includes for item in ["-I", str(folder)]]
 sources = list(sorted((lvgl / "src").rglob("*.c")))
-sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
+sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
             "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_actions.c", "components/dsr_ui/dsr_ui_history.c", "components/dsr_platform/dsr_history_model.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
 sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_icons.c"]
@@ -83,3 +83,8 @@ if not args.review:
     cover_binary=build / "test_cover_ui"
     subprocess.run([cc,*flags,*map(str,cover_objects),"-lm","-l:libcjson.so.1","-o",str(cover_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     subprocess.run([str(cover_binary),str(screens)],check=True,cwd=build)
+    late_bind_object=compile_source(ROOT / "tests/ui/test_onboarding_late_bind.c")
+    late_bind_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[late_bind_object]
+    late_bind_binary=build / "test_onboarding_late_bind"
+    subprocess.run([cc,*flags,*map(str,late_bind_objects),"-lm","-l:libcjson.so.1","-o",str(late_bind_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(late_bind_binary),str(screens)],check=True,cwd=build)

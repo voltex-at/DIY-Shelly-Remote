@@ -40,6 +40,7 @@ jobs:
           node tests/test_panel_actions.cjs
           node tests/test_panel_ap_model.cjs
           node tests/test_panel_ble_model.cjs
+          node tests/test_panel_onboarding_model.cjs
           node tests/test_web_locale_dictionary.cjs
           node tests/test_panel_locale.cjs
       - uses: actions/upload-artifact@v4
@@ -157,7 +158,7 @@ jobs:
           cp build-board/partition_table/partition-table.bin build-board/package/partition_table/
           cp dependencies.lock build-board/package/
           cp docs/CONFIG_WEB_PL.md build-board/package/INSTALL_AND_TEST.md
-          cp docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md docs/UNIFIED_UI.md docs/ISSUE12_TELEMETRY.md build-board/package/
+          cp docs/ISSUE32_ONBOARDING_PL.md docs/ISSUE6_UI.md docs/ISSUE7_LAN.md docs/REVIEW_FIXES.md docs/UNIFIED_UI.md docs/ISSUE12_TELEMETRY.md build-board/package/
           cp docs/ISSUE15_COVER.md build-board/package/
           cp docs/COVER_GEN2_PL.md build-board/package/
           cp docs/STABLE_POLLING.md build-board/package/
