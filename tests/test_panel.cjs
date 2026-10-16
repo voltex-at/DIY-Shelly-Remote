@@ -8,8 +8,19 @@ let activePage;
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'pl-PL'}),page=await context.newPage();let checks=0;
- activePage=page;
- const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));});
+ activePage=page;let bindPosts=0;
+ async function bindAndWait(){
+  const before=bindPosts;
+  // Register the response listener before clicking. A prior bind's identical
+  // success notice can remain visible until the new POST response arrives.
+  await Promise.all([
+   page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.request().method()==='POST'&&r.status()===202),
+   page.getByRole('button',{name:'Sprawdź i zapisz połączenie'}).click()
+  ]);
+  await page.waitForFunction(()=>page==='devices'&&document.querySelector('#notice').textContent.includes('Połączenie, nazwa i pomieszczenie zapisane.'));
+  assert.equal(bindPosts,before+1);checks++;
+ }
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));if(new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.method()==='POST')bindPosts++;});
  await page.goto('http://127.0.0.1:8765/');await page.locator('#pairing').waitFor({state:'visible'});checks++;
  await page.locator('#pair-code').fill('0123456789abcdef');await page.locator('#pair-form button').click();await page.locator('#workspace').waitFor({state:'visible'});checks++;
  await page.getByRole('button',{name:'Pomieszczenia',exact:true}).click();await page.getByRole('button',{name:'+ Dodaj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Salon');await page.getByRole('button',{name:'← Wróć do listy'}).click();
@@ -58,10 +69,10 @@ let activePage;
  await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.getByLabel('Hasło Shelly',{exact:true}).fill('wrong-password');await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Błąd logowania'));checks++;
  await page.getByLabel('Hasło Shelly',{exact:true}).fill('test-lan-password');await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.getByLabel('Kanał z odpowiedzi API').waitFor();assert.deepEqual(await page.getByLabel('Kanał z odpowiedzi API').locator('option').allTextContents(),['Switch 1','Switch 4']);assert.deepEqual(await page.getByLabel('Kanał z odpowiedzi API').locator('option').evaluateAll(options=>options.map(o=>o.value)),['1','4']);checks+=2;
  await page.getByLabel('Nazwa urządzenia').fill('Przekaźnik LAN');await page.getByLabel('Pomieszczenie',{exact:true}).selectOption('1');await page.getByLabel('Kanał z odpowiedzi API').selectOption('4');await page.screenshot({path:'build-ui/panel-review/panel-lan-components.png',fullPage:true});
- await page.getByRole('button',{name:'Sprawdź i zapisz połączenie'}).click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Połączenie, nazwa i pomieszczenie zapisane.'));const bound=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(bound.devices.some(d=>d.host==='192.168.1.88'&&d.channel===4&&d.room===1));checks++;
+ await bindAndWait();const bound=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(bound.devices.some(d=>d.host==='192.168.1.88'&&d.channel===4&&d.room===1));checks++;
  await page.getByRole('button',{name:'Wyszukaj Shelly w LAN'}).click();await page.getByRole('button',{name:'Dodaj ręcznie (IP)',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
  await page.getByLabel('Adres IPv4 Shelly',{exact:true}).fill('192.168.1.88');await page.getByLabel('Nazwa urządzenia',{exact:true}).fill('Ręczny kanał');await page.getByLabel('Kanał 0–15',{exact:true}).fill('1');await page.getByLabel('Hasło Shelly',{exact:true}).fill('test-lan-password');
- await page.screenshot({path:'build-ui/panel-review/panel-manual-verified-bind.png',fullPage:true});await page.getByRole('button',{name:'Sprawdź i zapisz połączenie'}).click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Połączenie, nazwa i pomieszczenie zapisane.'));const manual=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(manual.devices.some(d=>d.host==='192.168.1.88'&&d.channel===1&&d.name==='Ręczny kanał'));checks++;
+ await page.screenshot({path:'build-ui/panel-review/panel-manual-verified-bind.png',fullPage:true});await bindAndWait();const manual=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(manual.devices.some(d=>d.host==='192.168.1.88'&&d.channel===1&&d.name==='Ręczny kanał'));checks++;
  await page.getByRole('button',{name:'Pulpity',exact:true}).click();await page.getByRole('button',{name:'Edytuj',exact:true}).click();
  await page.evaluate(()=>fetch('/api/v1/test/save-delay',{method:'POST',body:'1.5'}));
  await page.getByLabel('Nazwa',{exact:true}).fill('Wersja A');await page.locator('#save').click();await page.getByLabel('Nazwa',{exact:true}).fill('Wersja B');
