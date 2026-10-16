@@ -3,6 +3,7 @@
 #include "lvgl.h"
 #include "dsr_platform.h"
 #include "dsr_discovery.h"
+#include "dsr_ble_rpc.h"
 #include "dsr_ui_style.h"
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width);
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
@@ -38,6 +39,7 @@ bool dsr_network_ap_home(char ssid[33]);
 dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,const dsr_ap_identity_t *identity,const char *host,bool confirmed);
 void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *capabilities);
 bool dsr_network_busy(void);
+bool dsr_network_ota_busy(void);
 dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t *settings);
 void dsr_network_wifi_settings(dsr_settings_t *out);
 dsr_result_t dsr_network_request_battery(void);
@@ -78,6 +80,12 @@ void dsr_ui_lan_open(lv_event_t *event);
 void dsr_ui_lan_tick(void);
 void dsr_ui_lan_reset(void);
 bool dsr_ui_lan_active(void);
+void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate);
+void dsr_ui_ble_rpc_reset(void);
+void dsr_ui_ble_rpc_tick(void);
+void dsr_ui_ble_rpc_result(const dsr_event_t *event);
+bool dsr_ui_ble_rpc_active(void);
+dsr_result_t dsr_network_request_station(const dsr_lan_device_t *identity);
 void dsr_ui_ble_open(lv_event_t *event);
 void dsr_ui_ble_tick(void);
 void dsr_ui_ble_reset(void);

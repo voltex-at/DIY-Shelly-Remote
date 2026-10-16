@@ -6,6 +6,7 @@
 #include "dsr_ota_image.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
+#include "dsr_ble_rpc.h"
 #include "dsr_platform.h"
 #include "dsr_activity.h"
 #include "dsr_restart.h"
@@ -61,9 +62,9 @@ bool dsr_panel_allow_ota(void)
 void dsr_panel_pair_cancel(void)
 {if(lock){xSemaphoreTake(lock,portMAX_DELAY);memset(pairing,0,sizeof(pairing));pair_until=0;xSemaphoreGive(lock);}}
 bool dsr_panel_preview_requested(void)
-{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!dsr_ap_sensitive();if(dsr_ap_sensitive())preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
+{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)
-{if(dsr_ap_sensitive()||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
+{if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive())||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
 static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {httpd_resp_set_status(r,status);httpd_resp_set_type(r,"application/json");httpd_resp_set_hdr(r,"Cache-Control","no-store");return httpd_resp_sendstr(r,body);}
 static bool local_request(httpd_req_t *r)
@@ -185,13 +186,23 @@ static esp_err_t lan_api(httpd_req_t *r)
  }
  return json(r,"404 Not Found","{}");
 }
+static esp_err_t ble_open_api(httpd_req_t *r)
+{
+ if(r->method!=HTTP_POST||strcmp(r->uri,"/api/v1/ble/open"))return json(r,"405 Method Not Allowed","{}");
+ char *input=body(r,128);uint32_t serial;unsigned index;
+ bool valid=dsr_ble_handoff_parse(input,&serial,&index);free(input);
+ if(!valid)return json(r,"400 Bad Request","{\"error\":\"Expected current BLE scan serial and index only\"}");
+ bool ok=dsr_wifi_connected()&&dsr_ble_handoff_request(serial,index);
+ return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"queued\":true,\"physical_confirmation_required\":true}":"{\"error\":\"BLE wizard unavailable; refresh the scan and check the remote\"}");
+}
 static esp_err_t ble_api(httpd_req_t *r)
 {
+ if(!strcmp(r->uri,"/api/v1/ble/open"))return ble_open_api(r);
  if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/ble/scan")){bool ok=dsr_ble_scan();return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"scanning\":true}":"{\"error\":\"BLE niedostępne lub skan trwa\"}");}
  if(r->method==HTTP_POST&&!strcmp(r->uri,"/api/v1/ble/cancel")){dsr_ble_cancel();return json(r,"202 Accepted","{\"cancelling\":true}");}
  if(r->method==HTTP_GET&&!strcmp(r->uri,"/api/v1/ble")){
   dsr_ble_snapshot_t s;dsr_ble_snapshot(&s);cJSON *o=cJSON_CreateObject(),*devices=cJSON_AddArrayToObject(o,"devices");
-  cJSON_AddNumberToObject(o,"phase",s.phase);cJSON_AddBoolToObject(o,"busy",s.busy);cJSON_AddNumberToObject(o,"elapsed_ms",s.elapsed_ms);cJSON_AddNumberToObject(o,"packets",s.packets);cJSON_AddNumberToObject(o,"dropped",s.dropped);cJSON_AddNumberToObject(o,"malformed",s.malformed);
+  cJSON_AddNumberToObject(o,"phase",s.phase);cJSON_AddNumberToObject(o,"serial",s.serial);cJSON_AddNumberToObject(o,"handoff",dsr_ble_handoff_status((uint32_t)(esp_timer_get_time()/1000)));cJSON_AddBoolToObject(o,"busy",s.busy);cJSON_AddNumberToObject(o,"elapsed_ms",s.elapsed_ms);cJSON_AddNumberToObject(o,"packets",s.packets);cJSON_AddNumberToObject(o,"dropped",s.dropped);cJSON_AddNumberToObject(o,"malformed",s.malformed);
   for(unsigned i=0;i<s.count;i++){const dsr_ble_device_t *d=&s.devices[i];cJSON *row=cJSON_CreateObject();cJSON_AddStringToObject(row,"name",d->name);cJSON_AddStringToObject(row,"model",dsr_ble_model_name(d));cJSON_AddNumberToObject(row,"kind",d->kind);cJSON_AddNumberToObject(row,"rssi",d->rssi);cJSON_AddNumberToObject(row,"age_ms",s.snapshot_ms-d->seen_ms);cJSON_AddBoolToObject(row,"bthome",(d->evidence&DSR_BLE_BTHOME)!=0);cJSON_AddBoolToObject(row,"encrypted",d->encrypted);cJSON_AddBoolToObject(row,"paired",false);cJSON_AddItemToArray(devices,row);}
   char *text=cJSON_PrintUnformatted(o);cJSON_Delete(o);esp_err_t result=json(r,"200 OK",text?text:"{}");free(text);return result;
  }
@@ -264,7 +275,7 @@ static esp_err_t api(httpd_req_t *r)
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){
   unsigned char *copy=malloc(320*480*2);if(!copy)return json(r,"503 Service Unavailable","{}");
-  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||dsr_ap_sensitive();need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
+  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive());need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
   esp_err_t e;if(ready){httpd_resp_set_type(r,"application/octet-stream");httpd_resp_set_hdr(r,"Cache-Control","no-store");e=httpd_resp_send(r,(const char *)copy,320*480*2);}else e=json(r,"202 Accepted","{\"waiting\":true}");free(copy);return e;
  }
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){

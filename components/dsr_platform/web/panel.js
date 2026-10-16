@@ -3,6 +3,13 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Otwórz kreator BLE na pilocie","Open BLE wizard on the remote","BLE-Assistent auf der Fernbedienung öffnen"],
+ ["Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.","Complete the wizard on the remote LCD. Both consents require a screen touch; the web request alone sends no Wi-Fi details.","Assistent auf dem LCD abschließen. Beide Zustimmungen erfordern eine Berührung; die Web-Anfrage allein sendet keine WLAN-Daten."],
+ ["Skan działa na pilocie. Dla reklamowanego RPC możesz otworzyć prawdziwy kreator na LCD. Dopiero dwie fizyczne zgody pozwalają sprawdzić urządzenie i przekazać Wi-Fi. Reklama nie dowodzi autentyczności.","The scan runs on the remote. For advertised RPC you can open a real LCD wizard. Two physical consents are required to verify the device and share Wi-Fi. Advertisements do not prove authenticity.","Die Suche läuft auf der Fernbedienung. Für beworbenes RPC lässt sich der echte LCD-Assistent öffnen. Zwei physische Zustimmungen sind für Geräteprüfung und WLAN-Weitergabe nötig. Werbung beweist keine Echtheit."],
+ ["Tylko przekaźniki Gen2+ w otwartym oknie setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.","Only Gen2+ relays in an open setup window, without bonding and with LAN HTTP. Factory HTTPS 2.0, BLU, BTHome and secured devices are unsupported by this wizard. The remote stays on LAN.","Nur Gen2+-Relais mit offenem Setup, ohne Bonding und mit HTTP im LAN. Werks-HTTPS 2.0, BLU, BTHome und gesicherte Geräte werden nicht unterstützt. Pilot bleibt im LAN."],
+ ["Expected current BLE scan serial and index only","Wymagany wyłącznie numer bieżącego skanu BLE i indeks","Nur aktuelle BLE-Suchnummer und Index erwartet"],
+ ["BLE wizard unavailable; refresh the scan and check the remote","Kreator BLE niedostępny; odśwież skan i sprawdź pilot","BLE-Assistent nicht verfügbar; Suche aktualisieren und Fernbedienung prüfen"],
+
  ["Wi-Fi AP • kreator na pilocie", "Wi-Fi AP • wizard on the remote", "WLAN-AP • Assistent auf der Fernbedienung"],
  ["Otwórz kreator na pilocie", "Open wizard on the remote", "Assistent auf der Fernbedienung öffnen"],
  ["Kreator AP wymaga dwóch potwierdzeń na ekranie pilota. Najpierw zatwierdzisz opuszczenie domowej sieci, a potem przekazanie danych Wi-Fi wybranemu Shelly.", "The AP wizard requires two confirmations on the remote. First approve leaving the home network, then sharing Wi-Fi details with the selected Shelly.", "Der AP-Assistent erfordert zwei Bestätigungen auf der Fernbedienung: zuerst das Verlassen des Heimnetzes, dann die Weitergabe der WLAN-Daten an das gewählte Shelly."],
@@ -55,7 +62,7 @@ const WEB_MESSAGES=new Map([
 ].map(([key,en,de])=>[key,{pl:key,en,de}]));
 /* Backend diagnostics use English canonical keys. Their PL entries are given
  * separately above, rather than translating arbitrary user-controlled text. */
-const SERVER_MESSAGE_KEYS=new Set(["AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
+const SERVER_MESSAGE_KEYS=new Set(["Expected current BLE scan serial and index only","BLE wizard unavailable; refresh the scan and check the remote","AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
 for(const key of SERVER_MESSAGE_KEYS){const row=WEB_MESSAGES.get(key);const pl=row.en;row.en=key;row.pl=pl;}
 const uiTextBindings=new WeakMap(),uiAttributeBindings=new WeakMap();
 const supportedLocale=value=>typeof value==='string'&&['pl','en','de'].includes(value)?value:null;
@@ -142,27 +149,36 @@ function system(){const n=box(m('Aktualizacja OTA'));n.append(el('p',m('Wybierz 
 let lanBound=[];
 const alreadyBound=(d,channel)=>lanBound.some(b=>b.device_id===d.id&&b.generation===(d.generation===1?1:2)&&(channel===undefined||b.channel===channel));
 let lanMode='start',lanSelected=null,lanCredentials=null,lanSnapshot=null,lanGeneration=0;
-let bleGeneration=0;
+let bleGeneration=0,bleEpoch=0,blePosting=false,bleTimer,blePollSerial=0;
+function scheduleBle(generation,delay){clearTimeout(bleTimer);bleTimer=setTimeout(()=>pollBle(generation),delay);}
 async function pollBle(generation){
  if(page!=='discovery'||lanMode!=='ble'||generation!==bleGeneration)return;
  try{
-  const s=await(await request('ble')).json();if(generation!==bleGeneration)return;
+  const epoch=bleEpoch,token=++blePollSerial,s=await(await request('ble')).json();if(generation!==bleGeneration||epoch!==bleEpoch||token!==blePollSerial)return;
   const status=$('#ble-status'),list=$('#ble-results');if(!status||!list)return;
   setText(status,s.busy?m('Odbieranie reklam: {0} / 20 s',Math.floor(s.elapsed_ms/1000)) : s.phase===5?m('Bluetooth niedostępny'):s.phase===4?m('Skan przerwany'):s.devices.length?m('Wykryto — nie sparowano'):m('Nie znaleziono urządzeń BLE'));
-  $('#ble-start').disabled=s.busy;$('#ble-cancel').disabled=!s.busy;list.replaceChildren();
+  if(s.handoff===2||s.handoff===3)setText(status,m('Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.'));
+  $('#ble-start').disabled=s.busy||blePosting||s.handoff===2||s.handoff===3;$('#ble-cancel').disabled=!s.busy;list.replaceChildren();
   for(const [kind,heading] of [[0,m('Shelly • RPC / konfiguracja')],[1,m('Shelly BLU')],[2,m('Pozostałe reklamy')]]){
-   const rows=s.devices.filter(d=>d.kind===kind);if(!rows.length)continue;list.append(el('h3',heading));
-   for(const d of rows){const card=el('div',undefined,'row');card.append(el('strong',d.model||d.name||m('Nieznany model')),el('span',m('{0} dBm · Wykryto, nie sparowano',d.rssi)));list.append(card);}
+   const rows=s.devices.map((d,index)=>({...d,index})).filter(d=>d.kind===kind);if(!rows.length)continue;list.append(el('h3',heading));
+   for(const d of rows){const card=el('div',undefined,'row');card.append(el('strong',d.model||d.name||m('Nieznany model')),el('span',m('{0} dBm · Wykryto, nie sparowano',d.rssi)));if(d.kind===0){const open=button(m('Otwórz kreator BLE na pilocie'),async()=>{
+     if(open.disabled||blePosting||generation!==bleGeneration)return;
+     blePosting=true;bleEpoch++;open.disabled=true;
+     try{const result=await(await request('ble/open',{method:'POST',body:JSON.stringify({serial:s.serial,index:d.index})})).json();if(generation===bleGeneration&&result.queued)setText(status,m('Dokończ kreator na LCD pilota. Obie zgody wymagają dotknięcia ekranu; samo żądanie WWW nie wysyła Wi-Fi.'));}
+     catch(e){if(generation===bleGeneration)notice(e.uiMessage||serverMessage(e.message));}
+     finally{blePosting=false;bleEpoch++;if(generation===bleGeneration)scheduleBle(generation,0);}
+    });open.disabled=blePosting||s.busy||![1,4].includes(s.handoff)||d.age_ms>30000;card.append(open);}
+    list.append(card);}
   }
  }catch(e){notice(e.uiMessage||serverMessage(e.message));}
- if(generation===bleGeneration)setTimeout(()=>pollBle(generation),800);
+ if(generation===bleGeneration)scheduleBle(generation,800);
 }
 function bleView(){
  const n=box(m('Bluetooth LE • skan')),generation=++bleGeneration;
- n.append(button(m('← Metody dodawania'),()=>{bleGeneration++;lanMode='start';render();}),el('p',m('Skan reklam BLE działa na pilocie. Nie paruje, nie przekazuje danych Wi-Fi i nie zapisuje fikcyjnych urządzeń. Nazwa i typ reklamy nie są uwierzytelnioną tożsamością.')));
+ n.append(button(m('← Metody dodawania'),()=>{bleGeneration++;lanMode='start';render();}),el('p',m('Skan działa na pilocie. Dla reklamowanego RPC możesz otworzyć prawdziwy kreator na LCD. Dopiero dwie fizyczne zgody pozwalają sprawdzić urządzenie i przekazać Wi-Fi. Reklama nie dowodzi autentyczności.')));
  const start=button(m('Szukaj BLE'),async()=>{try{await request('ble/scan',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}},'primary');start.id='ble-start';
  const cancel=button(m('Anuluj skan BLE'),async()=>{try{await request('ble/cancel',{method:'POST'});}catch(e){notice(e.uiMessage||serverMessage(e.message));}});cancel.id='ble-cancel';
- const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('BLU może wymagać krótkiego naciśnięcia przycisku. Urządzenie Wi-Fi musi reklamować BLE; konfiguracja RPC może wymagać pairing i włączonego okna konfiguracji.'),'muted'));setTimeout(()=>pollBle(generation),0);return n;
+ const status=el('p',m('Odczyt stanu skanera…'));status.id='ble-status';const list=el('div');list.id='ble-results';n.append(start,cancel,status,list,el('p',m('Tylko przekaźniki Gen2+ w otwartym oknie setup, bez bondingu i z HTTP w LAN. Fabryczne HTTPS 2.0, BLU, BTHome i urządzenia zabezpieczone nie są obsługiwane tym kreatorem. Pilot pozostaje w LAN.'),'muted'));scheduleBle(generation,0);return n;
 }
 let apGeneration=0;
 function apView(){

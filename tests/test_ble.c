@@ -1,4 +1,6 @@
 #include "dsr_ble.h"
+#include "../components/dsr_platform/dsr_activity_internal.h"
+#include "../components/dsr_platform/dsr_ble_shared.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -46,12 +48,15 @@ void vTaskDelay(TickType_t ticks)
 {
  clock_ms+=ticks;
  if(!radio)return;
- struct ble_gap_event e={.type=BLE_GAP_EVENT_DISC,.disc={.addr={.type=0,.val={1,2,3,4,5,6}},.rssi=-45,.length_data=sizeof(blu),.data=blu}};callback(&e,context);
+ struct ble_gap_event e={.type=BLE_GAP_EVENT_DISC,.disc={.addr={.type=0,.val={1,2,3,4,5,6}},.rssi=-45,.length_data=sizeof(blu),.data=blu}};if(mode==4){e.disc.data=rpc;e.disc.length_data=sizeof(rpc);}callback(&e,context);
  if(mode==1)dsr_ble_cancel();
  if(mode==2)ble_hs_cfg.reset_cb(7);
- if(mode==3){radio=false;e.type=BLE_GAP_EVENT_DISC_COMPLETE;e.disc_complete.reason=0;callback(&e,context);CHECK(!dsr_ble_scan());}
+ if(mode==3||mode==4){radio=false;e.type=BLE_GAP_EVENT_DISC_COMPLETE;e.disc_complete.reason=0;callback(&e,context);CHECK(!dsr_ble_scan());}
 }
 static void run_worker(void){if(!setjmp(idle))worker(NULL);}
+static unsigned rpc_calls;
+static void rpc_operation(bool ready)
+{CHECK(ready&&dsr_ble_host_healthy());CHECK(!dsr_ble_scan());dsr_ble_snapshot_t snapshot;dsr_ble_snapshot(&snapshot);CHECK(!snapshot.busy&&snapshot.phase!=DSR_BLE_SCANNING);rpc_calls++;}
 static void parser_tests(void)
 {
  dsr_ble_device_t d;CHECK(dsr_ble_parse(blu,sizeof(blu),&d));CHECK(d.kind==DSR_BLE_SHELLY_BLU&&d.model_id==2);CHECK(!strcmp(dsr_ble_model_name(&d),"Shelly BLU DoorWindow"));
@@ -88,5 +93,18 @@ int main(void)
  mode=3;CHECK(dsr_ble_scan());run_worker();dsr_ble_snapshot(&s);CHECK(s.phase==DSR_BLE_DONE&&!s.busy&&!radio);
  uint32_t previous=s.serial;struct ble_gap_event late={.type=BLE_GAP_EVENT_DISC,.disc={.addr={.type=0,.val={1}},.rssi=-20,.length_data=sizeof(rpc),.data=rpc}};callback(&late,context);dsr_ble_snapshot(&s);CHECK(s.serial==previous);
  CHECK(dsr_ble_scan());late.type=BLE_GAP_EVENT_DISC_COMPLETE;late.disc_complete.reason=0;callback(&late,context);dsr_ble_snapshot(&s);CHECK(s.phase==DSR_BLE_STARTING&&s.count==0&&s.busy);run_worker();
+ CHECK(dsr_ble_manager_rpc(rpc_operation));CHECK(!dsr_ble_manager_rpc(rpc_operation)&&!dsr_ble_scan());run_worker();CHECK(rpc_calls==1);CHECK(dsr_ble_scan());mode=3;run_worker();
+ mode=4;CHECK(dsr_ble_scan());run_worker();dsr_ble_snapshot(&s);CHECK(s.count==1&&s.devices[0].kind==DSR_BLE_SHELLY_RPC);
+ dsr_ble_handoff_publish(true,false,clock_ms);CHECK(dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_READY);
+ CHECK(!dsr_ble_handoff_request(s.serial+1,0)&&!dsr_ble_handoff_request(s.serial,1));
+ CHECK(dsr_ble_handoff_request(s.serial,0));CHECK(!dsr_ble_handoff_request(s.serial,0));
+ dsr_ble_handoff_publish(true,false,clock_ms-1);CHECK(dsr_ble_handoff_status(clock_ms-1)==DSR_BLE_HANDOFF_REQUESTED);
+ dsr_ble_device_t handoff;CHECK(dsr_activity_restart_reserve());CHECK(!dsr_ble_handoff_take(&handoff,clock_ms));dsr_activity_restart_cancel();
+ CHECK(dsr_ble_handoff_take(&handoff,clock_ms)&&handoff.kind==DSR_BLE_SHELLY_RPC&&!memcmp(handoff.address,s.devices[0].address,6));CHECK(!dsr_ble_handoff_take(&handoff,clock_ms));
+ dsr_ble_handoff_publish(false,true,clock_ms);CHECK(dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_ACTIVE);
+ dsr_ble_handoff_publish(true,false,clock_ms);CHECK(dsr_ble_handoff_request(s.serial,0));clock_ms+=10000;CHECK(!dsr_ble_handoff_take(&handoff,clock_ms)&&dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_EXPIRED);
+ dsr_ble_handoff_publish(true,false,clock_ms);CHECK(dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_EXPIRED);CHECK(dsr_ble_handoff_request(s.serial,0));dsr_ble_handoff_publish(false,false,clock_ms);CHECK(!dsr_ble_handoff_take(&handoff,clock_ms));
+ clock_ms+=30001;dsr_ble_handoff_publish(true,false,clock_ms);CHECK(!dsr_ble_handoff_request(s.serial,0));
+ CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u BLE checks; real parser + scanner adapter, bounded AD, merge/dedupe/cap, 20s timeout, 10 cancel cycles, host reset, retry, late events; host radio fixture only\n",checks);return 0;
 }

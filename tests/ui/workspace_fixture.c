@@ -1,6 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
+#include "dsr_ble_rpc.h"
 #include "lvgl.h"
 #include <stdlib.h>
 #include <string.h>
@@ -103,3 +104,25 @@ void dsr_workspace_ap_publish(bool available,bool active,uint32_t now_ms)
 {(void)now_ms;ap_open_available=available&&!active;if(active||!available)ap_open_requested=false;}
 bool dsr_workspace_take_ap_open(uint32_t now_ms)
 {(void)now_ms;bool take=ap_open_requested&&ap_open_available;if(take)ap_open_requested=false;return take;}
+
+/* RPC transport provider MODEL; actual client/callback faults tested separately. */
+static dsr_ble_rpc_snapshot_t rpc;
+static bool rpc_visible;
+static unsigned rpc_starts,rpc_confirms,rpc_cancels;
+unsigned test_rpc_starts(void){return rpc_starts;}
+unsigned test_rpc_confirms(void){return rpc_confirms;}
+unsigned test_rpc_cancels(void){return rpc_cancels;}
+bool dsr_ble_rpc_active(void){return rpc.active;}
+bool dsr_ble_rpc_sensitive(void){return rpc.active||rpc_visible;}
+void dsr_ble_rpc_visibility(bool visible){rpc_visible=visible;}
+void dsr_ble_rpc_snapshot(dsr_ble_rpc_snapshot_t *out){*out=rpc;}
+dsr_result_t dsr_ble_rpc_start(const dsr_ble_device_t *candidate)
+{if(rpc.active||candidate->kind!=DSR_BLE_SHELLY_RPC)return DSR_BUSY;rpc_starts++;rpc=(dsr_ble_rpc_snapshot_t){.active=true,.generation=rpc.generation+1,.serial=rpc.serial+1,.phase=DSR_BLE_RPC_CONNECTING,.result=DSR_BUSY};return DSR_OK;}
+dsr_result_t dsr_ble_rpc_confirm(uint32_t generation,const char *ssid)
+{if(generation!=rpc.generation||rpc.phase!=DSR_BLE_RPC_CONFIRM||!ssid[0])return DSR_BUSY;rpc_confirms++;rpc.phase=DSR_BLE_RPC_WRITING;rpc.serial++;return DSR_OK;}
+void dsr_ble_rpc_cancel(uint32_t generation){if(generation==rpc.generation&&rpc.active)rpc_cancels++;}
+void test_rpc_update(dsr_ble_rpc_phase_t phase,dsr_result_t result,bool active,const dsr_lan_device_t *identity)
+{rpc.phase=phase;rpc.result=result;rpc.active=active;rpc.serial++;if(identity){rpc.device=*identity;rpc.has_identity=true;}if(phase==DSR_BLE_RPC_LAN_READY)rpc.write_possible=true;}
+
+void dsr_ble_handoff_publish(bool available,bool active,uint32_t now){(void)available;(void)active;(void)now;}
+bool dsr_ble_handoff_take(dsr_ble_device_t *candidate,uint32_t now){(void)candidate;(void)now;return false;}

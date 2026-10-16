@@ -37,7 +37,7 @@ for name,expected in auth_blocks.items():
         ap=b' if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);\n'
         assert block.count(ap)==1 and block.index(ap)>block.index(b'if(!authorized(r))'),'AP handoff must remain behind authorization'
         block=block.replace(ap,b'')
-        preview=b'esp_timer_get_time()<pair_until||dsr_ap_sensitive()'
+        preview=b'esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())'
         assert block.count(preview)==1,'Unexpected AP preview gate'
         block=block.replace(preview,b'esp_timer_get_time()<pair_until')
     assert hashlib.sha256(block).hexdigest()==expected,f'Authentication source changed from 2a3e7dd: {name}'

@@ -57,6 +57,7 @@ void dsr_network_reset_view(void)
     dsr_ui_ap_reset();
     dsr_ui_ble_reset();
     dsr_ui_native_ota_hide();
+    dsr_ui_ble_rpc_reset();
     form = keyboard = message = NULL;
     memset(fields, 0, sizeof(fields)); view = VIEW_NONE;
 }
@@ -149,10 +150,21 @@ dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,
  if(host)snprintf(job.connection.device.host,sizeof(job.connection.device.host),"%s",host);
  dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
 }
+dsr_result_t dsr_network_request_station(const dsr_lan_device_t *identity)
+{
+ if(!identity||busy||finishing_bind)return DSR_BUSY;
+ dsr_job_t job={.id=++serial,.kind=DSR_JOB_LAN_STA_VERIFY,.settings=settings};
+ snprintf(job.ap_identity.id,sizeof(job.ap_identity.id),"%s",identity->id);
+ snprintf(job.ap_identity.mac,sizeof(job.ap_identity.mac),"%s",identity->mac);
+ job.ap_identity.generation=identity->generation;job.ap_identity.auth_required=identity->auth_required;
+ snprintf(job.connection.device.host,sizeof(job.connection.device.host),"%s",identity->host);
+ dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
+}
 bool dsr_network_busy(void) { return busy||finishing_bind; }
+bool dsr_network_ota_busy(void){return busy&&(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL);}
 dsr_result_t dsr_network_request_ota(dsr_job_kind_t kind,unsigned channel,bool power_confirmed)
 {
- if(busy||finishing_bind||dsr_ui_ap_active()||dsr_wifi_temporary_active())return DSR_BUSY;
+ if(busy||finishing_bind||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active())return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=kind};
  if(!job.id)job.id=++serial;
  dsr_result_t result=dsr_native_ota_prepare(job.id,kind,(dsr_ota_channel_t)channel,power_confirmed);
@@ -388,6 +400,7 @@ static void poll(lv_timer_t *timer)
    s->next_maintenance=event.result==DSR_OK?0:now+5000;
   }
   if(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL){/* Fixed synchronized updater snapshot is consumed by its LCD tick. */}
+  else if(operation==DSR_JOB_LAN_STA_VERIFY)dsr_ui_ble_rpc_result(&event);
   else if(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)dsr_ui_ap_result(&event,operation);
   else if(operation==DSR_JOB_DISPLAY_SAVE){if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}dsr_ui_display_result(&event);}
   else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
@@ -421,11 +434,15 @@ static void poll(lv_timer_t *timer)
   render();
  }
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_panel_tick();
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_panel_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
- bool ap_available=view==VIEW_HOME&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
+ bool ap_available=view==VIEW_HOME&&!dsr_ui_ble_rpc_active()&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
  dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);
  if(ap_available&&!busy&&!finishing_bind&&dsr_workspace_take_ap_open(handoff_now))dsr_ui_ap_open(NULL);
+ bool ble_available=view==VIEW_HOME&&!dsr_ui_ap_active()&&!dsr_ui_ble_rpc_active()&&dsr_network_ap_home(NULL);
+ dsr_ble_handoff_publish(ble_available,dsr_ui_ble_rpc_active(),handoff_now);
+ dsr_ble_device_t candidate;
+ if(ble_available&&!busy&&!finishing_bind&&dsr_ble_handoff_take(&candidate,handoff_now))dsr_ui_ble_rpc_open(&candidate);
  if(finishing_bind&&!busy){
   dsr_result_t result;bool pending_layout=dsr_ui_workspace_migrate_status(&result);
   if(!pending_layout){

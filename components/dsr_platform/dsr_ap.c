@@ -1,5 +1,8 @@
 #include "dsr_ap_private.h"
 #include "dsr_discovery.h"
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_ble_rpc.h"
+#endif
 #include <ctype.h>
 #include <stdatomic.h>
 #include <string.h>
@@ -18,6 +21,7 @@ void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event)
  if(job->kind==DSR_JOB_AP_SCAN){event->result=dsr_wifi_scan(&event->scan);return;}
  if(job->kind==DSR_JOB_AP_RESTORE){event->result=dsr_wifi_restore_home(&event->wifi_detail);if(!dsr_wifi_temporary_active())dsr_lan_resume();atomic_store(&sensitive,false);return;}
  if(job->kind==DSR_JOB_AP_INSPECT){
+  if(dsr_ble_rpc_active()){event->result=DSR_BUSY;return;}
   atomic_store(&sensitive,true);event->result=dsr_lan_suspend();
   if(event->result!=DSR_OK||dsr_ap_cancelled()){if(dsr_ap_cancelled())event->result=DSR_BUSY;dsr_lan_resume();atomic_store(&sensitive,false);return;}
   event->result=dsr_wifi_temporary_connect(&job->ap,&event->wifi_detail);
@@ -28,7 +32,9 @@ void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event)
  }
  dsr_settings_t home={0};esp_err_t error=dsr_settings_load(&home);
  if(error!=ESP_OK||!dsr_wifi_settings_valid(&home)||strcmp(home.ssid,job->settings.ssid))event->result=DSR_IO;
- else if(job->kind==DSR_JOB_AP_VERIFY){
+ else if(job->kind==DSR_JOB_LAN_STA_VERIFY){
+  event->result=dsr_wifi_connected()?dsr_http_lan_verify_station(&job->ap_identity,job->connection.device.host,&home):DSR_OFFLINE;
+ }else if(job->kind==DSR_JOB_AP_VERIFY){
   event->result=dsr_ap_cancelled()?DSR_BUSY:dsr_http_ap_verify_lan(&job->ap_identity,job->connection.device.host,&home);
  }else if(job->kind==DSR_JOB_AP_PROVISION){
   if(!job->ap_confirmed||!dsr_wifi_temporary_active()||dsr_ap_cancelled())event->ap_write_result=DSR_INVALID;

@@ -12,9 +12,9 @@ static bool unique_keys(const cJSON *o)
 {for(const cJSON *a=o->child;a;a=a->next)for(const cJSON *b=a->next;b;b=b->next)if(!strcmp(a->string,b->string))return false;return true;}
 static bool integral(const cJSON *v,int lo,int hi)
 {return cJSON_IsNumber(v)&&isfinite(v->valuedouble)&&v->valuedouble>=lo&&v->valuedouble<=hi&&floor(v->valuedouble)==v->valuedouble;}
-dsr_result_t dsr_lan_parse_identity(const cJSON *r,const char *host,dsr_lan_device_t *out)
+dsr_result_t dsr_shelly_parse_identity(const cJSON *r,dsr_lan_device_t *out)
 {
-    if(!out||!dsr_ipv4_valid(host)||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
+    if(!out||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
     const cJSON *gen=get(r,"gen"),*mac=get(r,"mac"),*id=get(r,"id"),*model=get(r,"model"),*name=get(r,"name");
     if(!text(mac,13)||strlen(mac->valuestring)!=12)return DSR_BAD_RESPONSE;
     dsr_lan_device_t next={0};bool nonzero=false,not_broadcast=false;
@@ -30,8 +30,10 @@ dsr_result_t dsr_lan_parse_identity(const cJSON *r,const char *host,dsr_lan_devi
         for(const unsigned char *p=(const unsigned char *)id->valuestring;*p;p++)if(!(isalnum(*p)||*p=='-'||*p=='_'))return DSR_BAD_RESPONSE;
         next.generation=(uint8_t)gen->valueint;next.auth_required=cJSON_IsTrue(auth);strcpy(next.id,id->valuestring);strcpy(next.model,model->valuestring);
     }
-    strcpy(next.host,host);snprintf(next.name,sizeof(next.name),"%s",text(name,sizeof(next.name))?name->valuestring:next.model);*out=next;return DSR_OK;
+    snprintf(next.name,sizeof(next.name),"%s",text(name,sizeof(next.name))?name->valuestring:next.model);*out=next;return DSR_OK;
 }
+dsr_result_t dsr_lan_parse_identity(const cJSON *r,const char *host,dsr_lan_device_t *out)
+{if(!out||!dsr_ipv4_valid(host))return DSR_BAD_RESPONSE;dsr_result_t result=dsr_shelly_parse_identity(r,out);if(result==DSR_OK)strcpy(out->host,host);return result;}
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_lan_capabilities_t *out)
 {
     if(!out||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;

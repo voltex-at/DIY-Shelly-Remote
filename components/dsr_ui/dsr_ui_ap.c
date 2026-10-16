@@ -104,6 +104,7 @@ static void show_scan(lv_event_t *event)
 void dsr_ui_ap_open(lv_event_t *event)
 {
  (void)event;
+ if(dsr_ui_ble_rpc_active())return;
  if(waiting||lease||cleanup||dsr_wifi_temporary_active()){
   cleanup=true;cleanup_retry_at=lv_tick_get();return_after_restore=false;phase=AP_RESTORING;dsr_ap_cancel();message("Powrót do domu","Kończenie poprzedniej operacji i przywracanie domowego Wi-Fi.");return;
  }

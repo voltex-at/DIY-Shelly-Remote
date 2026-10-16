@@ -40,10 +40,18 @@ let activePage;
  apState=4;await page.waitForFunction(()=>!document.querySelector('#ap-open').disabled);assert.equal(apPosts,1);checks++;
  await page.getByRole('button',{name:'← Metody dodawania'}).click();
 
+ let bleState=1,blePosts=0;
+ await page.route('**/api/v1/ble',async route=>{const response=await route.fetch(),snapshot=await response.json();return route.fulfill({json:{...snapshot,serial:42,handoff:bleState}});});
+ await page.route('**/api/v1/ble/open',route=>{assert.equal(route.request().method(),'POST');assert.deepEqual(route.request().postDataJSON(),{serial:42,index:1});blePosts++;bleState=2;return route.fulfill({status:202,json:{queued:true,physical_confirmation_required:true}});});
  await page.getByRole('button',{name:'Bluetooth LE • skan'}).click();await page.getByRole('button',{name:'Szukaj BLE',exact:true}).click();
  await page.getByText('Shelly BLU DoorWindow',{exact:true}).waitFor();assert((await page.locator('#ble-status').textContent()).includes('nie sparowano'));checks++;
  assert.equal(await page.locator('#ble-results strong').count(),2);checks++;
  await page.screenshot({path:'build-ui/panel-review/panel-ble-results.png',fullPage:true});
+ const bleOpen=page.getByRole('button',{name:'Otwórz kreator BLE na pilocie'});await bleOpen.waitFor();assert.equal(blePosts,0);assert(await bleOpen.isEnabled());checks+=2;
+ await bleOpen.click();await page.waitForFunction(()=>document.querySelector('#ble-status').textContent.startsWith('Dokończ kreator'));assert.equal(blePosts,1);checks++;
+ bleState=3;await page.waitForFunction(()=>document.querySelector('#ble-start').disabled);assert(await bleOpen.isDisabled());assert.equal(blePosts,1);checks+=2;
+ bleState=4;await page.waitForFunction(()=>!document.querySelector('#ble-results button').disabled);assert.equal(blePosts,1);checks++;
+
  await page.getByRole('button',{name:'Szukaj BLE',exact:true}).click();await page.getByRole('button',{name:'Anuluj skan BLE',exact:true}).waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('#ble-cancel').disabled);await page.getByRole('button',{name:'Anuluj skan BLE',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#ble-status').textContent==='Skan przerwany');checks++;
  await page.getByRole('button',{name:'← Metody dodawania'}).click();
  await page.getByRole('button',{name:'Skanuj sieć Wi-Fi',exact:true}).click();await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).waitFor();checks++;

@@ -38,7 +38,7 @@ Planned discovery queries `_shelly._tcp` and `_http._tcp`, validates identities,
 
 Add WebSocket notifications with resynchronization/polling after reconnect. Never block the UI on probing or reconnection.
 
-BLE work must distinguish passive BLU/BTHome advertisements from writable devices and BLE RPC-capable models. Verify individual capabilities, detect/reject unsupported encrypted payloads until keys and decryption are implemented, deduplicate packet events and never fabricate successful control of a passive sensor. Balance Wi-Fi and BLE radio time; enable NimBLE only on a confirmed capable target. No BLE code is implemented in this checkpoint.
+BLE work must distinguish passive BLU/BTHome advertisements from writable devices and BLE RPC-capable models. Verify individual capabilities, detect/reject unsupported encrypted payloads until keys and decryption are implemented, deduplicate packet events and never fabricate successful control of a passive sensor. Balance Wi-Fi and BLE radio time; enable NimBLE only on a confirmed capable target. Open-window Gen2+ relay GATT onboarding now has a DEV implementation; see [B1 scope and gates](BLE_RPC_B1_PL.md). Bonded/encrypted configured devices remain unsupported.
 
 ## Cloud
 

@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {char hosts[DSR_LAN_MAX_HOSTS][16];uint8_t count;} dsr_lan_plan_t;
 
 /* Portable parsers. No model-name capability guesses and no fabricated rows. */
+dsr_result_t dsr_shelly_parse_identity(const cJSON *json,dsr_lan_device_t *out);
 dsr_result_t dsr_lan_parse_identity(const cJSON *json,const char *host,dsr_lan_device_t *out);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);

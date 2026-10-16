@@ -11,6 +11,6 @@ LCDWiki ES3C35P now has a documented source-level hardware-test port. The user c
 | Cover/roller | Not implemented | No |
 | Environmental sensors and energy meters | Not implemented | No |
 | Shelly BLU/BTHome | Not implemented | No |
-| Device-specific BLE RPC | Not implemented | No |
+| Gen2+ open-window BLE RPC → Wi-Fi → HTTP LAN relay | DEV B1, two LCD consents; no bonding/TLS-only | Physical acceptance pending; see [scope](BLE_RPC_B1_PL.md) |
 
 Do not translate a protocol implementation into a blanket model support claim. Add verified rows with exact model, hardware revision, firmware version, transport, component/channel, authentication mode, test date and logs. A model's capability can vary with device profile and firmware.

@@ -13,6 +13,8 @@ parser.add_argument("--ubsan-only", action="store_true", help="For restricted ru
 args = parser.parse_args()
 subprocess.run(["python3",str(ROOT/"tools/test_ap_target.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_native_ota_target.py")],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ble_target.py")],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_ble_rpc.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/verify_crypto_vendor.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_image.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
@@ -80,10 +82,10 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     ble_binary=temp_root / "test_ble"
     subprocess.run([os.environ.get("CC","cc"),*flags,
                     "-I",str(ROOT / "tests/ble"),"-I",str(ROOT / "tests/support"),
-                    "-I",str(ROOT / "components/dsr_platform/include"),
+                    "-I",str(ROOT / "components/dsr_platform/include"), "-I",str(ROOT / "components/dsr_core/include"),
                     str(ROOT / "components/dsr_platform/dsr_ble_model.c"),
                     str(ROOT / "components/dsr_platform/dsr_ble.c"),
-                    str(ROOT / "tests/test_ble.c"),"-o",str(ble_binary)],check=True,cwd=temp_root,env=test_env)
+                    str(ROOT / "components/dsr_platform/dsr_activity.c"), str(ROOT / "tests/test_ble.c"),"-o",str(ble_binary)],check=True,cwd=temp_root,env=test_env)
     subprocess.run([str(ble_binary)],check=True,cwd=temp_root,env=test_env)
     battery_binary=temp_root / "test_battery"
     subprocess.run([os.environ.get("CC","cc"),*flags,"-DDSR_BOARD_ES3C35P=1",

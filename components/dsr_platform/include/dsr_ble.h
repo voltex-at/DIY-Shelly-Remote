@@ -41,4 +41,13 @@ esp_err_t dsr_ble_init(void);
 bool dsr_ble_scan(void);
 void dsr_ble_cancel(void);
 void dsr_ble_snapshot(dsr_ble_snapshot_t *out);
+/* Authenticated WWW handoff: only a current scan serial/index is accepted.
+ * Candidate resolution/copy is atomic under the shared scanner mutex. No
+ * address or credential is accepted from the browser; LCD owns both consents. */
+typedef enum {DSR_BLE_HANDOFF_UNAVAILABLE,DSR_BLE_HANDOFF_READY,DSR_BLE_HANDOFF_REQUESTED,DSR_BLE_HANDOFF_ACTIVE,DSR_BLE_HANDOFF_EXPIRED} dsr_ble_handoff_t;
+void dsr_ble_handoff_publish(bool available,bool active,uint32_t now_ms);
+bool dsr_ble_handoff_request(uint32_t scan_serial,unsigned index);
+bool dsr_ble_handoff_take(dsr_ble_device_t *candidate,uint32_t now_ms);
+dsr_ble_handoff_t dsr_ble_handoff_status(uint32_t now_ms);
+bool dsr_ble_handoff_parse(const char *json,uint32_t *serial,unsigned *index);
 #endif

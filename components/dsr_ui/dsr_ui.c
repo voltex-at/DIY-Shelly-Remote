@@ -169,8 +169,6 @@ static lv_obj_t *settings_body(const char *title)
 }
 static lv_obj_t *row(lv_obj_t *body,const char *text,int y,lv_event_cb_t action)
 {return dsr_ui_button(body,text,0,y,296,action,NULL);}
-static void unavailable(lv_obj_t *body,const char *text,int y)
-{lv_obj_t *b=row(body,text,y,NULL);lv_obj_add_state(b,LV_STATE_DISABLED);}
 void dsr_ui_settings_network(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Sieć i połączenia");dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);
@@ -179,9 +177,9 @@ void dsr_ui_settings_network(lv_event_t *event)
  lv_obj_set_height(ssid,20);lv_label_set_long_mode(ssid,LV_LABEL_LONG_MODE_DOTS);
  char text[48];snprintf(text,sizeof(text),"IPv4: %s",wifi.connected&&wifi.ip[0]?wifi.ip:"—");
  dsr_sc_text(body,text,4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
- row(body,"Wi-Fi setup",98,dsr_network_wifi);row(body,"Bluetooth LE • tylko skan",156,dsr_ui_ble_settings);
- dsr_sc_text(body,"Parowanie BLE i onboarding AP nie są wdrożone.",4,218,284,&dsr_roboto_12,DSR_SC_MUTED);
- unavailable(body,"Wi-Fi AP • niedostępne",266);row(body,"Dodaj urządzenie Shelly",324,dsr_network_device);
+ row(body,"Wi-Fi setup",98,dsr_network_wifi);row(body,"Bluetooth LE • skan i setup",156,dsr_ui_ble_settings);
+ dsr_sc_text(body,"BLE: otwarte okno setup Gen2+. AP: otwarty punkt Shelly.",4,218,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Wi-Fi AP • dodaj Shelly",266,dsr_ui_ap_open);row(body,"Dodaj urządzenie Shelly",324,dsr_network_device);
  row(body,"Odśwież",382,dsr_ui_settings_network);
 }
 static void web_panel(lv_event_t *event);

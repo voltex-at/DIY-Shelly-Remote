@@ -20,7 +20,7 @@
 
 static unsigned checks;
 static unsigned screenshots,requests;
-static unsigned job_counts[DSR_JOB_OTA_INSTALL+1];
+static unsigned job_counts[DSR_JOB_LAN_STA_VERIFY+1];
 void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t error,dsr_manifest_result_t why);
 void test_native_ota_uncertain(void);
 void test_native_ota_notes(const char *text);
@@ -259,7 +259,7 @@ static void global_settings_regression(void)
  snprintf(wifi.ssid,sizeof(wifi.ssid),"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW");
  tap_row("Sieć i połączenia");CHECK(find_label(lv_screen_active(),"Wi-Fi: brak połączenia"));
  lv_obj_t *ip=find_label(lv_screen_active(),"IPv4: —");CHECK(ip);lv_obj_t *ssid=lv_obj_get_child(lv_obj_get_parent(ip),1);CHECK(lv_obj_get_height(ssid)==20&&lv_obj_get_y(ssid)+lv_obj_get_height(ssid)<lv_obj_get_y(ip));screenshot("151-global-network");
- tap_row("Bluetooth LE • tylko skan");CHECK(dsr_ui_ble_active());click("Wstecz");CHECK(find_label(lv_screen_active(),"Sieć i połączenia"));click("Wstecz");
+ tap_row("Bluetooth LE • skan i setup");CHECK(dsr_ui_ble_active());click("Wstecz");CHECK(find_label(lv_screen_active(),"Sieć i połączenia"));click("Wstecz");
  test_panel_ready(false);tap_row("Panel WWW / bezpieczeństwo");CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("152-global-web-unavailable");
  tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));click("Wstecz");
  test_panel_ready(true);tap_row("Panel WWW / bezpieczeństwo");CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));
@@ -728,6 +728,7 @@ static void ap_regression(void)
  CHECK(!memcmp(&original,&stored,sizeof(stored)));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("AP LCD: two consents, delayed ACK/reopen, failed restore, cancellation, uncertain POST and verified LAN handoff; radio remains a host fixture\n");
 }
+#include "ble_rpc_regression.inc"
 int main(int argc,char **argv)
 {
     CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -842,7 +843,7 @@ int main(int argc,char **argv)
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
     multi_device_regression();review_multi_regression();review_deleted_migration_regression();
-    ap_regression();native_ota_regression();
+    ap_regression();native_ota_regression();rpc_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

@@ -64,7 +64,7 @@ bool dsr_wifi_connected(void){return false;}
 static bool temporary_ap;
 static unsigned ap_executed,ap_prepared,wifi_prepared;
 bool dsr_wifi_temporary_active(void){return temporary_ap;}
-void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY&&!dsr_activity_restart_reserve());ap_executed++;event->result=DSR_OK;}
+void dsr_ap_execute(const dsr_job_t *job,dsr_event_t *event){CHECK(((job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY)||job->kind==DSR_JOB_LAN_STA_VERIFY)&&!dsr_activity_restart_reserve());ap_executed++;event->result=DSR_OK;}
 void dsr_ap_prepare(void){ap_prepared++;}
 static bool ota_admit;
 static unsigned ota_executed,ota_initialized;
@@ -147,6 +147,9 @@ int main(void)
  dsr_job_t ap={.kind=DSR_JOB_AP_INSPECT,.ap={.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN}};
  CHECK(dsr_worker_submit(&ap)==DSR_INVALID);ap.ap_confirmed=true;ap.ap.security=DSR_WIFI_WPA2;CHECK(dsr_worker_submit(&ap)==DSR_INVALID);
  dsr_job_t blocked={.kind=DSR_JOB_BATTERY_READ};CHECK(dsr_worker_submit(&blocked)==DSR_BUSY);temporary_ap=false;
+ dsr_job_t sta={.id=198,.kind=DSR_JOB_LAN_STA_VERIFY,.settings={.ssid="Home",.password="private-home-psk",.wifi_security=DSR_WIFI_WPA2},.ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.generation=2}};strcpy(sta.connection.device.host,"192.168.1.10");
+ CHECK(dsr_worker_submit(&sta)==DSR_OK);if(!setjmp(stop))worker(NULL);dsr_event_t verified;CHECK(dsr_worker_receive(&verified)&&verified.id==198&&verified.result==DSR_OK&&ap_executed==6&&ap_prepared==2&&wifi_prepared==1);admission_open();
+ sta.ap_identity.auth_required=true;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);sta.ap_identity.auth_required=false;sta.ap_identity.mac[0]=0;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);
  dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;

@@ -299,9 +299,9 @@ dsr_result_t dsr_http_ap_provision(const dsr_ap_identity_t *expected,const dsr_s
  }
  cJSON_Delete(response);wipe(payload,strlen(payload));free(payload);return result;
 }
-dsr_result_t dsr_http_ap_verify_lan(const dsr_ap_identity_t *expected,const char *host,const dsr_settings_t *home)
+dsr_result_t dsr_http_lan_verify_station(const dsr_ap_identity_t *expected,const char *host,const dsr_settings_t *home)
 {
- if(!expected||!home||!dsr_ap_identity_matches(expected->ssid,expected)||!dsr_ipv4_valid(host)||!dsr_wifi_settings_valid(home))return DSR_INVALID;
+ if(!home||!dsr_station_identity_valid(expected)||!dsr_ipv4_valid(host)||!dsr_wifi_settings_valid(home))return DSR_INVALID;
  dsr_lan_device_t identity;dsr_result_t result=dsr_http_lan_identity(host,&identity);if(result!=DSR_OK)return result;
  dsr_ap_identity_t observed;ap_identity(&identity,expected->ssid,&observed);if(!ap_same(expected,&observed)||observed.auth_required)return DSR_IDENTITY_MISMATCH;
  dsr_connection_t c={0};snprintf(c.device.host,sizeof(c.device.host),"%s",host);dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/WiFi.GetStatus");cJSON *response=NULL;
@@ -311,4 +311,10 @@ dsr_result_t dsr_http_ap_verify_lan(const dsr_ap_identity_t *expected,const char
   if(!ready||!cJSON_IsString(ssid)||strcmp(ssid->valuestring,home->ssid)||!cJSON_IsString(ip)||strcmp(ip->valuestring,host))result=DSR_BAD_RESPONSE;
  }
  cJSON_Delete(response);return result;
+}
+
+dsr_result_t dsr_http_ap_verify_lan(const dsr_ap_identity_t *expected,const char *host,const dsr_settings_t *home)
+{
+ if(!expected||!dsr_ap_identity_matches(expected->ssid,expected))return DSR_INVALID;
+ return dsr_http_lan_verify_station(expected,host,home);
 }

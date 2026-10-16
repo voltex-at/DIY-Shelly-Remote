@@ -21,3 +21,15 @@ bool dsr_ap_identity_matches(const char *ssid,const dsr_ap_identity_t *identity)
  if(!same_text(dash+1,identity->mac+12-length))return false;
  return identity->generation==1||(identity->generation>=2&&identity->generation<=4&&same_text(ssid,identity->id));
 }
+
+bool dsr_station_identity_valid(const dsr_ap_identity_t *identity)
+{
+ if(!identity||!memchr(identity->id,0,sizeof(identity->id))||!memchr(identity->mac,0,sizeof(identity->mac))||identity->generation<1||identity->generation>4||strlen(identity->mac)!=12)return false;
+ bool nonzero=false,nonbroadcast=false;
+ for(unsigned i=0;i<12;i++){unsigned char c=(unsigned char)identity->mac[i];if(!isxdigit(c))return false;nonzero|=c!='0';nonbroadcast|=toupper(c)!='F';}
+ if(!nonzero||!nonbroadcast||!identity->id[0])return false;
+ if(identity->generation==1)return same_text(identity->id,identity->mac);
+ if(strncmp(identity->id,"shelly",6))return false;
+ for(const unsigned char *p=(const unsigned char *)identity->id;*p;p++)if(!isalnum(*p)&&*p!='-'&&*p!='_')return false;
+ return true;
+}

@@ -26,7 +26,7 @@ static void network_task(void *arg)
 #else
             event.result=DSR_UNSUPPORTED;
 #endif
-        } else if(job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY){
+        } else if((job.kind>=DSR_JOB_AP_SCAN&&job.kind<=DSR_JOB_AP_VERIFY)||job.kind==DSR_JOB_LAN_STA_VERIFY){
             dsr_ap_execute(&job,&event);
         } else if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
             event.result=(job.kind==DSR_JOB_UNBIND?dsr_connection_remove(&job.connection):dsr_connection_publish(&job.connection))==ESP_OK?DSR_OK:DSR_IO;event.layout_id=job.connection.layout_id;
@@ -102,7 +102,7 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_OTA_INSTALL) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_LAN_STA_VERIFY) return DSR_INVALID;
     if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;
     if(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL){
 #ifdef DSR_BOARD_ES3C35P
@@ -110,7 +110,9 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 #else
         return DSR_UNSUPPORTED;
 #endif
-    } else if(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY){
+    } else if(job->kind==DSR_JOB_LAN_STA_VERIFY){
+        if(!dsr_station_identity_valid(&job->ap_identity)||job->ap_identity.auth_required||!dsr_ipv4_valid(job->connection.device.host)||!dsr_wifi_settings_valid(&job->settings))return DSR_INVALID;
+    }else if(job->kind>=DSR_JOB_AP_SCAN&&job->kind<=DSR_JOB_AP_VERIFY){
         if(job->kind==DSR_JOB_AP_INSPECT&&(!job->ap_confirmed||!memchr(job->ap.ssid,0,sizeof(job->ap.ssid))||!dsr_ap_candidate(job->ap.ssid)||job->ap.security!=DSR_WIFI_OPEN))return DSR_INVALID;
         if((job->kind==DSR_JOB_AP_PROVISION||job->kind==DSR_JOB_AP_VERIFY)&&(!memchr(job->ap_identity.ssid,0,sizeof(job->ap_identity.ssid))||!dsr_ap_identity_matches(job->ap_identity.ssid,&job->ap_identity)||!dsr_wifi_settings_valid(&job->settings)))return DSR_INVALID;
         if(job->kind==DSR_JOB_AP_PROVISION&&!job->ap_confirmed)return DSR_INVALID;

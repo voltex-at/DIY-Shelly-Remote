@@ -13,9 +13,12 @@
 #include <string.h>
 
 static unsigned checks;
+static bool ble_rpc_active;
+bool dsr_ble_rpc_active(void){return ble_rpc_active;}
 static bool lan_mode,ap_protocol,temporary_ap,cancel_after_drain;
 static const char *transport_host="192.168.1.10",*ap_payload,*ap_content_type;
 static unsigned ap_restores,ap_suspends,ap_connects;
+bool dsr_wifi_connected(void){return !temporary_ap;}
 bool dsr_wifi_temporary_active(void){return temporary_ap;}
 void dsr_wifi_cancel_connect(void){}
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *out){memset(out,0,sizeof(*out));return DSR_OK;}
@@ -309,6 +312,8 @@ static void test_ap_protocol(void)
  fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_provision(&expected,&home)==DSR_OK&&used==2);
  transport_host="192.168.1.10";data[1]=(step_t){"/rpc/WiFi.GetStatus","{\"status\":\"got ip\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.10\"}",200,false,false};
  fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_OK&&used==2);
+ expected.ssid[0]=0;fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_verify_station(&expected,transport_host,&home)==DSR_OK&&used==2); /* BLE requires no invented AP SSID. */
+ strcpy(expected.ssid,"ShellyPlus1-AABBCCDDEEFF");
  data[1].body="{\"status\":\"got ip\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.11\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
  data[1].body="{\"status\":\"connected\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.10\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
  data[1].body="{\"status\":\"got ip\",\"ssid\":\"Other home\",\"sta_ip\":\"192.168.1.10\"}";fixture(data,2,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_ap_verify_lan(&expected,transport_host,&home)==DSR_BAD_RESPONSE);
@@ -334,6 +339,13 @@ static void test_ap_protocol(void)
  transport_host="192.168.33.1";data[0].body=info1;fixture(data,1,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_OK&&temporary_ap&&ap_suspends==1&&write_opens==before);
  job.kind=DSR_JOB_AP_PROVISION;job.ap_identity=event.ap_identity;job.settings=home;data[1]=(step_t){"/settings/sta","{\"enabled\":true,\"ssid\":\"My & WiFi+é\"}",200,true,false};fixture(data,2,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_OK&&event.ap_write_result==DSR_OK&&!temporary_ap&&ap_restores==1&&write_opens==before&&used==2);
  job.kind=DSR_JOB_AP_INSPECT;job.ap=(dsr_wifi_ap_t){.ssid="shelly1-DDEEFF"};unsigned connects=ap_connects;cancel_after_drain=true;event=(dsr_event_t){0};fixture(data,0,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_BUSY&&!temporary_ap&&ap_connects==connects&&used==0&&write_opens==before);cancel_after_drain=false;dsr_ap_prepare();
+ /* BLE reuses the exact identity+SSID/IP readback without an invented AP
+  * name or any home settings/radio write; stale cached home SSID fails closed. */
+ job=(dsr_job_t){.kind=DSR_JOB_LAN_STA_VERIFY,.settings=home,.ap_identity={.id="shellyplus1-aabbccddeeff",.mac="AABBCCDDEEFF",.generation=2}};strcpy(job.connection.device.host,"192.168.1.10");
+ transport_host="192.168.1.10";data[0]=(step_t){"/shelly",info2,200,false,false};data[1]=(step_t){"/rpc/WiFi.GetStatus","{\"status\":\"got ip\",\"ssid\":\"My & WiFi+é\",\"sta_ip\":\"192.168.1.10\"}",200,false,false};
+ unsigned restores=ap_restores,suspends=ap_suspends;fixture(data,2,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_OK&&used==2&&ap_restores==restores&&ap_suspends==suspends&&write_opens==before);
+ strcpy(job.settings.ssid,"stale cached home");fixture(data,0,HTTP_AUTH_TYPE_NONE);dsr_ap_execute(&job,&event);CHECK(event.result==DSR_IO&&used==0&&write_opens==before);
+ ble_rpc_active=true;job=(dsr_job_t){.kind=DSR_JOB_AP_INSPECT,.ap={.ssid="shelly1-DDEEFF"}};dsr_ap_execute(&job,&event);CHECK(event.result==DSR_BUSY&&ap_suspends==suspends&&ap_connects==connects);ble_rpc_active=false;
  ap_protocol=lan_mode=false;transport_host="192.168.1.10";admission_open();
 }
 int main(void)

@@ -21,7 +21,7 @@ static lv_obj_t *screen(void)
 static void leave(lv_event_t *event){(void)event;dsr_ble_cancel();if(from_settings)dsr_ui_settings_network(NULL);else dsr_network_device(NULL);}
 static void stop(lv_event_t *event){(void)event;dsr_ble_cancel();if(notice)dsr_sc_label_set_text(notice,"Zatrzymywanie skanu…");}
 static void back(lv_event_t *event){(void)event;detail=false;show_results();}
-static void lan(lv_event_t *event){dsr_ui_lan_open(event);}
+static void provision(lv_event_t *event){(void)event;dsr_ui_ble_rpc_open(&selected_device);}
 static const char *title(const dsr_ble_device_t *d)
 {const char *model=dsr_ble_model_name(d);return model[0]?model:d->name[0]?d->name:dsr_sc_tr("Nieznany model");}
 static const char *kind(const dsr_ble_device_t *d)
@@ -38,9 +38,9 @@ static void choose(lv_event_t *event)
  char text[96];snprintf(text,sizeof(text),"RSSI %d dBm",d->rssi);dsr_sc_chip(root,text,16,222,200,DSR_SC_TEXT);
  if(d->evidence&DSR_BLE_BTHOME)dsr_sc_chip(root,d->encrypted?"BTHome v2 • szyfrowane":"BTHome v2 • jawne",16,250,288,DSR_SC_TEXT);
  notice=dsr_sc_text(root,"",16,282,288,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(root,"Skan nie dodaje do Wi-Fi. Parowanie i zapis BLE nie są jeszcze wdrożone.",16,317,288,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(root,d->kind==DSR_BLE_SHELLY_RPC?"Otwarty setup Gen2+: sprawdź urządzenie, a następnie osobno potwierdź przekazanie Wi-Fi.":"Skan nie dodaje do Wi-Fi. BLU i BTHome nie są obsługiwane przez kreator Wi-Fi.",16,317,288,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_ui_button(root,"Wstecz",12,420,140,back,NULL);
- if(d->kind==DSR_BLE_SHELLY_RPC)dsr_ui_button(root,"Szukaj w LAN",168,420,140,lan,NULL);
+ if(d->kind==DSR_BLE_SHELLY_RPC)dsr_ui_button(root,"Dodaj przez BLE",168,420,140,provision,NULL);
 }
 static void show_results(void)
 {
