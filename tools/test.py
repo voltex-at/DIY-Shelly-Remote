@@ -13,6 +13,8 @@ parser.add_argument("--ubsan-only", action="store_true", help="For restricted ru
 args = parser.parse_args()
 subprocess.run(["python3",str(ROOT/"tools/test_factory.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ap_target.py")],check=True)
+for tool in ['test_actions_target.py','test_actions_model.py','test_actions_parse.py','test_actions_schema.py','test_actions_workspace.py','test_actions_runtime.py','test_actions_worker.py','test_actions_http_uncertainty.py']:
+    subprocess.run(['python3',str(ROOT/'tools'/tool),*((["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else []) if not tool.endswith('target.py') else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_native_ota_target.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ble_target.py")],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ble_rpc.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
@@ -37,6 +39,7 @@ subprocess.run(["python3",str(ROOT/"tools/test_runtime_api.py"),*(["--sanitize"]
 subprocess.run(["python3",str(ROOT/"tools/test_runtime_mailbox.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ap_handoff.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_lan_barrier.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_pairing.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     temp_root = Path(tmp).resolve()
     binary = temp_root / "test_core"

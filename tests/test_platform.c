@@ -359,8 +359,25 @@ static void test_ap_protocol(void)
  ap_protocol=lan_mode=false;transport_host="192.168.1.10";admission_open();
 }
 #include "cover_platform.inc"
+static unsigned guard_calls,guard_block,write_attempts;
+static void test_write_attempt(void){write_attempts++;}
+static dsr_result_t test_guard(void){return ++guard_calls>=guard_block?DSR_BUSY:DSR_OK;}
+static void test_registered_guard(void)
+{
+ dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.has_switch=true;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
+ step_t relay[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.Set","{\"was_on\":false}",200,true,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
+ for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(relay,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ c.device.endpoint_kind=DSR_ENDPOINT_COVER;cover_payload="{\"id\":0}";step_t cover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open","null",200,true,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false}};
+ for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(cover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ cover_payload=NULL;
+ /* Gen1 changes a relay with GET: method alone must not define the boundary. */
+ c=connection();c.device.generation=DSR_GEN1;c.device.has_switch=true;strcpy(c.device.device_id,"AABBCCDDEEFF");
+ step_t legacy[]={{"/shelly",gen1,200,false,false},{"/relay/0?turn=on","{\"ison\":true}",200,false,false},{"/relay/0","{\"ison\":true}",200,false,false}};
+ write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);fixture(legacy,3,HTTP_AUTH_TYPE_BASIC);CHECK(dsr_http_set_output(&c,true)==DSR_OK&&used==3&&write_attempts==1);CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);
+}
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();
+    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
+    return 0;
 }

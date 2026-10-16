@@ -13,7 +13,7 @@ process.env.TMPDIR=browserTemp;
 let checks=0,active;
 const ok=(v,message)=>{assert(v,message);checks++;},eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
 async function shot(page,file){await page.evaluate(()=>{if(document.querySelector('#test-model-badge'))return;const n=document.createElement('div');n.id='test-model-badge';n.textContent='HOST TEST / HTTP MODEL';n.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1000;font:10px sans-serif;background:#f6c45b;color:#111;padding:2px 5px;pointer-events:none';document.body.append(n);});await page.screenshot({path:file,fullPage:true});}
-const initial=()=>({revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Pulpity',tiles:[]}],rooms:[{id:1,name:'User room',icon:0,photo:''}],devices:[{id:1,name:'User device',kind:'light',host:'192.0.2.8',channel:0,room:1}],scenes:[{id:1,name:'User scene',actions:[{device:1,command:'on'}]}]});
+const initial=()=>({schema:2,groups:[],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Pulpity',tiles:[]}],rooms:[{id:1,name:'User room',icon:0,photo:''}],devices:[{id:1,name:'User device',kind:'light',host:'192.0.2.8',channel:0,room:1}],scenes:[{id:1,name:'User scene',actions:[{device:1,command:'on'}]}]});
 async function fixture(browser,options={}){
  const context=await browser.newContext({locale:options.navigator||'pl-PL',viewport:{width:1440,height:1050}});
  await context.addInitScript(({stored,storageFault,setFault,languages})=>{
@@ -34,7 +34,7 @@ async function fixture(browser,options={}){
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   if(!u.pathname.startsWith('/api/')){
    if(u.pathname==='/favicon.ico')return route.fulfill({status:404,body:''});
-   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
+   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
    return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});
   }
   state.requests.push({path:u.pathname,method:req.method()});
@@ -44,6 +44,7 @@ async function fixture(browser,options={}){
   if(!state.paired)return send(401,{});
   if(u.pathname.endsWith('/config')){if(req.method()==='PUT'){if(state.putFail)return send(409,{error:'MODEL conflict'});const next=req.postDataJSON();if(state.onPut){state.onPut();state.onPut=null;}if(state.saveGate)await state.saveGate;if(next.revision!==state.config.revision)return send(409,{error:'MODEL conflict'});state.config={...next,revision:next.revision+1};return send(202,{saving:true});}return send(200,state.config);}
   if(u.pathname.endsWith('/devices/runtime'))return send(200,{boot_id:1,devices:[]});
+  if(u.pathname.endsWith('/actions/status'))return send(200,{boot_id:1,admission_generation:0,revision:state.config.revision,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]});
   if(u.pathname.endsWith('/status'))return send(200,{revision:state.config.revision,busy:false,firmware:'HOST TEST / DEMO'});
   if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2),contentType:'application/octet-stream'});
   if(u.pathname.endsWith('/discovery/scan'))return send(202,{});

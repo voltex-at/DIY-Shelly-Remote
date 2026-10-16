@@ -38,3 +38,6 @@ int main(int argc,char **argv)
  }
  printf("PASS: %u workspace startup checks; scenario=%u, readiness/snapshot/OOM and no writes on unavailable Flash\n",checks,mode);return 0;
 }
+
+bool dsr_actions_reserved(const dsr_device_t *device){(void)device;return false;}
+void dsr_actions_mode_block(void){}

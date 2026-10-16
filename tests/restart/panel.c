@@ -19,7 +19,7 @@ static int lock;
 static int64_t now=1000000,pair_until;
 static char pairing[17],token_hash[32],status[40],answer[200];
 static unsigned attempts,nvs_fault;
-static bool has_token,body_fail;
+static bool has_token,body_fail,revocation_unconfirmed;
 static const char *body_text="0123456789abcdef";
 static dsr_restart_result_t restart_result;
 static char *body(httpd_req_t *r,size_t limit){CHECK(r&&limit==16);if(body_fail)return NULL;size_t n=strlen(body_text);char *p=malloc(n+1);CHECK(p);memcpy(p,body_text,n+1);return p;}

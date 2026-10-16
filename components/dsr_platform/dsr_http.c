@@ -13,6 +13,13 @@
 
 #define RESPONSE_LIMIT 8192
 static bool (*urgent_hook)(void);
+static dsr_http_job_guard_t job_guard;
+static dsr_http_job_write_hook_t write_hook;
+dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook)
+{dsr_http_job_write_hook_t previous=write_hook;write_hook=hook;return previous;}
+dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard)
+{dsr_http_job_guard_t previous=job_guard;job_guard=guard;return previous;}
+static dsr_result_t allowed(void){return job_guard?job_guard():DSR_OK;}
 void dsr_http_urgent_hook(bool (*hook)(void)){urgent_hook=hook;}
 static bool urgent(void){return urgent_hook&&urgent_hook();}
 static void wipe(void *memory,size_t size)
@@ -41,7 +48,7 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
 }
 
 static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const dsr_request_t *request,
-                               bool identity_request, cJSON **out,int timeout_ms,const char *payload,const char *content_type)
+                               bool identity_request, cJSON **out,int timeout_ms,const char *payload,const char *content_type,bool control_write)
 {
     *out = NULL;
     if (!dsr_connection_valid(connection, false)) return DSR_INVALID;
@@ -68,7 +75,10 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         if (error == ESP_OK) error = esp_http_client_set_header(client, "Content-Type", content_type?content_type:"application/json");
         if (error == ESP_OK) error = esp_http_client_set_post_field(client, payload?payload:request->body, (int)strlen(payload?payload:request->body));
     }
-    if (error == ESP_OK) error = esp_http_client_perform(client);
+    if (error == ESP_OK) {
+        if(control_write&&write_hook)write_hook();
+        error = esp_http_client_perform(client);
+    }
     int status = esp_http_client_get_status_code(client);
     dsr_result_t result;
     if (response.overflow) result = DSR_BAD_RESPONSE;
@@ -91,7 +101,9 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     return result;
 }
 static dsr_result_t fetch_json_timeout(const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out,int timeout_ms)
-{return fetch_json_payload(c,r,identity_request,out,timeout_ms,NULL,NULL);}
+{return fetch_json_payload(c,r,identity_request,out,timeout_ms,NULL,NULL,false);}
+static dsr_result_t fetch_command(const dsr_connection_t *c,const dsr_request_t *r,cJSON **out)
+{return fetch_json_payload(c,r,false,out,3000,NULL,NULL,true);}
 static dsr_result_t fetch_json(const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out)
 {return fetch_json_timeout(c,r,identity_request,out,3000);}
 
@@ -255,6 +267,7 @@ dsr_result_t dsr_http_probe(const dsr_connection_t *connection,dsr_device_t *out
 static dsr_result_t verify(dsr_connection_t *connection)
 {
     if (!dsr_connection_valid(connection, true)) return DSR_INVALID;
+    dsr_result_t permission=allowed();if(permission!=DSR_OK)return permission;
     connection->device.online = false;
     connection->device.has_power=false;memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_device_t observed = {0};
@@ -268,7 +281,7 @@ static dsr_result_t verify(dsr_connection_t *connection)
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 {
     dsr_result_t result = verify(connection);
-    (void)urgent();return result == DSR_OK ? status(connection) : result;
+    (void)urgent();if(result==DSR_OK)result=allowed();return result == DSR_OK ? status(connection) : result;
 }
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
@@ -277,14 +290,16 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
     if (result != DSR_OK) return result;
     if (connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->device.has_switch) return DSR_UNSUPPORTED;
     if(urgent())return DSR_BUSY;
+    result=allowed();if(result!=DSR_OK)return result;
     dsr_request_t request;
     result = dsr_request_build(connection->device.generation, connection->device.channel, DSR_SET_OUTPUT, on, &request);
     if (result != DSR_OK) return result;
     cJSON *root = NULL;
-    result = fetch_json(connection, &request, false, &root);
+    result = fetch_command(connection, &request, &root);
     cJSON_Delete(root);
     if (result != DSR_OK) return result;
     if(urgent())return DSR_BAD_RESPONSE;
+    result=allowed();if(result!=DSR_OK)return result;
     /* Never display an optimistic position; don't replay after a timeout. */
     result = status(connection);
     if (result == DSR_OK && connection->device.output != on) {
@@ -301,14 +316,16 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  if(urgent())return DSR_BUSY;
  /* STOP verifies identity/auth at its own POST; it may stop calibration or
   * unknown position. Every other move requires a fresh typed status. */
- if(intent.command!=DSR_COVER_STOP){result=status(c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
+ if(intent.command!=DSR_COVER_STOP){result=allowed();if(result!=DSR_OK)return result;result=status(c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
+ result=allowed();if(result!=DSR_OK)return result;
  dsr_request_t request;result=dsr_cover_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
- cJSON *ack=NULL;result=fetch_json(c,&request,false,&ack);
+ cJSON *ack=NULL;result=fetch_command(c,&request,&ack);
  /* Only the documented null ACK confirms acceptance, never position. */
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result;
+ result=allowed();if(result!=DSR_OK)return result;
  return status(c);
 }
 
@@ -361,7 +378,7 @@ dsr_result_t dsr_http_ap_provision(const dsr_ap_identity_t *expected,const dsr_s
  }
  dsr_connection_t c={0};strcpy(c.device.host,"192.168.33.1");dsr_request_t request={.post=true};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/settings/sta":"/rpc/WiFi.SetConfig");cJSON *response=NULL;
  if(dsr_ap_cancelled())result=DSR_BUSY;
- else result=fetch_json_payload(&c,&request,true,&response,3000,payload,expected->generation==1?"application/x-www-form-urlencoded":"application/json");
+ else result=fetch_json_payload(&c,&request,true,&response,3000,payload,expected->generation==1?"application/x-www-form-urlencoded":"application/json",false);
  if(result==DSR_OK){
   if(expected->generation==1){const cJSON *enabled=cJSON_GetObjectItemCaseSensitive(response,"enabled"),*ssid=cJSON_GetObjectItemCaseSensitive(response,"ssid");if(!cJSON_IsTrue(enabled)||!cJSON_IsString(ssid)||strcmp(ssid->valuestring,home->ssid))result=DSR_BAD_RESPONSE;}
   else {const cJSON *restart=cJSON_GetObjectItemCaseSensitive(response,"restart_required");if(!cJSON_IsBool(restart)||cJSON_IsTrue(restart))result=DSR_UNSUPPORTED;}

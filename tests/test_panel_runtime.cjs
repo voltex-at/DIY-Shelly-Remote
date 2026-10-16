@@ -4,7 +4,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-runtime');fs.mkdirSync(out,{recursive:true});
 let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=v=>{assert(v);checks++;};
-const config={revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Home',tiles:[]}],rooms:[],scenes:[],devices:[]};
+const config={schema:2,groups:[],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Home',tiles:[]}],rooms:[],scenes:[],devices:[]};
 const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192.0.2.'+(ch+8),online:true,output:false,has_switch:true,has_power:true,power_w:3.25,has_voltage:true,voltage_v:230,has_current:true,current_a:.1,pending:false,error:0,sample_age_ms:1234,operation_id:0});
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
@@ -15,7 +15,7 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
  await page.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   const send=(status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
-  if(!u.pathname.startsWith('/api/')){const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/panel.css':'panel.css'}[u.pathname];assert(asset,u.pathname);return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});}
+  if(!u.pathname.startsWith('/api/')){const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];assert(asset,u.pathname);return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});}
   if(u.pathname.endsWith('/config'))return send(200,config);
   if(u.pathname.endsWith('/devices/runtime')){state.gets++;if(state.fail)return route.abort('failed');return send(200,{boot_id:state.boot,devices:state.stale||state.devices});}
   if(u.pathname.endsWith('/devices/cover')){
@@ -26,6 +26,7 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
   }
   if(u.pathname.endsWith('/history/query')){const q=req.postDataJSON();assert.deepEqual(Object.keys(q).sort(),['channel','device_id','generation','hours','kind']);return send(200,{schema:1,state:1,clock_valid:true,durable:false,timezone:'UTC',step:300,retention:86400,...q,from:1760000100-q.hours*3600,to:1760000100,points:[[1760000100,0,230,null,0,0,1,1,0]]});}
   if(u.pathname.endsWith('/history/clock')||u.pathname.endsWith('/history/clock/cancel'))return send(202,{queued:true});
+  if(u.pathname.endsWith('/actions/status'))return send(200,{boot_id:1,admission_generation:0,revision:config.revision,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]});
   if(u.pathname.endsWith('/status'))return send(200,{revision:1,firmware:'HOST TEST / DEMO',busy:false});
   if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2),contentType:'application/octet-stream'});
   throw Error('Unexpected path '+u.pathname);

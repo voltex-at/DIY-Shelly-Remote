@@ -7,6 +7,7 @@
 #include "dsr_workspace.h"
 #include "dsr_system_info.h"
 #include "dsr_restart.h"
+#include "dsr_panel_pairing.h"
 #include "lvgl.h"
 #include <stdio.h>
 #include <string.h>
@@ -21,8 +22,14 @@ static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
 /* Accepted is process-lifetime state, not a screen state. Navigating away must
  * neither cancel backend admission nor submit a second request on reopening. */
 static bool restart_accepted;
+static lv_obj_t *revoke_state_label,*revoke_status,*revoke_confirm_button,*revoke_cancel_button;
+static lv_obj_t *web_pairing_state,*web_pairing_generate;
+static bool revoke_pending;
+static const char *revoke_message="Potwierdź unieważnienie przyciskiem poniżej.";
 void dsr_ui_settings_hide(void)
-{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;}
+{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
+ revoke_state_label=revoke_status=revoke_confirm_button=revoke_cancel_button=NULL;
+ web_pairing_state=web_pairing_generate=NULL;}
 void dsr_ui_settings_tick(void)
 {
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
@@ -183,9 +190,54 @@ void dsr_ui_settings_network(lv_event_t *event)
  row(body,"Odśwież",382,dsr_ui_settings_network);
 }
 static void web_panel(lv_event_t *event);
+static const char *pairing_state_text(void)
+{
+ dsr_panel_pairing_snapshot_t state;
+ if(!dsr_panel_pairing_snapshot(&state))return "Stan parowania niedostępny.";
+ if(state.revocation_unconfirmed)return "Trwałe unieważnienie: niepotwierdzone.";
+ return state.paired?"Dostęp WWW: aktywny.":"Dostęp WWW: nieaktywny.";
+}
+static void revoke_controls(void)
+{
+ if(web_pairing_state){
+  dsr_sc_label_set_text(web_pairing_state,revoke_pending?"Unieważnianie parowania…":pairing_state_text());
+  if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);else lv_obj_remove_state(web_pairing_generate,LV_STATE_DISABLED);
+ }
+ if(!revoke_status)return;
+ dsr_sc_label_set_text(revoke_status,revoke_pending?"Unieważnianie parowania…":revoke_message);
+ dsr_sc_label_set_text(revoke_state_label,pairing_state_text());
+ lv_obj_t *items[]={revoke_confirm_button,revoke_cancel_button};
+ for(unsigned i=0;i<2;i++)if(revoke_pending)lv_obj_add_state(items[i],LV_STATE_DISABLED);else lv_obj_remove_state(items[i],LV_STATE_DISABLED);
+}
+void dsr_ui_pairing_revoke_result(const dsr_event_t *event)
+{
+ if(!revoke_pending)return;
+ revoke_pending=false;
+ revoke_message=event->result==DSR_OK?"Parowanie unieważniono. Nowy dostęp wymaga nowego kodu.":"Nie potwierdzono trwałego unieważnienia. Spróbuj ponownie.";
+ revoke_controls();
+}
+static void revoke_confirm(lv_event_t *event)
+{
+ (void)event;if(revoke_pending||!revoke_status)return;
+ dsr_result_t accepted=dsr_network_request_pairing_revoke();
+ if(accepted==DSR_OK)revoke_pending=true;
+ else revoke_message="Pilot jest zajęty. Spróbuj ponownie.";
+ revoke_controls();
+}
+static void revoke_cancel(lv_event_t *event)
+{if(!revoke_pending)web_panel(event);}
+static void revoke_screen(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Unieważnij parowanie WWW");
+ revoke_state_label=dsr_sc_text(body,pairing_state_text(),4,6,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ revoke_status=dsr_sc_text(body,"",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
+ revoke_confirm_button=row(body,"Unieważnij parowanie",210,revoke_confirm);
+ revoke_cancel_button=row(body,"Anuluj",268,revoke_cancel);revoke_controls();
+}
 static void pair_browser(lv_event_t *event)
 {
- (void)event;char code[17]={0};if(dsr_panel_ready())dsr_panel_pair_begin(code);
+ (void)event;char code[17]={0};if(!revoke_pending&&dsr_panel_ready())dsr_panel_pair_begin(code);
  lv_obj_t *body=settings_body("Parowanie Web Panelu");
  if(!code[0]){dsr_sc_text(body,"Nie utworzono kodu. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);row(body,"Panel WWW / bezpieczeństwo",110,web_panel);return;}
  dsr_sc_text(body,"Jednorazowy kod • 120 s • 5 prób",4,8,284,&dsr_roboto_14,DSR_SC_MUTED);
@@ -205,10 +257,12 @@ static void web_panel(lv_event_t *event)
  dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_11,DSR_SC_TEXT);
  char status[64];snprintf(status,sizeof(status),"SPIFFS: %d / 0x%x",(int)health.storage,(unsigned)health.storage_error);
  dsr_sc_text(body,status,4,172,284,&dsr_roboto_12,DSR_SC_MUTED);
- row(body,"Wygeneruj kod parowania",210,pair_browser);
- dsr_sc_text(body,"Sesje i unieważnianie: brak widoku LCD. Kod nie jest stałym hasłem.",4,276,284,&dsr_roboto_12,DSR_SC_MUTED);
- row(body,"Diagnostyka konfiguracji",340,dsr_ui_config_diagnostics);
- row(body,"Odśwież",398,web_panel);
+ web_pairing_generate=row(body,"Wygeneruj kod parowania",210,pair_browser);if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);
+ web_pairing_state=dsr_sc_text(body,revoke_pending?"Unieważnianie parowania…":pairing_state_text(),4,276,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"Wspólne parowanie, nie lista aktywnych sesji.",4,324,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Unieważnij parowanie WWW",366,revoke_screen);
+ row(body,"Diagnostyka konfiguracji",424,dsr_ui_config_diagnostics);
+ row(body,"Odśwież",482,web_panel);
 }
 void dsr_ui_web_ota_open(lv_event_t *event)
 {

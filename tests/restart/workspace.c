@@ -47,3 +47,7 @@ int main(void)
  CHECK(dsr_activity_restart_reserve());CHECK(!dsr_workspace_bind(&c));dsr_activity_restart_cancel();admission_open();
  printf("PASS: %u actual workspace/JSON admission checks; queue/storage MODEL, queued/save/result/bind/failure cleanup\n",checks);return 0;
 }
+
+/* Actor absent from this isolated workspace/restart fixture. */
+bool dsr_actions_reserved(const dsr_device_t *device){(void)device;return false;}
+void dsr_actions_mode_block(void){}

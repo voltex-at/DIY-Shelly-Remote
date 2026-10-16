@@ -1,7 +1,9 @@
 #include "dsr_workspace.h"
 #include "dsr_runtime_api.h"
+#include "dsr_actions.h"
 #include "dsr_history.h"
 #include "dsr_panel_permission.h"
+#include "dsr_panel_pairing.h"
 #include "dsr_ota_upload.h"
 #include "dsr_ota_stage.h"
 #include "dsr_ota_image.h"
@@ -40,6 +42,8 @@ extern const unsigned char runtime_js_start[] asm("_binary_runtime_js_start");
 extern const unsigned char runtime_js_end[] asm("_binary_runtime_js_end");
 extern const unsigned char history_js_start[] asm("_binary_history_js_start");
 extern const unsigned char history_js_end[] asm("_binary_history_js_end");
+extern const unsigned char actions_js_start[] asm("_binary_actions_js_start");
+extern const unsigned char actions_js_end[] asm("_binary_actions_js_end");
 extern const unsigned char panel_css_start[] asm("_binary_panel_css_start");
 extern const unsigned char panel_css_end[] asm("_binary_panel_css_end");
 /* The marker is validated inside uploaded binaries, not from a client claim. */
@@ -47,12 +51,48 @@ __attribute__((used)) const char dsr_ota_board_marker[]=DSR_OTA_IMAGE_BOARD_MARK
 static SemaphoreHandle_t lock;
 static char pairing[17];static int64_t pair_until,ota_until;static unsigned attempts;
 static unsigned char token_hash[32];static bool has_token,need_preview;
+static bool revocation_unconfirmed;
 static unsigned char *preview;static bool preview_ready;
 static httpd_handle_t server;
 static httpd_handle_t redirect_server;
 static bool panel_ready;
 static uint32_t boot_id;
 bool dsr_panel_ready(void){return panel_ready;}
+
+bool dsr_panel_pairing_snapshot(dsr_panel_pairing_snapshot_t *out)
+{
+ if(!out)return false;
+ memset(out,0,sizeof(*out));
+ if(!dsr_boot_ready()||!panel_ready||!lock||xSemaphoreTake(lock,0)!=pdTRUE)return false;
+ out->paired=has_token;out->revocation_unconfirmed=revocation_unconfirmed;
+ xSemaphoreGive(lock);return true;
+}
+esp_err_t dsr_panel_pairing_revoke(void)
+{
+ if(!dsr_boot_ready()||!panel_ready||!lock)return ESP_ERR_INVALID_STATE;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ if(xSemaphoreTake(lock,portMAX_DELAY)!=pdTRUE){dsr_activity_end();return ESP_ERR_TIMEOUT;}
+ /* The shared lock linearizes authorization, pairing and RAM invalidation.
+  * Deny first: later NVS errors must never resurrect the old credential. */
+ has_token=false;memset(token_hash,0,sizeof(token_hash));
+ memset(pairing,0,sizeof(pairing));pair_until=ota_until=0;attempts=0;
+ revocation_unconfirmed=true;
+ nvs_handle_t handle;
+ esp_err_t error=nvs_open("dsr_panel",NVS_READWRITE,&handle);
+ if(error==ESP_OK){
+  error=nvs_erase_key(handle,"token_hash");
+  if(error==ESP_ERR_NVS_NOT_FOUND)error=ESP_OK;
+  if(error==ESP_OK)error=nvs_commit(handle);
+  if(error==ESP_OK){
+   size_t length=0;error=nvs_get_blob(handle,"token_hash",NULL,&length);
+   if(error==ESP_ERR_NVS_NOT_FOUND)error=ESP_OK;
+   else if(error==ESP_OK)error=ESP_ERR_INVALID_STATE;
+  }
+  nvs_close(handle);
+ }
+ if(error==ESP_OK)revocation_unconfirmed=false;
+ xSemaphoreGive(lock);dsr_activity_end();return error;
+}
 
 static void random_hex(char *out,size_t bytes)
 {uint8_t raw[32];esp_fill_random(raw,bytes);for(size_t i=0;i<bytes;i++)sprintf(out+i*2,"%02x",raw[i]);out[bytes*2]=0;memset(raw,0,sizeof(raw));}
@@ -132,7 +172,7 @@ static esp_err_t pair(httpd_req_t *r)
  if(valid){
   random_hex(token,32);mbedtls_sha256((unsigned char *)token,64,digest,0);
   nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READWRITE,&n)==ESP_OK){result=nvs_set_blob(n,"token_hash",digest,32);if(result==ESP_OK)result=nvs_commit(n);nvs_close(n);}
-  if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;pair_until=0;memset(pairing,0,sizeof(pairing));}
+  if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;revocation_unconfirmed=false;pair_until=0;memset(pairing,0,sizeof(pairing));}
  }
  xSemaphoreGive(lock);memset(data,0,strlen(data));free(data);
  dsr_activity_end();
@@ -230,6 +270,18 @@ static esp_err_t runtime_api(httpd_req_t *r)
 }
 /* History queries copy bounded PSRAM data. Only the existing worker touches
  * history files or waits for explicit clock synchronization. */
+/* Authenticated handlers submit bounded definitions, never credentials or
+ * device locators. The sole LCD/worker actor owns all physical commands. */
+static esp_err_t actions_api(httpd_req_t *r)
+{
+ if(!strcmp(r->uri,"/api/v1/actions/status")&&r->method==HTTP_GET){char *out=dsr_actions_status_json();if(!out)return json(r,"503 Service Unavailable","{\"error\":\"Actions unavailable\"}");esp_err_t e=json(r,"200 OK",out);free(out);return e;}
+ bool group=!strcmp(r->uri,"/api/v1/groups/run"),scene=!strcmp(r->uri,"/api/v1/scenes/run");
+ if((group||scene)&&r->method==HTTP_POST){char *data=body(r,256);uint32_t run=0;dsr_result_t result=data?dsr_actions_request(data,scene?1:0,0,&run):DSR_INVALID;free(data);char out[96];snprintf(out,sizeof(out),"{\"run_id\":%u,\"result\":%u}",run,(unsigned)result);return json(r,result==DSR_OK?"202 Accepted":result==DSR_INVALID?"400 Bad Request":result==DSR_IO?"503 Service Unavailable":"409 Conflict",out);}
+ if(!strcmp(r->uri,"/api/v1/actions/cancel")&&r->method==HTTP_POST){char *data=body(r,256);uint32_t boot=0,run=0;bool valid=data&&dsr_actions_cancel_parse(data,&boot,&run);free(data);if(!valid)return json(r,"400 Bad Request","{}");bool ok=dsr_actions_cancel(boot,run);return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"cancelled\":true}":"{}");}
+ if(!strcmp(r->uri,"/api/v1/actions/log/query")&&r->method==HTTP_POST){char *data=body(r,256);uint32_t epoch;unsigned offset,limit;bool valid=data&&dsr_actions_log_parse(data,&epoch,&offset,&limit);free(data);if(!valid)return json(r,"400 Bad Request","{}");char *out=dsr_actions_log_json(epoch,offset,limit);if(!out)return json(r,"409 Conflict","{}");esp_err_t e=json(r,"200 OK",out);free(out);return e;}
+ if(!strcmp(r->uri,"/api/v1/actions/log/clear")&&r->method==HTTP_POST){if(r->content_len)return json(r,"400 Bad Request","{}");dsr_actions_log_clear();return json(r,"200 OK","{\"cleared\":true}");}
+ return json(r,"405 Method Not Allowed","{}");
+}
 static esp_err_t history_api(httpd_req_t *r)
 {
  if(!strcmp(r->uri,"/api/v1/history/query")&&r->method==HTTP_POST){
@@ -272,6 +324,7 @@ static esp_err_t api(httpd_req_t *r)
  if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);
  if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover"))return runtime_api(r);
  if(!strncmp(r->uri,"/api/v1/history/",16))return history_api(r);
+ if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);
  if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
  if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
  if(!strcmp(r->uri,"/api/v1/config")){
@@ -319,6 +372,7 @@ static esp_err_t asset(httpd_req_t *r)
  if(!strcmp(r->uri,"/")){start=panel_html_start;end=panel_html_end;httpd_resp_set_type(r,"text/html; charset=utf-8");}
  else if(!strcmp(r->uri,"/panel.js")){start=panel_js_start;end=panel_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/runtime.js")){start=runtime_js_start;end=runtime_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
+ else if(!strcmp(r->uri,"/actions.js")){start=actions_js_start;end=actions_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/history.js")){start=history_js_start;end=history_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/panel.css")){start=panel_css_start;end=panel_css_end;httpd_resp_set_type(r,"text/css; charset=utf-8");}
  else return json(r,"404 Not Found","{}");

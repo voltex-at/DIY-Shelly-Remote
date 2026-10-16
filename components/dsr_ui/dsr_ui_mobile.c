@@ -60,6 +60,7 @@ static void navigate(lv_event_t *e)
         return;}
     if(target==13){if(actions.select_dashboard)actions.select_dashboard();return;}
     if(target==16){if(!cover_preview&&!model.demo&&selected<model.device_count&&actions.open_charts)actions.open_charts(model.devices[selected].id);return;}
+    if(target>=17&&target<=19){if(!model.demo&&actions.open_actions)actions.open_actions(target==17?2:target==18?0:1);return;}
     if(target==14||target==15){dsr_mobile_show(target==14?DSR_MOBILE_DEVICE_SETTINGS:DSR_MOBILE_DETAILS,selected);return;}
     if(target==98&&page==DSR_MOBILE_DEVICE_SETTINGS){dsr_mobile_show(DSR_MOBILE_DETAILS,selected);return;}
     if(target==98){dsr_mobile_show(page==DSR_MOBILE_DETAILS?previous_page:DSR_MOBILE_ROOMS,
@@ -130,7 +131,7 @@ static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event
 static void tabs(lv_obj_t *root)
 {
     dsr_sc_panel(root,0,87,320,1,DSR_SC_BLUE,0);
-    if(page==DSR_MOBILE_HOME){tab(root,"Aktywność",0,110,false,NULL,NULL);tab(root,model.dashboard_name[0]?model.dashboard_name:"Mój pulpit",114,162,true,NULL,NULL);return;}
+    if(page==DSR_MOBILE_HOME){tab(root,"Aktywność",0,110,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)17);tab(root,model.dashboard_name[0]?model.dashboard_name:"Mój pulpit",114,162,true,NULL,NULL);return;}
     if(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS){
         bool settings=page==DSR_MOBILE_DEVICE_SETTINGS;
         bool editable=!cover_preview&&!model.demo&&selected<model.device_count&&model.devices[selected].id;
@@ -138,9 +139,9 @@ static void tabs(lv_obj_t *root)
         tab(root,"Wykresy",111,101,false,editable&&actions.open_charts?navigate:NULL,(void *)(uintptr_t)16);
         tab(root,"Ustawienia",214,106,settings,!settings&&editable?navigate:NULL,(void *)(uintptr_t)14);return;
     }
-    if(page==DSR_MOBILE_ROOM){tab(root,"Urządzenia",0,115,true,NULL,NULL);tab(root,"Grupy",117,87,false,NULL,NULL);tab(root,"Sceny",206,114,false,NULL,NULL);return;}
+    if(page==DSR_MOBILE_ROOM){tab(root,"Urządzenia",0,115,true,NULL,NULL);tab(root,"Grupy",117,87,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)18);tab(root,"Sceny",206,114,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)19);return;}
     tab(root,"Pomieszczenia",0,101,page==DSR_MOBILE_ROOMS,navigate,(void *)(uintptr_t)DSR_MOBILE_ROOMS);
-    tab(root,"Grupy",103,55,false,NULL,NULL);tab(root,"Sceny",160,55,false,NULL,NULL);
+    tab(root,"Grupy",103,55,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)18);tab(root,"Sceny",160,55,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)19);
     tab(root,"Urządzenia",217,103,page==DSR_MOBILE_DEVICES,navigate,(void *)(uintptr_t)DSR_MOBILE_DEVICES);
 }
 static void bottom_action(lv_event_t *event)
@@ -264,13 +265,23 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int heig
         if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
     }
 }
+static void scene_run(lv_event_t *event)
+{unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(!model.demo&&i<model.scene_count&&actions.run_scene)actions.run_scene(model.scenes[i].id);}
+static void group_run(lv_event_t *event)
+{unsigned value=(unsigned)(uintptr_t)lv_event_get_user_data(event),i=value/2;if(!model.demo&&i<model.group_count&&actions.run_group)actions.run_group(model.groups[i].id,(value&1)!=0);}
 static void scene_card(unsigned index,int y,int height)
 {
- dsr_mobile_scene_t *scene=&model.scenes[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,0x414548,12,navigate,(void *)(uintptr_t)12);
+ dsr_mobile_scene_t *scene=&model.scenes[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,0x414548,12,navigate,(void *)(uintptr_t)19);
  lv_obj_t *icon=dsr_sc_panel(card,8,17,50,50,0x29343b,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(icon,DSR_ICON_SCENES,32,DSR_SC_TEXT);
  lv_obj_t *name=dsr_sc_text(card,scene->name,68,10,164,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
  char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Scena • %u działań"),scene->actions);dsr_sc_text(card,text,68,36,210,&dsr_roboto_12,DSR_SC_MUTED);
- card_control(card,0,DSR_ICON_EDIT,238,48,actions.edit_dashboard!=NULL,navigate,12);
+ card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
+ lv_obj_t *run=dsr_sc_button(card,68,height-36,164,30,DSR_SC_PANEL,8,scene_run,(void *)(uintptr_t)index);dsr_sc_text(run,"Uruchom scenę",4,7,156,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_scene||!scene->actions)lv_obj_add_state(run,LV_STATE_DISABLED);
+}
+static void group_card(unsigned index,int y,int height)
+{
+ dsr_mobile_group_t *group=&model.groups[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,DSR_SC_CARD,12,navigate,(void *)18);dsr_sc_text(card,group->name,12,10,230,&dsr_roboto_16,DSR_SC_TEXT);card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
+ lv_obj_t *on=dsr_sc_button(card,12,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2+1)),*off=dsr_sc_button(card,152,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2));dsr_sc_text(on,"Włącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);dsr_sc_text(off,"Wyłącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_group||!group->members){lv_obj_add_state(on,LV_STATE_DISABLED);lv_obj_add_state(off,LV_STATE_DISABLED);}
 }
 static void empty(const char *heading,const char *text)
 {
@@ -454,6 +465,7 @@ static void render(void)
                     if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}model.devices[tile->index].fields=tile->fields;device_card(content,tile->index,0,y,296,tile->height==2?120:84);y+=tile->height==2?128:92;at++;}
                     else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?184:130;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}room_card(content,tile->index,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
                     else if(tile->type==2&&tile->index<model.scene_count){if(x){x=0;y+=row_height+8;row_height=0;}scene_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
+                    else if(tile->type==3&&tile->index<model.group_count){if(x){x=0;y+=row_height+8;row_height=0;}group_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                 }
             }else for(unsigned i=0;i<model.device_count;i++)if(page!=DSR_MOBILE_ROOM||model.devices[i].room==selected){device_card(content,i,0,(int)at*92,296,84);at++;}
             if(!at)empty("Brak urządzeń","Dodaj pierwsze urządzenie Shelly przyciskiem +, aby rozpocząć sterowanie swoim domem.");
@@ -486,7 +498,7 @@ void dsr_mobile_return_device(uint32_t id)
 }
 void dsr_mobile_update(const dsr_mobile_model_t *m)
 {
-    if(!m||m->device_count>DSR_UI_MAX_DEVICES||m->room_count>DSR_UI_MAX_ROOMS||m->tile_count>24||m->scene_count>8)return;
+    if(!m||m->device_count>DSR_UI_MAX_DEVICES||m->room_count>DSR_UI_MAX_ROOMS||m->tile_count>24||m->scene_count>8||m->group_count>8)return;
     if(cover_preview){preview_saved=*m;
 #ifndef DSR_UI_REVIEW_DEMO
         preview_saved.demo=false;

@@ -36,7 +36,8 @@ typedef struct {
     double energy_wh;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;
-typedef struct {char name[48];uint8_t actions;} dsr_mobile_scene_t;
+typedef struct {char name[48];uint32_t id;uint8_t actions;} dsr_mobile_scene_t;
+typedef struct {char name[48];uint32_t id;uint8_t members;} dsr_mobile_group_t;
 typedef struct {uint8_t type,index,span,height,fields;} dsr_mobile_tile_t;
 typedef struct {
     bool demo,wifi;
@@ -51,6 +52,8 @@ typedef struct {
     dsr_mobile_tile_t tiles[24];
     uint8_t scene_count;
     dsr_mobile_scene_t scenes[8];
+    uint8_t group_count;
+    dsr_mobile_group_t groups[8];
     uint32_t dashboard_id;
 } dsr_mobile_model_t;
 typedef struct {
@@ -68,6 +71,9 @@ typedef struct {
     void (*edit_room)(uint32_t id);
     void (*open_charts)(uint32_t id);
     void (*open_energy)(void);
+    void (*open_actions)(uint8_t kind);
+    void (*run_scene)(uint32_t id);
+    void (*run_group)(uint32_t id,bool on);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

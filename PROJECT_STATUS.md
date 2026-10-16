@@ -1,5 +1,45 @@
 # Project status
 
+## 0.7.31 — shared groups, scenes and volatile activity candidate
+
+The scene card now runs explicit actions; its editor is separate. Groups have
+Switch-only ON/OFF and per-step partial results. LCD and authenticated Web use
+one bounded RAM actor, frozen typed identity/locator, exact job ACK ownership,
+nonce/admission generation and a180s deadline. Manual Cover STOP keeps priority.
+Activity distinguishes observed availability from command acknowledgements.
+Workspace schema2 upgrades validated schema1 in RAM; only explicit Save writes
+the new version through the existing dual-checkpoint/CAS transaction.
+
+Includes the reviewed port of existing PR50/b128694 (author voltex-at), keeping
+single-key pairing revoke separate from user settings, photos, TLS and reset.
+Base PR59/a194554 has5/5 CI38922784329 and all five received artifacts verified,
+including APP/ELF/partition/SPIFFS provenance and actual LCD/browser renders.
+This source still needs its own target/browser/artifact acceptance. Independent
+review has reproduced stale Web responses, availability/command log aliasing
+and post-write uncertainty; their regression fixes are integration gates.
+No physical device action, main merge, Stable or automation change.
+
+## Existing PR50 — shared Web pairing revocation port
+
+Preserves the implementation and authorship of [PR50](https://github.com/voltex-at/DIY-Shelly-Remote/pull/50),
+source `b1286945ef0551a934644ce2adffa2f2bdc71119`, on current Cover/history/P0/
+photo/native/BLE parent `faa623f`. No duplicate PR or version bump. Separate LCD
+confirmation queues the existing worker: invalidate current RAM token, pairing
+code and local Web OTA window before erasing ONLY dsr_panel/token_hash; commit
+and NOT_FOUND readback precede success. No factory reset, namespace wipe, Wi-Fi/
+workspace/photo/TLS identity change or restart. Errors stay explicitly uncertain
+about Flash and never restore the old RAM credential; already authorized work
+may finish. New physical pairing remains possible.
+
+Current STOP registration/operation namespaces, history and native updater stay
+intact. Revocation is a payload-free appended job kind; job560/event1192 and all
+budgets unchanged. local_request/authorized and the complete current-parent API
+route table retain exact bytes; no remote revoke endpoint. Host/actual LVGL,
+target CI, received artifact and physical acceptance are distinct gates.
+Host full-native UBSan and actual LVGL5137/169 + Cover105/7 PASS; pairing786,
+focused worker4170 (including same-number revoke/STOP ownership), prior history/
+OTA/P0/B1/AP intact. [Original contract and integration evidence](docs/PAIRING_REVOKE_PL.md).
+
 ## 0.7.30 — Cover integration candidate
 
 Stacked on exact PR58/f240d15: 5/5 CI38919291117, all five received artifacts

@@ -81,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         global config,lan_ready_at,save_delay,ble_ready_at
         if not self.path.startswith('/api/'):
-            files={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/panel.css':'panel.css'}
+            files={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/actions.js':'actions.js','/panel.css':'panel.css'}
             if self.path not in files:return self.send(404,{})
             f=ROOT/'components/dsr_platform/web'/files[self.path]
             return self.send(200,f.read_bytes(),{'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css'}[f.suffix[1:]])

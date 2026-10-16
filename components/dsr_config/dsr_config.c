@@ -51,11 +51,11 @@ static bool reference(const cJSON *root,const char *key,const cJSON *id,bool zer
  const cJSON *v;cJSON_ArrayForEach(v,get(root,key))if(get(v,"id")->valueint==id->valueint)return true;
  return false;
 }
-bool dsr_config_validate(const cJSON *r,char error[96])
+static bool validate_v1(const cJSON *r,char error[96])
 {
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
  if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards|"))return fail(error,"Unknown configuration field");
- if(!number(r,"schema",DSR_CONFIG_SCHEMA,DSR_CONFIG_SCHEMA)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
+ if(!number(r,"schema",1,1)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
  if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
  if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
@@ -85,9 +85,84 @@ bool dsr_config_validate(const cJSON *r,char error[96])
  }
  error[0]=0;return true;
 }
+static bool validate_v2(const cJSON *r,char error[96])
+{
+ if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
+ if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards||groups|"))return fail(error,"Unknown configuration field");
+ if(!number(r,"schema",DSR_CONFIG_SCHEMA,DSR_CONFIG_SCHEMA)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
+ if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
+ if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"groups",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
+ if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
+ const cJSON *v;
+ cJSON_ArrayForEach(v,get(r,"rooms")){
+  if(!keys(v,"|id||name||icon||photo|")||!number(v,"icon",0,3)||!text(v,"photo",32,true))return fail(error,"Invalid room");
+  const char *photo=get(v,"photo")->valuestring;if(photo[0]){if(strlen(photo)!=32)return fail(error,"Invalid photo ID");for(unsigned i=0;i<32;i++)if(!((photo[i]>='a'&&photo[i]<='f')||(photo[i]>='0'&&photo[i]<='9')))return fail(error,"Invalid photo ID");}
+ }
+ cJSON_ArrayForEach(v,get(r,"devices")){
+  const cJSON *host=get(v,"host");
+  if(!keys(v,"|id||name||host||channel||kind||room|")||!text(v,"host",15,true)||(host->valuestring[0]&&!dsr_ipv4_valid(host->valuestring))||!number(v,"channel",0,15)||
+   !choice(v,"kind","|light||relay||plug||cover||contact||sensor|")||!reference(r,"rooms",get(v,"room"),true))return fail(error,"Invalid device address/type/room");
+ }
+ cJSON_ArrayForEach(v,get(r,"scenes")){
+  const cJSON *actions=get(v,"actions"),*a;if(!keys(v,"|id||name||actions|")||!cJSON_IsArray(actions)||cJSON_GetArraySize(actions)>8)return fail(error,"Scene limit: 8 explicit actions");
+  cJSON_ArrayForEach(a,actions)if(!keys(a,"|device||command|")||!reference(r,"devices",get(a,"device"),false)||!choice(a,"command","|on||off||open||close||stop|"))return fail(error,"Invalid scene action");
+ }
+ /* Groups deliberately support Switch ON/OFF only. This validates the
+  * definition's configured type; actual bound kind/capability/auth is checked
+  * again by the executor before any I/O. */
+ cJSON_ArrayForEach(v,get(r,"groups")){
+  const cJSON *members=get(v,"members"),*member;
+  if(!keys(v,"|id||name||members|")||!cJSON_IsArray(members)||cJSON_GetArraySize(members)>16)return fail(error,"Group limit: 16 unique Switch members");
+  cJSON_ArrayForEach(member,members){
+   if(!reference(r,"devices",member,false))return fail(error,"Group references missing device");
+   const cJSON *device;bool compatible=false;cJSON_ArrayForEach(device,get(r,"devices"))if(get(device,"id")->valueint==member->valueint)compatible=choice(device,"kind","|light||relay||plug|");
+   if(!compatible)return fail(error,"Group member must be Switch compatible");
+   for(const cJSON *other=member->next;other;other=other->next)if(cJSON_IsNumber(other)&&other->valuedouble==member->valuedouble)return fail(error,"Duplicate group member");
+  }
+ }
+ cJSON_ArrayForEach(v,get(r,"dashboards")){
+  const cJSON *tiles=get(v,"tiles"),*t;if(!keys(v,"|id||name||tiles|")||!cJSON_IsArray(tiles)||cJSON_GetArraySize(tiles)>DSR_CONFIG_MAX_TILES)return fail(error,"Dashboard tile limit");
+  cJSON_ArrayForEach(t,tiles){
+   if(!keys(t,"|id||type||ref||span||height||fields|")||!number(t,"id",1,1000000)||!choice(t,"type","|device||room||scene||group|")||!number(t,"span",1,2)||!number(t,"height",1,2)||!number(t,"fields",0,255))return fail(error,"Invalid tile");
+   const char *type=get(t,"type")->valuestring;
+   if(strcmp(type,"room")&&get(t,"span")->valueint!=2)return fail(error,"Device and scene cards must use full width");
+   if(!reference(r,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":!strcmp(type,"group")?"groups":"scenes",get(t,"ref"),false))return fail(error,"Tile references missing object");
+   for(const cJSON *b=t->next;b;b=b->next)if(number(b,"id",1,1000000)&&get(b,"id")->valueint==get(t,"id")->valueint)return fail(error,"Duplicate tile ID");
+  }
+ }
+ error[0]=0;return true;
+}
+bool dsr_config_validate(const cJSON *root,char error[96])
+{return validate_v2(root,error);}
+bool dsr_config_validate_stored(const cJSON *root,char error[96])
+{
+ if(cJSON_IsObject(root)&&number(root,"schema",1,1))return validate_v1(root,error);
+ return validate_v2(root,error);
+}
+/* Explicit validated upgrade. No filesystem/NVS/worker or revision mutation.
+ * The caller publishes canonical2 in RAM and writes only on explicit Save. */
+char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
+{
+ if(legacy)*legacy=false;
+ if(!json||strlen(json)>DSR_CONFIG_MAX_JSON||!dsr_config_json_depth(json)||strstr(json,"\\u0000")){fail(error,"Configuration size/depth/encoding limit");return NULL;}
+ const char *end=NULL;cJSON *root=cJSON_ParseWithOpts(json,&end,true);
+ if(!root||!dsr_config_validate_stored(root,error)){cJSON_Delete(root);return NULL;}
+ bool old=number(root,"schema",1,1);
+ if(old){
+  cJSON *groups=cJSON_CreateArray();
+  if(!groups||!cJSON_AddItemToObject(root,"groups",groups)){cJSON_Delete(groups);cJSON_Delete(root);fail(error,"Not enough memory for configuration upgrade");return NULL;}
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(root,"schema"),DSR_CONFIG_SCHEMA);
+ }
+ char *out=cJSON_PrintUnformatted(root);cJSON_Delete(root);
+ if(!out){fail(error,"Not enough memory for configuration upgrade");return NULL;}
+ if(strlen(out)>DSR_CONFIG_MAX_JSON){cJSON_free(out);fail(error,"Upgraded configuration too large");return NULL;}
+ if(legacy)*legacy=old;
+ error[0]=0;return out;
+}
+
 char *dsr_config_default(void)
 {
- const char *value="{\"schema\":1,\"revision\":1,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
+ const char *value="{\"schema\":2,\"revision\":1,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"groups\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
  char *copy=malloc(strlen(value)+1);if(copy)memcpy(copy,value,strlen(value)+1);return copy;
 }
 uint32_t dsr_config_revision(const char *json)

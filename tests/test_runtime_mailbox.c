@@ -229,3 +229,7 @@ int main(void)
  printf("PASS: %u actual workspace/runtime checks; AP handoff TTL/wrap/restart, identity mailboxes, compaction, count0 and per-endpoint admission; RTOS/Flash/HTTP MODEL\n",checks);
  return 0;
 }
+
+/* No actor in this isolated workspace fixture. */
+bool dsr_actions_reserved(const dsr_device_t *device){(void)device;return false;}
+void dsr_actions_mode_block(void){}

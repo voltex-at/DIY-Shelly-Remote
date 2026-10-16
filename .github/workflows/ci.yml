@@ -35,6 +35,9 @@ jobs:
           node tests/test_panel_runtime.cjs
           node tests/test_panel_runtime_model.cjs
           node tests/test_panel_history_model.cjs
+          node tests/test_panel_actions_model.cjs
+          node tests/test_panel_actions_async.cjs
+          node tests/test_panel_actions.cjs
           node tests/test_panel_ap_model.cjs
           node tests/test_panel_ble_model.cjs
           node tests/test_web_locale_dictionary.cjs
@@ -49,6 +52,7 @@ jobs:
             build-ui/panel-review/
             build-ui/panel-locale/
             build-ui/panel-runtime/
+            build-ui/panel-actions/
           if-no-files-found: error
   native:
     runs-on: ubuntu-24.04
@@ -128,6 +132,8 @@ jobs:
           python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
           python3 tools/check_ble_target.py --build-dir build-board --out build-board/BLE.json
           python3 tools/check_history_target.py --build-dir build-board --out build-board/HISTORY.json
+          python3 tools/check_actions_target.py --build-dir build-board --out build-board/ACTIONS.json
+          python3 tools/check_pairing_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/PAIRING.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -173,6 +179,8 @@ jobs:
           cp docs/BLE_RPC_B1_PL.md build-board/BLE.json build-board/package/
           cp docs/DEVICE_SETTINGS_PL.md build-board/package/
           cp docs/ISSUE22_HISTORY_PL.md build-board/HISTORY.json build-board/package/
+          cp docs/ISSUE21_ACTIONS_PL.md build-board/ACTIONS.json build-board/package/
+          cp docs/PAIRING_REVOKE_PL.md build-board/PAIRING.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

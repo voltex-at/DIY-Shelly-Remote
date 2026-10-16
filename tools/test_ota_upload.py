@@ -45,6 +45,9 @@ for name,expected in auth_blocks.items():
         history=b' if(!strncmp(r->uri,"/api/v1/history/",16))return history_api(r);\n'
         assert block.count(history)==1 and block.index(history)>block.index(b'if(!authorized(r))'),'History must remain behind authorization'
         block=block.replace(history,b'')
+        actions=b' if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);\n'
+        assert block.count(actions)==1 and block.index(actions)>block.index(b'if(!authorized(r))'),'Actions must remain behind authorization'
+        block=block.replace(actions,b'')
         preview=b'esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())'
         assert block.count(preview)==1,'Unexpected AP preview gate'
         block=block.replace(preview,b'esp_timer_get_time()<pair_until')

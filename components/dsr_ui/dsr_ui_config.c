@@ -26,7 +26,8 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
  const cJSON *v;cJSON_ArrayForEach(v,item(r,"rooms")){
   dsr_mobile_room_t *room=&m->rooms[m->room_count++];snprintf(room->name,sizeof(room->name),"%s",string(v,"name"));room->icon=(uint8_t)integer(v,"icon");snprintf(room->photo,sizeof(room->photo),"%.32s",string(v,"photo"));room->id=(uint32_t)integer(v,"id");
  }
- m->scene_count=0;cJSON_ArrayForEach(v,item(r,"scenes")){dsr_mobile_scene_t *s=&m->scenes[m->scene_count++];snprintf(s->name,sizeof(s->name),"%s",string(v,"name"));s->actions=(uint8_t)cJSON_GetArraySize(item(v,"actions"));}
+ m->scene_count=0;cJSON_ArrayForEach(v,item(r,"scenes")){dsr_mobile_scene_t *s=&m->scenes[m->scene_count++];snprintf(s->name,sizeof(s->name),"%s",string(v,"name"));s->actions=(uint8_t)cJSON_GetArraySize(item(v,"actions"));s->id=(uint32_t)integer(v,"id");}
+ m->group_count=0;cJSON_ArrayForEach(v,item(r,"groups")){dsr_mobile_group_t *g=&m->groups[m->group_count++];snprintf(g->name,sizeof(g->name),"%s",string(v,"name"));g->id=(uint32_t)integer(v,"id");g->members=(uint8_t)cJSON_GetArraySize(item(v,"members"));}
  cJSON_ArrayForEach(v,item(r,"devices")){
   dsr_mobile_device_t *d=&m->devices[m->device_count++];memset(d,0,sizeof(*d));d->id=(uint32_t)integer(v,"id");snprintf(d->name,sizeof(d->name),"%s",string(v,"name"));snprintf(d->host,sizeof(d->host),"%s",string(v,"host"));d->channel=(uint8_t)integer(v,"channel");d->room=(uint8_t)object_index(item(r,"rooms"),integer(v,"room"));
   const char *kind=string(v,"kind");d->kind=!strcmp(kind,"light")?DSR_DEVICE_LIGHT:!strcmp(kind,"cover")?DSR_DEVICE_COVER:!strcmp(kind,"contact")?DSR_DEVICE_CONTACT:!strcmp(kind,"sensor")?DSR_DEVICE_SENSOR:!strcmp(kind,"plug")?DSR_DEVICE_PLUG:DSR_DEVICE_RELAY;d->fields=255;
@@ -35,8 +36,8 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
  m->dashboard_id=(uint32_t)integer(dashboard,"id");
  snprintf(m->dashboard_name,sizeof(m->dashboard_name),"%s",string(dashboard,"name"));
  cJSON_ArrayForEach(v,item(dashboard,"tiles")){
-  dsr_mobile_tile_t *t=&m->tiles[m->tile_count++];const char *type=string(v,"type");t->type=!strcmp(type,"device")?0:!strcmp(type,"room")?1:2;
-  t->index=(uint8_t)object_index(item(r,t->type==0?"devices":t->type==1?"rooms":"scenes"),integer(v,"ref"));t->span=(uint8_t)integer(v,"span");t->height=(uint8_t)integer(v,"height");t->fields=(uint8_t)integer(v,"fields");
+  dsr_mobile_tile_t *t=&m->tiles[m->tile_count++];const char *type=string(v,"type");t->type=!strcmp(type,"device")?0:!strcmp(type,"room")?1:!strcmp(type,"scene")?2:3;
+  t->index=(uint8_t)object_index(item(r,t->type==0?"devices":t->type==1?"rooms":t->type==2?"scenes":"groups"),integer(v,"ref"));t->span=(uint8_t)integer(v,"span");t->height=(uint8_t)integer(v,"height");t->fields=(uint8_t)integer(v,"fields");
  }
  cJSON_Delete(r);return true;
 }
@@ -312,19 +313,25 @@ static void show_device_form(void)
 }
 static void scene_action_cycle(lv_event_t *event)
 {
- cJSON *a=lv_event_get_user_data(event);const char *commands[]={"on","off","open","close","stop"};unsigned at=0;
- while(at<5&&strcmp(string(a,"command"),commands[at]))at++;
- cJSON_ReplaceItemInObjectCaseSensitive(a,"command",cJSON_CreateString(commands[(at+1)%5]));show_entity(editing);
+ cJSON *a=lv_event_get_user_data(event);const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));bool cover=!strcmp(string(d,"kind"),"cover");const char *commands[]={"on","off","open","close","stop"};unsigned first=cover?2:0,count=cover?3:2,at=0;
+ while(at<count&&strcmp(string(a,"command"),commands[first+at]))at++;
+ cJSON *next=cJSON_CreateString(commands[first+(at+1)%count]);if(next)cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);show_entity(editing);
 }
 static void scene_device_cycle(lv_event_t *event)
 {
- cJSON *a=lv_event_get_user_data(event);const cJSON *devices=item(draft,"devices");int count=cJSON_GetArraySize(devices);if(!count)return;unsigned at=object_index(devices,integer(a,"device"));const cJSON *d=cJSON_GetArrayItem(devices,(int)((at+1)%(unsigned)count));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(a,"device"),integer(d,"id"));show_entity(editing);
+ cJSON *a=lv_event_get_user_data(event);const cJSON *devices=item(draft,"devices");int count=cJSON_GetArraySize(devices);if(!count)return;unsigned at=object_index(devices,integer(a,"device"));const cJSON *d=cJSON_GetArrayItem(devices,(int)((at+1)%(unsigned)count));cJSON *next=cJSON_CreateString(!strcmp(string(d,"kind"),"cover")?"open":"on");if(!next)return;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(a,"device"),integer(d,"id"));cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);show_entity(editing);
 }
 static void scene_action_remove(lv_event_t *event){cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(editing,"actions"),(int)(uintptr_t)lv_event_get_user_data(event));show_entity(editing);}
 static void scene_action_add(lv_event_t *event)
 {
  (void)event;cJSON *actions=cJSON_GetObjectItemCaseSensitive(editing,"actions");const cJSON *devices=item(draft,"devices");if(!devices->child||cJSON_GetArraySize(actions)>=8){dsr_sc_label_set_text(status_label,"Dodaj urządzenie; limit sceny: 8 działań");return;}
- cJSON *a=cJSON_CreateObject();cJSON_AddNumberToObject(a,"device",integer(devices->child,"id"));cJSON_AddStringToObject(a,"command","on");cJSON_AddItemToArray(actions,a);show_entity(editing);
+ cJSON *a=cJSON_CreateObject();cJSON_AddNumberToObject(a,"device",integer(devices->child,"id"));cJSON_AddStringToObject(a,"command",!strcmp(string(devices->child,"kind"),"cover")?"open":"on");cJSON_AddItemToArray(actions,a);show_entity(editing);
+}
+static void group_member(lv_event_t *event)
+{
+ uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(event);cJSON *members=cJSON_GetObjectItemCaseSensitive(editing,"members");int at=0;for(cJSON *v=members->child;v;v=v->next,at++)if((uint32_t)v->valueint==id){cJSON_DeleteItemFromArray(members,at);return;}
+ if(cJSON_GetArraySize(members)>=16)return;
+ cJSON *value=cJSON_CreateNumber(id);if(value)cJSON_AddItemToArray(members,value);
 }
 static bool entity_deletable(void)
 {
@@ -334,9 +341,10 @@ static bool entity_deletable(void)
  cJSON_ArrayForEach(member,a)if(member==editing)present=true;
  if(!present)return false;
  int id=integer(editing,"id");const cJSON *v,*t;bool referenced=false;
- const char *type=!strcmp(collection_name,"devices")?"device":!strcmp(collection_name,"rooms")?"room":"scene";
+ const char *type=!strcmp(collection_name,"devices")?"device":!strcmp(collection_name,"rooms")?"room":!strcmp(collection_name,"scenes")?"scene":"group";
  cJSON_ArrayForEach(v,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(v,"tiles"))if(!strcmp(string(t,"type"),type)&&integer(t,"ref")==id)referenced=true;
  if(!strcmp(collection_name,"devices"))cJSON_ArrayForEach(v,item(draft,"scenes"))cJSON_ArrayForEach(t,item(v,"actions"))if(integer(t,"device")==id)referenced=true;
+ if(!strcmp(collection_name,"devices"))cJSON_ArrayForEach(v,item(draft,"groups"))cJSON_ArrayForEach(t,item(v,"members"))if(cJSON_IsNumber(t)&&t->valueint==id)referenced=true;
  if(!strcmp(collection_name,"rooms"))cJSON_ArrayForEach(v,item(draft,"devices"))if(integer(v,"room")==id)referenced=true;
  if(strcmp(collection_name,"dashboards")&&referenced){dsr_sc_label_set_text(status_label,"Najpierw usuń powiązane karty lub działania.");return false;}
  if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)<=1){dsr_sc_label_set_text(status_label,"Zachowaj przynajmniej jeden pulpit.");return false;}
@@ -371,14 +379,14 @@ static void reorder(lv_event_t *event)
 static void tile_remove(lv_event_t *event){cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(editing,"tiles"),(int)(uintptr_t)lv_event_get_user_data(event));show_entity(editing);}
 static void tile_add(lv_event_t *event)
 {
- unsigned type=(unsigned)(uintptr_t)lv_event_get_user_data(event);const char *key=type==0?"devices":type==1?"rooms":"scenes";
+ unsigned type=(unsigned)(uintptr_t)lv_event_get_user_data(event);const char *key=type==0?"devices":type==1?"rooms":type==2?"scenes":"groups";
  const cJSON *objects=item(draft,key);if(!objects->child){dsr_sc_label_set_text(status_label,"Najpierw dodaj obiekt tego typu");return;}
  cJSON *tiles=cJSON_GetObjectItemCaseSensitive(editing,"tiles");if(cJSON_GetArraySize(tiles)>=24)return;int id=1;for(cJSON *t=tiles->child;t;t=t->next)if(integer(t,"id")>=id)id=integer(t,"id")+1;
- cJSON *t=cJSON_CreateObject();cJSON_AddNumberToObject(t,"id",id);cJSON_AddStringToObject(t,"type",type==0?"device":type==1?"room":"scene");cJSON_AddNumberToObject(t,"ref",integer(objects->child,"id"));cJSON_AddNumberToObject(t,"span",type==1?1:2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);cJSON_AddItemToArray(tiles,t);show_entity(editing);
+ cJSON *t=cJSON_CreateObject();cJSON_AddNumberToObject(t,"id",id);cJSON_AddStringToObject(t,"type",type==0?"device":type==1?"room":type==2?"scene":"group");cJSON_AddNumberToObject(t,"ref",integer(objects->child,"id"));cJSON_AddNumberToObject(t,"span",type==1?1:2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);cJSON_AddItemToArray(tiles,t);show_entity(editing);
 }
 static void tile_next(lv_event_t *event)
 {
- cJSON *t=lv_event_get_user_data(event);const char *type=string(t,"type");const cJSON *objects=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":"scenes"),*v;
+ cJSON *t=lv_event_get_user_data(event);const char *type=string(t,"type");const cJSON *objects=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":!strcmp(type,"scene")?"scenes":"groups"),*v;
  unsigned i=object_index(objects,integer(t,"ref"));v=cJSON_GetArrayItem(objects,(int)((i+1)%(unsigned)cJSON_GetArraySize(objects)));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(v,"id"));show_entity(editing);
 }
 static void tile_size(lv_event_t *event)
@@ -387,8 +395,8 @@ static void tile_span(lv_event_t *event)
 {cJSON *t=lv_event_get_user_data(event);if(strcmp(string(t,"type"),"room")){dsr_sc_label_set_text(status_label,"Urządzenia i sceny używają pełnej szerokości.");return;}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),integer(t,"span")==1?2:1);show_entity(editing);}
 static void tile_type(lv_event_t *event)
 {
- cJSON *t=lv_event_get_user_data(event);const char *types[]={"device","room","scene"},*keys[]={"devices","rooms","scenes"};unsigned current=!strcmp(string(t,"type"),"device")?0:!strcmp(string(t,"type"),"room")?1:2;
- for(unsigned n=1;n<=3;n++){unsigned to=(current+n)%3;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to!=1)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}show_entity(editing);
+ cJSON *t=lv_event_get_user_data(event);const char *types[]={"device","room","scene","group"},*keys[]={"devices","rooms","scenes","groups"};unsigned current=!strcmp(string(t,"type"),"device")?0:!strcmp(string(t,"type"),"room")?1:!strcmp(string(t,"type"),"scene")?2:3;
+ for(unsigned n=1;n<=4;n++){unsigned to=(current+n)%4;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to!=1)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}show_entity(editing);
 }
 static void field_changed(lv_event_t *event)
 {unsigned bit=(unsigned)(uintptr_t)lv_event_get_user_data(event);int f=integer(fields_tile,"fields");if(lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED))f|=(int)bit;else f&=~(int)bit;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(fields_tile,"fields"),f);}
@@ -414,12 +422,16 @@ static void show_entity(cJSON *entity)
   const cJSON *actions_list=item(editing,"actions"),*a;int i=0;
   cJSON_ArrayForEach(a,actions_list){int y=80+i*112;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));dsr_ui_button(body,string(d,"name"),0,y,284,scene_device_cycle,(void *)a);dsr_ui_button(body,string(a,"command"),0,y+52,180,scene_action_cycle,(void *)a);dsr_ui_button(body,"Usuń",190,y+52,94,scene_action_remove,(void *)(uintptr_t)i);i++;}dsr_ui_button(body,"+ Działanie",0,88+i*112,284,scene_action_add,NULL);
  }
+ if(!strcmp(collection_name,"groups")){
+  dsr_sc_text(body,"Do 16 kanałów Switch. Grupa ma jawne Włącz/Wyłącz.",0,78,284,&dsr_roboto_12,DSR_SC_MUTED);unsigned i=0;const cJSON *d,*member;
+  cJSON_ArrayForEach(d,item(draft,"devices")){const char *kind=string(d,"kind");if(strcmp(kind,"light")&&strcmp(kind,"relay")&&strcmp(kind,"plug"))continue;lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,6,128+(int)i++*44);lv_checkbox_set_text(check,string(d,"name"));cJSON_ArrayForEach(member,item(editing,"members"))if(member->valueint==integer(d,"id"))lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_add_event_cb(check,group_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)integer(d,"id"));}
+ }
  if(!strcmp(collection_name,"dashboards")){
   cJSON *tiles=cJSON_GetObjectItemCaseSensitive(entity,"tiles");int i=0,visible=0;
   unsigned pages=((unsigned)cJSON_GetArraySize(tiles)+2)/3;if(tile_page>=pages)tile_page=pages?pages-1:0;
   for(cJSON *t=tiles->child;t;t=t->next,i++){
    if((unsigned)i/3!=tile_page)continue;
-   const char *type=string(t,"type");const cJSON *a=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":"scenes"),*target=cJSON_GetArrayItem(a,(int)object_index(a,integer(t,"ref")));
+   const char *type=string(t,"type");const cJSON *a=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":!strcmp(type,"scene")?"scenes":"groups"),*target=cJSON_GetArrayItem(a,(int)object_index(a,integer(t,"ref")));
    int y=140+visible++*182;char text[100];snprintf(text,sizeof(text),"%s • %s",string(target,"name"),dsr_sc_tr(integer(t,"height")==2?"duża":"standard"));
    dsr_sc_text(body,text,0,y,280,&dsr_roboto_14,DSR_SC_TEXT);
    dsr_ui_button(body,"Obiekt",0,y+22,87,tile_next,t);dsr_ui_button(body,"Układ",96,y+22,87,tile_span,t);dsr_ui_button(body,"Typ",192,y+22,87,tile_type,t);
@@ -427,9 +439,9 @@ static void show_entity(cJSON *entity)
    dsr_ui_button(body,"Góra",0,y+126,136,reorder,(void *)(uintptr_t)(i*2));dsr_ui_button(body,"Dół",148,y+126,136,reorder,(void *)(uintptr_t)(i*2+1));
   }
   int y=148+visible*182;if(tile_page)dsr_ui_button(body,"Poprzednie karty",0,y,284,tiles_page,(void *)(uintptr_t)(tile_page-1));if(tile_page+1<pages)dsr_ui_button(body,"Następne karty",0,y+56,284,tiles_page,(void *)(uintptr_t)(tile_page+1));
-  dsr_ui_button(body,"+ Urządzenie",0,y+112,284,tile_add,(void *)0);dsr_ui_button(body,"+ Pomieszczenie",0,y+168,284,tile_add,(void *)1);dsr_ui_button(body,"+ Scena",0,y+224,284,tile_add,(void *)2);
+  dsr_ui_button(body,"+ Urządzenie",0,y+112,284,tile_add,(void *)0);dsr_ui_button(body,"+ Pomieszczenie",0,y+168,284,tile_add,(void *)1);dsr_ui_button(body,"+ Scena",0,y+224,284,tile_add,(void *)2);dsr_ui_button(body,"+ Grupa",0,y+280,284,tile_add,(void *)3);
  }
- if(!room&&!dashboard){int bottom=!strcmp(collection_name,"scenes")?160+cJSON_GetArraySize(item(entity,"actions"))*112:420;dsr_ui_button(body,"Usuń wpis",0,bottom,284,delete_entity,NULL);}actions(root,show_collection);
+ if(!room&&!dashboard){int bottom=!strcmp(collection_name,"scenes")?160+cJSON_GetArraySize(item(entity,"actions"))*112:!strcmp(collection_name,"groups")?160+cJSON_GetArraySize(item(draft,"devices"))*44:420;dsr_ui_button(body,"Usuń wpis",0,bottom,284,delete_entity,NULL);}actions(root,show_collection);
 }
 static void add_entity(lv_event_t *event)
 {
@@ -440,6 +452,7 @@ static void add_entity(lv_event_t *event)
  if(!strcmp(collection_name,"rooms")){cJSON_AddNumberToObject(v,"icon",0);cJSON_AddStringToObject(v,"photo","");}
  if(!strcmp(collection_name,"devices")){cJSON_AddStringToObject(v,"kind","light");cJSON_AddStringToObject(v,"host","");cJSON_AddNumberToObject(v,"channel",0);cJSON_AddNumberToObject(v,"room",0);}
  if(!strcmp(collection_name,"scenes"))cJSON_AddItemToObject(v,"actions",cJSON_CreateArray());
+ if(!strcmp(collection_name,"groups"))cJSON_AddItemToObject(v,"members",cJSON_CreateArray());
  cJSON_AddItemToArray(a,v);show_entity(v);
 }
 static void show_collection(lv_event_t *event)
@@ -458,9 +471,9 @@ static void show_menu(void)
 {
  lv_obj_t *root=screen(settings_context?"Konfiguracja wpisów":"Edytuj pilot");
  view_save_target=settings_context?SAVE_SETTINGS:SAVE_HOME;
- const char *labels[]={"Pulpity","Pomieszczenia","Urządzenia","Sceny"},*keys[]={"dashboards","rooms","devices","scenes"};
+ const char *labels[]={"Pulpity","Pomieszczenia","Urządzenia","Sceny","Grupy"},*keys[]={"dashboards","rooms","devices","scenes","groups"};
  unsigned first=settings_context?2:0;
- for(unsigned i=first;i<first+2;i++)dsr_ui_button(body,labels[i],0,(int)(i-first)*56,284,show_collection,(void *)keys[i]);
+ for(unsigned i=first;i<(settings_context?5u:2u);i++)dsr_ui_button(body,labels[i],0,(int)(i-first)*56,284,show_collection,(void *)keys[i]);
  actions(root,settings_context?return_settings:return_home);
 }
 void dsr_ui_config_appearance(lv_event_t *event)

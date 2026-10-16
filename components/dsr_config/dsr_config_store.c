@@ -19,7 +19,7 @@ static char *read_slot(const char *dir,unsigned slot,bool *exists,bool *future)
  if(fread(json,1,header[1],f)!=header[1]||fgetc(f)!=EOF||dsr_config_crc32(json,header[1])!=header[2]){free(json);json=NULL;goto done;}
  json[header[1]]=0;if(!dsr_config_json_depth(json)){free(json);json=NULL;goto done;}char error[96];cJSON *r=cJSON_Parse(json);
  const cJSON *schema=cJSON_GetObjectItemCaseSensitive(r,"schema");if(cJSON_IsNumber(schema)&&schema->valuedouble>DSR_CONFIG_SCHEMA)*future=true;
- if(!r||!dsr_config_validate(r,error)||dsr_config_revision(json)!=header[3]){free(json);json=NULL;}cJSON_Delete(r);
+ if(!r||!dsr_config_validate_stored(r,error)||dsr_config_revision(json)!=header[3]){free(json);json=NULL;}cJSON_Delete(r);
 done:fclose(f);return json;
 }
 char *dsr_config_store_load(const char *dir,bool *found,char error[96])

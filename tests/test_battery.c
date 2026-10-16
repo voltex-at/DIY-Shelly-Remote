@@ -59,6 +59,8 @@ int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
 static dsr_settings_t display_stored={.ssid="new-network",.password="latest-private-password",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
 static unsigned display_load_error,display_save_error,display_saves;
+static unsigned pairing_revokes;static esp_err_t pairing_error;static void (*pairing_during)(void);
+esp_err_t dsr_panel_pairing_revoke(void){CHECK(!dsr_activity_restart_reserve());pairing_revokes++;if(pairing_during)pairing_during();return pairing_error;}
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 static bool worker_wifi;
@@ -92,6 +94,8 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {CHECK(!stop_lock&&!dsr_activity_restart_reserve()&&c->device.endpoint_kind==DSR_ENDPOINT_COVER&&!strcmp(c->credentials.password,"stop-private"));if(intent.command!=DSR_COVER_STOP){move_calls++;return DSR_OK;}stop_calls++;c->device.online=stop_http_result==DSR_OK;c->telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION,.current_pos=17};return stop_http_result;}
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(inject_stop&&!stop_lock);inject_stop=false;CHECK(dsr_worker_stop_request(&stop_target,909)==DSR_OK&&urgent_hook&&urgent_hook());c->device.online=true;return DSR_OK;}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
+static void pairing_stop(void)
+{CHECK(!stop_lock&&dsr_worker_stop_request(&stop_target,6200)==DSR_OK);}
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 static unsigned history_services,history_clocks;
 void dsr_history_service(void){CHECK(worker_context&&!dsr_activity_restart_reserve());history_services++;}
@@ -223,6 +227,23 @@ int main(void)
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);
+ for(unsigned n=0;n<3;n++){
+  pairing_error=n==0?ESP_OK:n==1?ESP_FAIL:ESP_ERR_INVALID_STATE;
+  unsigned before=pairing_revokes,display_before=display_saves;dsr_job_t revoke_job={.id=500+n,.kind=DSR_JOB_PAIRING_REVOKE};
+  CHECK(dsr_worker_submit(&revoke_job)==DSR_OK&&!dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&revoke_job)==DSR_BUSY);
+  if(!setjmp(stop))worker(NULL);
+  CHECK(pairing_revokes==before+1&&display_saves==display_before&&!dsr_activity_restart_reserve());
+  dsr_event_t revoked;CHECK(dsr_worker_receive(&revoked)&&revoked.id==500+n&&revoked.result==(n==0?DSR_OK:DSR_IO));
+  CHECK(!memcmp(&revoked.device,&(dsr_device_t){0},sizeof(revoked.device))&&!dsr_worker_receive(&revoked));admission_open();
+ }
+ /* A STOP admitted while the NVS transaction runs still owns a separate
+  * result/lease, even if its operation number equals the revoke job number. */
+ pairing_error=ESP_OK;worker_wifi=true;pairing_during=pairing_stop;unsigned prior_revokes=pairing_revokes,prior_stops=stop_calls;
+ dsr_job_t revoke_outer={.id=6200,.kind=DSR_JOB_PAIRING_REVOKE};CHECK(dsr_worker_submit(&revoke_outer)==DSR_OK);
+ if(!setjmp(stop))worker(NULL);
+ pairing_during=NULL;CHECK(pairing_revokes==prior_revokes+1&&stop_calls==prior_stops+1&&dsr_worker_stop_pending());CHECK(!dsr_worker_stop_receive(&stopped,true));
+ CHECK(dsr_worker_receive(&checked)&&checked.id==6200&&checked.result==DSR_OK&&!checked.device.device_id[0]&&!dsr_worker_receive(&checked));CHECK(!dsr_activity_restart_reserve());
+ CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==6200&&stopped.device.endpoint_kind==DSR_ENDPOINT_COVER&&stopped.result==DSR_OK);worker_wifi=false;
  admission_open();
  dsr_job_t admitted={.id=200,.kind=DSR_JOB_BATTERY_READ};
  fail_queue=true;CHECK(dsr_worker_submit(&admitted)==DSR_BUSY&&!queues[0].occupied&&semaphore);admission_open();fail_queue=false;
@@ -231,3 +252,15 @@ int main(void)
  CHECK(!dsr_activity_restart_reserve());dsr_event_t final_event;CHECK(dsr_worker_receive(&final_event)&&final_event.id==200);admission_open();
  printf("PASS: %u battery/worker checks; actual ADC lifecycle/filter/calibration, failure cleanup, 100 cycles, offline/no-binding worker route; synthetic SDK, not physical voltage\n",checks);return 0;
 }
+
+/* This isolated worker fixture has no registered scene actor. */
+bool dsr_actions_job_owned(uint32_t id){(void)id;return false;}
+void dsr_actions_mode_block(void){}
+dsr_result_t dsr_actions_worker_allowed(uint32_t id,const dsr_connection_t *c){(void)id;(void)c;return DSR_OK;}
+static dsr_http_job_guard_t action_guard;
+dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard){dsr_http_job_guard_t previous=action_guard;action_guard=guard;return previous;}
+
+static dsr_http_job_write_hook_t action_write_hook;
+dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook){dsr_http_job_write_hook_t previous=action_write_hook;action_write_hook=hook;return previous;}
+
+void dsr_actions_worker_write_attempted(uint32_t id){(void)id;}

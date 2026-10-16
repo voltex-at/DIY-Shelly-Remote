@@ -1,6 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_storage.h"
 #include "dsr_activity.h"
+#include "dsr_actions.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -31,7 +32,10 @@ static void config_task(void *argument)
   char *next=dsr_config_replace(previous,request.json,request.revision,error);free(previous);free(request.json);
   if(next&&!dsr_config_store_save("/dsr",next,error)){free(next);next=NULL;}
   xSemaphoreTake(mutex,portMAX_DELAY);
-  if(next){free(current);current=next;revision=dsr_config_revision(next);snprintf(status,sizeof(status),"Saved revision %lu",(unsigned long)revision);}
+  /* replace already validated the exact revision+1 document and save ACKed
+   * its readback. Do not allocate/reparse after commit and risk publishing0
+   * during low memory while the durable document is actually revision+1. */
+  if(next){free(current);current=next;revision=request.revision+1u;snprintf(status,sizeof(status),"Saved revision %lu",(unsigned long)revision);}
   else snprintf(status,sizeof(status),"%s",error[0]?error:"Save failed");
   busy=false;xSemaphoreGive(mutex);
   dsr_activity_end();
@@ -43,18 +47,27 @@ esp_err_t dsr_workspace_start(void)
  dsr_config_health_workspace(DSR_WORKSPACE_MOUNTING,ESP_OK);
  esp_err_t err=dsr_storage_mount();if(err!=ESP_OK){dsr_config_health_workspace(DSR_WORKSPACE_MOUNTING,err);return err;}
  dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_OK);
- bool found=false;char error[96]={0};current=dsr_config_store_load("/dsr",&found,error);
+ bool found=false,legacy=false;char error[96]={0};current=dsr_config_store_load("/dsr",&found,error);
  if(!found){if(error[0]){dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_FAIL);return ESP_FAIL;}dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_OK);current=dsr_config_default();if(!current){dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
   if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_FAIL);return ESP_FAIL;}}
+ if(found){
+  /* A separately strict schema1 validator authorizes only this RAM upgrade.
+   * Never refresh/GC legacy checkpoints at boot: first explicit Save is the
+   * only durable1->2 transition and retains the old revision until its ACK. */
+  char *canonical=dsr_config_upgrade(current,&legacy,error);free(current);current=canonical;
+  if(!current){dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_FAIL);return ESP_FAIL;}
+ }
  /* Refresh the older checkpoint with the already verified boot document.
   * Power loss retains the newest record. Readback must succeed before GC.
   * This also retires old photo references without requiring a second edit. */
- if(found)dsr_config_store_save("/dsr",current,error);
+ if(found&&!legacy)dsr_config_store_save("/dsr",current,error);
  /* Boot-time GC precedes cache/LVGL construction; immutable live pointers are
   * never freed. Any remaining corrupt checkpoint conservatively skips GC. */
- unsigned removed=0;dsr_config_store_collect_photos("/dsr",&removed,error);
+ unsigned removed=0;if(!legacy)dsr_config_store_collect_photos("/dsr",&removed,error);
  dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_OK);
- dsr_photos_load();revision=dsr_config_revision(current);mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(request_t));
+ dsr_photos_load();revision=dsr_config_revision(current);
+ if(!revision){free(current);current=NULL;dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+ mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(request_t));
  if(!mutex||!queue){dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
  dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_OK);
  if(xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)!=pdPASS){dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
@@ -197,12 +210,12 @@ static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_
   dsr_runtime_device_t *r=&runtime[i];
   int free_slot=-1,queued_slot=-1;for(size_t j=0;j<DSR_MAX_DEVICES;j++){if(!output_waiting[j]&&free_slot<0)free_slot=(int)j;if(output_waiting[j]&&endpoint(&outputs[j].device,device))queued_slot=(int)j;}
   bool replace=stop&&queued_slot>=0&&outputs[queued_slot].cover.command!=DSR_COVER_STOP;if(replace)free_slot=queued_slot;
-  if((queued_slot>=0&&!replace)||(!stop&&r->pending)||(stop&&r->stop_pending)||free_slot<0)result=DSR_BUSY;
+  if((queued_slot>=0&&!replace)||(!stop&&(r->pending||dsr_actions_reserved(device)))||(stop&&r->stop_pending)||free_slot<0)result=DSR_BUSY;
   else if(stop?!r->can_stop:(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000))result=DSR_OFFLINE;
   else if(cover?!dsr_cover_can_move(&r->telemetry.cover,intent):!r->device.has_switch)result=DSR_UNSUPPORTED;
   else if(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED)result=r->error;
   else if(!replace&&!dsr_activity_begin())result=DSR_BUSY;
-  else {if(!++output_serial)++output_serial;outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=output_serial};if(cover)outputs[free_slot].cover=intent;output_waiting[free_slot]=true;r->pending=true;if(stop)r->stop_pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;}
+  else {if(!++output_serial)++output_serial;outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=output_serial};if(cover)outputs[free_slot].cover=intent;output_waiting[free_slot]=true;r->pending=true;if(stop)r->stop_pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;if(stop)dsr_actions_mode_block();}
   break;
  }
  xSemaphoreGive(mutex);return result;

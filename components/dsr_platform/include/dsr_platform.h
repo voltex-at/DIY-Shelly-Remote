@@ -70,8 +70,18 @@ dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t inte
 /* Sole worker invokes an optional urgent-STOP callback between HTTP legs.
  * The callback is never installed by HTTP fixtures or other transports. */
 void dsr_http_urgent_hook(bool (*hook)(void));
+/* Sole-worker transaction guard. Independent of urgent(): refusal performs
+ * no STOP and never means an interrupted write may be replayed. Caller
+ * restores the returned previous callback on every exit, including innerSTOP. */
+typedef dsr_result_t (*dsr_http_job_guard_t)(void);
+dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
+/* Exact control transaction boundary: invoked just before SDK perform, after
+ * client/body setup. Includes Gen1's mutating GET. It reports an attempt,
+ * never ACK/success; sole worker must suspend/restore it around inner STOP. */
+typedef void (*dsr_http_job_write_hook_t)(void);
+dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
@@ -101,6 +111,9 @@ bool dsr_worker_receive(dsr_event_t *event);
  * its semaphore. One STOP, including its final result, until consume. */
 typedef struct {uint32_t operation_id,layout_id;dsr_device_t device;dsr_telemetry_t telemetry;dsr_result_t result;} dsr_stop_result_t;
 dsr_result_t dsr_worker_stop_request(const dsr_connection_t *connection,uint32_t operation_id);
+/* Trusted actor owner only; separate admission from manual operationIDs.
+ * Numeric jobID/WWW operationID equality never confers actor ownership. */
+dsr_result_t dsr_worker_action_stop_request(const dsr_connection_t *connection,uint32_t job_id);
 bool dsr_worker_stop_pending(void);
 /* Consumer must hold its outer activity and defer until its old job event
  * has been received; otherwise an old event could overwrite STOP readback. */

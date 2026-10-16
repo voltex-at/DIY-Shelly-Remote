@@ -1,4 +1,20 @@
-# Matryca funkcji — 0.7.26, rewizja 27
+# Matryca funkcji — 0.7.31, rewizja 32
+
+## #21: rzeczywiste grupy, sceny i dziennik RAM — kandydat integracji
+
+[Kontrakt](ISSUE21_ACTIONS_PL.md): wspólny aktor LCD/WWW, grupy do8×16
+Switch ON/OFF, sceny do8×8 jawnych akcji Switch/Cover, wyniki częściowe,
+nonce/generation i termin180s, bez automatycznego replay. Karta sceny uruchamia
+wykonanie; edycja jest osobna. Ręczny Cover STOP ma pierwszeństwo. Dziennik128
+wpisów RAM pokazuje źródło, wynik, UTC lub czas od bootu, bez IP/MAC/sekretów;
+obserwacja dostępności nie udaje potwierdzonego polecenia. Schema2 jest lazy
+upgrade poprawnej schema1 w RAM; pierwszy jawny Save zachowuje CAS/checkpointy.
+Pełny host/LVGL i niezależne kontrprzykłady są opisane w kontrakcie; target,
+przeglądarka i odbiór fizyczny pozostają osobnymi bramkami tego kandydata.
+
+Baza PR58/f240d15 (historia/settings/zdjęcia) i PR59/a194554 (Cover/P0 resetlog)
+ma exact-head5/5 CI oraz odebrane zweryfikowane BIN/ELF/FS i rendery. Baza nie
+oznacza fizycznego odbioru nowych funkcji ani zamknięcia przerywanego blank format.
 
 ## #24: rzeczywisty natywny podpisany updater, wydanie i sprzęt osobno
 
@@ -14,16 +30,16 @@ target exact-source CI/artefakt oraz physical install/rollback nadal osobno.
 Historyczne opisy etapów backend-only poniżej nie opisują obecnego kompletnego
 przepływu kodu i nie stanowią odbioru autentycznego wydania ani sprzętu.
 
-## #22: INTERNAL 24 h — pion host, integracja Flash wstrzymana przez P0
+## #22: INTERNAL 24 h — zintegrowany pion, odbiór fizyczny osobno
 
 [Kontrakt i ograniczenia](ISSUE22_HISTORY_PL.md): prawdziwe zaakceptowane
 PROBE/SET readback → PSRAM ring5min → existing sole worker → dwa CRC journals.
 Dolna Energia/LCD Charts/WWW używają wspólnego query per physical key+kind0,
 1h/24h W/V/A i rzeczywiste Wh; UTC, zero/brak/stale/reset/luki rozróżnione.
 RAM-only przy niedostępnym/uszkodzonym/nowszym storage, bez format/erase/mount
-lub geometry changes. Host regresje i footprint opisane w kontrakcie; final
-ESP target/browser CI oraz physical restart/retencja pozostają bramkami.
-Publikacja/integracja nowych zapisów czeka na P0. SD/7dni nadal osobno.
+lub geometry changes. Host regresje i footprint opisane w kontrakcie; PR58
+f240d15 ma5/5 CI38919291117 i odebrane artefakty. Fizyczny restart/retencja,
+first-boot P0 i przerwanie blank format pozostają otwarte. SD/7dni osobno.
 
 ## #29A: Ustawienia wybranego Shelly na aktualnym runtime
 
@@ -33,7 +49,7 @@ przez obecny CAS/exact ACK i powrót do tego samego urządzenia. Status/ID/API/W
 z aktualnego fleet. Manualny GET tylko wybranego bindingu, bez kasowania auth/rate
 pozostałych; unbound/reused host/zmieniony locator nie odpytują obcego endpointu.
 Regresje rzeczywistego LVGL PL/EN/DE, A/B/IO/CAS, reorder i kontekst pokoju;
-target CI i fizyczny test tej integracji nadal otwarte. Nie jest to RPC settings,
+target CI jest w zweryfikowanym PR58; fizyczny test nadal otwarty. Nie jest to RPC settings,
 historia #22/#29B ani zamknięcie #29. NVS/schema/registry/migrations bez zmian.
 
 
@@ -49,6 +65,20 @@ handoff do LCD (bez password API), utrata LAN wyjaśniona, podgląd wstrzymany.
 Zakres: open AP i unauthenticated HTTP; HTTPS/PKI/enhanced-security oraz chronione
 AP jawnie unsupported. To nie pełna zgodność wszystkich generacji/firmware.
 Pełny target CI/artefakt i fizyczny AP→LAN→BIND odbiór pozostają osobnymi bramkami.
+
+
+## #6 punkt5: unieważnienie wspólnego parowania WWW
+
+Jedno token_hash, NIE rejestr/liczba sesji. Snapshot efektywnego dostępu RAM;
+unavailable i niepotwierdzona trwałość jawne. Confirm→worker poza LVGL, mutex
+pair/auth/revoke i activity do lastclose/receive. Stare RAM uprawnienie, kod
+i OTA window blokowane przed NVS; erase ONLY token_hash + NOT_FOUND readback.
+Commit NVS nie jest rollbackiem; błąd nie obiecuje stanu Flash po restarcie.
+Pending bez duplikatów/hide/reopen, PL/EN/DE; testy/CI/artefakty/physical osobno.
+[Kontrakt](PAIRING_REVOKE_PL.md), bez namespace wipe/resetu/TLS rotation.
+Port istniejącego PR50/b128694 na Cover/history/P0: panel786/worker4170,
+LVGL5137/169 + Cover105/7 PASS; 40cycles revoke heap105488→105488.
+Current-parent auth/API exact SHA guards bez zmian. Nie opublikowano nowego PR.
 
 ## #5/#6: język Web Panelu niezależny od pilota
 
@@ -94,7 +124,7 @@ To NIE blank-format ani pełny TLS/pairing PASS. Nie ponawiać erase/przywracani
 B/IO/CAS/mismatch zostają. Widoczne48px delete dashboard/room, named modal przed
 mutacją draft, constraints recheck, osobneSave→ACK. Stabilny ID pokoju/fallback.
 [Kontrakt i krótki retest](EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
-bramki osobno. Revoke WWW zachowane nieopublikowane, NIE część tego builda.
+bramki osobno. Revoke WWW był poza buildem0.7.21; obecny port PR50 opisano powyżej.
 LVGL UBSan3223/111, PL/EN/DE/max47char/48px i40cycles heap104456→104456 PASS;
 native/config265 PASS, niezależny review bez blockerów. Nowy UI fizycznie nieodebrany.
 
@@ -249,7 +279,7 @@ implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
 | Ekran: jasność/timeout/sleep/wake | Istniejący NVS, worker, PWM | PR #36 CI 5/5; timeout wybrany i 0=off, wake bez SET do testu |
 | Bateria | GPIO8 ADC / brak Web procentów | PR #35 CI 5/5; multimeter otwarty, procent/niski poziom/charging nieznane |
 | WWW: IPv4/mDNS/TLS/SPIFFS/fingerprint/kod | Istniejący HTTPS/pairing | Jawne generowanie i expiry; realny telefon/preview do testu |
-| WWW: sesje i unieważnianie | Brak LCD API | Not implemented; brak pozornej akcji |
+| WWW: unieważnienie wspólnego parowania | Jeden token_hash, worker + LCD confirm | Port PR50: host PASS; target/physical gates, nie registry sesji |
 | System → Firmware Update | Natywny podpisany updater #24 | Kod/host/LVGL0.7.26; brak approved publisher anchor/Release i physical pass |
 | System → lokalna zgoda OTA | Istniejący upload HTTPS / 120 s | Bool accepted/expiry i negatywne testy; fizyczny transfer/rollback otwarte |
 | System → build/board/RAM/PSRAM/Flash/diagnostyka | Read-only snapshot i health | Testy realnego adaptera; płytka do odbioru |
@@ -346,8 +376,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Dolne Pulpit / Dom | Nawigacja edytorów i podgląd LCD | Lokalna konfiguracja | CI tested: przejścia i obszary dotyku | #6, PR #13; zdjęcie LCD i regresja nawigacji |
 | Dolne Ustawienia / Dodaj | Urządzenia / System | Pilot, kreatory | CI tested: rzeczywiste callbacki | #6/#7; przejście do Wi-Fi, LAN, BLE |
 | Dolna Energia | Fresh comparable W total + per-endpoint actual Wh/Charts | Accepted Switch/relay telemetry | Host implemented; target/physical/P0 pending | #22; ISSUE22_HISTORY_PL.md |
-| Górna Aktywność | Brak dziennika | Lokalny ograniczony log | Not implemented: disabled | #21; czas/NTP, retencja, częściowe błędy |
-| Górne Grupy / Sceny | Edytor definicji scen | Wymagany multi-device | Not implemented: executor i grupy; zakładki disabled | #20/#21; minimum dwa rzeczywiste Shelly |
+| Górna Aktywność | Wspólny dziennik RAM LCD/WWW | 128 wpisów, jawny brak UTC, clear | Host/LVGL tested; nowy target/browser/fizyczny odbiór osobno | #21; obserwacja stanu oddzielona od ACK polecenia |
+| Górne Grupy / Sceny | Wspólny executor, edytor grup i scen | Typowane powiązania, Switch ON/OFF i Cover actions | Host/LVGL tested; częściowe wyniki i cancel, bez replay | #20/#21; minimum dwa rzeczywiste Shelly |
 | Aktywna zakładka widoku | Aktualna sekcja | Wskaźnik bieżącej strony | CI tested: statyczny wskaźnik, nie martwy przycisk | #25; brak kliknięcia bez działania |
 | Pasek pulpitu — nazwa / rozwinięcie | Pulpit startowy | Do 4 pulpitów | CI tested: wybór zapisuje shared config | PR #5/#13; zapis, konflikt, restart |
 | Pasek + / ołówek | Dodaj / Edytuj | Lokalny kreator / edytor | CI tested: rzeczywiste przejścia | #6/#7; brak regresji źródeł danych |
@@ -360,7 +390,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | W/V/A / wiek próbki / offline | Ten sam framebuffer | Tylko obecne i poprawne pola API | CI tested: parser, zera/braki/błędy, stabilny polling | #12; porównać realne V/A z API |
 | Szczegóły Wykresy | Shared 1h/24h W/V/A/Wh query, UTC gaps | Real accepted readbacks; RAM + worker journals | Host implemented; target/physical/P0 pending | #22; ISSUE22_HISTORY_PL.md |
 | Szczegóły Ustawienia | Wspólna lokalna nazwa/pokój + fleet status/ID/W/V/A; wybrany GET | Zweryfikowany binding relay/Switch; RPC settings osobno | Implemented, host LVGL tested; exact-head CI/physical pending | #29A, port PR34; DEVICE_SETTINGS_PL.md |
-| Karta sceny / ikona ołówka | Edytor scen | Zapis definicji, bez wykonawcy | CI tested: edycja; Not implemented: uruchamianie scen | #21; nie przedstawiać otwarcia edytora jako wykonania |
+| Karta sceny / ikona ołówka | RUN oraz osobna edycja | Wspólny actor LCD/WWW, jawne akcje | Host/LVGL tested; target/browser i sprzęt osobno | #21; częściowy wynik, uncertainty, zero automatycznego replay |
 
 ## Dodawanie i rzeczywiste urządzenia
 
@@ -390,11 +420,11 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Hasło / pokaż / Connect / Cancel / Continue | Dane Wi-Fi nie są edytowane przez panel w tym etapie | Pilot | CI tested: save-after-IP, rollback i cancel | #8; błędne hasło i utrata AP, bez logowania sekretów |
 | Klawiatura litery/cyfry/Shift/Backspace/symbole/ąä | Standardowe pola przeglądarki | PL/EN QWERTY, DE QWERTZ | CI tested: UTF-8, ASCII, hit-test, maska | #8, PR #13; fizyczna czytelność 22 px |
 | Klawiatura ← / → / Spacja / Gotowe / IP | Standardowe pola | Jedna wspólna implementacja | CI tested: wstawienie/usunięcie w środku, jeden submit | #8; końce i maskowane hasło |
-| Edytuj pilot: Pulpity/Pomieszczenia/Urządzenia/Sceny | Te same kolekcje CRUD | Schema 1, granice 4/8/16/8 | CI tested: wspólny walidowany model i CAS | PR #5/#11; konflikt, A-save/B-edit, błąd zapisu, restart |
+| Edytuj pilot: Pulpity/Pomieszczenia/Urządzenia/Sceny/Grupy | Te same kolekcje CRUD | Schema2, granice 4/8/16/8/8; lazy schema1 | Host tested: wspólny model, CAS i podwójny checkpoint | #21; brak boot write, mixed1/2/future preservation |
 | Pola nazwa/typ/IP/kanał/pokój; Usuń wpis | Odpowiednie pola i usuń | Definicje; nie nowe połączenie | CI tested: referencje i walidacja | #20/#23; nie mylić definicji z bindingiem |
 | Karty: dodaj typ/obiekt/układ/wysokość/dane/Góra/Dół/usuń/strony | Dodaj, rozmiary, pola, ↑/↓/× oraz drag/drop | Do 24 kart / pulpit | CI tested: save/preview/retencja | #6, PR #5/#13; 24 karty, przewijanie, zmiana kolejności |
 | Pokój: ikona / wybór zdjęcia z pamięci | Upload, optymalizacja zdjęcia, zmiana i usunięcie | 320×180 RGB565 w Flash; SD niezweryfikowane | CI tested: rozmiar/cache/GC; upload wymaga testu fizycznego | PR #5/#11; limit miejsca, power loss, zdjęcia po OTA |
-| Scena: dodaj/zmień urządzenie/komendę/usuń działanie | Te same definicje | Executor nieobecny | CI tested: edytor, Not implemented: wykonanie | #21; kompatybilne typy i częściowy sukces |
+| Scena: dodaj/zmień urządzenie/komendę/usuń działanie | Te same definicje oraz jawny RUN | Jeden executor dla LCD/WWW | Host/LVGL tested; nowe CI i sprzęt osobno | #21; zgodność typu, partial result i no-replay |
 | Wygląd: PL/EN/DE, motyw, akcent, pulpit startowy | Odpowiednie pola, również własny kolor | Lokalny styl/config | CI tested: trwały zapis i rendery językowe | #6/#8; fizyczne kolory/kontrast i aktualizacja bez restartu |
 | Zapisz / Wstecz / status konfliktu / błąd | Save / Reload / dirty/conflict | Async durable configuration | CI tested: immutable submitted A, późniejszy B zachowany | PR #11; partial write i restart, oba interfejsy |
 | Web Panel: parowanie, kod i fingerprint | Jednorazowy kod, sesja, local HTTPS | Per-device sekret, bez wspólnego hasła | CI tested: logika i browser; fizyczny TLS/pairing do regresji | PR #5; zła sesja, obce Origin/Host, restart i wygasły kod |
@@ -425,8 +455,9 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
   operacyjny zapis definicji. Nie wykonuje scen lub wielu urządzeń.
 - `cover_control/drag-release/Stop → shared typed intent → fleet/urgent lane →
   Cover RPC → readback`: rzeczywisty Gen2+ endpoint; DEMO zachowuje izolację.
-- `scene_card`: prowadzi do edycji, nie do SET. `Energia`/`Wykresy` mają pion #22 opisany powyżej. `Grupy`,
-  `Sceny`, `Aktywność` i settings RPC nie mają wykonawcy; są disabled.
+- `scene_card`: uruchamia wspólnego aktora; edycja ma osobną akcję. `Energia`/`Wykresy`
+  mają pion #22. `Grupy`, `Sceny` i `Aktywność` mają pion #21 opisany powyżej.
+  Zdalne settings RPC pozostaje osobnym niewdrożonym zakresem.
 - `toolbar Info`: usunięto martwą akcję, jest realny modal i Zamknij. Bieżące
   zakładki bez callbacków są statycznymi wskaźnikami, nie przyciskami no-op.
 - `brightness/sleep → dsr_board_*`: rzeczywiste wywołania sterownika.

@@ -4,7 +4,9 @@
 #include "dsr_history.h"
 #ifdef DSR_BOARD_ES3C35P
 #include "dsr_native_ota.h"
+#include "dsr_actions.h"
 #endif
+#include "dsr_panel_pairing.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -14,8 +16,18 @@
 
 static QueueHandle_t jobs, events;
 static SemaphoreHandle_t available;
+#ifdef DSR_BOARD_ES3C35P
+static const dsr_connection_t *actor_connection;
+static uint32_t actor_job;
+static void actor_write(void){dsr_actions_worker_write_attempted(actor_job);}
+static dsr_result_t actor_guard(void)
+{
+ if(!actor_connection||!dsr_workspace_mapping_matches(actor_connection))return DSR_IDENTITY_MISMATCH;
+ return dsr_actions_worker_allowed(actor_job,actor_connection);
+}
+#endif
 static SemaphoreHandle_t stop_mutex;
-static struct {uint8_t phase;dsr_connection_t connection;dsr_stop_result_t result;} urgent_stop;
+static struct {uint8_t phase;bool actor;dsr_connection_t connection;dsr_stop_result_t result;} urgent_stop;
 _Static_assert(sizeof(urgent_stop)<=640,"one bounded urgent STOP lane");
 static void erase(void *p,size_t n){volatile unsigned char *v=p;while(n--)*v++=0;}
 /* The sole outer slot registers admission independently of UI/job IDs. A STOP
@@ -30,12 +42,27 @@ static bool cover_superseded(const dsr_connection_t *c)
  bool blocked=!registered_cover.active||registered_cover.superseded||!same_endpoint(&registered_cover.device,registered_cover.layout_id,c);
  xSemaphoreGive(stop_mutex);return blocked;
 }
-dsr_result_t dsr_worker_stop_request(const dsr_connection_t *c,uint32_t operation_id)
+static dsr_result_t stop_request(const dsr_connection_t *c,uint32_t operation_id,bool actor)
 {
  if(!stop_mutex||!c||!operation_id||!dsr_connection_valid(c,true)||c->device.endpoint_kind!=DSR_ENDPOINT_COVER)return DSR_INVALID;
  xSemaphoreTake(stop_mutex,portMAX_DELAY);dsr_result_t result=DSR_BUSY;
- if(!urgent_stop.phase&&dsr_activity_begin()){urgent_stop.connection=*c;urgent_stop.result=(dsr_stop_result_t){.operation_id=operation_id,.layout_id=c->layout_id};urgent_stop.phase=1;if(registered_cover.active&&same_endpoint(&registered_cover.device,registered_cover.layout_id,c))registered_cover.superseded=true;result=DSR_OK;}
- xSemaphoreGive(stop_mutex);return result;
+ if(!urgent_stop.phase&&dsr_activity_begin()){urgent_stop.connection=*c;urgent_stop.actor=actor;urgent_stop.result=(dsr_stop_result_t){.operation_id=operation_id,.layout_id=c->layout_id};urgent_stop.phase=1;if(registered_cover.active&&same_endpoint(&registered_cover.device,registered_cover.layout_id,c))registered_cover.superseded=true;result=DSR_OK;}
+ xSemaphoreGive(stop_mutex);
+#ifdef DSR_BOARD_ES3C35P
+ if(result==DSR_OK&&!actor)dsr_actions_mode_block();
+#endif
+ return result;
+}
+dsr_result_t dsr_worker_stop_request(const dsr_connection_t *c,uint32_t operation_id)
+{return stop_request(c,operation_id,false);}
+dsr_result_t dsr_worker_action_stop_request(const dsr_connection_t *c,uint32_t job_id)
+{
+#ifdef DSR_BOARD_ES3C35P
+ if(!dsr_actions_job_owned(job_id))return DSR_INVALID;
+ return stop_request(c,job_id,true);
+#else
+ (void)c;(void)job_id;return DSR_UNSUPPORTED;
+#endif
 }
 bool dsr_worker_stop_pending(void)
 {if(!stop_mutex)return false;xSemaphoreTake(stop_mutex,portMAX_DELAY);bool pending=urgent_stop.phase!=0;xSemaphoreGive(stop_mutex);return pending;}
@@ -53,8 +80,19 @@ static bool run_stop(void)
  /* RUNNING prevents replacement or consume. No mutex spans SDK I/O, and
   * the inner transaction cannot recursively drain its own urgent lane. */
  dsr_http_urgent_hook(NULL);
+ dsr_http_job_guard_t previous_guard=dsr_http_job_guard(NULL);
+ dsr_http_job_write_hook_t previous_write=dsr_http_job_write_hook(NULL);
+#ifdef DSR_BOARD_ES3C35P
+ const dsr_connection_t *previous_connection=actor_connection;uint32_t previous_job=actor_job;
+ if(urgent_stop.actor){actor_connection=&urgent_stop.connection;actor_job=urgent_stop.result.operation_id;(void)dsr_http_job_guard(actor_guard);(void)dsr_http_job_write_hook(actor_write);}
+#endif
  dsr_result_t result=!dsr_workspace_mapping_matches(&urgent_stop.connection)?DSR_IDENTITY_MISMATCH:dsr_wifi_connected()&&!dsr_wifi_temporary_active()?dsr_http_cover(&urgent_stop.connection,(dsr_cover_intent_t){.command=DSR_COVER_STOP}):DSR_OFFLINE;
  dsr_http_urgent_hook(run_stop);
+ (void)dsr_http_job_guard(previous_guard);
+ (void)dsr_http_job_write_hook(previous_write);
+#ifdef DSR_BOARD_ES3C35P
+ actor_connection=previous_connection;actor_job=previous_job;
+#endif
  xSemaphoreTake(stop_mutex,portMAX_DELAY);
  if(result!=DSR_OK)urgent_stop.connection.device.online=false;
  urgent_stop.result.result=result;urgent_stop.result.device=urgent_stop.connection.device;urgent_stop.result.telemetry=urgent_stop.connection.telemetry;
@@ -68,7 +106,13 @@ static void network_task(void *arg)
         (void)run_stop();
         if (xQueueReceive(jobs, &job, pdMS_TO_TICKS(50)) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_HISTORY_SERVICE||job.kind==DSR_JOB_HISTORY_CLOCK){
+        if(job.kind==DSR_JOB_PAIRING_REVOKE){
+#ifdef DSR_BOARD_ES3C35P
+            event.result=dsr_panel_pairing_revoke()==ESP_OK?DSR_OK:DSR_IO;
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
+        } else if(job.kind==DSR_JOB_HISTORY_SERVICE||job.kind==DSR_JOB_HISTORY_CLOCK){
 #ifdef DSR_BOARD_ES3C35P
             if(job.kind==DSR_JOB_HISTORY_SERVICE)dsr_history_service();else dsr_history_clock_execute();
             event.result=DSR_OK;
@@ -121,7 +165,14 @@ static void network_task(void *arg)
             /* Verification is RAM-only. The full private record is written by
              * LAYOUT_PUBLISH only after exact durable workspace ACK. */
         } else {
+#ifdef DSR_BOARD_ES3C35P
+            dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id);
+            if(owned){actor_connection=&job.connection;actor_job=job.id;previous_guard=dsr_http_job_guard(actor_guard);previous_write=dsr_http_job_write_hook(actor_write);}
+#endif
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):dsr_http_set_output(&job.connection, job.on);
+#ifdef DSR_BOARD_ES3C35P
+            if(owned){(void)dsr_http_job_guard(previous_guard);(void)dsr_http_job_write_hook(previous_write);actor_connection=NULL;actor_job=0;}
+#endif
             event.device = job.connection.device;
             event.telemetry=job.connection.telemetry;
             /* Transaction outcomes only: never host, identity or credentials.
@@ -166,7 +217,7 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_COVER) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_PAIRING_REVOKE) return DSR_INVALID;
     if(job->kind==DSR_JOB_COVER&&(!dsr_cover_intent_valid(job->cover)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_COVER||job->cover.command==DSR_COVER_STOP))return DSR_INVALID;
     if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;
     if(job->kind==DSR_JOB_HISTORY_SERVICE||job->kind==DSR_JOB_HISTORY_CLOCK){
@@ -190,7 +241,7 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
-    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
+    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && job->kind!=DSR_JOB_PAIRING_REVOKE && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (!dsr_activity_begin()) { xSemaphoreGive(available); return DSR_BUSY; }
     if (job->kind == DSR_JOB_WIFI_CONNECT||job->kind==DSR_JOB_AP_INSPECT) dsr_wifi_prepare_connect();
