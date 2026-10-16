@@ -1,4 +1,5 @@
 #include "dsr_workspace.h"
+#include "dsr_runtime_api.h"
 #include "dsr_panel_permission.h"
 #include "dsr_ota_upload.h"
 #include "dsr_ota_image.h"
@@ -32,6 +33,8 @@ extern const unsigned char panel_html_start[] asm("_binary_panel_html_start");
 extern const unsigned char panel_html_end[] asm("_binary_panel_html_end");
 extern const unsigned char panel_js_start[] asm("_binary_panel_js_start");
 extern const unsigned char panel_js_end[] asm("_binary_panel_js_end");
+extern const unsigned char runtime_js_start[] asm("_binary_runtime_js_start");
+extern const unsigned char runtime_js_end[] asm("_binary_runtime_js_end");
 extern const unsigned char panel_css_start[] asm("_binary_panel_css_start");
 extern const unsigned char panel_css_end[] asm("_binary_panel_css_end");
 /* The marker is validated inside uploaded binaries, not from a client claim. */
@@ -43,6 +46,7 @@ static unsigned char *preview;static bool preview_ready;
 static httpd_handle_t server;
 static httpd_handle_t redirect_server;
 static bool panel_ready;
+static uint32_t boot_id;
 bool dsr_panel_ready(void){return panel_ready;}
 
 static void random_hex(char *out,size_t bytes)
@@ -191,12 +195,29 @@ static esp_err_t ble_api(httpd_req_t *r)
  }
  return json(r,"404 Not Found","{}");
 }
+static esp_err_t runtime_api(httpd_req_t *r)
+{
+ if(!strcmp(r->uri,"/api/v1/devices/runtime")&&r->method==HTTP_GET){
+  char *snapshot=dsr_runtime_json(boot_id);if(!snapshot)return json(r,"503 Service Unavailable","{\"error\":\"Runtime snapshot unavailable\"}");
+  esp_err_t result=json(r,"200 OK",snapshot);free(snapshot);return result;
+ }
+ if(!strcmp(r->uri,"/api/v1/devices/output")&&r->method==HTTP_POST){
+  char *data=body(r,256);dsr_device_t device;bool on=false;bool valid=dsr_output_parse(data,&device,&on);free(data);
+  if(!valid)return json(r,"400 Bad Request","{\"error\":\"Expected exact device identity, generation, channel and boolean on\"}");
+  uint32_t operation_id=0;dsr_result_t result=dsr_workspace_output_request(&device,on,&operation_id);
+  char response[160];if(result==DSR_OK)snprintf(response,sizeof(response),"{\"accepted\":true,\"operation_id\":%lu,\"boot_id\":%lu}",(unsigned long)operation_id,(unsigned long)boot_id);
+  else snprintf(response,sizeof(response),"{\"accepted\":false,\"result\":%u,\"error\":\"Command rejected; refresh this endpoint\"}",(unsigned)result);
+  return json(r,result==DSR_OK?"202 Accepted":result==DSR_INVALID?"404 Not Found":result==DSR_OFFLINE?"503 Service Unavailable":"409 Conflict",response);
+ }
+ return json(r,"404 Not Found","{\"error\":\"Unknown runtime endpoint\"}");
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!dsr_boot_ready())return json(r,"503 Service Unavailable","{\"error\":\"Startup incomplete or diagnostic mode; collect USB boot log\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output"))return runtime_api(r);
  if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
  if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
  if(!strcmp(r->uri,"/api/v1/config")){
@@ -242,6 +263,7 @@ static esp_err_t asset(httpd_req_t *r)
  const unsigned char *start,*end;
  if(!strcmp(r->uri,"/")){start=panel_html_start;end=panel_html_end;httpd_resp_set_type(r,"text/html; charset=utf-8");}
  else if(!strcmp(r->uri,"/panel.js")){start=panel_js_start;end=panel_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
+ else if(!strcmp(r->uri,"/runtime.js")){start=runtime_js_start;end=runtime_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/panel.css")){start=panel_css_start;end=panel_css_end;httpd_resp_set_type(r,"text/css; charset=utf-8");}
  else return json(r,"404 Not Found","{}");
  httpd_resp_set_hdr(r,"Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -256,6 +278,7 @@ static esp_err_t redirect_https(httpd_req_t *r)
 }
 esp_err_t dsr_panel_start(void)
 {
+ esp_fill_random(&boot_id,sizeof(boot_id));if(!boot_id)boot_id=1;
  esp_err_t identity_error=dsr_tls_identity();if(identity_error!=ESP_OK)return identity_error;
  lock=xSemaphoreCreateMutex();if(!lock)return ESP_ERR_NO_MEM;preview=malloc(320*480*2);
  nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READONLY,&n)==ESP_OK){size_t size=32;has_token=nvs_get_blob(n,"token_hash",token_hash,&size)==ESP_OK&&size==32;nvs_close(n);}

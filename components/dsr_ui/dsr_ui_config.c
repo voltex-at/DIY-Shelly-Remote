@@ -512,8 +512,10 @@ void dsr_ui_select_dashboard(void)
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
  dsr_ui_button(root,"Wstecz",12,420,296,return_home,NULL);
 }
+static void migration_tick(void);
 void dsr_ui_workspace_tick(void)
 {
+ migration_tick();
  if(!editor_active||!draft||!status_label)return;
  bool busy;char message[96];dsr_workspace_status(&busy,message);uint32_t revision=dsr_workspace_revision();
  if(revision!=draft_revision){
@@ -556,25 +558,96 @@ void dsr_ui_workspace_tick(void)
  else if(dirty)dsr_sc_label_set_text(status_label,save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany");
  else if(save_confirmed)dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");
 }
+typedef struct {dsr_device_t device;uint32_t layout_id,room,version;char previous_host[16];} migration_t;
+static migration_t migrations[DSR_MAX_DEVICES];
+_Static_assert(sizeof(migrations)<=4096,"Migration fixed storage budget");
+static size_t migration_count;
+static uint32_t migration_serial,migration_submitted,migration_revision,migration_retry;
+static cJSON *migration_document;
+static dsr_result_t migration_result=DSR_OK;
+static bool migration_failed;
+static bool migration_match(const cJSON *v,const migration_t *m)
+{
+ if(m->layout_id)return (uint32_t)integer(v,"id")==m->layout_id;
+ if(integer(v,"channel")!=m->device.channel)return false;
+ /* An unpublished endpoint may adopt legacy layout only if another durable
+  * endpoint does not already own that numeric ID. */
+ if(dsr_network_layout_reserved((uint32_t)integer(v,"id")))return false;
+ return !strcmp(string(v,"host"),m->device.host)||(m->previous_host[0]&&!strcmp(string(v,"host"),m->previous_host));
+}
+static bool replace_text(cJSON *o,const char *key,const char *value)
+{
+ if(!strcmp(string(o,key),value))return true;
+ cJSON *v=cJSON_CreateString(value);if(!v)return false;
+ bool ok=cJSON_HasObjectItem(o,key)?cJSON_ReplaceItemInObjectCaseSensitive(o,key,v):cJSON_AddItemToObject(o,key,v);
+ if(!ok)cJSON_Delete(v);
+ return ok;
+}
+static bool merge_migration(cJSON *r,const migration_t *m)
+{
+ cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices"),*found=NULL;int id=1;
+ for(cJSON *v=a->child;v;v=v->next){if(migration_match(v,m)&&!found)found=v;if(integer(v,"id")>=id)id=integer(v,"id")+1;}
+ if(!found){
+  if(cJSON_GetArraySize(a)>=DSR_MAX_DEVICES)return false;
+  found=cJSON_CreateObject();if(!found)return false;
+  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind","relay")){cJSON_Delete(found);return false;}
+  cJSON_AddItemToArray(a,found);
+  cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
+  if(cJSON_GetArraySize(tiles)<24){
+   int tile_id=1;for(cJSON *v=tiles->child;v;v=v->next)if(integer(v,"id")>=tile_id)tile_id=integer(v,"id")+1;
+   cJSON *t=cJSON_CreateObject();if(!t)return false;
+   if(!cJSON_AddNumberToObject(t,"id",tile_id)||!cJSON_AddStringToObject(t,"type","device")||!cJSON_AddNumberToObject(t,"ref",id)||!cJSON_AddNumberToObject(t,"span",2)||!cJSON_AddNumberToObject(t,"height",1)||!cJSON_AddNumberToObject(t,"fields",255)){cJSON_Delete(t);return false;}
+   cJSON_AddItemToArray(tiles,t);
+  }
+ }
+ if(!replace_text(found,"host",m->device.host))return false;
+ if(m->room!=UINT32_MAX){uint32_t room=m->room;if(room&&object_index(item(r,"rooms"),(int)room)==255)room=0;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(found,"room"),room);if(!replace_text(found,"name",m->device.name))return false;}
+ return true;
+}
+static void migration_ack(void)
+{
+ size_t count=0;for(size_t i=0;i<migration_count;i++)if(migrations[i].version>migration_submitted)migrations[count++]=migrations[i];
+ memset(migrations+count,0,(migration_count-count)*sizeof(*migrations));migration_count=count;
+ cJSON_Delete(migration_document);migration_document=NULL;migration_failed=false;migration_result=migration_count?DSR_BUSY:DSR_OK;
+}
+static void migration_tick(void)
+{
+ if(!migration_count)return;
+ bool busy;char message[96];dsr_workspace_status(&busy,message);uint32_t revision=dsr_workspace_revision();
+ if(migration_document){
+  if(busy)return;
+  char *json=dsr_workspace_snapshot();cJSON *actual=json?cJSON_Parse(json):NULL;free(json);
+  bool acknowledged=actual&&revision==migration_revision+1&&cJSON_Compare(actual,migration_document,true);cJSON_Delete(actual);
+  if(acknowledged){migration_ack();return;}
+  cJSON_Delete(migration_document);migration_document=NULL;
+  /* Revision conflicts are retried from a fresh snapshot. Failed Flash ACK
+   * is reported as IO while the durable registry remains recoverable. */
+  if(revision==migration_revision){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
+ }
+ if(busy||(migration_failed&&(int32_t)(lv_tick_get()-migration_retry)<0))return;
+ char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);
+ if(!r){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
+ cJSON *baseline=cJSON_Duplicate(r,true);bool ok=baseline!=NULL;
+ for(size_t i=0;i<migration_count&&ok;i++)ok=merge_migration(r,&migrations[i]);
+ char error[96];ok=ok&&dsr_config_validate(r,error);migration_submitted=migration_serial;
+ if(ok&&cJSON_Compare(r,baseline,true)){cJSON_Delete(baseline);cJSON_Delete(r);migration_ack();return;}
+ cJSON_Delete(baseline);char *next=ok?cJSON_PrintUnformatted(r):NULL;
+ if(!next){cJSON_Delete(r);migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
+ migration_revision=revision;
+ if(dsr_workspace_submit(next,revision)){cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"revision"),revision+1);migration_document=r;migration_failed=false;migration_result=DSR_BUSY;}
+ else cJSON_Delete(r);
+ free(next);
+}
 void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t room,const char *previous_host)
 {
- if(!connection||!connection->device.host[0])return;
- char *json=dsr_workspace_snapshot();if(!json)return;cJSON *r=cJSON_Parse(json);free(json);if(!r)return;
- cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices");bool found=false,changed=false;int id=1;
- if(room!=UINT32_MAX&&room&&object_index(item(r,"rooms"),(int)room)==255)room=0;
- for(cJSON *v=a->child;v;v=v->next){
-  if((!strcmp(string(v,"host"),connection->device.host)||(previous_host&&previous_host[0]&&!strcmp(string(v,"host"),previous_host)))&&integer(v,"channel")==connection->device.channel){
-   found=true;
-   if(strcmp(string(v,"host"),connection->device.host)){cJSON_ReplaceItemInObjectCaseSensitive(v,"host",cJSON_CreateString(connection->device.host));changed=true;}
-   if(room!=UINT32_MAX){cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(v,"room"),room);cJSON_ReplaceItemInObjectCaseSensitive(v,"name",cJSON_CreateString(connection->device.name));changed=true;}
-  }if(integer(v,"id")>=id)id=integer(v,"id")+1;
- }
- if(!found&&cJSON_GetArraySize(a)<16){changed=true;cJSON *d=cJSON_CreateObject();cJSON_AddNumberToObject(d,"id",id);cJSON_AddStringToObject(d,"name",connection->device.name[0]?connection->device.name:"Shelly");cJSON_AddStringToObject(d,"host",connection->device.host);cJSON_AddNumberToObject(d,"channel",connection->device.channel);cJSON_AddNumberToObject(d,"room",room==UINT32_MAX?0:room);cJSON_AddStringToObject(d,"kind","relay");cJSON_AddItemToArray(a,d);
-  cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles"),*t=cJSON_CreateObject();int tile_id=1;for(cJSON *v=tiles->child;v;v=v->next)if(integer(v,"id")>=tile_id)tile_id=integer(v,"id")+1;
-  cJSON_AddNumberToObject(t,"id",tile_id);cJSON_AddStringToObject(t,"type","device");cJSON_AddNumberToObject(t,"ref",id);cJSON_AddNumberToObject(t,"span",2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);if(cJSON_GetArraySize(tiles)<24)cJSON_AddItemToArray(tiles,t);else cJSON_Delete(t);
- }
- if(changed){char *next=cJSON_PrintUnformatted(r);if(next){dsr_workspace_submit(next,(uint32_t)integer(r,"revision"));free(next);}}
- cJSON_Delete(r);
+ if(!connection||!connection->device.device_id[0])return;
+ size_t i=0;for(;i<migration_count;i++)if(migrations[i].device.channel==connection->device.channel&&migrations[i].device.generation==connection->device.generation&&!strcmp(migrations[i].device.device_id,connection->device.device_id))break;
+ if(i==DSR_MAX_DEVICES){migration_failed=true;migration_result=DSR_FULL;return;}
+ if(i==migration_count)migration_count++;
+ migrations[i].device=connection->device;migrations[i].layout_id=connection->layout_id;migrations[i].room=room;migrations[i].version=++migration_serial;
+ snprintf(migrations[i].previous_host,sizeof(migrations[i].previous_host),"%s",previous_host?previous_host:"");migration_failed=false;migration_result=DSR_BUSY;
 }
+bool dsr_ui_workspace_migrate_status(dsr_result_t *result)
+{if(result)*result=migration_result;return migration_count&&!migration_failed;}
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection){dsr_ui_workspace_migrate_bound(connection,UINT32_MAX,NULL);}
 #endif

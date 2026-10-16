@@ -2,6 +2,7 @@
 #include "nvs.h"
 #include "dsr_activity.h"
 #include <string.h>
+#include <stdlib.h>
 /* Exact schema-1 layout from before volatile telemetry was added. Keeping the
  * persistent type explicit preserves installed bindings across OTA updates. */
 typedef struct {dsr_device_t device;dsr_credentials_t credentials;} connection_record_v1_t;
@@ -42,20 +43,108 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found)
     return error;
 }
 
+/* New namespace avoids rewriting the installed schema-1 record during OTA.
+ * NVS replaces one atomic blob; no cross-key count/schema transaction. On an
+ * existing but unreadable registry we fail closed, never resurrect legacy. */
+typedef struct {
+    uint32_t schema,count;
+    struct {dsr_device_t device;dsr_credentials_t credentials;uint32_t layout_id;} items[DSR_MAX_DEVICES];
+} connection_registry_v2_t;
+static bool same_endpoint(const dsr_device_t *a,const dsr_device_t *b)
+{return !strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->channel==b->channel;}
+static esp_err_t registry_read(connection_registry_v2_t *registry)
+{
+    memset(registry,0,sizeof(*registry));registry->schema=2;
+    nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
+    if(error!=ESP_OK&&error!=ESP_ERR_NVS_NOT_FOUND)return error;
+    if(error==ESP_OK){
+        size_t length=sizeof(*registry);error=nvs_get_blob(handle,"registry",registry,&length);nvs_close(handle);
+        if(error!=ESP_ERR_NVS_NOT_FOUND){
+            if(error!=ESP_OK)return error;
+            if(length!=sizeof(*registry)||registry->schema!=2||registry->count>DSR_MAX_DEVICES)return ESP_ERR_INVALID_SIZE;
+            for(uint32_t i=0;i<registry->count;i++){
+                dsr_connection_t candidate={.device=registry->items[i].device,.credentials=registry->items[i].credentials};
+                if(!dsr_connection_valid(&candidate,true)||registry->items[i].layout_id>1000000)return ESP_ERR_INVALID_SIZE;
+                for(uint32_t j=0;j<i;j++)if(same_endpoint(&registry->items[i].device,&registry->items[j].device)||(registry->items[i].layout_id&&registry->items[i].layout_id==registry->items[j].layout_id))return ESP_ERR_INVALID_SIZE;
+            }
+            return ESP_OK;
+        }
+    }
+    dsr_connection_t legacy;bool found=false;error=dsr_connection_load(&legacy,&found);
+    if(error==ESP_OK){memset(registry,0,sizeof(*registry));registry->schema=2;if(found){registry->count=1;registry->items[0].device=legacy.device;registry->items[0].credentials=legacy.credentials;}}
+    memset(&legacy,0,sizeof(legacy));return error;
+}
+esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count)
+{
+    if(!out||!count)return ESP_ERR_INVALID_ARG;
+    *count=0;connection_registry_v2_t *registry=calloc(1,sizeof(*registry));if(!registry)return ESP_ERR_NO_MEM;
+    esp_err_t error=registry_read(registry);
+    if(error==ESP_OK&&registry->count>capacity)error=ESP_ERR_INVALID_SIZE;
+    if(error==ESP_OK){
+        for(uint32_t i=0;i<registry->count;i++){
+            out[i]=(dsr_connection_t){.device=registry->items[i].device,.credentials=registry->items[i].credentials,.layout_id=registry->items[i].layout_id};
+            out[i].device.online=out[i].device.has_switch=out[i].device.has_power=false;out[i].device.output=false;out[i].device.power_w=0;
+        }
+        *count=registry->count;
+    }
+    memset(registry,0,sizeof(*registry));free(registry);return error;
+}
+static esp_err_t registry_write(const connection_registry_v2_t *registry)
+{
+ nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READWRITE,&handle);
+ if(error!=ESP_OK)return error;
+ error=nvs_set_blob(handle,"registry",registry,sizeof(*registry));if(error==ESP_OK)error=nvs_commit(handle);nvs_close(handle);
+ if(error!=ESP_OK)return error;
+ connection_registry_v2_t *readback=calloc(1,sizeof(*readback));if(!readback)return ESP_ERR_NO_MEM;
+ error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
+ if(error==ESP_OK){size_t length=sizeof(*readback);error=nvs_get_blob(handle,"registry",readback,&length);if(error==ESP_OK&&(length!=sizeof(*readback)||memcmp(registry,readback,sizeof(*registry))))error=ESP_FAIL;nvs_close(handle);}
+ memset(readback,0,sizeof(*readback));free(readback);return error;
+}
 esp_err_t dsr_connection_save(const dsr_connection_t *connection)
 {
-    if (!dsr_connection_valid(connection, true)) return ESP_ERR_INVALID_ARG;
-    if (!dsr_activity_begin()) return ESP_ERR_INVALID_STATE;
-    nvs_handle_t handle;
-    esp_err_t error = nvs_open("dsr_device", NVS_READWRITE, &handle);
-    if (error != ESP_OK) { dsr_activity_end(); return error; }
-    connection_record_v1_t saved={.device=connection->device,.credentials=connection->credentials};
-    saved.device.online = saved.device.has_switch = saved.device.has_power = false;
-    saved.device.output = false; saved.device.power_w = 0;
-    error = nvs_set_blob(handle, "connection", &saved, sizeof(saved));
-    if (error == ESP_OK) error = nvs_set_u32(handle, "schema", 1);
-    if (error == ESP_OK) error = nvs_commit(handle);
-    nvs_close(handle);
-    dsr_activity_end();
-    return error;
+    if(!dsr_connection_valid(connection,true)||connection->layout_id>1000000)return ESP_ERR_INVALID_ARG;
+    if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+    connection_registry_v2_t *registry=calloc(1,sizeof(*registry));
+    if(!registry){dsr_activity_end();return ESP_ERR_NO_MEM;}
+    esp_err_t error=registry_read(registry);
+    if(error==ESP_OK){
+        uint32_t at=0;for(;at<registry->count;at++)if(same_endpoint(&registry->items[at].device,&connection->device))break;
+        if(at==DSR_MAX_DEVICES)error=ESP_ERR_NO_MEM;
+        else if(connection->layout_id){for(uint32_t i=0;i<registry->count;i++)if(i!=at&&registry->items[i].layout_id==connection->layout_id)error=ESP_ERR_INVALID_ARG;}
+        if(error==ESP_OK){
+            if(at==registry->count)registry->count++;
+            /* One physical identity may expose several independent channels. A
+             * verified DHCP/auth update applies to its siblings, preserving names. */
+            for(uint32_t i=0;i<registry->count;i++)if(registry->items[i].device.generation==connection->device.generation&&!strcmp(registry->items[i].device.device_id,connection->device.device_id)){
+                memcpy(registry->items[i].device.host,connection->device.host,sizeof(connection->device.host));registry->items[i].credentials=connection->credentials;
+            }
+            registry->items[at].device=connection->device;registry->items[at].credentials=connection->credentials;if(connection->layout_id)registry->items[at].layout_id=connection->layout_id;
+            dsr_device_t *device=&registry->items[at].device;device->online=device->has_switch=device->has_power=device->output=false;device->power_w=0;
+            error=registry_write(registry);
+        }
+    }
+    memset(registry,0,sizeof(*registry));free(registry);dsr_activity_end();return error;
+}
+
+static esp_err_t registry_change(const dsr_connection_t *connection,bool remove)
+{
+ if(!dsr_connection_valid(connection,true)||(!remove&&(!connection->layout_id||connection->layout_id>1000000)))return ESP_ERR_INVALID_ARG;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ connection_registry_v2_t *registry=calloc(1,sizeof(*registry));esp_err_t error=registry?registry_read(registry):ESP_ERR_NO_MEM;
+ if(error==ESP_OK){uint32_t at=0;while(at<registry->count&&!same_endpoint(&registry->items[at].device,&connection->device))at++;
+  if(at==registry->count)error=ESP_ERR_NOT_FOUND;
+  else {if(!remove)for(uint32_t i=0;i<registry->count;i++)if(i!=at&&registry->items[i].layout_id==connection->layout_id)error=ESP_ERR_INVALID_ARG;
+   if(error==ESP_OK){if(remove){memmove(&registry->items[at],&registry->items[at+1],(registry->count-at-1)*sizeof(registry->items[0]));memset(&registry->items[--registry->count],0,sizeof(registry->items[0]));}else registry->items[at].layout_id=connection->layout_id;error=registry_write(registry);}}
+ }
+ if(registry){memset(registry,0,sizeof(*registry));free(registry);}dsr_activity_end();return error;
+}
+esp_err_t dsr_connection_publish(const dsr_connection_t *connection){return registry_change(connection,false);}
+esp_err_t dsr_connection_remove(const dsr_connection_t *connection){return registry_change(connection,true);}
+
+esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id)
+{
+ if(!connection||!id)return ESP_ERR_INVALID_ARG;
+ connection_registry_v2_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
+ esp_err_t e=registry_read(r);if(e==ESP_OK){e=ESP_ERR_NOT_FOUND;for(uint32_t i=0;i<r->count;i++)if(same_endpoint(&r->items[i].device,&connection->device)){*id=r->items[i].layout_id;e=ESP_OK;break;}}
+ memset(r,0,sizeof(*r));free(r);return e;
 }

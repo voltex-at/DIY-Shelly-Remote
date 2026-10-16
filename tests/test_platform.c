@@ -1,6 +1,7 @@
 /* Runs actual HTTP parsing, binding checks and NVS adapters with real cJSON.
  * The fake HTTP transport does not validate IDF's Digest cryptography or radio. */
 #include "dsr_platform.h"
+#include "dsr_fleet.h"
 #include "../components/dsr_platform/dsr_activity_internal.h"
 #include "dsr_discovery.h"
 #include "cJSON.h"
@@ -63,13 +64,13 @@ esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
 int esp_http_client_get_status_code(esp_http_client_handle_t c) { (void)c; return steps[used].status; }
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { (void)c; used++; return ESP_OK; }
 
-static unsigned char blobs[2][1024];
-static size_t sizes[2]; static uint32_t schemas[2];
+static unsigned char blobs[3][8192];
+static size_t sizes[3]; static uint32_t schemas[3];
 static bool fail_commit;
 static unsigned write_opens,nvs_fault;
-static bool writing[2];
+static bool writing[3];
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h)
-{ *h = !strcmp(name, "dsr_cfg") ? 0 : 1;if(mode==NVS_READWRITE){CHECK(!dsr_activity_restart_reserve());write_opens++;if(nvs_fault==1)return ESP_FAIL;writing[*h]=true;}return mode == NVS_READONLY && !sizes[*h] ? ESP_ERR_NVS_NOT_FOUND : ESP_OK; }
+{ *h = !strcmp(name, "dsr_cfg") ? 0 : !strcmp(name,"dsr_device")?1:2;if(mode==NVS_READWRITE){CHECK(!dsr_activity_restart_reserve());write_opens++;if(nvs_fault==1)return ESP_FAIL;writing[*h]=true;}return mode == NVS_READONLY && !sizes[*h] ? ESP_ERR_NVS_NOT_FOUND : ESP_OK; }
 esp_err_t nvs_get_u32(nvs_handle_t h, const char *key, uint32_t *out)
 { (void)key; *out = schemas[h]; return ESP_OK; }
 esp_err_t nvs_set_u32(nvs_handle_t h, const char *key, uint32_t value)
@@ -172,12 +173,13 @@ static void test_storage(void)
     CHECK(dsr_connection_load(&out, &found) == ESP_OK && !found);
     CHECK(dsr_connection_save(&c) == ESP_ERR_INVALID_ARG);
     c.device.generation = DSR_GEN1; strcpy(c.device.device_id, "AABBCCDDEEFF"); c.device.online = true;
+    typedef struct {dsr_device_t device;dsr_credentials_t credentials;} legacy_connection_t;
+    legacy_connection_t old={.device=c.device,.credentials=c.credentials};memcpy(blobs[1],&old,sizeof(old));sizes[1]=sizeof(old);schemas[1]=1;
     CHECK(dsr_connection_save(&c) == ESP_OK);
     CHECK(dsr_connection_load(&out, &found) == ESP_OK && found && !out.device.online);
     CHECK(!strcmp(out.credentials.password, c.credentials.password));
-    typedef struct {dsr_device_t device;dsr_credentials_t credentials;} legacy_connection_t;
     CHECK(sizes[1]==sizeof(legacy_connection_t));
-    legacy_connection_t old={.device=c.device,.credentials=c.credentials};memcpy(blobs[1],&old,sizeof(old));sizes[1]=sizeof(old);schemas[1]=1;
+    old=(legacy_connection_t){.device=c.device,.credentials=c.credentials};memcpy(blobs[1],&old,sizeof(old));sizes[1]=sizeof(old);schemas[1]=1;
     CHECK(dsr_connection_load(&out,&found)==ESP_OK&&found&&!strcmp(out.device.device_id,"AABBCCDDEEFF"));CHECK(!out.telemetry.has_voltage&&!out.telemetry.has_current);
     c.telemetry=(dsr_telemetry_t){.has_voltage=true,.has_current=true,.voltage_v=230.4,.current_a=0.018};CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[1]==sizeof(old));CHECK(dsr_connection_load(&out,&found)==ESP_OK&&found&&!out.telemetry.has_voltage&&!out.telemetry.has_current);
     sizes[1]--; CHECK(dsr_connection_load(&out, &found) == ESP_ERR_INVALID_SIZE && !found);
@@ -189,7 +191,7 @@ static void test_storage(void)
     for(unsigned fault=0;fault<=4;fault++){
         nvs_fault=fault;unsigned before=write_opens;
         CHECK((dsr_settings_save(&settings)==ESP_OK)==(fault==0));CHECK(write_opens==before+1&&!writing[0]);admission_open();
-        before=write_opens;CHECK((dsr_connection_save(&c)==ESP_OK)==(fault==0));CHECK(write_opens==before+1&&!writing[1]);admission_open();
+        before=write_opens;CHECK((dsr_connection_save(&c)==ESP_OK)==(fault==0||fault==3));CHECK(write_opens==before+1&&!writing[2]);admission_open();
     }
     nvs_fault=0;unsigned before=write_opens;
     CHECK(dsr_settings_save(NULL)==ESP_ERR_INVALID_ARG&&dsr_connection_save(NULL)==ESP_ERR_INVALID_ARG&&write_opens==before);admission_open();
@@ -228,8 +230,58 @@ static void test_discovery(void)
     data[0].body=info1;data[0].status=200;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_IDENTITY_MISMATCH&&used==1);
     lan_mode=false;strcpy(c.device.device_id,"WRONG-IDENTITY");data[0].body=gen2;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_IDENTITY_MISMATCH&&used==1);
 }
+static void test_multi_registry(void)
+{
+ memset(sizes,0,sizeof(sizes));memset(schemas,0,sizeof(schemas));
+ dsr_connection_t a=connection();a.device.generation=DSR_GEN1;strcpy(a.device.device_id,"AABBCCDDEEFF");
+ typedef struct {dsr_device_t device;dsr_credentials_t credentials;} legacy_t;
+ legacy_t legacy={a.device,a.credentials};memcpy(blobs[1],&legacy,sizeof(legacy));sizes[1]=sizeof(legacy);schemas[1]=1;
+ dsr_connection_t loaded[DSR_MAX_DEVICES];size_t n=0;
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!sizes[2]);
+ dsr_connection_t b=a;strcpy(b.device.device_id,"112233445566");strcpy(b.device.host,"192.168.1.11");strcpy(b.credentials.password,"second-secret");
+ CHECK(dsr_connection_save(&b)==ESP_OK);CHECK(!memcmp(blobs[1],&legacy,sizeof(legacy))&&schemas[1]==1);
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!strcmp(loaded[0].device.device_id,a.device.device_id)&&!strcmp(loaded[1].credentials.password,"second-secret"));
+ a.layout_id=42;CHECK(dsr_connection_publish(&a)==ESP_OK);
+ b.layout_id=42;CHECK(dsr_connection_publish(&b)==ESP_ERR_INVALID_ARG);b.layout_id=43;CHECK(dsr_connection_publish(&b)==ESP_OK);
+ dsr_connection_t channel=a;channel.device.channel=1;channel.layout_id=0;CHECK(dsr_connection_save(&channel)==ESP_OK);
+ strcpy(a.device.host,"192.168.1.99");a.layout_id=0;CHECK(dsr_connection_save(&a)==ESP_OK);
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==3&&loaded[0].layout_id==42&&!strcmp(loaded[0].device.host,a.device.host)&&!strcmp(loaded[2].device.host,a.device.host));
+ CHECK(!strcmp(loaded[1].device.host,b.device.host));
+ unsigned char durable[8192];size_t durable_size=sizes[2];memcpy(durable,blobs[2],durable_size);
+ ((uint32_t *)blobs[2])[0]=99;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);unsigned before=write_opens;CHECK(dsr_connection_save(&a)!=ESP_OK&&write_opens==before);memcpy(blobs[2],durable,durable_size);
+ sizes[2]--;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);sizes[2]=durable_size;
+ CHECK(dsr_connection_remove(&b)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&!strcmp(loaded[0].device.device_id,a.device.device_id));
+ CHECK(dsr_connection_remove(&a)==ESP_OK&&dsr_connection_remove(&channel)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==0);CHECK(!memcmp(blobs[1],&legacy,sizeof(legacy))); /* authoritative empty never resurrects legacy */
+ for(unsigned i=0;i<16;i++){a=connection();a.device.generation=DSR_GEN2_PLUS;snprintf(a.device.device_id,sizeof(a.device.device_id),"shelly-%u",i);CHECK(dsr_connection_save(&a)==ESP_OK);}
+ CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==16);strcpy(a.device.device_id,"shelly-overflow");CHECK(dsr_connection_save(&a)!=ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==16);
+ admission_open();
+}
+static void complete_fleet(dsr_fleet_t *f,unsigned index,const dsr_job_t *job,dsr_result_t result,uint32_t now)
+{
+ dsr_event_t event={.id=job->id,.result=result,.device=job->connection.device,.telemetry=job->connection.telemetry};event.device.online=result==DSR_OK;
+ CHECK(dsr_fleet_complete(f,index,&event,now));
+}
+static void test_multi_scheduler(void)
+{
+ dsr_fleet_t f={0};dsr_connection_t a=connection();strcpy(a.device.device_id,"shelly-A");a.device.generation=DSR_GEN2_PLUS;a.device.online=a.device.has_switch=true;a.device.power_w=12;a.device.has_power=true;a.telemetry=(dsr_telemetry_t){.has_voltage=true,.voltage_v=230};
+ dsr_connection_t b=a;strcpy(b.device.host,"192.168.1.11");strcpy(b.device.device_id,"shelly-B");b.device.power_w=55;b.telemetry.voltage_v=240;
+ CHECK(dsr_fleet_upsert(&f,&a,0)==DSR_OK&&dsr_fleet_upsert(&f,&b,0)==DSR_OK&&f.count==2);
+ dsr_job_t job;unsigned index=99;CHECK(dsr_fleet_next(&f,5000,true,&job,&index)&&index==0&&job.kind==DSR_JOB_PROBE);job.id=1;dsr_fleet_started(&f,index,&job);
+ CHECK(dsr_fleet_request(&f,1,true,true,5000)==DSR_OK);CHECK(dsr_fleet_request(&f,1,false,true,5000)==DSR_BUSY);CHECK(!dsr_activity_restart_reserve());
+ complete_fleet(&f,0,&job,DSR_OFFLINE,8000);CHECK(!f.slots[0].connection.device.online&&f.slots[1].connection.device.online&&f.slots[1].connection.device.power_w==55);
+ CHECK(dsr_fleet_next(&f,8000,true,&job,&index)&&index==1&&job.kind==DSR_JOB_SET_OUTPUT&&job.on);job.id=2;CHECK(dsr_activity_begin());dsr_fleet_started(&f,index,&job);CHECK(!dsr_activity_restart_reserve());
+ complete_fleet(&f,1,&job,DSR_OFFLINE,9000);dsr_activity_end();admission_open();CHECK(!dsr_fleet_next(&f,9000,false,&job,&index)); /* never replay timed-out SET */
+ dsr_fleet_refresh(&f,10000);CHECK(dsr_fleet_next(&f,10000,true,&job,&index)&&job.kind==DSR_JOB_PROBE);job.id=3;dsr_fleet_started(&f,index,&job);
+ dsr_event_t stale={.id=2,.result=DSR_OK,.device=b.device};CHECK(!dsr_fleet_complete(&f,index,&stale,10000));
+ stale.id=3;strcpy(stale.device.device_id,"foreign");CHECK(dsr_fleet_complete(&f,index,&stale,10000)&&f.slots[index].blocked);CHECK(strcmp(f.slots[index].connection.device.device_id,"foreign"));
+ dsr_fleet_wifi(&f,false,11000);dsr_fleet_wifi(&f,true,12000);CHECK(!f.slots[0].connection.device.online&&!f.slots[1].connection.device.online);
+ CHECK(dsr_fleet_upsert(&f,&b,13000)==DSR_OK);f.slots[1].command_id=17;CHECK(dsr_fleet_request(&f,1,false,true,13000)==DSR_OK&&f.slots[1].command_id==17); /* LCD preserves HTTP correlation */
+ dsr_fleet_wifi(&f,false,13001);admission_open();
+ CHECK(dsr_fleet_upsert(&f,&b,14000)==DSR_OK);CHECK(dsr_fleet_request(&f,1,true,true,30000)==DSR_OFFLINE); /* stale cannot SET */
+ printf("Multi memory: connection=%zu slot=%zu fleet=%zu bytes; no extra worker/task\n",sizeof(dsr_connection_t),sizeof(dsr_fleet_slot_t),sizeof(dsr_fleet_t));
+}
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();
+    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
 }

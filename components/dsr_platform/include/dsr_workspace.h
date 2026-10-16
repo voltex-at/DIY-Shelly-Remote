@@ -44,4 +44,19 @@ bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *ro
 void dsr_workspace_bind_result(dsr_result_t result);
 void dsr_workspace_bind_status(bool *busy,char message[64]);
 dsr_result_t dsr_workspace_bind_result_code(void);
+/* Secret-free live data; UI owns providers, HTTP receives copies only. */
+typedef struct {
+ dsr_device_t device;
+ dsr_telemetry_t telemetry;
+ dsr_result_t error;
+ bool pending,has_sample_time;
+ uint32_t sample_age_ms,operation_id;
+} dsr_runtime_device_t;
+typedef struct {dsr_device_t device;bool on;uint32_t operation_id;} dsr_output_request_t;
+bool dsr_workspace_runtime_publish_begin(size_t count);
+void dsr_workspace_runtime_publish_end(void);
+void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device);
+size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capacity);
+dsr_result_t dsr_workspace_output_request(const dsr_device_t *device,bool on,uint32_t *operation_id);
+bool dsr_workspace_take_output(dsr_output_request_t *request);
 #endif

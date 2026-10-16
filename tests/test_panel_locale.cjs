@@ -34,7 +34,7 @@ async function fixture(browser,options={}){
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   if(!u.pathname.startsWith('/api/')){
    if(u.pathname==='/favicon.ico')return route.fulfill({status:404,body:''});
-   const asset={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
+   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
    return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});
   }
   state.requests.push({path:u.pathname,method:req.method()});
@@ -43,6 +43,7 @@ async function fixture(browser,options={}){
   if(u.pathname.endsWith('/pair')){if(state.pairFail)return send(403,{error:'Pairing fixture refused'});state.paired=true;return send(200,{paired:true});}
   if(!state.paired)return send(401,{});
   if(u.pathname.endsWith('/config')){if(req.method()==='PUT'){if(state.putFail)return send(409,{error:'MODEL conflict'});const next=req.postDataJSON();if(state.onPut){state.onPut();state.onPut=null;}if(state.saveGate)await state.saveGate;if(next.revision!==state.config.revision)return send(409,{error:'MODEL conflict'});state.config={...next,revision:next.revision+1};return send(202,{saving:true});}return send(200,state.config);}
+  if(u.pathname.endsWith('/devices/runtime'))return send(200,{boot_id:1,devices:[]});
   if(u.pathname.endsWith('/status'))return send(200,{revision:state.config.revision,busy:false,firmware:'HOST TEST / DEMO'});
   if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2),contentType:'application/octet-stream'});
   if(u.pathname.endsWith('/discovery/scan'))return send(202,{});

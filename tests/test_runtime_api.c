@@ -1,0 +1,63 @@
+/* Actual parser/serializer and cJSON. Snapshot provider/NVS/HTTP are MODEL. */
+#include "dsr_runtime_api.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static unsigned checks,attempts,fail_at,live;
+static dsr_runtime_device_t snapshots[DSR_MAX_DEVICES];
+static size_t snapshot_count;
+#define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
+static void *tracked_malloc(size_t n){attempts++;if(fail_at&&attempts==fail_at)return NULL;void *p=malloc(n);if(p)live++;return p;}
+static void tracked_free(void *p){if(p){CHECK(live>0);live--;free(p);}}
+size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *out,size_t capacity)
+{CHECK(out&&capacity==DSR_MAX_DEVICES&&snapshot_count<=capacity);memcpy(out,snapshots,snapshot_count*sizeof(*out));return snapshot_count;}
+static const char *valid="{\"device_id\":\"shellyplus1-aabbccddeeff\",\"generation\":2,\"channel\":7,\"on\":true}";
+static void parser(void)
+{
+ dsr_device_t d={0};bool on=false;CHECK(dsr_output_parse(valid,&d,&on)&&on&&d.generation==DSR_GEN2_PLUS&&d.channel==7&&!strcmp(d.device_id,"shellyplus1-aabbccddeeff"));
+ CHECK(!d.host[0]&&!d.name[0]&&!d.online&&!d.has_power);
+ CHECK(dsr_output_parse("{\"on\":false,\"channel\":0,\"generation\":1,\"device_id\":\"AABBCCDDEEFF\"}",&d,&on)&&!on&&d.generation==DSR_GEN1);
+ const char *bad[]={NULL,"","null","[]","true","1","{}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0}",
+  "{\"device_id\":\"a\",\"device_id\":\"b\",\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0,\"on\":true,\"host\":\"192.0.2.8\"}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0,\"on\":true,\"password\":\"no-credentials-in-api\"}",
+  "{\"device_id\":\"a/b\",\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"shelly-A\\u0000ignored\",\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\\u0000ignored\":\"a\",\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"\",\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\":7,\"generation\":2,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":3,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2.1,\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":\"2\",\"channel\":0,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":-1,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":16,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0.5,\"on\":true}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0,\"on\":1}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0,\"on\":\"true\"}",
+  "{\"device_id\":\"a\",\"generation\":2,\"channel\":0,\"on\":true} {}"};
+ for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);i++){memset(&d,0x5a,sizeof(d));dsr_device_t before=d;on=false;CHECK(!dsr_output_parse(bad[i],&d,&on));CHECK(!memcmp(&d,&before,sizeof(d))&&!on);CHECK(live==0);}
+ char large[300];memset(large,' ',sizeof(large));large[sizeof(large)-1]=0;CHECK(!dsr_output_parse(large,&d,&on));
+ CHECK(!dsr_output_parse(valid,NULL,&on)&&!dsr_output_parse(valid,&d,NULL));
+ attempts=0;CHECK(dsr_output_parse(valid,&d,&on));unsigned total=attempts;CHECK(live==0&&total>=8);
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;memset(&d,0x5a,sizeof(d));dsr_device_t before=d;on=false;CHECK(!dsr_output_parse(valid,&d,&on));CHECK(!memcmp(&d,&before,sizeof(d))&&!on&&live==0);}fail_at=0;
+}
+static void serializer(void)
+{
+ snapshot_count=2;
+ for(unsigned i=0;i<2;i++){
+  dsr_runtime_device_t *r=&snapshots[i];r->device.generation=DSR_GEN2_PLUS;r->device.channel=(uint8_t)i;snprintf(r->device.device_id,sizeof(r->device.device_id),"shelly-fixture-%u",i);snprintf(r->device.name,sizeof(r->device.name),"TEST / DEMO %u",i);snprintf(r->device.host,sizeof(r->device.host),"192.0.2.%u",i+8);r->device.online=r->device.has_switch=true;r->device.output=i!=0;r->device.has_power=true;r->device.power_w=(float)i+2.5f;r->telemetry.has_voltage=true;r->telemetry.voltage_v=230+(float)i;r->pending=i!=0;r->operation_id=37+i;r->sample_age_ms=1000*i;r->has_sample_time=true;
+ }
+ attempts=0;char *json=dsr_runtime_json(123);CHECK(json);unsigned total=attempts;
+ CHECK(!strstr(json,"password")&&!strstr(json,"credentials")&&!strstr(json,"token")&&!strstr(json,"pairing"));
+ cJSON *root=cJSON_Parse(json);CHECK(root);cJSON *array=cJSON_GetObjectItemCaseSensitive(root,"devices");CHECK(cJSON_GetObjectItemCaseSensitive(root,"boot_id")->valueint==123&&cJSON_GetArraySize(array)==2);
+ for(unsigned i=0;i<2;i++){cJSON *d=cJSON_GetArrayItem(array,(int)i);CHECK(cJSON_GetObjectItemCaseSensitive(d,"channel")->valueint==(int)i);CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(d,"output"))==(i!=0));CHECK(cJSON_GetObjectItemCaseSensitive(d,"operation_id")->valueint==(int)(37+i));CHECK(cJSON_GetObjectItemCaseSensitive(d,"voltage_v")->valuedouble==230+i);}
+ cJSON_Delete(root);cJSON_free(json);CHECK(live==0&&total>=80);
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(123);CHECK(!json&&live==0);}fail_at=0;
+ snapshot_count=0;json=dsr_runtime_json(124);CHECK(json);root=cJSON_Parse(json);CHECK(root&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(root,"devices"))==0);cJSON_Delete(root);cJSON_free(json);CHECK(live==0);
+}
+int main(void)
+{
+ cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
+}

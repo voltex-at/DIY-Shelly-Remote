@@ -1,0 +1,30 @@
+#ifndef DSR_FLEET_H
+#define DSR_FLEET_H
+#include "dsr_platform.h"
+/* Single UI-task owner. Fixed storage, one explicit user intent per endpoint.
+ * The transport remains serial; another endpoint can queue while I/O runs. */
+typedef struct {
+ dsr_connection_t connection;
+ dsr_result_t result;
+ dsr_device_t intent_identity;
+ uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
+ uint8_t failures;
+ bool sample_valid,blocked,command_error,queued,on,in_flight,layout_enabled;
+ dsr_job_kind_t operation;
+} dsr_fleet_slot_t;
+typedef struct {
+ dsr_fleet_slot_t slots[DSR_MAX_DEVICES];
+ size_t count;
+ unsigned cursor;
+ uint32_t order;
+} dsr_fleet_t;
+bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b);
+int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
+dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);
+dsr_result_t dsr_fleet_request(dsr_fleet_t *fleet,unsigned index,bool on,bool wifi,uint32_t now);
+bool dsr_fleet_next(dsr_fleet_t *fleet,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index);
+void dsr_fleet_started(dsr_fleet_t *fleet,unsigned index,const dsr_job_t *job);
+bool dsr_fleet_complete(dsr_fleet_t *fleet,unsigned index,const dsr_event_t *event,uint32_t now);
+void dsr_fleet_wifi(dsr_fleet_t *fleet,bool online,uint32_t now);
+void dsr_fleet_refresh(dsr_fleet_t *fleet,uint32_t now);
+#endif

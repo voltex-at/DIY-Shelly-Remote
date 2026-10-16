@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.22, rewizja 23
+# Matryca funkcji — 0.7.23, rewizja 24
 
 ## #5/#6: język Web Panelu niezależny od pilota
 
@@ -8,10 +8,24 @@ dsr.web.locale/browser fallback. Tylko jawne UI text/ARIA bindings, bez render,
 API, changed/Save/load i bez zmian shared language/revision. Pola/focus/files/
 paircode/dirty/conflict/strona pozostają. User names/SSID/preview nietłumaczone.
 Język pilota = wspólny workspace; język WWW = ta przeglądarka.
-Browser test/review/exact CI/artefakt/physical gates osobno. Lokalny Chromium
-SIGTRAP nie jest PASS; wymagane rzeczywiste wykonanie w CI. Bez backend zmian.
+PR49 source8637296, exact CI38894174497 **5/5 PASS**, real browser/renders
+w CI. Lokalny Chromium SIGTRAP nie jest lokalnym PASS. Fizyczny locale retest
+otwarty. Sam etap locale nie zmieniał backendu; nowy backend #20 opisany niżej.
 Parent PR48f9bac663 CI38892424314 5/5, pobrany exact BIN1780240 B i ELF/segmenty/
 partycje sprawdzone, pełne dowody w PR48; jego nowy UI czeka na fizyczny retest.
+
+## #20: niezależne bindingi i sterowanie — nowy pion DEV, fizyczny odbiór otwarty
+
+[Kontrakt/migracja/test sprzętowy](MULTI_DEVICE_PL.md): rzeczywisty rejestr do16
+endpointów identity/generation/channel, bez zastępowania pierwszego; lazy legacy
+NVS→osobny schema2 blob + exact readback, workspace schema1 bez zmian. Prywatne
+numericID, zbiorczy CAS/exact ACK obu stores, targeted UNBIND, sekrety pozaWWW.
+Per-device state/auth/backoff/FIFO intent; jeden bounded serial worker, brak SET
+replay, obligatory identity+readback, stale15s. LCD LAN `Już dodane`, osobne karty
+W/V/A; authenticated WWW runtime/output API z epoką restartu. To NIE 16 równoległych
+transportów. Minimum2 fizyczne Shelly, latencja/offline/Wi-Fi+BLE/heap/restart,
+exact-head CI i artefakt są otwarte. Nie zamykać #20 na podstawie testów hostowych.
+
 
 ## P0: rzeczywisty odczyt wrócił; poprawki Save/Usuń
 
@@ -258,7 +272,7 @@ Obowiązek utrzymania: Issue #25. Zmiana callbacku, transportu, capability albo
 statusu testów wymaga aktualizacji tej tabeli w tym samym PR.
 
 **To nie jest deklaracja ukończenia produktu.** Konfiguracja 16 wpisów nie daje
-16 aktywnych połączeń. Działa transport jednego switch/relay. Produkcja nie
+16 równoległych połączeń. Nowy pion #20 ma niezależne endpointy przy jednym workerze. Produkcja nie
 zastępuje brakujących odczytów danymi DEMO. BLE scan nie paruje urządzeń.
 
 Statusy: **Not implemented** — brak wykonawcy; **UI mock** — wyłącznie jawny DEMO;
@@ -306,7 +320,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Wynik BLE / szczegóły / RSSI / ostatnia reklama | Grupy i wyniki skanera | RPC UUID, Shelly manufacturer, BTHome v2 | CI tested: bez zgadywania generacji/modelu; wykryto ≠ sparowano | #18; model Wi-Fi i BLU jeśli dostępne, pusty skan, brak radia |
 | Wynik BLE RPC → Szukaj w LAN | Powrót do metod i LAN | Urządzenie faktycznie obecne w LAN | CI tested: przejście do istniejącego kreatora | #7/#18; BLE nie dodaje sam do Wi-Fi |
 | BLE pairing / provisioning / stałe BLU | Wyłącznie tekst o ograniczeniu, bez atrapy Add | Zgodny GATT/RPC/bonding/BTHome | Not implemented | #18 B1/B2/B3; osobny test modelu, autoryzacji i kluczy |
-| Wiele wpisów urządzeń | CRUD do 16 definicji | **Nie 16 transportów** | CI tested: konfiguracja; Not implemented: multi-device executor | #20; co najmniej dwa Shelly bez nadpisania starego |
+| Wiele urządzeń Shelly | Trwały registry do16 endpointów + własny stan/sterowanie | Bounded serial I/O, nie16 równoległych połączeń | Kod + genuine native/LVGL; exact CI i fizyczny odbiór otwarte | #20; min2 fizyczne Shelly, offline/DHCP/restart/heap |
 | Roleta Otwórz / Zamknij / Stop / wskaźnik | Definicja i podgląd | Realny Cover transport nieobecny | UI mock w jawnym DEMO; produkcyjne sterowanie disabled/unknown | #15/#23, PR #16; bezpieczne stanowisko Cover RPC |
 | Roleta edycja ołówkiem | Edytuj definicję | Zapisany wpis | CI tested: otwiera istniejący edytor; DEMO disabled | PR #16; właściwe ID po zmianie kolejności |
 | Dimmer / RGB/RGBW / termostat | Brak funkcjonalnego kontrolera | API danego modelu | Not implemented | #23; osobny typ/PR, capability i readback |

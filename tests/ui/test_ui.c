@@ -37,6 +37,11 @@ static dsr_job_t submitted;
 static dsr_event_t response;
 static bool in_flight, result_ready;
 static dsr_result_t next_submit_result;
+static dsr_job_t maintenance;static bool maintenance_ready;
+static dsr_result_t maintenance_result=DSR_OK;
+static bool hold_maintenance;
+static unsigned publish_jobs,unbind_jobs;
+void test_workspace_raw_fault(unsigned fault);
 static dsr_settings_t stored = {.brightness = 70, .idle_seconds = 60};
 static dsr_wifi_info_t wifi;
 static unsigned char canvas[320 * 480 * 3];
@@ -79,13 +84,15 @@ void dsr_board_sleep_display(void) {}
 bool dsr_board_touch_available(void) {return true;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}
+esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count){(void)out;(void)capacity;*count=0;return ESP_OK;}
+bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&c->device.host[0]&&(!bound||c->device.device_id[0]);}
 bool dsr_wifi_connected(void) {return wifi.connected;}
 void dsr_wifi_get_info(dsr_wifi_info_t *out) {*out=wifi;}
 void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);}
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
-{if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;submitted=*job; in_flight=true; return DSR_OK;}
+{if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
-{if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
+{if(maintenance_ready&&!hold_maintenance){*out=(dsr_event_t){.id=maintenance.id,.result=maintenance_result,.device=maintenance.connection.device,.layout_id=maintenance.connection.layout_id};maintenance_ready=false;dsr_activity_end();return true;}if(!result_ready)return false; *out=response; result_ready=false; in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
 
 static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
 {
@@ -100,7 +107,7 @@ static void flush(lv_display_t *d,const lv_area_t *area,uint8_t *data)
     }
     lv_display_flush_ready(d);
 }
-static void tick(void) {lv_tick_inc(250);lv_timer_handler();lv_refr_now(display);}
+static void tick(void) {lv_tick_inc(250);lv_timer_handler();for(unsigned i=0;i<20&&maintenance_ready&&!hold_maintenance;i++){lv_tick_inc(250);lv_timer_handler();}lv_refr_now(display);}
 static void screenshot(const char *name)
 {
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
@@ -143,7 +150,7 @@ static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *sk
     for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=nth_type(lv_obj_get_child(root,(int)i),type,skip);if(o)return o;}return NULL;
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
-{response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();}
+{response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();if(submitted.kind==DSR_JOB_BIND&&!in_flight)tick();}
 static void battery_regression(void)
 {
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
@@ -489,7 +496,7 @@ static void p0_editor_regression(void)
   r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name",cJSON_CreateString(wide));publish_document(r);p0_generic("Pomieszczenia",wide);p0_visible_delete("Usuń pomieszczenie");lv_obj_t *title=p0_modal(wide),*description=find_label(lv_screen_active(),"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie.");CHECK(description);lv_area_t a,b,c;lv_obj_get_coords(title,&a);lv_obj_get_coords(description,&b);lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj")),&c);CHECK(a.y2<b.y1&&b.y2<c.y1&&lv_obj_get_height(title)==44);screenshot(language==0?"183-delete-wide-pl":language==1?"184-delete-wide-en":"185-delete-wide-de");click("Anuluj");
   p0_generic("Pulpity",wide);p0_visible_delete("Usuń pulpit");p0_modal(wide);screenshot(language==0?"186-dashboard-wide-pl":language==1?"187-dashboard-wide-en":"188-dashboard-wide-de");click("Anuluj");
  }
- dsr_network_home(NULL);dsr_sc_appearance(DSR_SC_BLUE,false,0);p0_generic("Pomieszczenia",wide);for(unsigned i=0;i<3;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor_t before,after;lv_mem_monitor(&before);for(unsigned i=0;i<40;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor(&after);printf("P0 generic delete heap before=%lu after=%lu;40 cancel cycles, host workspace MODEL\n",(unsigned long)before.free_size,(unsigned long)after.free_size);fflush(stdout);CHECK(before.free_size==after.free_size);
+ dsr_network_home(NULL);dsr_sc_appearance(DSR_SC_BLUE,false,0);p0_generic("Pomieszczenia",wide);for(unsigned i=0;i<40;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor_t before,after;lv_mem_monitor(&before);for(unsigned i=0;i<40;i++){p0_visible_delete("Usuń pomieszczenie");click("Anuluj");tick();}lv_mem_monitor(&after);printf("P0 generic delete heap before=%lu after=%lu;40 cancel cycles, host workspace MODEL\n",(unsigned long)before.free_size,(unsigned long)after.free_size);fflush(stdout);CHECK(before.free_size==after.free_size);
  dsr_network_home(NULL);test_workspace_disable();dsr_sc_appearance(DSR_SC_BLUE,false,0);
 }
 static void polling_regression(void)
@@ -517,8 +524,9 @@ static void polling_regression(void)
  before=requests;click("Odśwież stan");CHECK(requests==before); /* joins read */
  deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"230.4 V")==label);screenshot("72-details-poll-freshness");
  lv_tick_inc(1000);tick();CHECK(find_label(lv_screen_active(),"Odczyt potwierdzony 1 s temu"));CHECK(find_label(lv_screen_active(),"230.4 V")==label);
- /* Busy dispatch is reported and never retried as a SET by automatic polling. */
+ /* A refused queue admission preserves one intent until admission succeeds. */
  lv_tick_inc(5000);tick();before=requests;tap(160,262);CHECK(submitted.kind==DSR_JOB_PROBE);next_submit_result=DSR_BUSY;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!in_flight&&requests==before);
+ tick();CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT);response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);
  lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);deliver(DSR_OK,DSR_WIFI_IDLE);click("Odśwież stan");deliver(DSR_OK,DSR_WIFI_IDLE);
  /* Losing Wi-Fi while queued cancels intent even if the read later succeeds. */
  lv_tick_inc(5000);tick();before=requests;tap(160,262);wifi.connected=false;tick();CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(requests==before&&!in_flight);
@@ -573,6 +581,32 @@ static void keyboard_regression(void)
  dsr_sc_appearance(DSR_SC_BLUE,false,0);lv_obj_clean(lv_screen_active());
 }
 
+static void multi_device_regression(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);wifi.connected=false;tick();
+ if(in_flight){response.device=submitted.connection.device;response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ test_workspace_enable();dsr_network_home(NULL);tick();wifi.connected=true;tick();
+ dsr_connection_t a={.device={.host="192.168.1.50",.name="Relay A",.device_id="shelly-A",.generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.has_power=true,.power_w=11,.output=false},.credentials={.username="admin",.password="first-private"},.telemetry={.has_voltage=true,.voltage_v=230.1,.has_current=true,.current_a=.05}};
+ dsr_connection_t b=a;strcpy(b.device.host,"192.168.1.51");strcpy(b.device.name,"Relay B");strcpy(b.device.device_id,"shelly-B");strcpy(b.credentials.password,"second-private");b.device.power_w=44;b.telemetry.voltage_v=240.2;b.telemetry.current_a=.19;
+ CHECK(dsr_network_bind_verified(&a,0)==DSR_OK);response=(dsr_event_t){.device=a.device,.telemetry=a.telemetry};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Relay A"));
+ CHECK(dsr_network_bind_verified(&b,0)==DSR_OK);response=(dsr_event_t){.device=b.device,.telemetry=b.telemetry};deliver(DSR_OK,DSR_WIFI_IDLE);
+ char *json=dsr_workspace_snapshot();dsr_mobile_model_t layout={0};CHECK(json&&dsr_mobile_configure(&layout,json));CHECK(!strstr(json,"first-private")&&!strstr(json,"second-private")&&!strstr(json,"device_id"));free(json);
+ CHECK(layout.device_count==2&&find_label(lv_screen_active(),"Relay A")&&find_label(lv_screen_active(),"Relay B"));uint32_t id_a=layout.devices[0].id;
+ screenshot("200-two-real-bindings-fixture");click("Relay B");CHECK(find_label(lv_screen_active(),"240.2 V")&&find_label(lv_screen_active(),"44.0 W"));
+ lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&!strcmp(submitted.connection.device.device_id,"shelly-A"));dsr_job_t a_poll=submitted;
+ unsigned before=requests;lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(requests==before&&find_label(lv_screen_active(),"Wysyłanie polecenia…"));
+ response=(dsr_event_t){.device=a_poll.connection.device};response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);
+ CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!strcmp(submitted.connection.device.device_id,"shelly-B")&&submitted.on&&requests==before+1);
+ response=(dsr_event_t){.device=b.device,.telemetry=b.telemetry};response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"240.2 V")&&find_label(lv_screen_active(),"Włączone • Online"));screenshot("201-B-readback-A-offline");
+ dsr_network_home(NULL);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));screenshot("202-one-offline-other-online");
+ dsr_ui_lan_open(NULL);test_lan_found("{\"gen\":2,\"id\":\"shelly-A\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-001X16EU\",\"auth_en\":false}","192.168.1.60");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Już dodane"));screenshot("203-already-added-LAN");dsr_network_home(NULL);
+ strcpy(a.device.host,"192.168.1.60");CHECK(dsr_network_bind_verified(&a,0)==DSR_OK);response=(dsr_event_t){.device=a.device,.telemetry=a.telemetry,.layout_id=id_a};deliver(DSR_OK,DSR_WIFI_IDLE);
+ json=dsr_workspace_snapshot();CHECK(json&&dsr_mobile_configure(&layout,json));free(json);CHECK(layout.device_count==2&&layout.devices[0].id==id_a&&!strcmp(layout.devices[0].host,"192.168.1.60")&&!strcmp(layout.devices[1].host,"192.168.1.51"));
+ click("Relay A");CHECK(find_label(lv_screen_active(),"230.1 V")&&find_label(lv_screen_active(),"11.0 W"));screenshot("204-A-DHCP-stable-card-ID");
+ wifi.connected=false;tick();dsr_network_home(NULL);
+}
+#include "review_multi_regression.inc"
 int main(int argc,char **argv)
 {
     CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -637,7 +671,7 @@ int main(int argc,char **argv)
     dsr_network_home(NULL);screenshot("53-card-auth-error");CHECK(find_label(lv_screen_active(),"Błąd logowania"));click("Desk lamp");
     click("Odśwież stan");CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"230.4 V"));
     power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));screenshot("52-command-timeout");
-    lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));
+    lv_tick_inc(10000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));
     click("Odśwież stan");CHECK(submitted.kind==DSR_JOB_PROBE);deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(!find_label(lv_screen_active(),"Brak odpowiedzi"));
     power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);response.device.online=false;deliver(DSR_BAD_RESPONSE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Stan niepotwierdzony"));screenshot("54-readback-unconfirmed");click("Odśwież stan");CHECK(submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     dsr_network_home(NULL);
@@ -684,8 +718,9 @@ int main(int argc,char **argv)
     skip=1;lv_obj_t *channels=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(channels);CHECK(lv_dropdown_get_option_count(channels)==2);
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
-    configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count==1&&model.devices[0].room==0&&model.devices[0].channel==1);
+    configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
+    multi_device_regression();review_multi_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
 }

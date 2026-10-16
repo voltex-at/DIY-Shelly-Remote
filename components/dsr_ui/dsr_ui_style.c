@@ -17,6 +17,9 @@ lv_color_t dsr_sc_color(uint32_t c)
 const char *dsr_sc_tr(const char *text)
 {
  static const char *const words[][3]={
+ {"Już dodane","Already added","Bereits hinzugefügt"},
+ {"Dodanie zachowuje poprzednie urządzenia i ich kanały.","Adding preserves previous devices and their channels.","Beim Hinzufügen bleiben bisherige Geräte und deren Kanäle erhalten."},
+ {"Do 16 niezależnych kanałów przekaźników.\nDodanie zachowuje poprzednie połączenia.\nLokalne HTTP; Gen1 Basic / Gen2+ Digest.\nDane logowania w nieszyfrowanym NVS.","Up to 16 independent relay/switch endpoints.\nAdding another retains earlier bindings.\nLocal HTTP; Gen1 Basic / Gen2+ Digest.\nCredentials in unencrypted NVS.","Bis zu 16 unabhängige Relais-/Schaltkanäle.\nWeitere Geräte ersetzen keine Verbindungen.\nLokales HTTP; Gen1 Basic / Gen2+ Digest.\nZugangsdaten im unverschlüsselten NVS."},
  {"Ustawienia pilota","Remote settings","Fernbedienung einstellen"},
  {"Sieć i połączenia","Network and connections","Netzwerk und Verbindungen"},
  {"Ekran i komfort","Display and comfort","Bildschirm und Komfort"},

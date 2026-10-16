@@ -18,7 +18,9 @@ void test_workspace_defer(bool enabled){defer_save=enabled;}
 void test_workspace_finish(bool success){if(success){free(stored);stored=pending;}else free(pending);pending=NULL;}
 void test_workspace_enable(void){stored=dsr_config_default();}
 void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;defer_save=false;}
-char *dsr_workspace_snapshot(void){if(!stored)return NULL;char *copy=malloc(strlen(stored)+1);if(copy)strcpy(copy,stored);return copy;}
+static unsigned raw_fault;
+void test_workspace_raw_fault(unsigned fault){raw_fault=fault;}
+char *dsr_workspace_snapshot(void){if(raw_fault==1||!stored)return NULL;const char *text=raw_fault==2?"{broken":stored;char *copy=malloc(strlen(text)+1);if(copy)strcpy(copy,text);return copy;}
 dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out)
 {
  *out=NULL;if(snapshot_fault==1)return DSR_SNAPSHOT_UNAVAILABLE;if(snapshot_fault==2)return DSR_SNAPSHOT_NO_MEMORY;
@@ -74,3 +76,9 @@ void dsr_ble_cancel(void){if(ble.busy)dsr_ble_finish(&ble,ble.generation,DSR_BLE
 void test_ble_finish(dsr_ble_phase_t phase){dsr_ble_finish(&ble,ble.generation,phase,lv_tick_get());}
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address)
 {uint8_t addr[6]={(uint8_t)address,2,3,4,5,6};dsr_ble_ingest(&ble,ble.generation,addr,0,-48,bytes,length,lv_tick_get());}
+
+void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device){(void)index;(void)count;(void)device;}
+bool dsr_workspace_take_output(dsr_output_request_t *request){(void)request;return false;}
+
+bool dsr_workspace_runtime_publish_begin(size_t count){(void)count;return false;}
+void dsr_workspace_runtime_publish_end(void){}

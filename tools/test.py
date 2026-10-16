@@ -21,6 +21,8 @@ subprocess.run(["python3",str(ROOT/"tools/test_ota_release.py"),*( ["--sanitize"
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_fetch.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_ota_release_chain.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 subprocess.run(["python3",str(ROOT/"tools/test_restart.py"),*( ["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_runtime_api.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
+subprocess.run(["python3",str(ROOT/"tools/test_runtime_mailbox.py"),*(["--sanitize"] if args.sanitize else ["--ubsan-only"] if args.ubsan_only else [])],check=True)
 with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
     temp_root = Path(tmp).resolve()
     binary = temp_root / "test_core"
@@ -51,7 +53,7 @@ with tempfile.TemporaryDirectory(prefix="dsr-test-") as tmp:
                     *[str(ROOT / source) for source in [
                         "components/dsr_core/dsr_core.c", "components/dsr_platform/dsr_http.c",
                         "components/dsr_platform/dsr_discovery_model.c", "components/dsr_config/dsr_config.c",
-                        "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_settings.c",
+                        "components/dsr_platform/dsr_connection.c", "components/dsr_platform/dsr_fleet.c", "components/dsr_platform/dsr_settings.c",
                         "components/dsr_platform/dsr_wifi_policy.c", "components/dsr_platform/dsr_activity.c",
                         "tests/test_platform.c"]],
                     "-l:libcjson.so.1", "-lm", "-o", str(platform_binary)],

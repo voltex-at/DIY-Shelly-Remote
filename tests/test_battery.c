@@ -59,12 +59,16 @@ static unsigned display_load_error,display_save_error,display_saves;
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *in){CHECK(!dsr_activity_restart_reserve());display_saves++;CHECK(!strcmp(in->ssid,"new-network")&&!strcmp(in->password,"latest-private-password")&&in->wifi_security==DSR_WIFI_WPA2);if(display_save_error)return ESP_FAIL;display_stored=*in;return ESP_OK;}
 bool dsr_wifi_connected(void){return false;}
-bool dsr_connection_valid(const dsr_connection_t *c,bool bound){(void)c;(void)bound;return false;}
+bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&bound&&!strcmp(c->device.device_id,"maintenance");}
 bool dsr_wifi_settings_valid(const dsr_settings_t *s){(void)s;return false;}
 void dsr_wifi_prepare_connect(void){abort();}
 dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *s){(void)s;abort();}
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *s,dsr_wifi_status_t *d){(void)s;(void)d;abort();}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
+esp_err_t dsr_connection_layout_id(const dsr_connection_t *c,uint32_t *id){(void)c;(void)id;abort();}
+static unsigned publishes,removes;
+esp_err_t dsr_connection_publish(const dsr_connection_t *c){CHECK(c->layout_id==42&&!dsr_activity_restart_reserve());publishes++;return ESP_OK;}
+esp_err_t dsr_connection_remove(const dsr_connection_t *c){CHECK(!dsr_activity_restart_reserve());removes++;return c->layout_id==42?ESP_OK:ESP_FAIL;}
 esp_err_t dsr_connection_save(const dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
@@ -106,6 +110,12 @@ int main(void)
   CHECK(!strcmp(display_stored.ssid,"new-network")&&!strcmp(display_stored.password,"latest-private-password"));
   CHECK(!memcmp(&event.device,&(dsr_device_t){0},sizeof(event.device)));admission_open();
  }
+ for(unsigned n=0;n<3;n++){
+  dsr_job_t job={.id=150+n,.kind=n?DSR_JOB_UNBIND:DSR_JOB_LAYOUT_PUBLISH};strcpy(job.connection.device.device_id,"maintenance");job.connection.layout_id=n==2?0:42;
+  CHECK(dsr_worker_submit(&job)==DSR_OK);if(!setjmp(stop))worker(NULL);
+  dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.layout_id==job.connection.layout_id&&event.result==(n==2?DSR_IO:DSR_OK));admission_open();
+ }
+ CHECK(publishes==1&&removes==2); /* maintenance offline: zero HTTP calls */
  dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;

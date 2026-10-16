@@ -31,8 +31,11 @@ for name,expected in auth_blocks.items():
         old=b' if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST){esp_err_t e=json(r,"200 OK","{\\"restarting\\":true}");vTaskDelay(pdMS_TO_TICKS(500));esp_restart();return e;}\n'
         assert block.count(new)==1,'Unexpected restart route; normalization must stay exact'
         block=block.replace(new,old)
+        runtime=b' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output"))return runtime_api(r);\n'
+        assert block.count(runtime)==1 and block.index(runtime)>block.index(b'if(!authorized(r))'),'Runtime must remain after the unchanged authorization gate'
+        block=block.replace(runtime,b'')
     assert hashlib.sha256(block).hexdigest()==expected,f'Authentication source changed from 2a3e7dd: {name}'
-print('PASS: local_request/authorized unchanged; full API unchanged after exact approved restart-line normalization vs 2a3e7dd; SOURCE INVARIANCE ONLY, not runtime auth proof',flush=True)
+print('PASS: local_request/authorized unchanged; full API unchanged after exact approved restart/runtime dispatch normalization vs 2a3e7dd; SOURCE INVARIANCE ONLY, not runtime auth proof',flush=True)
 with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:
     tmp=Path(tmp)
     panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()

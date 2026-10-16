@@ -89,7 +89,7 @@ static void show_results(void)
         const dsr_lan_device_t *d=&snapshot.devices[i];lv_obj_t *card=dsr_sc_button(list,0,(int)i*88,296,80,DSR_SC_CARD,12,choose,(void *)(uintptr_t)i);
         dsr_sc_icon(card,DSR_ICON_PLUG,10,22,32,DSR_SC_TEXT);dsr_sc_text(card,d->model,52,9,234,&dsr_roboto_14,DSR_SC_TEXT);
         char text[80];snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);dsr_sc_text(card,text,52,31,234,&dsr_roboto_12,DSR_SC_MUTED);
-        dsr_sc_text(card,d->auth_required?"Wymaga hasła":"Gotowe do sprawdzenia",52,52,234,&dsr_roboto_12,DSR_SC_BLUE);
+        dsr_sc_text(card,dsr_network_endpoint_added(d->id,d->generation==1?DSR_GEN1:DSR_GEN2_PLUS,UINT32_MAX)?"Już dodane":d->auth_required?"Wymaga hasła":"Gotowe do sprawdzenia",52,52,234,&dsr_roboto_12,DSR_SC_BLUE);
     }
     if(!snapshot.count)dsr_sc_text(list,snapshot.phase==DSR_LAN_NO_WIFI?"Najpierw połącz Wi-Fi":"Nie znaleziono Shelly. Sprawdź sieć i ponów.",12,40,272,&dsr_roboto_16,DSR_SC_TEXT);
     notice=dsr_sc_text(root,snapshot.phase==DSR_LAN_CANCELLED?"Wyszukiwanie przerwane":"Zakończono wyszukiwanie",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
@@ -128,7 +128,7 @@ static void show_components(void)
     dsr_sc_text(body,"Kanał z odpowiedzi API",16,146,288,&dsr_roboto_12,DSR_SC_MUTED);options[0]=0;count=0;
     for(unsigned i=0;i<16;i++)if(capabilities.switches&(1u<<i)){char text[16];snprintf(text,sizeof(text),"%s%u",count?"\n":"",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)i;}
     channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
-    notice=dsr_sc_text(root,count?"Jedno aktywne połączenie. Zapis zastąpi poprzednie.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
+    notice=dsr_sc_text(root,count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
     dsr_ui_button(root,"Wstecz",12,420,140,results_back,NULL);save_button=dsr_ui_button(root,"Zapisz",168,420,140,bind,NULL);if(!count)lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
 }
 void dsr_ui_lan_tick(void)

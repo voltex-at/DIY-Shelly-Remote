@@ -1,5 +1,35 @@
 # Project status
 
+## 0.7.23 — persistent independent Shelly relay endpoints (#20)
+
+Adding a second verified endpoint retains the first. Private NVS schema2 registry
+with exact reread, legacy record untouched, unchanged workspace schema1/numeric IDs.
+Recoverable registry→layout→mapping ACK, targeted removal, identity checked before
+credentials/SET and mandatory readback. Per-endpoint FIFO intent, state/auth/backoff;
+serial bounded transport with honest latency, no automatic SET retry. LCD/W/V/A and
+same authenticated Web runtime/output API, browser commands correlated by epoch/id.
+Web controls expire locally even if network hangs; no optimistic output or POST replay.
+LAN marks already added identities while allowing another channel and verified DHCP.
+[Contract, migration, limits and two-device retest](docs/MULTI_DEVICE_PL.md).
+
+Core independent review/coordinator found and resolved mapping, rollback, queue and
+OOM issues before integration. Integrated full tools/test.py UBSan exit0; actual
+LVGL3530/116 with independent targeted CRUD/two-store failure/recovery tests PASS.
+Platform1088/worker3559/config265 and all prior native regressions preserved.
+Integrated exact-source CI/target/artefacts remain separate gates. Runtime API5029 checks with
+cJSON allocation faults; actual workspace mailbox164; actual JS47 deterministic
+race/freshness/epoch checks. Browser route/RTOS/NVS/device providers are MODEL.
+Target own-frame/static-array checker and internalBSS<=81920B budget compare parent
+48952B; unchanged LVGL131072B PSRAM/UI8192B. Not runtime heap/transitive peak proof.
+Physical min.two Shelly, latency/coexistence/restart remain OPEN; #20 not closed.
+
+Parent PR48 f9bac66 and PR49 8637296 both exact CI5/5 PASS. Existing owner report
+confirms rooms retained after reset and Web service on preformatted SPIFFS;
+blank-init, full TLS/pairing and new feature acceptance remain separate. No erase,
+partition changes, main merge or Stable. Next frozen backlog: AP#19/BLE#18, then
+full signed OTA#24, device settings/history#29/#22, device types#23/groups#21/#32.
+Preserved unpublished pairing-revocation branch is separate, not in this build.
+
 ## 0.7.22 — browser-local Web Panel language (#5/#6)
 
 Owner [PR5comment6214082384](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5#issuecomment-6214082384)

@@ -103,3 +103,55 @@ dsr_result_t dsr_workspace_bind_result_code(void)
 {if(!mutex)return DSR_IO;xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=bind_result_code;xSemaphoreGive(mutex);return result;}
 void dsr_workspace_bind_status(bool *pending,char message[64])
 {if(!mutex){*pending=false;message[0]=0;return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=bind_busy;snprintf(message,64,"%s",bind_message);xSemaphoreGive(mutex);}
+
+/* Mutex also protects cross-task command admission; no HTTP thread may touch
+ * LVGL or copy credentials. One mailbox per endpoint prevents duplicate SET. */
+static dsr_runtime_device_t runtime[DSR_MAX_DEVICES];
+static dsr_output_request_t outputs[DSR_MAX_DEVICES];
+_Static_assert(sizeof(runtime)<=4096,"Runtime fixed storage budget");
+_Static_assert(sizeof(outputs)<=4096,"Output mailbox fixed storage budget");
+static bool output_waiting[DSR_MAX_DEVICES];
+static size_t runtime_count;
+static uint32_t output_serial;
+static bool endpoint(const dsr_device_t *a,const dsr_device_t *b)
+{return a->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->channel==b->channel;}
+bool dsr_workspace_runtime_publish_begin(size_t count)
+{if(!mutex||count>DSR_MAX_DEVICES)return false;xSemaphoreTake(mutex,portMAX_DELAY);runtime_count=count;return true;}
+void dsr_workspace_runtime_publish_end(void){xSemaphoreGive(mutex);}
+void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device)
+{
+ if(!device||index>=count||count!=runtime_count)return;
+ runtime[index]=*device;
+ for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]&&endpoint(&outputs[i].device,&device->device)){runtime[index].pending=true;runtime[index].operation_id=outputs[i].operation_id;}
+}
+size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capacity)
+{
+ if(!mutex||!devices)return 0;
+ xSemaphoreTake(mutex,portMAX_DELAY);size_t count=runtime_count<capacity?runtime_count:capacity;
+ memcpy(devices,runtime,count*sizeof(*devices));xSemaphoreGive(mutex);return count;
+}
+dsr_result_t dsr_workspace_output_request(const dsr_device_t *device,bool on,uint32_t *operation_id)
+{
+ if(!mutex||!device||!operation_id)return DSR_INVALID;
+ xSemaphoreTake(mutex,portMAX_DELAY);dsr_result_t result=DSR_INVALID;
+ for(size_t i=0;i<runtime_count;i++)if(endpoint(&runtime[i].device,device)){
+  dsr_runtime_device_t *r=&runtime[i];
+  int free_slot=-1;bool queued=false;for(size_t j=0;j<DSR_MAX_DEVICES;j++){if(!output_waiting[j]&&free_slot<0)free_slot=(int)j;if(output_waiting[j]&&endpoint(&outputs[j].device,device))queued=true;}
+  if(queued||r->pending||free_slot<0)result=DSR_BUSY;
+  else if(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000)result=DSR_OFFLINE;
+  else if(!r->device.has_switch)result=DSR_UNSUPPORTED;
+  else if(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED)result=r->error;
+  else if(!dsr_activity_begin())result=DSR_BUSY;
+  else {outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=++output_serial};output_waiting[free_slot]=true;r->pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;}
+  break;
+ }
+ xSemaphoreGive(mutex);return result;
+}
+bool dsr_workspace_take_output(dsr_output_request_t *request)
+{
+ if(!mutex||!request)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool found=false;int oldest=-1;
+ for(size_t i=0;i<DSR_MAX_DEVICES;i++)if(output_waiting[i]&&(oldest<0||(int32_t)(outputs[i].operation_id-outputs[oldest].operation_id)<0))oldest=(int)i;
+ if(oldest>=0){*request=outputs[oldest];output_waiting[oldest]=false;memset(&outputs[oldest],0,sizeof(outputs[oldest]));found=true;}
+ xSemaphoreGive(mutex);if(found)dsr_activity_end();return found;
+}

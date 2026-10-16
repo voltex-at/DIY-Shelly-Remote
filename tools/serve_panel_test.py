@@ -81,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         global config,lan_ready_at,save_delay,ble_ready_at
         if not self.path.startswith('/api/'):
-            files={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css'}
+            files={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/panel.css':'panel.css'}
             if self.path not in files:return self.send(404,{})
             f=ROOT/'components/dsr_platform/web'/files[self.path]
             return self.send(200,f.read_bytes(),{'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css'}[f.suffix[1:]])
@@ -127,6 +127,7 @@ class Handler(BaseHTTPRequestHandler):
                 e=ctypes.create_string_buffer(96);next_config=take(lib.dsr_config_replace(config,json.dumps(draft).encode(),draft['revision'],e));assert next_config
                 assert lib.dsr_config_store_save(str(work).encode(),next_config,e);config=next_config
             return self.send(202,{'checking':True})
+        if self.path=='/api/v1/devices/runtime':return self.send(200,{'boot_id':1,'devices':[]})
         if self.path=='/api/v1/preview.raw':return self.send(200,frame(),'application/octet-stream')
         if self.path=='/api/v1/test/reboot':
             found=ctypes.c_bool();e=ctypes.create_string_buffer(96)

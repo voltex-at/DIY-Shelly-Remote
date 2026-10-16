@@ -16,13 +16,18 @@ typedef struct {
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
 typedef struct {bool has_voltage,has_current;double voltage_v,current_a;} dsr_telemetry_t;
-typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;} dsr_connection_t;
+typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;} dsr_connection_t;
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
 esp_err_t dsr_settings_save(const dsr_settings_t *settings);
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found);
+/* Schema-2 endpoint registry. Legacy single record remains untouched. */
+esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count);
 esp_err_t dsr_connection_save(const dsr_connection_t *connection);
+esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id);
+esp_err_t dsr_connection_publish(const dsr_connection_t *connection);
+esp_err_t dsr_connection_remove(const dsr_connection_t *connection);
 bool dsr_connection_valid(const dsr_connection_t *connection, bool bound);
 /* Initialize once, even without credentials, so scanning is available. */
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings);
@@ -53,7 +58,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
@@ -64,6 +69,7 @@ typedef struct {
 /* Credentials are never returned through the event queue. */
 typedef struct {
     uint32_t id; dsr_result_t result; dsr_device_t device;
+    uint32_t layout_id;
     dsr_telemetry_t telemetry;
     dsr_wifi_scan_t scan; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;

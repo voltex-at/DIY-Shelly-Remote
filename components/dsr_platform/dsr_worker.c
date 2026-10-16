@@ -16,7 +16,9 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_DISPLAY_SAVE){
+        if(job.kind==DSR_JOB_LAYOUT_PUBLISH||job.kind==DSR_JOB_UNBIND){
+            event.result=(job.kind==DSR_JOB_UNBIND?dsr_connection_remove(&job.connection):dsr_connection_publish(&job.connection))==ESP_OK?DSR_OK:DSR_IO;event.layout_id=job.connection.layout_id;
+        } else if(job.kind==DSR_JOB_DISPLAY_SAVE){
             /* Read the latest full NVS record inside the sole worker. Never
              * replay UI-cached credentials over a newer Wi-Fi connection. */
             dsr_settings_t current;
@@ -46,7 +48,7 @@ static void network_task(void *arg)
             event.result = dsr_http_probe_telemetry(&job.connection,&event.device,&event.telemetry);
             if (event.result == DSR_OK) {
                 job.connection.device = event.device;
-                if (dsr_connection_save(&job.connection) != ESP_OK) event.result = DSR_IO;
+                if (dsr_connection_save(&job.connection) != ESP_OK||dsr_connection_layout_id(&job.connection,&event.layout_id)!=ESP_OK) event.result = DSR_IO;
             }
         } else {
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :
@@ -85,7 +87,7 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_DISPLAY_SAVE) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_UNBIND) return DSR_INVALID;
     if(job->kind==DSR_JOB_DISPLAY_SAVE){
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
