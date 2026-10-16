@@ -1,5 +1,37 @@
 # Project status
 
+## 0.7.17 — explicit single-Release HTTPS metadata (#24), not updater
+
+Shared existing TLS/framing transport, exact own-repo api.github.com tag URL,
+zero redirects/auth/retries/query. Explicit caller tag/asset/STABLE policy,
+GitHub Accept and API version2022-11-28. HTTP200 only, identity, canonical CL
+or chunked, actual1..16384 B/complete; statuses never mean no new firmware.
+Close/cleanup and free transport context before genuine candidate parser.
+Every error zero candidate, including final cancel/time. Only full FETCH_OK
+publishes UNVERIFIED routing. No manifest/app bridge/download, Flash/UI/worker,
+discovery/latest/list/cache, credentials or new production naming/dev policy.
+[Contract and limits](docs/OTA_RELEASE_FETCH_PL.md).
+
+Separate release workspace<=16640 B, existing transport<=8192 unchanged;
+own transport-phase bound24832 B excludes SDK/TLS/header allocations. Parser
+phase releases transport context but adds cJSON allocations. No16KiB stack
+buffer, measured heap or transitive-stack claim. SDK5s/cooperative30s is NOT
+a hard total DNS/TLS/header/positive-progress deadline. Existing last pending
+trailer callback limitation remains explicit. Correct UTC/trusted time setup,
+approved publisher anchor/rotation/signed Release and physical TLS remain gates.
+
+Parent PR43 source2fb3e452 exact CI38871611118 5/5 and artifacts verified;
+app1775408 B SHA e3e6bfc6393c154beae3fee87b0970288d998e672db83c76c54c28a2eccd9a1d.
+This stage needs independent regressions/review, exact-source CI and artifact.
+Independent release-fetch UBSan:129009 checks/system cJSON and133415 with original
+pinned IDF cJSON,29/31 genuine allocation faults PASS. Root repeated the pinned
+corpus; full native/config265/rawHTTP3012 cases/provider and existing manifest/
+app regressions PASS. Reviewer transport MODEL, not physical TLS. Coordinator
+implementation/memory review without blockers; exact target/CI still gates.
+P0 PR33 remains81e734d without physical PASS, main51c5840 unchanged. No erase,
+nonempty format/partition/main/Stable. Global backlog,24h internal history and
+later optional microSD remain required; full OTA and hardware acceptance open.
+
 ## 0.7.16 — pure Stable release candidate parser (#24), not approval/discovery
 
 Single GitHub Release object, explicit caller tag/asset/STABLE policy. No latest

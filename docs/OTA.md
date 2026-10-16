@@ -20,6 +20,9 @@ discarded bytes; a future installer must download/verify again under its gates.
 0.7.16 adds a [pure single-Release Stable candidate parser](OTA_RELEASE_PL.md),
 not metadata transport/discovery or publisher approval. Explicit caller tag/
 asset policy, strict JSON and own-repo routing cannot replace signed manifests.
+0.7.17 adds [bounded HTTPS metadata fetch for one explicit tag](OTA_RELEASE_FETCH_PL.md),
+returning only that unverified candidate after close/cleanup. No redirects,
+credentials, latest/list selection, UI or bridge to the signed download chain.
 Target certificate date validation is enabled; unset system UTC refuses fetch.
 Trusted time setup and physical TLS validation are still open gates.
 A checksum does not authenticate the publisher. Only deliberately

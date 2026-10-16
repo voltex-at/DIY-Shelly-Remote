@@ -136,13 +136,19 @@ static const cJSON *field(const cJSON *node,const char *key)
 {return cJSON_GetObjectItemCaseSensitive(node,key);}
 static const char *text(const cJSON *node)
 {return cJSON_IsString(node)?node->valuestring:NULL;}
+dsr_ota_release_result_t dsr_ota_release_policy_check(const dsr_ota_release_policy_t *policy)
+{
+ if(!policy||!segment(policy->expected_tag,64)||!segment(policy->manifest_asset,96))return DSR_RELEASE_ARGUMENT;
+ return policy->selected_channel==DSR_OTA_STABLE?DSR_RELEASE_OK:DSR_RELEASE_POLICY;
+}
 dsr_ota_release_result_t dsr_ota_release_candidate_parse(const void *input,size_t length,
  const dsr_ota_release_policy_t *policy,dsr_ota_release_candidate_t *out)
 {
  if(!out)return DSR_RELEASE_ARGUMENT;
  memset(out,0,sizeof(*out));
- if(!input||!length||length>DSR_OTA_RELEASE_MAX||!policy||!segment(policy->expected_tag,64)||!segment(policy->manifest_asset,96))return DSR_RELEASE_ARGUMENT;
- if(policy->selected_channel!=DSR_OTA_STABLE)return DSR_RELEASE_POLICY;
+ if(!input||!length||length>DSR_OTA_RELEASE_MAX)return DSR_RELEASE_ARGUMENT;
+ dsr_ota_release_result_t checked=dsr_ota_release_policy_check(policy);
+ if(checked!=DSR_RELEASE_OK)return checked;
  if(!grammar(input,length))return DSR_RELEASE_INVALID;
  const char *end=NULL;cJSON *root=cJSON_ParseWithLengthOpts(input,length,&end,false);
  if(!root)return DSR_RELEASE_INVALID;

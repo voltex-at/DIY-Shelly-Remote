@@ -60,7 +60,7 @@ required = {
     "dsr_ota_image_destroy",
 }
 allowed = required | {
-    "memcpy", "memset", "strlen", "strncmp", "strcpy", "strchr", "strstr",
+    "memcpy", "memset", "strlen", "strncmp", "strcmp", "strcpy", "strchr", "strstr",
     "__stack_chk_fail", "__stack_chk_guard", "_GLOBAL_OFFSET_TABLE_",
     # Compiler arithmetic support on the 32-bit target, not an SDK provider.
     "__udivdi3", "__udivsi3", "__umoddi3",
@@ -81,7 +81,7 @@ for line in stacks[0].read_text().splitlines():
     require(size <= args.max_frame, f"Fetch frame exceeds budget: {line}")
     require(function not in frames, f"Duplicate fetch frame: {function}")
     frames[function] = size
-public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app"}
+public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app", "dsr_ota_fetch_metadata_body"}
 require(public <= set(frames), f"Public fetch stack reports missing: {sorted(public - set(frames))}")
 require(any(name == "fetch" or name.startswith("fetch.") for name in frames),
         "Private shared transport stack report missing")

@@ -1,4 +1,5 @@
 #include "dsr_ota_fetch.h"
+#include "dsr_ota_fetch_private.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_timer.h"
@@ -59,6 +60,16 @@ static bool asset_url(const char *url)
  }
  return true;
 }
+static bool metadata_url(const char *url)
+{
+ static const char prefix[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/tags/";
+ size_t n=bounded_length(url,sizeof(prefix)-1+64);
+ if(n>sizeof(prefix)-1+64||n<=sizeof(prefix)-1||strncmp(url,prefix,sizeof(prefix)-1))return false;
+ const char *p=url+sizeof(prefix)-1;
+ if(!strcmp(p,".")||strstr(p,".."))return false;
+ for(;*p;p++)if(!alnum(*p)&&*p!='-'&&*p!='_'&&*p!='.')return false;
+ return true;
+}
 static bool same(const char *s,size_t n,const char *word)
 {
  if(strlen(word)!=n)return false;
@@ -110,17 +121,22 @@ bad:
 }
 static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
- dsr_ota_image_t *image,dsr_image_result_t *image_why)
+ dsr_ota_image_t *image,dsr_image_result_t *image_why,
+ unsigned char *metadata,size_t *metadata_length)
 {
+ bool release=metadata!=NULL;
  if(why)*why=DSR_MANIFEST_INVALID;
+ if(release){if(!metadata_length)return DSR_FETCH_ARGUMENT;*metadata_length=0;}
+ else{
  if(!out)return DSR_FETCH_ARGUMENT;
  if(!image)memset(out,0,sizeof(*out));
  if(!policy||!policy->current_version||bounded_length(policy->current_version,31)>31
     ||(policy->selected_channel!=DSR_OTA_STABLE&&policy->selected_channel!=DSR_OTA_DEV)
     ||!policy->inactive_slot_size||policy->inactive_slot_size>0x600000)return DSR_FETCH_ARGUMENT;
- if(!initial_url(url))return DSR_FETCH_URL;
+ }
+ if(release?!metadata_url(url):!initial_url(url))return DSR_FETCH_URL;
  if(time(NULL)<(time_t)1735689600)return DSR_FETCH_CLOCK;
- size_t limit=image?out->size:DSR_OTA_MANIFEST_MAX;
+ size_t limit=release?16384u:image?out->size:DSR_OTA_MANIFEST_MAX;
  fetch_t *s=calloc(1,sizeof(*s));if(!s)return DSR_FETCH_NOMEM;
  s->control=control;s->started=esp_timer_get_time();strcpy(s->url,url);
  for(unsigned hop=0;hop<2;hop++){
@@ -138,7 +154,8 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
   if(!client){s->result=DSR_FETCH_NOMEM;break;}
   bool redirect=false;
   if(!stopped(s)&&esp_http_client_set_header(client,"Accept-Encoding","identity")!=ESP_OK)s->result=DSR_FETCH_IO;
-  if(!stopped(s)&&esp_http_client_set_header(client,"Accept",image?"application/octet-stream":"application/json")!=ESP_OK)s->result=DSR_FETCH_IO;
+  if(!stopped(s)&&esp_http_client_set_header(client,"Accept",release?"application/vnd.github+json":image?"application/octet-stream":"application/json")!=ESP_OK)s->result=DSR_FETCH_IO;
+  if(release&&!stopped(s)&&esp_http_client_set_header(client,"X-GitHub-Api-Version","2022-11-28")!=ESP_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)&&esp_http_client_open(client,0)!=ESP_OK&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)){
    int64_t length=esp_http_client_fetch_headers(client);
@@ -146,7 +163,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
     int status=esp_http_client_get_status_code(client);
     if(length<0)s->result=DSR_FETCH_IO;
     else if(status==301||status==302||status==303||status==307||status==308){
-     if(hop||!s->location_seen||!asset_url(s->location))s->result=DSR_FETCH_REDIRECT;
+     if(release||hop||!s->location_seen||!asset_url(s->location))s->result=DSR_FETCH_REDIRECT;
      else redirect=true;
     }else if(status!=200)s->result=DSR_FETCH_STATUS;
     else if(s->location_seen||(!s->length_seen&&!s->transfer_seen))s->result=DSR_FETCH_HEADERS;
@@ -159,9 +176,9 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
       * SDK read may wait for its requested bytes despite positive progress,
       * hence the budget is explicitly cooperative, not a hard deadline. */
      while(!stopped(s)){
-      size_t wanted=image?limit-s->used+1:1;
+      size_t wanted=(image||release)?limit-s->used+1:1;
       if(wanted>1024)wanted=1024;
-      char *buffer=(char *)s->body+(image?0:s->used);
+      char *buffer=release?(char *)metadata+s->used:(char *)s->body+(image?0:s->used);
       int n=esp_http_client_read(client,buffer,(int)wanted);
       if(stopped(s))break;
       if(n<0){s->result=DSR_FETCH_IO;break;}
@@ -191,7 +208,8 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
    * IDF does not dispatch its final pending trailer at message-complete;
    * this check covers delivered events, not all raw trailer bytes. */
   if(s->location_seen){s->result=DSR_FETCH_HEADERS;break;}
-  if(image){
+  if(release){*metadata_length=s->used;}
+  else if(image){
    dsr_image_result_t result=dsr_ota_image_finish(image);
    if(image_why)*image_why=result;
    if(result!=DSR_IMAGE_OK)s->result=DSR_FETCH_IMAGE;
@@ -205,12 +223,20 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
   break;
  }
  dsr_ota_fetch_result_t result=s->result;
- if(result!=DSR_FETCH_OK)memset(out,0,sizeof(*out));
+ if(result!=DSR_FETCH_OK){if(release)*metadata_length=0;else memset(out,0,sizeof(*out));}
  free(s);return result;
 }
 dsr_ota_fetch_result_t dsr_ota_fetch_manifest(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why)
-{return fetch(url,policy,control,out,why,NULL,NULL);}
+{return fetch(url,policy,control,out,why,NULL,NULL,NULL,NULL);}
+
+dsr_ota_fetch_result_t dsr_ota_fetch_metadata_body(const char *url,
+ const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length)
+{
+ if(length)*length=0;
+ if(!body||!length)return DSR_FETCH_ARGUMENT;
+ return fetch(url,NULL,control,NULL,NULL,NULL,NULL,body,length);
+}
 
 typedef struct {dsr_ota_verified_t verified;dsr_ota_image_t *image;} app_chain_t;
 _Static_assert(sizeof(app_chain_t)<=512,"bounded app-chain workspace");
@@ -228,7 +254,7 @@ dsr_ota_fetch_result_t dsr_ota_fetch_app(const char *url,const dsr_ota_policy_t 
   dsr_image_result_t created=dsr_ota_image_create(&chain->verified,&chain->image);
   if(image_why)*image_why=created;
   if(created!=DSR_IMAGE_OK)result=DSR_FETCH_IMAGE;
-  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why);
+  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why,NULL,NULL);
  }
  dsr_ota_image_destroy(chain->image);
  if(result==DSR_FETCH_OK)*out=chain->verified;

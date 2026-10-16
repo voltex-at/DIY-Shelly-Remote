@@ -39,6 +39,8 @@ typedef struct {
  * NOT_FOUND means no named asset in THIS object, never 'no new firmware'.
  * Recursive depth bounded8; target own frames/ELF audited separately. Node/input
  * caps are NOT a measured total heap or transitive cJSON/recursive stack peak. */
+/* Shared pre-I/O policy validation; does not inspect metadata or confer trust. */
+dsr_ota_release_result_t dsr_ota_release_policy_check(const dsr_ota_release_policy_t *policy);
 dsr_ota_release_result_t dsr_ota_release_candidate_parse(const void *json,size_t length,
  const dsr_ota_release_policy_t *policy,dsr_ota_release_candidate_t *out);
 #endif

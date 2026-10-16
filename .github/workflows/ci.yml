@@ -61,6 +61,8 @@ jobs:
         run: python3 tools/test_ota_fetch_parser.py --idf .test-deps/esp-idf --sanitize
       - name: Verify release corpus with original pinned IDF cJSON and full sanitizers
         run: python3 tools/test_ota_release.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
+      - name: Verify single-release HTTPS metadata with original pinned IDF cJSON
+        run: python3 tools/test_ota_release_fetch.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
   diagnostic:
     runs-on: ubuntu-24.04
     strategy:
@@ -104,6 +106,7 @@ jobs:
           python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
           python3 tools/check_ota_fetch_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/OTA_FETCH.json
           python3 tools/check_ota_release_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/OTA_RELEASE.json
+          python3 tools/check_ota_release_fetch_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/OTA_RELEASE_FETCH.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -138,6 +141,7 @@ jobs:
           cp docs/OTA_FETCH_PL.md build-board/OTA_FETCH.json build-board/package/
           cp docs/OTA_DOWNLOAD_PL.md build-board/package/
           cp docs/OTA_RELEASE_PL.md build-board/OTA_RELEASE.json build-board/package/
+          cp docs/OTA_RELEASE_FETCH_PL.md build-board/OTA_RELEASE_FETCH.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

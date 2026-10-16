@@ -1,4 +1,17 @@
-# Matryca funkcji — 0.7.16, rewizja 17
+# Matryca funkcji — 0.7.17, rewizja 18
+
+## #24: HTTPS metadane jednego jawnego tagu — nadal kandydat
+
+[Kontrakt](OTA_RELEASE_FETCH_PL.md): wspólny TLS/framing transport, exact własny
+GitHub API URL, zero redirects/auth/query/retry, HTTP200/body<=16384/complete.
+Close/cleanup/free transport przed realnym parserem; każdy błąd zero candidate.
+Nowy heap<=16640 B osobno, fetch<=8192 bez zmian; SDK/TLS/cJSON peak niezmierzony.
+Wynik UNVERIFIED, bez bridge do manifest/app, UI/Flash/latest/discovery/instalacji.
+Parent PR43 2fb3e452 ma exact CI38871611118 5/5 i sprawdzone BIN/ELF/partycje;
+ten etap wymaga własnych testów/CI/artefaktu, nie zamyka #24/P0.
+Niezależne testy UBSan129009/system i133415/original IDF cJSON PASS,29/31 OOM;
+root powtórzył pinned korpus, istniejące manifest/app/rawHTTP/config regresje PASS.
+Koordynator code/memory review bez blockerów; transport/TLS to MODEL, nie płytka.
 
 ## #24: pojedynczy Release → kandydat Stable, nie approved Release
 
