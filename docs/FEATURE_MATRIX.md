@@ -1,5 +1,14 @@
-# Matryca funkcji — 0.7.25, rewizja 26
+# Matryca funkcji — 0.7.27, rewizja 27
 
+## #29A: ustawienia wybranego Shelly z aktualnym runtime
+
+Integracja istniejącego PR34 na bazie PR53: aktywna zakładka Ustawienia,
+tożsamość i dostępne odczyty właściwego endpointu, odświeżanie wybranego ID,
+lokalna nazwa/pokój przez dotychczasowy CAS i trwały ACK. Po zapisie powrót
+do właściwej karty; IO/CAS zachowuje edycję. Reorder/remove WWW nie przekierowuje
+akcji na drugi Shelly. Host/kanał/sekrety pozostają poza formularzem.
+Kod i regresje są dodane; wynik bieżącego CI i fizyczny odbiór to osobne bramki.
+Nie wdraża historii/Wykresów, RPC ustawień, naprawy SPIFFS ani atomowego BIND.
 
 ## #19: rzeczywiste dodawanie przez otwarty fabryczny AP
 
@@ -319,7 +328,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
 | W/V/A / wiek próbki / offline | Ten sam framebuffer | Tylko obecne i poprawne pola API | CI tested: parser, zera/braki/błędy, stabilny polling | #12; porównać realne V/A z API |
 | Szczegóły Wykresy | Brak historii | Rzeczywista retencja potrzebna | Not implemented: disabled | #22; pomiar po czasie, Flash, restart/offline |
-| Szczegóły Ustawienia | Lokalna definicja host/kanał/typ; nie RPC settings | API konkretnego urządzenia | Not implemented: zakładka disabled | #23/#24; potwierdzony model/capability |
+| Szczegóły Ustawienia | Aktywne: lokalna nazwa/pokój, stable ID, odczyty i celowane odświeżenie | CAS workspace + właściwy fleet endpoint; bez RPC settings | Kod + regresje 0.7.27; CI i odbiór fizyczny osobno | #29A; ustawienia API pozostają #23 |
 | Karta sceny / ikona ołówka | Edytor scen | Zapis definicji, bez wykonawcy | CI tested: edycja; Not implemented: uruchamianie scen | #21; nie przedstawiać otwarcia edytora jako wykonania |
 
 ## Dodawanie i rzeczywiste urządzenia

@@ -1,5 +1,23 @@
 # Project status
 
+## 0.7.27 — integrate selected-device settings into multi-device/AP runtime (#29A)
+
+Ports the existing PR34 screen and local card editor onto PR53. The Settings tab
+opens the selected stable workspace ID. Live identity/readings come only from
+its matching private fleet slot; refresh targets that endpoint. Name/room edits
+use the existing immutable CAS checkpoint acknowledgement, return to the same
+settings card only after a fresh exact ACK, retain the draft on IO failure and
+reject conflicting WWW writes. No host/channel/password editing in this form.
+PL/EN/DE screens and two-device regression tests are included. Verification is
+performed by GitHub CI because the local execution environment is unavailable.
+Physical device acceptance remains open; see docs/DEVICE_SETTINGS_PL.md.
+
+P0 #28 remains open after the reported 0.7.25 nonempty/unmounted regression.
+No SPIFFS erase/format/repair is introduced. The partial BIND publication finding
+in PR53 and separate PR50 integration are still unresolved by this settings fix.
+Charts/history, BLE provisioning, device-type adapters, scenes and full physical
+OTA/power acceptance remain in the frozen backlog. Main/Stable are unchanged.
+
 ## 0.7.25 — factory AP onboarding with physical consent (#19)
 
 Real radio scan, temporary BSSID/channel-pinned RAM join, API identity and two

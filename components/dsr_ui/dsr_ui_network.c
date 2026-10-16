@@ -109,6 +109,7 @@ static void render(void)
  for(unsigned i=0;i<mobile_model.device_count;i++){
   int at=card_slot(i);if(at<0)continue;
   dsr_mobile_device_t *d=&mobile_model.devices[i];const dsr_fleet_slot_t *s=&fleet.slots[at];const dsr_device_t *c=&s->connection.device;
+  snprintf(d->identity,sizeof(d->identity),"%s",c->device_id);d->generation=c->generation;d->can_refresh=s->layout_enabled&&!binding_target(s);
   snprintf(d->host,sizeof(d->host),"%s",c->host);d->online=mobile_model.wifi&&c->online&&s->layout_enabled&&s->sample_valid&&lv_tick_get()-s->sample_ms<=15000;d->output=c->output;
   d->busy=d->command_pending=binding_target(s)||s->queued||(s->in_flight&&s->operation==DSR_JOB_SET_OUTPUT);
   d->has_sample_time=s->sample_valid;d->sample_ms=s->sample_ms;d->error=s->result;
@@ -195,6 +196,11 @@ void dsr_network_room_context(uint32_t id)
     dsr_mobile_show(DSR_MOBILE_ROOMS,0);
 }
 
+void dsr_network_device_settings(uint32_t id)
+{
+ dsr_network_home(NULL);
+ dsr_mobile_show_device_settings(id);
+}
 static void mobile_output(unsigned index,bool on)
 {
  int at=card_slot(index);if(at<0)return;
@@ -203,10 +209,18 @@ static void mobile_output(unsigned index,bool on)
  dispatch(lv_tick_get(),false);render();publish_runtime(lv_tick_get());
 }
 static void mobile_add(void){dsr_network_device(NULL);}
-static void mobile_edit_device(unsigned index)
-{if(index<mobile_model.device_count&&mobile_model.devices[index].id)dsr_ui_edit_device(mobile_model.devices[index].id);}
+static void mobile_edit_device(uint32_t id)
+{if(id)dsr_ui_edit_local_device(id);}
 static void mobile_refresh(void)
 {dsr_fleet_refresh(&fleet,lv_tick_get());dispatch(lv_tick_get(),true);render();}
+static void mobile_refresh_device(uint32_t id)
+{
+ for(unsigned i=0;i<mobile_model.device_count;i++)if(id&&mobile_model.devices[i].id==id){
+  int at=card_slot(i);if(at<0||binding_target(&fleet.slots[at]))return;
+  dsr_fleet_slot_t *s=&fleet.slots[at];s->blocked=false;s->command_error=false;s->result=DSR_OK;s->failures=0;s->next_poll=lv_tick_get();
+  fleet.cursor=(unsigned)at;dispatch(lv_tick_get(),true);render();return;
+ }
+}
 bool dsr_network_endpoint_added(const char *id,dsr_generation_t generation,unsigned channel)
 {for(size_t i=0;i<fleet.count;i++){const dsr_device_t *d=&fleet.slots[i].connection.device;if(!strcmp(d->device_id,id)&&d->generation==generation&&(channel>DSR_MAX_CHANNEL||d->channel==channel))return true;}return false;}
 static void hide_keyboard(lv_event_t *event)
@@ -452,7 +466,7 @@ void dsr_network_start_view(void)
 
 void dsr_network_init(void)
 {
-    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room};
+    const dsr_mobile_actions_t actions = {.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.refresh_device=mobile_refresh_device,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

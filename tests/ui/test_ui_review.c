@@ -37,7 +37,7 @@ static void open_settings(void){settings_opens++;}
 static void add_device(void){add_opens++;}
 static void set_cover(unsigned index,int direction){CHECK(index==2);CHECK(direction==1||direction==-1);cover_commands++;}
 static void stop_cover(unsigned index){CHECK(index==2);stop_commands++;}
-static void edit_device(unsigned index){CHECK(index==2);device_edits++;}
+static void edit_device(uint32_t id){CHECK(id==97);device_edits++;}
 const void *dsr_photo_pixels(const char *id){return photo_enabled&&id[0]>='1'&&id[0]<='4'?photo_pixels[id[0]-'1']:NULL;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
@@ -197,7 +197,7 @@ static void cover_views(void)
  dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("68-cover-english");CHECK(find(lv_screen_active(),"Open"));CHECK(find(lv_screen_active(),"Close"));
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("69-cover-german");CHECK(find(lv_screen_active(),"Öffnen"));CHECK(find(lv_screen_active(),"Schließen"));dsr_sc_appearance(DSR_SC_BLUE,false,0);
  /* Non-demo transport requires an actual callback and explicit capabilities. */
- m.demo=false;d->can_cover=false;d->can_stop_cover=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
+ m.demo=false;d->id=97;d->can_cover=false;d->can_stop_cover=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
  tap(75,377);tap(231,377);tap(274,255);CHECK(cover_commands==0&&stop_commands==0);CHECK(find(lv_screen_active(),"Brak obsługi Cover RPC"));
  tap(294,22);CHECK(device_edits==1);
  d->can_cover=true;d->can_stop_cover=true;dsr_mobile_update(&m);tap(75,377);tap(231,377);tap(274,255);CHECK(cover_commands==2&&stop_commands==1);CHECK(find(lv_screen_active(),"Pozycja 65%"));

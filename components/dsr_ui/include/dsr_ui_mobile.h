@@ -7,7 +7,7 @@
 #define DSR_UI_MAX_DEVICES 16
 #define DSR_UI_MAX_ROOMS 8
 #define DSR_UI_NO_ROOM 255
-typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS} dsr_mobile_page_t;
+typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS,DSR_MOBILE_DEVICE_SETTINGS} dsr_mobile_page_t;
 typedef enum {DSR_DEVICE_LIGHT,DSR_DEVICE_PLUG,DSR_DEVICE_RELAY,DSR_DEVICE_COVER,DSR_DEVICE_CONTACT,DSR_DEVICE_SENSOR} dsr_mobile_kind_t;
 /* Confirmed Cover status only; zero means no status sample, never stopped. */
 typedef enum {DSR_COVER_UNKNOWN,DSR_COVER_OPENING,DSR_COVER_CLOSING,DSR_COVER_STOPPED,DSR_COVER_CALIBRATING} dsr_mobile_cover_state_t;
@@ -28,6 +28,10 @@ typedef struct {
     bool has_sample_time;
     uint32_t sample_ms;
     uint8_t fields;
+    /* Only supplied for the actually bound transport; never inferred from a card. */
+    char identity[64];
+    dsr_generation_t generation;
+    bool can_refresh;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;
 typedef struct {char name[48];uint8_t actions;} dsr_mobile_scene_t;
@@ -55,7 +59,8 @@ typedef struct {
     void (*set_cover)(unsigned index,int direction);
     void (*select_dashboard)(void);
     void (*refresh)(void);
-    void (*edit_device)(unsigned index);
+    void (*refresh_device)(uint32_t id);
+    void (*edit_device)(uint32_t id);
     void (*stop_cover)(unsigned index);
     void (*add_room)(void);
     void (*edit_room)(uint32_t id);
@@ -64,6 +69,7 @@ typedef struct {
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);
 void dsr_mobile_update(const dsr_mobile_model_t *model);
 void dsr_mobile_show(dsr_mobile_page_t page,unsigned index);
+void dsr_mobile_show_device_settings(uint32_t id);
 void dsr_mobile_hide(void);
 /* Explicit, isolated on-device design preview. Never calls network actions. */
 void dsr_mobile_cover_preview(void);

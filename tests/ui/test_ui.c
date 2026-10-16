@@ -612,6 +612,79 @@ static void multi_device_regression(void)
  click("Relay A");CHECK(find_label(lv_screen_active(),"230.1 V")&&find_label(lv_screen_active(),"11.0 W"));screenshot("204-A-DHCP-stable-card-ID");
  wifi.connected=false;tick();dsr_network_home(NULL);
 }
+
+/* Real UI regression for the integration of PR34 into the multi-device stack.
+ * Worker/workspace are explicit models; no physical radio or Flash claim. */
+static void device_settings_regression(void)
+{
+ CHECK(!wifi.connected&&!in_flight&&!maintenance_ready);
+ cJSON *initial=room_document();uint32_t ids[2]={0};
+ const cJSON *entry;cJSON_ArrayForEach(entry,cJSON_GetObjectItemCaseSensitive(initial,"devices")){
+  const char *name=cJSON_GetObjectItemCaseSensitive(entry,"name")->valuestring;
+  if(!strcmp(name,"Relay A"))ids[0]=(uint32_t)cJSON_GetObjectItemCaseSensitive(entry,"id")->valueint;
+  if(!strcmp(name,"Relay B"))ids[1]=(uint32_t)cJSON_GetObjectItemCaseSensitive(entry,"id")->valueint;
+ }
+ CHECK(ids[0]&&ids[1]);unsigned before=requests;
+ dsr_network_home(NULL);click("Relay B");tap(267,65);
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);
+ CHECK(find_label(lv_screen_active(),"Wybrane urządzenie")&&find_label(lv_screen_active(),"shelly-B"));
+ CHECK(!find_label(lv_screen_active(),"shelly-A"));screenshot("240-device-settings-multi-pl");
+ click("Edytuj kartę");CHECK(!dsr_mobile_active()&&find_label(lv_screen_active(),"Edytuj kartę urządzenia"));
+ unsigned skip=1;CHECK(!nth_type(lv_screen_active(),&lv_textarea_class,&skip));
+ room_name("");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj nazwę urządzenia."));
+ room_name("ąąąąąąąąąąąąąąąąąąąąąąąą");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj krótszą nazwę urządzenia."));
+ room_name("Kitchen B");test_workspace_defer(true);click("Zapisz");
+ click("Wstecz");CHECK(find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));
+ test_workspace_finish(false);dsr_ui_workspace_tick();
+ CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));
+ CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Kitchen B"));
+ click("Zapisz");test_workspace_finish(true);test_workspace_defer(false);dsr_ui_workspace_tick();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS&&find_label(lv_screen_active(),"Kitchen B"));
+ cJSON *r=room_document(),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices");
+ CHECK(cJSON_Compare(devices->child,cJSON_GetObjectItemCaseSensitive(initial,"devices")->child,true));
+ CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(devices->child->next,"host")->valuestring,"192.168.1.51"));
+ CHECK(cJSON_GetObjectItemCaseSensitive(devices->child->next,"channel")->valueint==0);
+ cJSON_Delete(r);CHECK(requests==before);
+ click("Edytuj kartę");room_name("Relay B");click("Zapisz");dsr_ui_workspace_tick();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS&&find_label(lv_screen_active(),"Relay B"));
+ /* A Web CAS cannot acknowledge or replace a different LCD draft. */
+ click("Edytuj kartę");room_name("Uncommitted B");r=room_document();publish_document(r);dsr_ui_workspace_tick();
+ CHECK(find_label(lv_screen_active(),"Zmieniono konfigurację. Wróć i otwórz edycję ponownie."));
+ click("Wstecz");click("Odrzuć");CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);
+ /* Reordering by WWW keeps the selected stable ID, never the old index. */
+ r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");
+ cJSON *a=cJSON_DetachItemFromArray(devices,0);cJSON_AddItemToArray(devices,a);publish_document(r);tick();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS&&find_label(lv_screen_active(),"Relay B")&&find_label(lv_screen_active(),"shelly-B"));
+ click("Edytuj kartę");CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"Relay B"));click("Wstecz");
+ r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");a=cJSON_DetachItemFromArray(devices,1);cJSON_InsertItemInArray(devices,0,a);publish_document(r);tick();
+ /* An unbound definition offers local editing but cannot refresh a relay. */
+ r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");cJSON *unbound=cJSON_Duplicate(devices->child,true);
+ cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(unbound,"id"),99);
+ cJSON_ReplaceItemInObjectCaseSensitive(unbound,"name",cJSON_CreateString("Unbound settings"));
+ cJSON_ReplaceItemInObjectCaseSensitive(unbound,"host",cJSON_CreateString("192.168.1.99"));
+ cJSON_AddItemToArray(devices,unbound);publish_document(r);dsr_network_device_settings(99);
+ CHECK(find_label(lv_screen_active(),"Tożsamość niepotwierdzona"));
+ lv_obj_t *refresh=lv_obj_get_parent(find_label(lv_screen_active(),"Odśwież status"));CHECK(lv_obj_has_state(refresh,LV_STATE_DISABLED));
+ unsigned unbound_before=requests;tap(80,376);CHECK(requests==unbound_before);
+ r=room_document();devices=cJSON_GetObjectItemCaseSensitive(r,"devices");cJSON_DeleteItemFromArray(devices,2);publish_document(r);tick();
+ CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+ for(unsigned language=1;language<=2;language++){
+  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);
+  dsr_network_device_settings(ids[1]);CHECK(find_label(lv_screen_active(),"Wybrane urządzenie"));
+  screenshot(language==1?"241-device-settings-multi-en":"242-device-settings-multi-de");
+ }
+ r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("pl"));publish_document(r);dsr_network_device_settings(ids[1]);
+ lv_mem_monitor_t first,last;lv_mem_monitor(&first);
+ for(unsigned i=0;i<40;i++){click("Edytuj kartę");click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);}
+ lv_mem_monitor(&last);CHECK(last.free_size+1024>=first.free_size);
+ /* The physical refresh callback receives B's stable ID, not an array index. */
+ wifi.connected=true;click("Odśwież status");CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&!strcmp(submitted.connection.device.device_id,"shelly-B"));
+ wifi.connected=false;response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);
+ CHECK(!in_flight);dsr_network_home(NULL);tick();
+ r=room_document();CHECK(cJSON_Compare(cJSON_GetObjectItemCaseSensitive(r,"devices"),cJSON_GetObjectItemCaseSensitive(initial,"devices"),true));cJSON_Delete(r);cJSON_Delete(initial);
+ printf("PASS: multi-device settings stable-ID/edit/ACK/IO/CAS/reorder/remove/unbound/PL-EN-DE; 40 form cycles, heap %u -> %u\\n",(unsigned)first.free_size,(unsigned)last.free_size);
+}
+
 #include "review_multi_regression.inc"
 static const dsr_ap_identity_t ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.model="SNSW-001X16EU",.ssid="ShellyPlus1-112233445566",.generation=2};
 static void ap_pick(void)
@@ -796,7 +869,7 @@ int main(int argc,char **argv)
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();restart_regression();
-    multi_device_regression();review_multi_regression();review_deleted_migration_regression();
+    multi_device_regression();device_settings_regression();review_multi_regression();review_deleted_migration_regression();
     ap_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;
