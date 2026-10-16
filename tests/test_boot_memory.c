@@ -16,6 +16,12 @@ static bool task_failure = true;
 static unsigned task_calls, delay_calls;
 static bool allow_run;
 static unsigned held;
+static bool storage_test;
+static unsigned current_priority=3,priority_changes,storage_delays;
+UBaseType_t uxTaskPriorityGet(TaskHandle_t task){CHECK(!task);return current_priority;}
+void vTaskPrioritySet(TaskHandle_t task,UBaseType_t priority)
+{CHECK(!task&&storage_test&&priority==(priority_changes%2?3u:0u));current_priority=priority;priority_changes++;}
+int64_t esp_timer_get_time(void){static int64_t clock;return clock+=1000;}
 static bool startup_ready(void) { return allow_run; }
 static void (*task_entry)(void *);
 static StackType_t *reserved_stack;
@@ -38,6 +44,7 @@ uint32_t lv_timer_handler(void)
 { const uint32_t delays[] = {0, 15, UINT32_MAX}; CHECK(delay_calls < 3); return delays[delay_calls]; }
 void vTaskDelay(TickType_t ticks)
 {
+    if(storage_test){CHECK(ticks==1);storage_delays++;return;}
     if (!allow_run) { CHECK(ticks == 20); held++; longjmp(loop_done,1); }
     const unsigned expected[] = {10, 15, 20}; CHECK(ticks == expected[delay_calls]);
     if (++delay_calls == 3) longjmp(loop_done,1);
@@ -45,13 +52,14 @@ void vTaskDelay(TickType_t ticks)
 
 static esp_partition_t partition = {.size = 0x3e0000};
 static bool missing, nonempty;
-static esp_err_t mount_error, format_error, read_error, second_mount_error;
+static esp_err_t mount_error, read_error, second_mount_error;
 static unsigned mount_calls, format_calls, read_calls;
 static size_t read_bytes;
 esp_err_t esp_vfs_spiffs_register(const esp_vfs_spiffs_conf_t *config)
 {
     CHECK(!strcmp(config->base_path,"/dsr") && !strcmp(config->partition_label,"dsrdata"));
-    CHECK(config->max_files == 8 && !config->format_if_mount_failed);
+    CHECK(config->max_files == 8 && config->format_if_mount_failed==(mount_calls==1));
+    if(config->format_if_mount_failed){CHECK(read_bytes==partition.size&&current_priority==0);format_calls++;}
     return mount_calls++ == 0 ? mount_error : second_mount_error;
 }
 const esp_partition_t *esp_partition_find_first(unsigned type,unsigned subtype,const char *label)
@@ -63,11 +71,11 @@ esp_err_t esp_partition_read(const esp_partition_t *p,size_t offset,void *bytes,
     if (nonempty && offset+count == p->size) ((unsigned char *)bytes)[count-1] = 0;
     return read_error;
 }
-esp_err_t esp_spiffs_format(const char *label)
-{ CHECK(!strcmp(label,"dsrdata") && read_bytes == partition.size); format_calls++; return format_error; }
+/* No esp_spiffs_format stub: restoring the double-format path fails to link. */
 static void reset_storage(void)
 {
-    missing=nonempty=false; mount_error=ESP_FAIL; format_error=read_error=second_mount_error=ESP_OK;
+    CHECK(current_priority==3);storage_test=true;priority_changes=storage_delays=0;
+    missing=nonempty=false; mount_error=ESP_FAIL; read_error=second_mount_error=ESP_OK;
     mount_calls=format_calls=read_calls=0; read_bytes=0; partition.size=0x3e0000;
 }
 int main(void)
@@ -104,12 +112,12 @@ int main(void)
     dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_NONEMPTY&&health.storage_error==ESP_FAIL);
     reset_storage();
     CHECK(dsr_storage_mount() == ESP_OK && format_calls == 1 && mount_calls == 2);
-    CHECK(read_bytes == 0x3e0000);
-    reset_storage(); format_error=ESP_ERR_NO_MEM;
-    CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && format_calls == 1 && mount_calls == 1);
-    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_PROVISION_ERROR&&health.storage_error==ESP_ERR_NO_MEM);
+    CHECK(read_bytes == 0x3e0000&&priority_changes==2&&current_priority==3&&storage_delays==17);
     reset_storage(); second_mount_error=ESP_ERR_NO_MEM;
-    CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && format_calls == 1 && mount_calls == 2);
+    CHECK(dsr_storage_mount() == ESP_ERR_NO_MEM && format_calls == 1 && mount_calls == 2&&priority_changes==2&&current_priority==3);
+    dsr_config_health_snapshot(&health);CHECK(health.storage==DSR_STORAGE_PROVISION_ERROR&&health.storage_error==ESP_ERR_NO_MEM);
+    reset_storage(); second_mount_error=ESP_FAIL;
+    CHECK(dsr_storage_mount() == ESP_FAIL && format_calls == 1 && mount_calls == 2&&priority_changes==2&&current_priority==3);
     reset_storage(); partition.size=1027;
     CHECK(dsr_storage_mount() == ESP_OK && read_calls == 2 && read_bytes == 1027);
     printf("PASS: %u boot-memory checks; static 8192-byte UI task, retry/guard/timing, blank-only provisioning, NO_MEM/read/nonempty preservation; host fixtures, not physical boot\n",checks);

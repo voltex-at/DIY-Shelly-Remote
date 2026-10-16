@@ -12,12 +12,14 @@ void dsr_config_health_workspace(dsr_workspace_phase_t p,esp_err_t e)
 {atomic_store(&workspace_error,e);atomic_store(&workspace,p);
 #ifdef ESP_PLATFORM
  ESP_LOGI("dsr_config","workspace stage=%d result=0x%x",(int)p,(unsigned)e);
+ if(p==DSR_WORKSPACE_READY)ESP_LOGI("dsr_config","workspace_ready");
 #endif
 }
 void dsr_config_health_panel(esp_err_t e)
 {atomic_store(&panel_error,e);atomic_store(&panel,e==ESP_OK?DSR_PANEL_READY:DSR_PANEL_FAILED);
 #ifdef ESP_PLATFORM
  ESP_LOGI("dsr_config","https startup result=0x%x",(unsigned)e);
+ if(e==ESP_OK)ESP_LOGI("dsr_config","https_ready");
 #endif
 }
 void dsr_config_health_snapshot(dsr_config_health_t *out)

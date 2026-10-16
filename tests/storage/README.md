@@ -48,3 +48,14 @@ with no writes or erases. Fixtures contain no owner data. These checks do not
 establish that an unknown damaged owner filesystem is recoverable.
 A mismatched prior 4 MiB length-magic fixture also refuses mount/format and
 preserves every byte; its expected partition here remains 0x3E0000.
+
+0.7.7 strengthens this to exactly 992 sector erases on a full blank format,
+instead of the former success-only assertion (which allowed two passes).
+Every erase must occur with the startup priority temporarily at idle; the
+previous priority must be restored on success/error. These are API-policy
+checks, not a simulated scheduler or measured watchdog timing.
+A synthetic 313-marker prefix must remain byte-identical on refused mount.
+An actual upstream format with injected write/erase failure after sector 313
+must produce that same prefix, report failure, release resources, restore
+priority and preserve the prefix on a subsequent boot/mount. This is I/O fault
+injection; the owner's original interruption cause remains unproven.

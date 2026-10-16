@@ -101,6 +101,8 @@ jobs:
               assert option in sdk, option
           for option in ['CONFIG_BT_NIMBLE_ROLE_CENTRAL=y','CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y','CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y']:
               assert option not in sdk, option
+          for option in ['CONFIG_SPI_FLASH_YIELD_DURING_ERASE=y','CONFIG_SPI_FLASH_ERASE_YIELD_DURATION_MS=20','CONFIG_SPI_FLASH_ERASE_YIELD_TICKS=1']:
+              assert option in sdk, option
           print('PASS: real SDK NimBLE observer-only, PSRAM and coexistence configuration')
           PY
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p merge-bin -o "$GITHUB_WORKSPACE/build-board/DIY-Shelly-Remote-es3c35p-local.bin"

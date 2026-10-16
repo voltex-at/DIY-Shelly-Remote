@@ -1,4 +1,33 @@
-# 0.7.6 — niedostępny magazyn, diagnostyka i kopia bez zapisu (#28 / PR #33)
+# Magazyn — inicjalizacja 0.7.7 i kopia bez zapisu (#28 / PR #33)
+
+## Aktualizacja P0: 0.7.6 nie przeszła czystej instalacji
+
+Recenzja opisuje analizę prywatnego odczytu właściciela: poprawny prefiks 313
+nagłówków SPIFFS z 992 bloków i reszta 0xff, bez checkpointów/plików. Późniejszy
+boot wykazuje niedostępny workspace przy działającym dotyku/callbacku. To dowód
+częściowego formatowania, nie konkretnego watchdog/resetu. Nie publikujemy
+dumpu ani nie zlecamy powtórnego pełnego erase/instalacji 0.7.6.
+
+0.7.7 usuwa dwa formaty wykonywane przez IDF 5.5.4 przy osobnym esp_spiffs_format
+niezamontowanej partycji. Po **pełnym sprawdzeniu 0xff** wykonuje register z
+format_if_mount_failed=true, jeden przebieg. Na czas formatu zadanie startowe
+dzieli CPU z idle (priorytet 0, preempcja/time slicing IDF); priorytet wraca także
+po błędzie. Zachowujemy watchdog i domyślne yield Flash, bez nowego zadania.
+Blank-check oddaje tick co 256 KiB.
+
+Pierwszy log: `blank_check checked=... total=4063232`, `format_started pass=1/1
+blocks=992`, `format_finished result=0x0 elapsed_ms=...`, `mount_ready`,
+`workspace_ready`, `https_ready`. Przy przerwaniu istotne są brak końcowego logu
+i reset reason następnego bootu. Publiczny wrapper nie ma callbacku sektorów;
+licznik to postęp sprawdzania oraz start/zakończenie jednego przebiegu formatu.
+
+**Niepusty prefiks 313 pozostaje chroniony.** Sam zapis aplikacji 0.7.7 nie kasuje
+go i nie naprawia automatycznie. Test pustej dsrdata lub preformatowanego obrazu
+wymaga osobno uzgodnionej konkretnej jednorazowej operacji po zachowaniu kopii.
+To nie jest zgoda na ponowny pełny erase, automatyczny format niepustego
+magazynu albo nadpisanie NVS. DEV nadal wymaga płytki; [bramki](PR33_ACCEPTANCE.md).
+
+Poniżej procedura kopii/analizy bez zapisu oraz historyczna diagnostyka 0.7.6.
 
 ## Ustalona przyczyna i granice poprawki
 

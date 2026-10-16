@@ -1,6 +1,14 @@
-# Matryca funkcji — 0.7.6, rewizja 7
+# Matryca funkcji — 0.7.7, rewizja 8
 
-**Aktualny odbiór:** właściciel zaakceptował jednorazowe pełne erase swojej płytki
+**Aktualny P0:** czysta 0.7.6 jest **FAIL** według nowych fizycznych dowodów
+w PR #33: 313/992 nagłówków formatu, brak workspace, działający callback ołówka
+i diagnostyka. 0.7.7 zmienia inicjalizację pustej partycji na jeden format po
+pełnym blank-check, współdzielenie CPU z idle i logi etapów/czasu/wyniku.
+Test oryginalnego IDF wymaga dokładnie 992 erase i zachowania prefiksu 313.
+CI nowej poprawki i fizyczny pierwszy boot do odbioru; wcześniejsze zielone CI
+nie jest physical pass. [Aktualne dowody i blokady](PR33_ACCEPTANCE.md).
+
+**Historyczny test 0.7.6:** właściciel zaakceptował jednorazowe pełne erase swojej płytki
 i testuje czystą instalację source `ecdac4e`. CI tego źródła sprawdzone: **5/5**,
 [run 38831522391](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38831522391).
 Dodany test oryginalnego wrappera/core IDF SPIFFS na symulowanej NOR przechodzi

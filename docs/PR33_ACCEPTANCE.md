@@ -1,8 +1,40 @@
 # PR #33 acceptance checkpoint — 2026-10-16
 
-Scope remains frozen. This follow-up adds verification and records current
-evidence; it changes no firmware source, version, board settings or partitions.
-The owner is testing **0.7.6 / source ecdac4ee0d3332a4ee1a4ad4f0d3df664b1d4818**.
+## Current P0 — 0.7.7 fix; no physical pass
+
+The clean 0.7.6 test is **FAIL**, per the new
+[dump-analysis review](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6205737171)
+and [physical callback/log evidence](https://github.com/voltex-at/DIY-Shelly-Remote/pull/33#issuecomment-6205786212).
+The reviewer reports 313/992 block markers and otherwise erased data. The raw
+private dump was not accessed here. This establishes interrupted formatting,
+not which watchdog/reset/power/I/O event caused it. Touch/callback and visible
+diagnostics work; usable workspace/Rooms/HTTPS do not.
+
+0.7.7 replaces the unmounted esp_spiffs_format path (two passes in IDF) with a
+single register-with-format only after all 0x3E0000 bytes are confirmed blank.
+Nonempty data, including the 313 prefix, are never automatically formatted.
+The startup caller shares idle priority under IDF preemption/time slicing and
+restores its prior priority on success/error; blank scan yields every 256 KiB.
+Existing Flash yield defaults remain enabled. No new task/stack, watchdog
+disable/manual feed/timeout increase. Logs include checked/total bytes, format
+start/finish, elapsed_ms/result/pass completion, mount/workspace/https_ready.
+No public per-sector callback exists, so no fabricated live percentage.
+
+Local UBSan: boot/storage 16040; original IDF integration 131789 checks, exactly
+992 erases, priority restoration, ten remounts, I/O errors, generator image and
+synthetic 313-marker preservation. Injected I/O failure after 313 sectors in the
+original formatter produces that same prefix and preserves it on the next mount.
+Other native/config/UI/review regressions pass as below. Host priority/time
+mocks do not prove ESP32 scheduling or watchdog health. First-boot log and a
+physical Room Save/reset/HTTPS regression remain mandatory. Do not repeat full
+erase or overwrite current nonempty data without a separately agreed concrete
+operation. No main merge, issue closure or Stable is authorized by these tests.
+
+## Historical ecdac4e and test-only d3b9472 verification
+
+Scope remains frozen. The d3b9472 follow-up added verification and documentation
+without changing firmware. The owner tested
+**0.7.6 / source ecdac4ee0d3332a4ee1a4ad4f0d3df664b1d4818**.
 Keep that build identity when reporting the physical result, even after this
 test-only PR update. Do not infer an app binary hash from a source commit or
 from the boot log's ELF hash.
@@ -37,16 +69,16 @@ from the boot log's ELF hash.
 
 The original IDF 5.5.4 `esp_spiffs_format()` supports an unmounted partition:
 it creates temporary filesystem structures and frees them after formatting.
-The project's blank-only call sequence is therefore supported and passes this
-integration test. This is not a diagnosis of the owner's unknown raw bytes or
-a substitute for running the exact build on ESP32-S3.
+The former success/persistence assertion was insufficient: it allowed two full
+formats. The 0.7.7 test now requires exactly one pass. A supported API sequence
+was not proof of acceptable physical timing or clean-install success.
 
-## Physical acceptance still open
+## Physical acceptance remains open after the failed clean test
 
 The owner's 0.7.4 log establishes SPIFFS_ERR_NOT_A_FS and the unavailable
 workspace/HTTPS chain, not the origin of the incompatible bytes. The owner has
-since authorized **one full Flash erase on their own board** and is testing a
-clean 0.7.6 installation. This supersedes waiting for a private backup as a
+since authorized **one full Flash erase on their own board** and tested a
+clean 0.7.6 installation, which failed. This superseded a private backup as a
 prerequisite for that particular authorized clean test; it does not authorize
 automatic erasure, repeated erase attempts, another board, main merge or Stable.
 
@@ -74,5 +106,7 @@ FreeRTOS/heap behavior, RF coexistence, physical touch or TLS behavior.
 | #19 AP, #18 further BLE, #22 history, #23 adapters, #24 signed native OTA, #32 wizard | Already open backlog; separate bounded changes and their model/security/physical gates remain required |
 
 No issue is closed, no PR approved/merged and no Stable release is authorized
-by this checkpoint. The current test-only follow-up needs its own CI result;
-the earlier green run applies to ecdac4e, not automatically to a later commit.
+by this checkpoint. Test-only d3b9472 passed all five jobs in
+[run 38834099814](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38834099814),
+including original IDF under ASan/UBSan/LSan. The new 0.7.7 firmware fix needs
+its own exact-head CI and physical result; earlier green runs establish neither.

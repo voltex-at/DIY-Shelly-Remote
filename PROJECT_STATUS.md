@@ -1,5 +1,37 @@
 # Project status
 
+## 0.7.7 — single-pass blank SPIFFS provisioning (#28 / PR #33)
+
+New reviewer evidence supersedes the earlier pending clean test: the owner
+reports physical **0.7.6 clean-install FAIL**. The review describes a private
+dump with exactly 313/992 valid block markers, the remaining blocks erased and
+no files; the raw dump was not accessed here. Physical logs confirm the pencil
+hit/callback and the workspace-unavailable diagnostic. The event that stopped
+the first format (watchdog/reset/power/I/O) remains unproven.
+
+IDF's esp_spiffs_format on an unmounted blank partition formats in init and
+then again. 0.7.7 replaces that with register-with-format only after every byte
+is confirmed 0xff. The actual IDF/core test now requires **exactly 992 sector
+erases**, not just successful mount. Nonempty/partial data remain protected.
+During this synchronous startup-only operation the caller shares idle priority
+under IDF's preemptive time slicing, then restores its prior priority on success
+or error. Blank scan yields every 256 KiB. Existing Flash-driver yield defaults
+are retained and checked in CI. No watchdog disable/feed/timeout increase or
+new task/stack. Logs show checked/total bytes, format start/finish with elapsed
+time/result/pass completion, mount_ready, workspace_ready and https_ready.
+Public IDF API has no per-sector progress callback; no invented live count.
+
+Local native/config/UI/review regressions pass (boot/storage now 16040 checks).
+The real IDF test passes 131789 checks: one format, ten remounts, priority policy,
+I/O failures, synthetic 313-marker prefix and actual formatter interrupted after
+313 sectors, followed by byte preservation, plus the generator image. Host
+timing/priority mocks do not establish physical watchdog health. The test-only
+d3b9472 passed CI 5/5; this firmware fix needs its own exact CI and physical test.
+No repeated full erase, private dump publication, main merge or Stable.
+[Current acceptance and evidence](docs/PR33_ACCEPTANCE.md).
+
+The following 0.7.6 entries are historical checkpoints, superseded above.
+
 ## PR #33 verification follow-up — owner testing clean 0.7.6
 
 The owner has authorized a one-time full erase of their own board and is testing
