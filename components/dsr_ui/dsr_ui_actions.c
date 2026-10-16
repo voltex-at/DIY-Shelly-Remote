@@ -28,7 +28,7 @@ static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
 {
  dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);char request[256];
- snprintf(request,sizeof(request),"{\"id\":%u,\"revision\":%u,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%08x%08x\"%s}",id,status.revision,status.boot_id,status.admission_generation,(unsigned)esp_random(),(unsigned)esp_random(),kind?"":on?",\"on\":true":",\"on\":false");
+ snprintf(request,sizeof(request),"{\"id\":%u,\"revision\":%u,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%08x%08x\"%s}",(unsigned)id,(unsigned)status.revision,(unsigned)status.boot_id,(unsigned)status.admission_generation,(unsigned)esp_random(),(unsigned)esp_random(),kind?"":on?",\"on\":true":",\"on\":false");
  uint32_t run=0;dsr_result_t accepted=dsr_actions_request(request,kind,1,&run);dsr_network_home(NULL);dsr_mobile_hide();active=true;page=3;admission=accepted;draw();
 }
 static void run(lv_event_t *event)
@@ -39,10 +39,10 @@ static void clear(lv_event_t *event){(void)event;dsr_actions_log_clear();log_epo
 static void log_page(lv_event_t *event){unsigned direction=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(direction)log_offset+=6;else if(log_offset>=6)log_offset-=6;draw();}
 static void progress(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 {
- char text[128];snprintf(text,sizeof(text),"#%u • %u/%u",s->run_id,(unsigned)s->current,(unsigned)s->count);dsr_sc_text(root,text,12,96,296,&dsr_roboto_16,DSR_SC_TEXT);
+ char text[128];snprintf(text,sizeof(text),"#%u • %u/%u",(unsigned)s->run_id,(unsigned)s->current,(unsigned)s->count);dsr_sc_text(root,text,12,96,296,&dsr_roboto_16,DSR_SC_TEXT);
  dsr_sc_text(root,admission!=DSR_OK?"Nie przyjęto. Odśwież i sprawdź urządzenia.":s->active?"Wykonywanie kolejno. Możliwy częściowy wynik.":s->run_id?"Zakończono. Wyniki dotyczą każdego kroku osobno.":"Brak uruchomienia",12,125,296,&dsr_roboto_12,DSR_SC_MUTED);
  lv_obj_t *list=body=dsr_sc_panel(root,12,177,296,228,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
- for(unsigned i=0;i<s->count;i++){const dsr_action_result_t *step=&s->steps[i];snprintf(text,sizeof(text),"#%u • %s",step->layout_id,dsr_sc_tr(command(step->command)));dsr_sc_text(list,text,6,(int)i*58,270,&dsr_roboto_14,DSR_SC_TEXT);snprintf(text,sizeof(text),"%s%s%s",dsr_sc_tr(outcome(step->outcome)),step->result==DSR_OK?"":" • ",step->result==DSR_OK?"":dsr_sc_tr(reason(step->result)));dsr_sc_text(list,text,6,(int)i*58+24,270,&dsr_roboto_12,step->outcome==DSR_ACTION_UNCERTAIN?0xffc18c:DSR_SC_MUTED);}
+ for(unsigned i=0;i<s->count;i++){const dsr_action_result_t *step=&s->steps[i];snprintf(text,sizeof(text),"#%u • %s",(unsigned)step->layout_id,dsr_sc_tr(command(step->command)));dsr_sc_text(list,text,6,(int)i*58,270,&dsr_roboto_14,DSR_SC_TEXT);snprintf(text,sizeof(text),"%s%s%s",dsr_sc_tr(outcome(step->outcome)),step->result==DSR_OK?"":" • ",step->result==DSR_OK?"":dsr_sc_tr(reason(step->result)));dsr_sc_text(list,text,6,(int)i*58+24,270,&dsr_roboto_12,step->outcome==DSR_ACTION_UNCERTAIN?0xffc18c:DSR_SC_MUTED);}
  if(s->active)button(root,"Anuluj pozostałe kroki",12,426,296,cancel,0);else dsr_sc_text(root,"Bez automatycznego ponawiania poleceń.",12,432,296,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void activity(lv_obj_t *root)
@@ -53,8 +53,8 @@ static void activity(lv_obj_t *root)
  lv_obj_t *list=body=dsr_sc_panel(root,12,96,296,282,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
  for(unsigned i=0;i<entries->count;i++){
   dsr_action_log_entry_t *entry=&entries->entries[i];char text[160],when[48];time_t value=(time_t)entry->utc;struct tm *t=entry->utc?gmtime(&value):NULL;
-  if(t)snprintf(when,sizeof(when),"%02d.%02d %02d:%02d:%02d UTC",t->tm_mday,t->tm_mon+1,t->tm_hour,t->tm_min,t->tm_sec);else snprintf(when,sizeof(when),dsr_sc_tr("Brak UTC • %u s od startu"),entry->monotonic_ms/1000);
-  snprintf(text,sizeof(text),"%s • #%u",when,entry->layout_id?entry->layout_id:entry->run_id);dsr_sc_text(list,text,6,(int)i*72,270,&dsr_roboto_12,DSR_SC_MUTED);
+  if(t)snprintf(when,sizeof(when),"%02d.%02d %02d:%02d:%02d UTC",t->tm_mday,t->tm_mon+1,t->tm_hour,t->tm_min,t->tm_sec);else snprintf(when,sizeof(when),dsr_sc_tr("Brak UTC • %u s od startu"),(unsigned)(entry->monotonic_ms/1000));
+  snprintf(text,sizeof(text),"%s • #%u",when,(unsigned)(entry->layout_id?entry->layout_id:entry->run_id));dsr_sc_text(list,text,6,(int)i*72,270,&dsr_roboto_12,DSR_SC_MUTED);
   const char *what=entry->kind==2?(entry->command==DSR_ACTION_ON?"Stan: włączone":entry->command==DSR_ACTION_OFF?"Stan: wyłączone":"Zmiana stanu"):command(entry->command);
   const char *result=entry->kind==2?(entry->result==DSR_OK?"Odczyt stanu":reason((dsr_result_t)entry->result)):outcome(entry->outcome);
   snprintf(text,sizeof(text),"%s • %s",dsr_sc_tr(what),dsr_sc_tr(result));dsr_sc_text(list,text,6,(int)i*72+24,270,&dsr_roboto_12,DSR_SC_TEXT);

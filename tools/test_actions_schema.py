@@ -5,6 +5,7 @@ from pathlib import Path
 R=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');a=p.parse_args()
 f=['-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-Wpedantic','-g']
+if Path('/usr/include/cjson/cJSON.h').is_file():f+=['-I','/usr/include/cjson']
 if a.sanitize:f+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
 elif a.ubsan_only:f+=['-fsanitize=undefined','-fno-omit-frame-pointer']
 old=R/'tests/actions/schema1';inc=R/'.test-deps';core=R/'components/dsr_core/include';config=R/'components/dsr_config/include'

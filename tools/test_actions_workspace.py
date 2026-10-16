@@ -5,6 +5,7 @@ from pathlib import Path
 R=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');a=p.parse_args()
 flags=['-std=c11','-Wall','-Wextra','-Werror','-Wpedantic','-g']
+if Path('/usr/include/cjson/cJSON.h').is_file():flags+=['-I','/usr/include/cjson']
 if a.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
 elif a.ubsan_only:flags+=['-fsanitize=undefined','-fno-omit-frame-pointer']
 with tempfile.TemporaryDirectory(prefix='dsr-actions-workspace-') as d:
