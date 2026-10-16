@@ -3,7 +3,7 @@
 import argparse
 import json
 from pathlib import Path
-from package_factory import DATA_OFFSET, DATA_SIZE, FLASH_SIZE, SEGMENTS, digest, partition_layout, require, validate_app
+from package_factory import DATA_OFFSET, DATA_SIZE, FLASH_SIZE, SEGMENTS, digest, partition_layout, require, validate_app, validate_esp_image
 
 def verify(directory):
     factory=directory/"FACTORY-CLEAN-16MB";update=directory/"UPDATE-APP-ONLY"
@@ -12,6 +12,8 @@ def verify(directory):
     image=(factory/"DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.bin").read_bytes()
     fs=(factory/"dsrdata.bin").read_bytes()
     require(len(image)==FLASH_SIZE and len(fs)==DATA_SIZE,"Wrong full image/partition length")
+    require(manifest["flash_bytes"]==FLASH_SIZE and manifest["spiffs"]["offset"]==DATA_OFFSET and
+            manifest["spiffs"]["magic_blocks"]==992,"Wrong manifest geometry")
     require(digest(image)==manifest["factory"] and digest(fs)=={k:manifest["spiffs"][k] for k in ["bytes","sha256","crc32"]},"Factory/partition checksum mismatch")
     require(image[DATA_OFFSET:]==fs,"Wrong final SPIFFS offset or bytes")
     require(proof["image_sha256"]==digest(fs)["sha256"] and proof["image_bytes"]==len(fs),"Mount proof belongs to another image")
@@ -29,11 +31,16 @@ def verify(directory):
         cursor=offset+len(data)
     require(image[cursor:DATA_OFFSET]==b"\xff"*(DATA_OFFSET-cursor),"Non-FF OTA1/reserved gap")
     partition_layout((factory/"partition_table/partition-table.bin").read_bytes())
+    validate_esp_image((factory/"bootloader/bootloader.bin").read_bytes())
     app=(factory/"diy_shelly_remote.bin").read_bytes()
     require(validate_app(app)==manifest["version"],"Application version mismatch")
     require((update/"diy_shelly_remote.bin").read_bytes()==app,"UPDATE app differs from FACTORY")
     require({p.name for p in update.iterdir()}<={"diy_shelly_remote.bin","BUILD_COMMIT.txt","SHA256SUMS.txt","INSTALL_UPDATE_PL.md","licenses"},"UPDATE contains a non-app segment")
+    require({p.relative_to(update).as_posix() for p in update.rglob("*") if p.is_file() and p.suffix.lower()==".bin"}=={"diy_shelly_remote.bin"},
+            "UPDATE contains a nested non-app binary")
     require((factory/"BUILD_COMMIT.txt").read_bytes()==(update/"BUILD_COMMIT.txt").read_bytes(),"Mixed source provenance")
+    require((factory/"BUILD_COMMIT.txt").read_text()==f"Source commit: {manifest['source']}\nTested commit: {manifest['tested']}\n",
+            "Manifest/source provenance mismatch")
     for folder in [factory,update]:
         actual=set()
         for line in (folder/"SHA256SUMS.txt").read_text().splitlines():
@@ -43,6 +50,9 @@ def verify(directory):
         require(actual=={p.relative_to(folder).as_posix() for p in folder.rglob("*.bin")},"Missing/unexpected binary checksum")
     primary=json.loads((factory/"flasher_args.json").read_text())
     alternate=json.loads((factory/"flasher_args-segments.json").read_text())
+    for routing in [primary,alternate]:
+        require(routing["flash_settings"]==dict(flash_mode="dio",flash_size="16MB",flash_freq="80m") and
+                routing["extra_esptool_args"]["chip"]=="esp32s3","Wrong factory flasher settings")
     require(primary["flash_files"]=={"0x0":"DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.bin"},"FACTORY main routing is not one full image at0")
     require({int(k,16):v for k,v in alternate["flash_files"].items()}=={**{k:v[0] for k,v in SEGMENTS.items()},DATA_OFFSET:"dsrdata.bin"},"Alternate segment map omits/misroutes SPIFFS")
     return {"version":manifest["version"],"factory":digest(image),"spiffs":digest(fs),"original_idf_mount_verified":True,"reserved_gaps_ff":True,"update_app_only":True,"physical_acceptance":False}

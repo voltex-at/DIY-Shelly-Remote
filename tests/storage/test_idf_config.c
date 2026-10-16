@@ -8,12 +8,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "dsr_config.h"
+#include "spiffs.h"
 
 typedef struct { int fd; } test_file_t;
 static unsigned format_calls;
-esp_err_t __real_esp_spiffs_format(const char *);
-esp_err_t __wrap_esp_spiffs_format(const char *label)
-{format_calls++;return __real_esp_spiffs_format(label);}
+s32_t __real_SPIFFS_format(spiffs *);
+s32_t __wrap_SPIFFS_format(spiffs *fs)
+{format_calls++;return __real_SPIFFS_format(fs);}
 FILE *test_fopen(const char *path,const char *mode)
 {
  CHECK(!strncmp(path,"/dsr/",5)&&vfs);
@@ -102,7 +103,7 @@ static unsigned save_trial(const uint8_t *baseline,uint8_t *shared,const char *n
 int main(int argc,char **argv)
 {
  setvbuf(stdout,NULL,_IONBF,0);
- CHECK(argc==2||argc==3);CHECK(test_original_main(2,argv)==0);
+ CHECK(argc==2||argc==3);CHECK(test_original_main(2,argv)==0);CHECK(format_calls==4);
  uint8_t *shared=mmap(NULL,DATA_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(shared!=MAP_FAILED);
  flash=shared;gc_workload=true;memset(flash,0xff,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_OK);ready();
  sentinel(true);

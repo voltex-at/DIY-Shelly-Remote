@@ -193,6 +193,7 @@ jobs:
           cp -r build-board/package/licenses build-board/installers/FACTORY-CLEAN-16MB/
           cp -r build-board/package/licenses build-board/installers/UPDATE-APP-ONLY/
           python3 tools/check_factory_package.py --package-dir build-board/installers
+          python3 tools/test_factory.py --package-dir build-board/installers
           mkdir build-board/reports
           cp build-board/package/[A-Z]*.json build-board/package/BUILD_COMMIT.txt build-board/package/dependencies.lock build-board/reports/
       - name: Retain full clean FACTORY image (destructive installation variant)

@@ -86,7 +86,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / "build-ui", prefix="idf-spiffs-") as
                         *[v for folder in includes for v in ["-I", str(folder)]],
                         "-c", str(source), "-o", str(obj)], check=True)
         objects.append(obj)
-    subprocess.run([cc, *flags, *map(str, objects), "-Wl,--wrap=esp_spiffs_format", *json_library, "-lm", "-o", str(binary)], check=True)
+    subprocess.run([cc, *flags, *map(str, objects), "-Wl,--wrap=SPIFFS_format", *json_library, "-lm", "-o", str(binary)], check=True)
     image = zlib.decompress(base64.b64decode((ROOT / "tests/storage/spiffs-idf-5.5.4.zlib.base64").read_bytes()))
     if hashlib.sha256(image).hexdigest() != "bd0be5201aa20655b2885a39b017070523bb8c44f275d837a200c949179fb544":
         raise SystemExit("Unexpected synthetic upstream-generated image")

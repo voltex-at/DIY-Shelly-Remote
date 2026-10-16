@@ -45,9 +45,9 @@ def partition_layout(data):
         entries.append((label.split(b"\0")[0].decode("ascii"),kind,sub,start,size))
     raise ValueError("Partition MD5 missing")
 
-def validate_app(data):
-    require(len(data)>256 and data[0]==0xe9 and struct.unpack_from("<H",data,12)[0]==9 and data[23]==1,
-            "Expected ESP32-S3 hashed application image")
+def validate_esp_image(data, app_descriptor=False):
+    require(len(data)>=32 and data[0]==0xe9 and struct.unpack_from("<H",data,12)[0]==9 and data[23]==1 and 1<=data[1]<=16,
+            "Expected ESP32-S3 hashed image")
     offset=24;checksum=0xef
     for _ in range(data[1]):
         require(offset+8<=len(data),"Truncated image segment header")
@@ -59,8 +59,12 @@ def validate_app(data):
     require(check_at+33==len(data),"Invalid image final length")
     require(data[offset:check_at]==bytes(check_at-offset) and data[check_at]==checksum,"Image padding/XOR mismatch")
     require(hashlib.sha256(data[:check_at+1]).digest()==data[-32:],"Image appended SHA mismatch")
-    require(struct.unpack_from("<I",data,32)[0]==0xabcd5432,"Missing application descriptor")
-    return data[48:80].split(b"\0")[0].decode("ascii")
+    if app_descriptor:
+        require(len(data)>=256 and struct.unpack_from("<I",data,32)[0]==0xabcd5432,"Missing application descriptor")
+        return data[48:80].split(b"\0")[0].decode("ascii")
+
+def validate_app(data):
+    return validate_esp_image(data, app_descriptor=True)
 
 def compose(segments, filesystem):
     require(set(segments)==set(SEGMENTS),"Unexpected or missing flash segment")
@@ -93,7 +97,7 @@ def package(build, sdkconfig, idf, out, source, tested):
     files={int(offset,16):name for offset,name in flash["flash_files"].items()}
     require(len(files)==len(flash["flash_files"]) and files=={k:v[0] for k,v in SEGMENTS.items()},"Unexpected flasher segment routing")
     segments={offset:(build/name).read_bytes() for offset,(name,_) in SEGMENTS.items()}
-    partition_layout(segments[0x8000]);version=validate_app(segments[0x20000])
+    partition_layout(segments[0x8000]);validate_esp_image(segments[0]);version=validate_app(segments[0x20000])
     require(subprocess.check_output(["git","-C",str(idf),"rev-parse","HEAD"],text=True).strip()==
             "735507283d5b2f9fb363a1901172dbd9e847945d","Wrong IDF generator revision")
     with tempfile.TemporaryDirectory(prefix="dsr-factory-") as tmp:
