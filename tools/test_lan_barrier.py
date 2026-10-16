@@ -17,8 +17,11 @@ elif a.ubsan_only:
     flags += ["-fsanitize=undefined", "-fno-omit-frame-pointer"]
 with tempfile.TemporaryDirectory(prefix="dsr-lan-barrier-") as tmp:
     out = Path(tmp) / "test_lan_barrier"
-    folders = ["tests/lan", "tests/actor", "tests/support", "components/dsr_core/include", "components/dsr_platform/include", "components/dsr_config/include", ".test-deps"]
-    subprocess.run([os.environ.get("CC", "cc"), *flags, *[x for folder in folders for x in ["-I", str(ROOT / folder)]],
+    json_include = Path("/usr/include/cjson")
+    if not (json_include / "cJSON.h").exists():
+        json_include = ROOT / ".test-deps"
+    folders = [ROOT / folder for folder in ["tests/lan", "tests/actor", "tests/support", "components/dsr_core/include", "components/dsr_platform/include", "components/dsr_config/include"]] + [json_include]
+    subprocess.run([os.environ.get("CC", "cc"), *flags, *[x for folder in folders for x in ["-I", str(folder)]],
                     str(ROOT / "tests/test_lan_barrier.c"), str(ROOT / "components/dsr_platform/dsr_discovery_model.c"), str(ROOT / "components/dsr_core/dsr_core.c"),
                     "-l:libcjson.so.1", "-o", str(out)], check=True, cwd=tmp)
     subprocess.run([str(out)], check=True, cwd=tmp)
