@@ -330,6 +330,8 @@ static void scene_action_add(lv_event_t *event)
 static void group_member(lv_event_t *event)
 {
  uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(event);cJSON *members=cJSON_GetObjectItemCaseSensitive(editing,"members");int at=0;for(cJSON *v=members->child;v;v=v->next,at++)if((uint32_t)v->valueint==id){cJSON_DeleteItemFromArray(members,at);return;}
+ const cJSON *device;bool supported=false;cJSON_ArrayForEach(device,item(draft,"devices"))if((uint32_t)integer(device,"id")==id)supported=!strcmp(string(device,"kind"),"relay")||!strcmp(string(device,"kind"),"plug");
+ if(!supported){lv_obj_remove_state(lv_event_get_target(event),LV_STATE_CHECKED);return;}
  if(cJSON_GetArraySize(members)>=16)return;
  cJSON *value=cJSON_CreateNumber(id);if(value)cJSON_AddItemToArray(members,value);
 }
@@ -424,7 +426,7 @@ static void show_entity(cJSON *entity)
  }
  if(!strcmp(collection_name,"groups")){
   dsr_sc_text(body,"Do 16 kanałów Switch. Grupa ma jawne Włącz/Wyłącz.",0,78,284,&dsr_roboto_12,DSR_SC_MUTED);unsigned i=0;const cJSON *d,*member;
-  cJSON_ArrayForEach(d,item(draft,"devices")){const char *kind=string(d,"kind");if(strcmp(kind,"light")&&strcmp(kind,"relay")&&strcmp(kind,"plug"))continue;lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,6,128+(int)i++*44);lv_checkbox_set_text(check,string(d,"name"));cJSON_ArrayForEach(member,item(editing,"members"))if(member->valueint==integer(d,"id"))lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_add_event_cb(check,group_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)integer(d,"id"));}
+  cJSON_ArrayForEach(d,item(draft,"devices")){const char *kind=string(d,"kind");bool included=false;cJSON_ArrayForEach(member,item(editing,"members"))if(member->valueint==integer(d,"id"))included=true;if(strcmp(kind,"relay")&&strcmp(kind,"plug")&&!included)continue;lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,6,128+(int)i++*44);lv_checkbox_set_text(check,string(d,"name"));if(included)lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_add_event_cb(check,group_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)integer(d,"id"));}
  }
  if(!strcmp(collection_name,"dashboards")){
   cJSON *tiles=cJSON_GetObjectItemCaseSensitive(entity,"tiles");int i=0,visible=0;
@@ -610,7 +612,7 @@ static dsr_result_t migration_result=DSR_OK;
 static bool migration_failed;
 static bool migration_match(const cJSON *v,const migration_t *m)
 {
- if((!strcmp(string(v,"kind"),"cover"))!=(m->device.endpoint_kind==DSR_ENDPOINT_COVER))return false;
+ if(dsr_endpoint_from_kind(string(v,"kind"))!=m->device.endpoint_kind)return false;
  if(m->layout_id)return (uint32_t)integer(v,"id")==m->layout_id;
  if(integer(v,"channel")!=m->device.channel)return false;
  /* An unpublished endpoint may adopt legacy layout only if another durable
@@ -636,7 +638,7 @@ static bool merge_migration(cJSON *r,const migration_t *m)
   if(m->layout_id)return false;
   if(cJSON_GetArraySize(a)>=DSR_MAX_DEVICES)return false;
   found=cJSON_CreateObject();if(!found)return false;
-  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind",m->device.endpoint_kind==DSR_ENDPOINT_COVER?"cover":"relay")){cJSON_Delete(found);return false;}
+  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind",dsr_endpoint_kind_name(m->device.endpoint_kind))){cJSON_Delete(found);return false;}
   cJSON_AddItemToArray(a,found);
   cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
   if(cJSON_GetArraySize(tiles)<24){

@@ -53,7 +53,7 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
             bool sw=!strncmp(v->string,"switch:",7),cover=!strncmp(v->string,"cover:",6),light=!strncmp(v->string,"light:",6);
             if(sw||cover||light){char *end;long index=strtol(colon+1,&end,10);if(!colon[1]||*end||index<0||index>15||!cJSON_IsObject(v)||!unique_keys(v)||!integral(get(v,"id"),(int)index,(int)index))return DSR_BAD_RESPONSE;
                 if(cover){if(!text(get(v,"state"),32))return DSR_BAD_RESPONSE;caps.covers|=(uint16_t)(1u<<index);}
-                else{if(!cJSON_IsBool(get(v,"output")))return DSR_BAD_RESPONSE;*(sw?&caps.switches:&caps.lights)|=(uint16_t)(1u<<index);}
+                else{if(!cJSON_IsBool(get(v,"output"))||(light&&!integral(get(v,"brightness"),0,100)))return DSR_BAD_RESPONSE;*(sw?&caps.switches:&caps.lights)|=(uint16_t)(1u<<index);}
             }else if(!strncmp(v->string,"temperature:",12)||!strncmp(v->string,"humidity:",9)||!strncmp(v->string,"devicepower:",12))caps.sensors=cJSON_IsObject(v)||caps.sensors;
         }
     }else return DSR_UNSUPPORTED;

@@ -13,8 +13,9 @@ units = {
     "dsr_ble_handoff": (256, {"dsr_ble_handoff_parse"}),
     "dsr_ui_ble_rpc": (1024, {"dsr_ui_ble_rpc_open", "dsr_ui_ble_rpc_tick", "dsr_ui_ble_rpc_result"}),
     "dsr_ui_onboarding": (512, {"dsr_ui_onboarding_open", "dsr_ui_onboarding_tick", "dsr_ui_onboarding_reset", "dsr_ui_onboarding_active", "dsr_onboarding_screen", "dsr_onboarding_footer", "dsr_onboarding_keyboard", "dsr_onboarding_result"}),
-    "dsr_http": (2048, {"dsr_http_lan_verify_station"}),
+    "dsr_http": (2048, {"dsr_http_lan_verify_station", "dsr_http_light"}),
     "dsr_worker": (2048, {"dsr_worker_submit"}),
+    "dsr_ui_mobile": (1024, {"dsr_mobile_update", "dsr_mobile_show"}),
     "dsr_ui_network": (2048, {"dsr_network_request_station", "dsr_network_init"}),
 }
 units = {name:list(public) for name,(_,public) in units.items()}
@@ -47,4 +48,5 @@ with tempfile.TemporaryDirectory(prefix="dsr-ap-audit-") as temp:
     fixture();memory = json.loads((folder / "BOOT_MEMORY.json").read_text());memory["internal_bss_bytes"] = 81921;(folder / "BOOT_MEMORY.json").write_text(json.dumps(memory));check(False)
     fixture();(folder / "dsr_ui_onboarding.c.su").write_text("dsr_ui_onboarding.c:1:1:dsr_onboarding_screen\t528\tstatic\n");check(False)
     fixture();(folder / "dsr_ui_onboarding.c.obj").write_text("00000000 00000257 b state\n");check(False)
-print("PASS: BLE/onboarding target auditor 1 positive + 9 rejection fixtures (synthetic reports, not target evidence)")
+    fixture();(folder / "dsr_ui_mobile.c.su").write_text("dsr_ui_mobile.c:1:1:dsr_mobile_update\t1040\tstatic\n");check(False)
+print("PASS: BLE/Light/onboarding target auditor 1 positive + 10 rejection fixtures (synthetic reports, not target evidence)")

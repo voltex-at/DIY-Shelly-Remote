@@ -3,6 +3,22 @@
 #include <string.h>
 
 static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
+uint8_t dsr_endpoint_from_kind(const char *kind)
+{return kind&&!strcmp(kind,"cover")?DSR_ENDPOINT_COVER:kind&&!strcmp(kind,"light")?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;}
+const char *dsr_endpoint_kind_name(uint8_t kind)
+{return kind==DSR_ENDPOINT_COVER?"cover":kind==DSR_ENDPOINT_LIGHT?"light":"relay";}
+bool dsr_light_intent_valid(dsr_light_intent_t i)
+{return i.command>=DSR_LIGHT_ON&&i.command<=DSR_LIGHT_SET_BRIGHTNESS&&(i.command==DSR_LIGHT_SET_BRIGHTNESS?i.brightness<=100:i.brightness==0);}
+bool dsr_light_can_set(const dsr_light_status_t *s,dsr_light_intent_t i)
+{return s&&dsr_light_intent_valid(i)&&(s->flags&(DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS))==(DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS)&&!s->errors&&!s->conditions;}
+dsr_result_t dsr_light_request_build(uint8_t channel,dsr_light_intent_t i,dsr_request_t *out)
+{
+ if(!out||channel>DSR_MAX_CHANNEL||!dsr_light_intent_valid(i))return DSR_INVALID;
+ memset(out,0,sizeof(*out));out->post=true;strcpy(out->path,"/rpc/Light.Set");
+ if(i.command==DSR_LIGHT_SET_BRIGHTNESS)snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"brightness\":%u}",channel,i.brightness);
+ else snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"on\":%s}",channel,i.command==DSR_LIGHT_ON?"true":"false");
+ return DSR_OK;
+}
 bool dsr_cover_intent_valid(dsr_cover_intent_t i)
 {return i.command>=DSR_COVER_OPEN&&i.command<=DSR_COVER_GOTO&&(i.command==DSR_COVER_GOTO?i.position<=100:i.position==0);}
 bool dsr_cover_can_move(const dsr_cover_status_t *s,dsr_cover_intent_t i)
@@ -71,7 +87,8 @@ dsr_result_t dsr_registry_upsert(dsr_registry_t *registry, const dsr_device_t *d
     if (!registry || !device || registry->count > DSR_MAX_DEVICES ||
         !memchr(device->host, '\0', sizeof(device->host)) ||
         !memchr(device->name, '\0', sizeof(device->name)) ||
-        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL ||
+        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL || device->endpoint_kind>DSR_ENDPOINT_LIGHT ||
+        (device->endpoint_kind!=DSR_ENDPOINT_SWITCH&&device->generation!=DSR_GEN2_PLUS) ||
         (device->generation != DSR_GEN1 && device->generation != DSR_GEN2_PLUS)) return DSR_INVALID;
     for (size_t i = 0; i < registry->count; i++) {
         if (strcmp(registry->items[i].host, device->host) == 0 &&

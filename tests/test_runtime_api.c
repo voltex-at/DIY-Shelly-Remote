@@ -70,7 +70,18 @@ static void cover_parser(void)
  attempts=0;char *json=dsr_runtime_json(125);CHECK(json&&strstr(json,"\"endpoint_kind\":1")&&strstr(json,"\"stop_pending\":true")&&strstr(json,"\"can_move\":false")&&strstr(json,"\"can_position\":false"));total=attempts;cJSON_free(json);CHECK(live==0);
  for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(125);CHECK(!json&&live==0);}fail_at=0;
 }
+static void light_parser(void)
+{
+ const char *valid_light="{\"device_id\":\"dimmer-test\",\"generation\":2,\"endpoint_kind\":2,\"channel\":1,\"command\":\"brightness\",\"brightness\":0}";
+ dsr_device_t d;dsr_light_intent_t intent;attempts=0;CHECK(dsr_light_parse(valid_light,&d,&intent)&&d.endpoint_kind==DSR_ENDPOINT_LIGHT&&intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==0&&!d.host[0]);unsigned total=attempts;
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;memset(&d,0x5a,sizeof(d));memset(&intent,0x5a,sizeof(intent));dsr_device_t old=d;dsr_light_intent_t prior=intent;CHECK(!dsr_light_parse(valid_light,&d,&intent)&&!memcmp(&d,&old,sizeof(d))&&!memcmp(&intent,&prior,sizeof(intent))&&live==0);}fail_at=0;
+ const char *bad[]={"null","[]","{} trailing","{\"device_id\":\"a\",\"generation\":1,\"endpoint_kind\":2,\"channel\":0,\"command\":\"on\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":1,\"channel\":0,\"command\":\"on\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"toggle\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"on\",\"brightness\":0}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"brightness\",\"brightness\":101}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"brightness\",\"brightness\":0.5}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"brightness\",\"brightness\":null}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"on\",\"command\":\"off\"}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"on\",\"host\":\"192.0.2.1\"}","{\"device_id\":\"a\\u0000tail\",\"generation\":2,\"endpoint_kind\":2,\"channel\":0,\"command\":\"off\"}"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){memset(&d,0x5a,sizeof(d));memset(&intent,0x5a,sizeof(intent));dsr_device_t old=d;dsr_light_intent_t prior=intent;CHECK(!dsr_light_parse(bad[i],&d,&intent)&&!memcmp(&d,&old,sizeof(d))&&!memcmp(&intent,&prior,sizeof(intent))&&live==0);}
+ CHECK(dsr_light_parse(valid_light,&d,&intent));snapshot_count=1;snapshots[0]=(dsr_runtime_device_t){.device=d,.telemetry={.light={.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.brightness=0}}};
+ attempts=0;char *json=dsr_runtime_json(126);CHECK(json&&strstr(json,"\"endpoint_kind\":2")&&strstr(json,"\"brightness\":0")&&strstr(json,"\"has_brightness\":true")&&strstr(json,"\"can_light\":true")&&!strstr(json,"cover_state")&&!strstr(json,"credentials"));total=attempts;cJSON_free(json);CHECK(live==0);
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(126);CHECK(!json&&live==0);}fail_at=0;
+}
 int main(void)
 {
- cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
+ cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();light_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
 }

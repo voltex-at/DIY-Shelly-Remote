@@ -23,6 +23,11 @@
   position:['Pozycja potwierdzona: {position}%','Confirmed position: {position}%','Bestätigte Position: {position}%'],
   preview:['Podgląd celu: {position}% — puść, aby wysłać','Target preview: {position}% — release to send','Zielvorschau: {position}% — zum Senden loslassen'],
   noPosition:['Pozycjonowanie niedostępne','Position control unavailable','Positionierung nicht verfügbar'],
+  brightness:['Jasność potwierdzona: {position}%','Confirmed brightness: {position}%','Bestätigte Helligkeit: {position}%'],
+  noBrightness:['Jasność niedostępna','Brightness unavailable','Helligkeit nicht verfügbar'],
+  lightError:['Sterowanie Light zablokowane: {code}','Light controls blocked: {code}','Light-Steuerung gesperrt: {code}'],
+  transition:['Przejście do {position}%','Transition to {position}%','Übergang zu {position}%'],
+  zeroBrightness:['0% jasności nie oznacza OFF','0% brightness does not mean OFF','0% Helligkeit bedeutet nicht AUS'],
   coverError:['Błąd rolety: {code}','Cover error: {code}','Rollladenfehler: {code}'],
  };
  let section=null,holder=null,status=null,fetching=false,fetchSerial=0,expiryTimer=null,boot=null;
@@ -35,7 +40,8 @@
  const kind=d=>d.endpoint_kind??0;
  const key=d=>JSON.stringify([d.device_id,d.generation,kind(d),d.channel]);
  const current=()=>section?.isConnected&&page==='devices'&&!document.querySelector('#workspace').hidden;
- function valid(d){return d&&[0,1].includes(kind(d))&&typeof d.device_id==='string'&&d.device_id.length>0&&d.device_id.length<64&&Number.isInteger(d.generation)&&[1,2].includes(d.generation)&&Number.isInteger(d.channel)&&d.channel>=0&&d.channel<16&&typeof d.name==='string'&&typeof d.host==='string'&&typeof d.online==='boolean'&&typeof d.output==='boolean'&&typeof d.has_switch==='boolean'&&typeof d.pending==='boolean'&&Number.isInteger(d.operation_id)&&d.operation_id>=0&&d.operation_id<=0xffffffff&&Number.isInteger(d.error)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms>=0&&(kind(d)===0||(d.generation===2&&typeof d.has_position==='boolean'&&Number.isInteger(d.position)&&d.position>=0&&d.position<=100&&Number.isInteger(d.cover_state)&&d.cover_state>=0&&d.cover_state<=6&&typeof d.can_move==='boolean'&&typeof d.can_position==='boolean'&&typeof d.can_stop==='boolean'&&typeof d.stop_pending==='boolean'&&Number.isInteger(d.cover_errors)&&d.cover_errors>=0&&d.cover_errors<=255));}
+ function valid(d){return d&&[0,1,2].includes(kind(d))&&typeof d.device_id==='string'&&d.device_id.length>0&&d.device_id.length<64&&Number.isInteger(d.generation)&&[1,2].includes(d.generation)&&Number.isInteger(d.channel)&&d.channel>=0&&d.channel<16&&typeof d.name==='string'&&typeof d.host==='string'&&typeof d.online==='boolean'&&typeof d.output==='boolean'&&typeof d.has_switch==='boolean'&&typeof d.pending==='boolean'&&Number.isInteger(d.operation_id)&&d.operation_id>=0&&d.operation_id<=0xffffffff&&Number.isInteger(d.error)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms>=0&&(kind(d)===0||(d.generation===2&&(kind(d)===2?typeof d.has_brightness==='boolean'&&Number.isInteger(d.brightness)&&d.brightness>=0&&d.brightness<=100&&typeof d.can_light==='boolean'&&typeof d.transitioning==='boolean'&&typeof d.has_brightness_target==='boolean'&&Number.isInteger(d.brightness_target)&&d.brightness_target>=0&&d.brightness_target<=100&&Number.isInteger(d.light_errors)&&d.light_errors>=0&&d.light_errors<=255&&Number.isInteger(d.light_conditions)&&d.light_conditions>=0&&d.light_conditions<=255:typeof d.has_position==='boolean'&&Number.isInteger(d.position)&&d.position>=0&&d.position<=100&&Number.isInteger(d.cover_state)&&d.cover_state>=0&&d.cover_state<=6&&typeof d.can_move==='boolean'&&typeof d.can_position==='boolean'&&typeof d.can_stop==='boolean'&&typeof d.stop_pending==='boolean'&&Number.isInteger(d.cover_errors)&&d.cover_errors>=0&&d.cover_errors<=255)));}
+ const canLight=d=>d.can_light&&d.has_brightness&&!d.light_errors&&!d.light_conditions;
  const age=card=>card.data.sample_age_ms+Math.max(0,performance.now()-card.received);
  function fresh(card){return card.data.online&&age(card)<=15000;}
  function cancelRange(card){if(card.range){card.dragging=false;card.rangeCanceled=true;}}
@@ -43,15 +49,19 @@
   const d=card.data,l=local.get(key(d));
   card.name.textContent=d.name;card.identity.textContent=d.device_id;
   card.address.textContent=text('channel',d);
-  const stop=stops.get(key(d)),waiting=d.pending||!!l?.waiting||!!stop?.waiting,cover=kind(d)===1;
+  const stop=stops.get(key(d)),waiting=d.pending||!!l?.waiting||!!stop?.waiting,cover=kind(d)===1,light=kind(d)===2;
   card.state.textContent=text(waiting?'pending':fresh(card)?(cover?(['unknown','opened','closed','opening','closing','stopped','calibrating'][d.cover_state]):(d.output?'on':'off')):'offline');
   card.age.textContent=fresh(card)?text('age',{seconds:Math.floor(age(card)/1000)}):text('unknown');
   card.measure.textContent=fresh(card)?[['has_power','power_w','W'],['has_voltage','voltage_v','V'],['has_current','current_a','A'],['has_energy','energy_wh','Wh']].filter(([has,value])=>d[has]===true&&Number.isFinite(d[value])).map(([,value,unit])=>`${d[value].toLocaleString(document.documentElement.lang,{maximumFractionDigits:2})} ${unit}`).join(' · '):'';
-  card.error.textContent=stop?.message?text(stop.message):l?.message?text(l.message):d.error?text('error',{code:d.error}):cover&&d.cover_errors?text('coverError',{code:d.cover_errors}):'';
-  for(const [button,on]of [[card.on,true],[card.off,false]]){const label=cover?(on?'open':'close'):(on?'turnOn':'turnOff');button.textContent=text(label);button.disabled=!fresh(card)||waiting||(cover?!d.can_move:!d.has_switch);button.setAttribute('aria-label',`${text(label)}: ${d.name}`);}
+  card.error.textContent=stop?.message?text(stop.message):l?.message?text(l.message):d.error?text('error',{code:d.error}):cover&&d.cover_errors?text('coverError',{code:d.cover_errors}):light&&(d.light_errors||d.light_conditions)?text('lightError',{code:d.light_errors||d.light_conditions}):'';
+  for(const [button,on]of [[card.on,true],[card.off,false]]){const label=cover?(on?'open':'close'):(on?'turnOn':'turnOff');button.textContent=text(label);button.disabled=!fresh(card)||waiting||(cover?!d.can_move:light?!canLight(d):!d.has_switch);button.setAttribute('aria-label',`${text(label)}: ${d.name}`);}
   if(cover){card.stop.textContent=text('stop');card.stop.disabled=!d.can_stop||d.stop_pending||!!stop?.waiting;card.stop.setAttribute('aria-label',`${text('stop')}: ${d.name}`);
    card.range.disabled=!fresh(card)||waiting||!d.can_position;if(card.range.disabled)cancelRange(card);card.range.setAttribute('aria-label',`${text('position',{position:d.has_position?d.position:'?'})}: ${d.name}`);if(!card.dragging)card.range.value=String(d.has_position?d.position:0);
    const confirmed=fresh(card)&&d.has_position?text('position',{position:d.position}):text('noPosition');card.preview.textContent=confirmed+(card.dragging?` · ${text('preview',{position:card.range.value})}`:'');
+  }
+  if(light){
+   card.range.disabled=!fresh(card)||waiting||!canLight(d);if(card.range.disabled)cancelRange(card);card.range.setAttribute('aria-label',`${text('brightness',{position:d.has_brightness?d.brightness:'?'})}: ${d.name}`);if(!card.dragging)card.range.value=String(d.has_brightness?d.brightness:0);
+   const confirmed=fresh(card)&&d.has_brightness?text('brightness',{position:d.brightness}):text('noBrightness');card.preview.textContent=confirmed+(card.dragging?` · ${text('preview',{position:card.range.value})}`:d.transitioning?` · ${text('transition',{position:d.brightness_target})}`:` · ${text('zeroBrightness')}`);
   }
  }
  function expire(){
@@ -65,10 +75,9 @@
   const root=node('article','runtime-card'),head=node('div','runtime-heading'),name=node('h3'),identity=node('p','muted'),address=node('p','muted'),state=node('p'),measure=node('p'),age=node('p','muted'),error=node('p','runtime-error'),actions=node('div','actions'),on=node('button'),off=node('button');
   on.type=off.type='button';error.setAttribute('role','status');head.append(name,identity,address);actions.append(on,off);root.append(head,state,measure,age,error,actions);
   const card={root,name,identity,address,state,measure,age,error,on,off,data:d,received:performance.now(),rangeCanceled:true};
-  if(kind(d)===1){card.stop=node('button');card.stop.type='button';card.range=node('input');card.range.type='range';card.range.min='0';card.range.max='100';card.range.step='1';card.preview=node('p','muted');actions.append(card.stop,card.range);root.append(card.preview);
-   card.stop.addEventListener('click',()=>command(card,false,{command:'stop'}));
+  if(kind(d)!==0){const light=kind(d)===2;if(!light){card.stop=node('button');card.stop.type='button';actions.append(card.stop);card.stop.addEventListener('click',()=>command(card,false,{command:'stop'}));}card.range=node('input');card.range.type='range';card.range.min='0';card.range.max='100';card.range.step='1';card.preview=node('p','muted');actions.append(card.range);root.append(card.preview);
    card.range.addEventListener('input',()=>{if(card.range.disabled)return;card.rangeCanceled=false;card.dragging=true;paint(card);});
-   card.range.addEventListener('change',()=>{const position=Number(card.range.value),gesture=card.dragging&&!card.rangeCanceled;card.dragging=false;card.rangeCanceled=true;if(!gesture){paint(card);return;}return command(card,false,{command:'position',position});});
+   card.range.addEventListener('change',()=>{const position=Number(card.range.value),gesture=card.dragging&&!card.rangeCanceled;card.dragging=false;card.rangeCanceled=true;if(!gesture){paint(card);return;}return command(card,false,light?{command:'brightness',brightness:position}:{command:'position',position});});
    card.range.addEventListener('pointercancel',()=>{card.dragging=false;card.rangeCanceled=true;paint(card);});
   }
   on.addEventListener('click',()=>command(card,true));off.addEventListener('click',()=>command(card,false));return card;
@@ -79,7 +88,7 @@
   // it is no acknowledgement that a command in the previous process succeeded.
   if(boot!==null&&boot!==snapshot.boot_id){local.clear();stops.clear();for(const c of cards.values())cancelRange(c);}boot=snapshot.boot_id;
   const keep=new Set();
-  for(const d of snapshot.devices){const k=key(d);keep.add(k);let c=cards.get(k);if(!c){c=create(d);cards.set(k,c);holder.append(c.root);}else if(c.data.host!==d.host||c.data.has_target!==d.has_target||c.data.target!==d.target)cancelRange(c);c.data=d;c.received=started;
+  for(const d of snapshot.devices){const k=key(d);keep.add(k);let c=cards.get(k);if(!c){c=create(d);cards.set(k,c);holder.append(c.root);}else if(c.data.host!==d.host||c.data.has_target!==d.has_target||c.data.target!==d.target||c.data.brightness_target!==d.brightness_target||c.data.transitioning!==d.transitioning)cancelRange(c);c.data=d;c.received=started;
    for(const map of [local,stops]){const l=map.get(k);if(l?.waiting&&!d.pending&&((l.operation>0&&serialReached(d.operation_id,l.operation))||(l.unknown&&kind(d)===0&&d.operation_id!==l.baseline&&serialReached(d.operation_id,l.baseline)))){l.waiting=false;if(!l.unknown)l.message='';}}paint(c);
   }
   for(const [k,c]of cards)if(!keep.has(k)){c.root.remove();cards.delete(k);local.delete(k);stops.delete(k);}
@@ -92,15 +101,17 @@
   catch{if(serial===fetchSerial)fail();}finally{fetching=false;}
  }
  async function command(card,on,intent){
-  const d=card.data,k=key(d),cover=kind(d)===1,stop=cover&&intent?.command==='stop';
-  if(!current()||!card.root.isConnected||(stop?(!d.can_stop||d.stop_pending||stops.get(k)?.waiting):(!fresh(card)||d.pending||local.get(k)?.waiting||stops.get(k)?.waiting||(cover?!(intent?.command==='position'?d.can_position:d.can_move):!d.has_switch))))return;
+  const d=card.data,k=key(d),cover=kind(d)===1,light=kind(d)===2,stop=cover&&intent?.command==='stop';
+  if(!current()||!card.root.isConnected||(stop?(!d.can_stop||d.stop_pending||stops.get(k)?.waiting):(!fresh(card)||d.pending||local.get(k)?.waiting||stops.get(k)?.waiting||(cover?!(intent?.command==='position'?d.can_position:d.can_move):light?!canLight(d):!d.has_switch))))return;
   if(cover&&!stop&&!intent)intent={command:on?'open':'close'};
+  if(light&&!intent)intent={command:on?'on':'off'};
+  if(light&&(!['on','off','brightness'].includes(intent.command)||(intent.command==='brightness'&&(!Number.isInteger(intent.brightness)||intent.brightness<0||intent.brightness>100))))return;
   const l={waiting:true,operation:0,baseline:d.operation_id,unknown:false,message:''};(stop?stops:local).set(k,l);paint(card);
   try{
    // Explicit identity tuple only. The firmware resolves its private locator
    // and credential; this API cannot accept a browser-supplied target address.
-   const body={device_id:d.device_id,generation:d.generation,channel:d.channel};if(cover)Object.assign(body,{endpoint_kind:1},intent);else body.on=on;
-   const r=await request(cover?'devices/cover':'devices/output',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+   const body={device_id:d.device_id,generation:d.generation,channel:d.channel};if(cover||light)Object.assign(body,{endpoint_kind:cover?1:2},intent);else body.on=on;
+   const r=await request(cover?'devices/cover':light?'devices/light':'devices/output',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
    const result=await r.json();if(result.accepted!==true||result.boot_id!==boot||!Number.isInteger(result.operation_id)||result.operation_id<=0||result.operation_id>0xffffffff)throw Error('invalid acknowledgement');
    l.operation=result.operation_id;await refresh();
   }catch{

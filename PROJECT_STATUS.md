@@ -1,5 +1,34 @@
 # Project status
 
+## 0.7.33 — typed white Light Gen2+ candidate
+
+Adds a separate Light family for Shelly Dimmer Gen3 and the documented white
+Light Gen2+ API: real GET, explicit ON/OFF and brightness 0–100, one SET and
+readback. Zero brightness remains distinct from output OFF. During a transition
+the target decides whether the command matches; current output/brightness stay
+actual measurements. Independent opposite-target ON/OFF tests were RED and are
+GREEN after the fix. Errors, calibration, stale data and identity changes block
+controls. Native LCD and authenticated Web preserve preview through poll/locale
+and submit once on release, with explicit cancellation on stale target/offline.
+
+Typed discovery, manual family selection and B1 → same-identity LAN → exact
+BIND are integrated with the shared #32 shell. Registry v4 keeps the existing
+4104-byte layout, imports strict v1/v2/v3 only in RAM, and preserves corrupt or
+future bytes. Legacy public kind light with private Switch0 stays stored but
+unavailable until an explicit card correction or typed rebind. Light history
+and group/scene commands remain unsupported; both group editors allow removing
+legacy Light members while refusing new ones. Existing #21 boundaries/STOP,
+PR50 and two-store BIND ownership are retained.
+
+Integrated full native UBSan passed: platform6815, parser/serializer12869,
+mailbox687, pairing786; runtimeJS324/history35/onboarding175/actions42+32.
+LCD5552/204, Cover112/7, BIND29 and Light101/6 passed after the focused
+group correction. Independent merge review has no open code blockers. Device320/model6944
+are identical to the #21 parent; job560/event1192/telemetry32/connection296 and
+all target budgets remain unchanged. Own target/browser CI and received artifact
+verification are required. No physical device writes or Stable publication.
+[Scope, evidence and migration](docs/LIGHT_GEN2_PL.md).
+
 ## 0.7.32 — shared device onboarding candidate
 
 The LCD opens one method sheet above the suspended HOME view, with explicit

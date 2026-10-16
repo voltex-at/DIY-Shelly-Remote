@@ -128,7 +128,8 @@ dsr_result_t dsr_rpc_setup_policy(const cJSON *system,const cJSON *methods,const
  if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)>256)return DSR_BAD_RESPONSE;
  for(unsigned i=0;i<sizeof(required)/sizeof(required[0]);i++){bool found=false;for(const cJSON *v=list->child;v;v=v->next){if(!cJSON_IsString(v))return DSR_BAD_RESPONSE;if(!strcmp(v->valuestring,required[i]))found=true;}if(!found)return DSR_UNSUPPORTED;}
  dsr_lan_capabilities_t caps={0};dsr_result_t parsed=dsr_lan_parse_capabilities(status,identity->device.generation,&caps);if(parsed!=DSR_OK)return parsed;
- if(!caps.switches&&!caps.covers)return DSR_UNSUPPORTED;
+ if(!caps.switches&&!caps.covers&&!caps.lights)return DSR_UNSUPPORTED;
+ if(caps.lights){const char *light_methods[]={"Light.GetStatus","Light.Set"};for(unsigned i=0;i<2;i++){bool found=false;for(const cJSON *v=list->child;v;v=v->next)if(!strcmp(v->valuestring,light_methods[i]))found=true;if(!found)return DSR_UNSUPPORTED;}}
  for(const cJSON *v=status->child;v;v=v->next)if(!strncmp(v->string,"devicepower:",12)&&cJSON_GetObjectItemCaseSensitive(v,"battery"))return DSR_UNSUPPORTED;
  return DSR_OK;
 }

@@ -92,7 +92,7 @@ static void detail(lv_obj_t *root)
  if(exists&&d.identity[0]){
   dsr_history_key_t key={.layout_id=d.id,.generation=(uint8_t)d.generation,.channel=d.channel,.kind=d.endpoint_kind};memcpy(key.device_id,d.identity,sizeof(key.device_id));series=dsr_history_query(&key,hours);if(series)status=series->status;
  }
- chart(root,series);const char *message=exists&&d.identity[0]&&d.endpoint_kind!=DSR_ENDPOINT_SWITCH?"Historia rolet nie jest obsługiwana":failure(&status);
+ chart(root,series);const char *message=exists&&d.identity[0]&&d.endpoint_kind!=DSR_ENDPOINT_SWITCH?(d.endpoint_kind==DSR_ENDPOINT_LIGHT?"Historia światła nie jest obsługiwana":"Historia rolet nie jest obsługiwana"):failure(&status);
  if(!message&&!series)message="Brak aktywnego połączenia";
  if(!message&&series&&!series->count)message="Brak próbek. Historia zbiera rzeczywiste odczyty.";
  if(!message)message=status.durable?"Historia lokalna • zapis potwierdzony":"Bieżące okno RAM. Restart może utracić do 5 min.";

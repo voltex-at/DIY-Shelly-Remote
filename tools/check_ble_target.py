@@ -25,8 +25,9 @@ units = {
     "dsr_ble_handoff": (256, {"dsr_ble_handoff_parse"}),
     "dsr_ui_ble_rpc": (1024, {"dsr_ui_ble_rpc_open", "dsr_ui_ble_rpc_tick", "dsr_ui_ble_rpc_result"}),
     "dsr_ui_onboarding": (512, {"dsr_ui_onboarding_open", "dsr_ui_onboarding_tick", "dsr_ui_onboarding_reset", "dsr_ui_onboarding_active", "dsr_onboarding_screen", "dsr_onboarding_footer", "dsr_onboarding_keyboard", "dsr_onboarding_result"}),
-    "dsr_http": (2048, {"dsr_http_lan_verify_station"}),
+    "dsr_http": (2048, {"dsr_http_lan_verify_station", "dsr_http_light"}),
     "dsr_worker": (2048, {"dsr_worker_submit"}),
+    "dsr_ui_mobile": (1024, {"dsr_mobile_update", "dsr_mobile_show"}),
     "dsr_ui_network": (2048, {"dsr_network_request_station", "dsr_network_init"}),
 }
 reports = {}

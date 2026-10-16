@@ -1,4 +1,16 @@
-# Matryca funkcji — 0.7.32, rewizja 33
+# Matryca funkcji — 0.7.33, rewizja 34
+
+## #23: biały Light Gen2+ — kandydat pełnego pionu
+
+[Kontrakt i migracja](LIGHT_GEN2_PL.md): osobny typed Light2, GET/ON/OFF/jasność,
+jedna intencja i rzeczywisty readback, priorytet celu przejścia nad bieżącym
+stanem. LCD/WWW, discovery/ręczny wybór rodziny oraz B1→LAN→BIND zachowują
+kreator #32 i tożsamość urządzenia. NVSv4 ma stary rozmiar i lazy import,
+bez boot write; future/corrupt/layout0 pozostają zachowane i zablokowane.
+Historia Light, RGB/CCT/Gen1/TRV oraz Light w grupach/scenach pozostają poza
+zakresem. Dawna karta light z prywatnym Switch0 wymaga jawnej korekty kategorii
+lub typed rebind; zapisane credentials nie są kasowane. Pełne host testy i
+LCD przechodzą; własny target/browser/artefakty i sprzęt są osobnymi bramkami.
 
 ## #21: rzeczywiste grupy, sceny i dziennik RAM — kandydat integracji
 

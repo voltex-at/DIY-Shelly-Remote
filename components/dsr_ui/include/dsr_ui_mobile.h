@@ -33,6 +33,8 @@ typedef struct {
     dsr_generation_t generation;
     bool can_refresh,can_position,has_energy;
     uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */
+    bool can_light;
+    dsr_light_status_t light; /* Existing alignment padding: model size is unchanged. */
     double energy_wh;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;
@@ -74,6 +76,7 @@ typedef struct {
     void (*open_actions)(uint8_t kind);
     void (*run_scene)(uint32_t id);
     void (*run_group)(uint32_t id,bool on);
+    void (*set_brightness)(unsigned index,uint8_t brightness);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

@@ -88,7 +88,7 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     else if (status != 200) result = DSR_BAD_RESPONSE;
     else {
         *out = dsr_config_json_depth(response.text)?cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true):NULL;
-        bool null_ack=request->post&&!strncmp(request->path,"/rpc/Cover.",11)&&cJSON_IsNull(*out);
+        bool null_ack=request->post&&(!strncmp(request->path,"/rpc/Cover.",11)||!strcmp(request->path,"/rpc/Light.Set"))&&cJSON_IsNull(*out);
         result = (cJSON_IsObject(*out)||null_ack)&&!strstr(response.text,"\\u0000") ? DSR_OK : DSR_BAD_RESPONSE;
         if (result != DSR_OK) { cJSON_Delete(*out); *out = NULL; }
         if (*out && cJSON_GetObjectItemCaseSensitive(*out, "error")) {
@@ -201,6 +201,44 @@ static bool cover_parse(const cJSON *r,uint8_t channel,dsr_cover_status_t *out)
  }
  *out=c;return true;
 }
+static bool light_unique(const cJSON *r)
+{
+ if(cJSON_IsObject(r))for(const cJSON *a=r->child;a;a=a->next){
+  if(!a->string)return false;
+  for(const cJSON *b=a->next;b;b=b->next)if(!strcmp(a->string,b->string))return false;
+ }
+ for(const cJSON *v=r?r->child:NULL;v;v=v->next)if(!light_unique(v))return false;
+ return true;
+}
+static bool light_percent(const cJSON *v)
+{return cJSON_IsNumber(v)&&isfinite(v->valuedouble)&&v->valuedouble>=0&&v->valuedouble<=100&&floor(v->valuedouble)==v->valuedouble;}
+static bool light_parse(const cJSON *r,uint8_t channel,dsr_light_status_t *out)
+{
+ if(!cJSON_IsObject(r)||!light_unique(r))return false;
+ const cJSON *id=cJSON_GetObjectItemCaseSensitive(r,"id"),*output=cJSON_GetObjectItemCaseSensitive(r,"output"),*brightness=cJSON_GetObjectItemCaseSensitive(r,"brightness");
+ if(!cJSON_IsNumber(id)||id->valuedouble!=channel||!cJSON_IsBool(output)||!light_percent(brightness))return false;
+ dsr_light_status_t s={.brightness=(uint8_t)brightness->valueint,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS};
+ const cJSON *transition=cJSON_GetObjectItemCaseSensitive(r,"transition");
+ if(transition){
+  const cJSON *target=cJSON_GetObjectItemCaseSensitive(transition,"target"),*level=cJSON_GetObjectItemCaseSensitive(target,"brightness"),*on=cJSON_GetObjectItemCaseSensitive(target,"output");
+  if(!cJSON_IsObject(transition)||!cJSON_IsObject(target)||!light_percent(level)||!cJSON_IsBool(on))return false;
+  s.target=(uint8_t)level->valueint;s.flags|=DSR_LIGHT_TRANSITION|DSR_LIGHT_TARGET|DSR_LIGHT_TARGET_OUTPUT;
+  if(cJSON_IsTrue(on))s.flags|=DSR_LIGHT_TARGET_ON;
+ }
+ const cJSON *calibration=cJSON_GetObjectItemCaseSensitive(r,"calibration");
+ if(calibration){if(!cJSON_IsObject(calibration))return false;s.conditions|=DSR_LIGHT_CALIBRATING;const cJSON *progress=cJSON_GetObjectItemCaseSensitive(calibration,"progess");if(progress&&!light_percent(progress))return false;}
+ const char *keys[]={"errors","flags"};
+ for(unsigned n=0;n<2;n++){
+  const cJSON *array=cJSON_GetObjectItemCaseSensitive(r,keys[n]);if(!array)continue;
+  if(!cJSON_IsArray(array)||cJSON_GetArraySize(array)>16)return false;
+  const cJSON *v;cJSON_ArrayForEach(v,array){
+   if(!cJSON_IsString(v)||!v->valuestring[0]||strlen(v->valuestring)>64)return false;
+   if(n){s.conditions|=!strcmp(v->valuestring,"uncalibrated")?DSR_LIGHT_UNCALIBRATED:!strcmp(v->valuestring,"no_load")?DSR_LIGHT_NO_LOAD:DSR_LIGHT_UNKNOWN_CONDITION;}
+   else {const char *known[]={"overtemp","overpower","overvoltage","undervoltage","overcurrent","unsupported_load"};uint8_t bit=128;for(unsigned i=0;i<6;i++)if(!strcmp(v->valuestring,known[i]))bit=(uint8_t)(1u<<i);s.errors|=bit;}
+  }
+ }
+ *out=s;return true;
+}
 static dsr_result_t status(dsr_connection_t *connection)
 {
     dsr_device_t *device = &connection->device;
@@ -208,19 +246,23 @@ static dsr_result_t status(dsr_connection_t *connection)
     memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
     dsr_result_t result;
-    if(device->endpoint_kind==DSR_ENDPOINT_COVER){
+    if(device->endpoint_kind==DSR_ENDPOINT_COVER||device->endpoint_kind==DSR_ENDPOINT_LIGHT){
         if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
-        memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/Cover.GetStatus?id=%u",device->channel);result=DSR_OK;
+        memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/%s.GetStatus?id=%u",device->endpoint_kind==DSR_ENDPOINT_COVER?"Cover":"Light",device->channel);result=DSR_OK;
     }else result = dsr_request_build(device->generation, device->channel, DSR_GET_STATUS, false, &request);
     if (result != DSR_OK) return result;
     cJSON *root = NULL;
     result = fetch_json(connection, &request, false, &root);
     if (result != DSR_OK) return result;
     cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
-    if (device->endpoint_kind==DSR_ENDPOINT_COVER?!cover_parse(root,device->channel,&connection->telemetry.cover):!cJSON_IsBool(output)) { cJSON_Delete(root); return DSR_UNSUPPORTED; }
+    bool parsed=device->endpoint_kind==DSR_ENDPOINT_COVER?cover_parse(root,device->channel,&connection->telemetry.cover):device->endpoint_kind==DSR_ENDPOINT_LIGHT?light_parse(root,device->channel,&connection->telemetry.light):cJSON_IsBool(output);
+    if(!parsed){cJSON_Delete(root);return DSR_UNSUPPORTED;}
     cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
     cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
     if(device->generation==DSR_GEN2_PLUS){
+        /* Dimmer without neutral may omit measurements. Explicit null is
+         * absence for Light, never a fabricated zero W/V/A. */
+        if(device->endpoint_kind==DSR_ENDPOINT_LIGHT){if(cJSON_IsNull(power))power=NULL;if(cJSON_IsNull(voltage))voltage=NULL;if(cJSON_IsNull(current))current=NULL;}
         const cJSON *optional[]={power,voltage,current};
         for(unsigned i=0;i<3;i++)if(optional[i]&&(!cJSON_IsNumber(optional[i])||!isfinite(optional[i]->valuedouble)||fabs(optional[i]->valuedouble)>1e9||(i&&optional[i]->valuedouble<0))){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
         if(voltage){connection->telemetry.has_voltage=true;connection->telemetry.voltage_v=voltage->valuedouble;}
@@ -327,6 +369,35 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  if(result!=DSR_OK)return result;
  result=allowed();if(result!=DSR_OK)return result;
  return status(c);
+}
+
+dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
+{
+ if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_LIGHT||c->device.generation!=DSR_GEN2_PLUS||!dsr_light_intent_valid(intent))return DSR_INVALID;
+ dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ result=status(c);if(result!=DSR_OK)return result;
+ if(urgent())return DSR_BUSY;
+ if(!dsr_light_can_set(&c->telemetry.light,intent))return DSR_UNSUPPORTED;
+ result=allowed();if(result!=DSR_OK)return result;
+ dsr_request_t request;result=dsr_light_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
+ cJSON *ack=NULL;result=fetch_command(c,&request,&ack);
+ if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
+ cJSON_Delete(ack);c->device.online=false;
+ if(urgent())return DSR_BAD_RESPONSE;
+ if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
+ result=allowed();if(result!=DSR_OK)return result;
+ result=status(c);if(result!=DSR_OK)return result;
+ const dsr_light_status_t *s=&c->telemetry.light;
+ /* During a transition the current output may still match the previous
+  * state. The target decides whether this particular intent was confirmed. */
+ bool output_matches=(s->flags&DSR_LIGHT_TRANSITION)?
+  (s->flags&DSR_LIGHT_TARGET_OUTPUT)&&((s->flags&DSR_LIGHT_TARGET_ON)!=0)==(intent.command==DSR_LIGHT_ON):c->device.output==(intent.command==DSR_LIGHT_ON);
+ bool matches=intent.command==DSR_LIGHT_SET_BRIGHTNESS?(s->flags&DSR_LIGHT_TRANSITION?s->target:s->brightness)==intent.brightness:
+  output_matches;
+ if(!matches||s->errors||s->conditions){c->device.online=false;return DSR_BAD_RESPONSE;}
+ return DSR_OK;
 }
 
 static void ap_identity(const dsr_lan_device_t *source,const char *ssid,dsr_ap_identity_t *out)

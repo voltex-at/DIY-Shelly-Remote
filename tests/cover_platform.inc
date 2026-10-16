@@ -41,9 +41,9 @@ static void test_cover_persistence(void)
  /* Exact v2 4104-byte fixture, including poisoned unused runtime flags. */
  memset(blobs[2],0,4104);uint32_t schema=2,one=1,id=42;memcpy(blobs[2],&schema,4);memcpy(blobs[2]+4,&one,4);memcpy(blobs[2]+8,legacy,256);memcpy(blobs[2]+8+252,&id,4);sizes[2]=4104;
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!loaded[0].legacy_fallback&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH&&loaded[0].layout_id==42&&((uint32_t*)blobs[2])[0]==2);
- dsr_connection_t cover=loaded[0];cover.device.endpoint_kind=DSR_ENDPOINT_COVER;cover.layout_id=43;CHECK(dsr_connection_save(&cover)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==3);
+ dsr_connection_t cover=loaded[0];cover.device.endpoint_kind=DSR_ENDPOINT_COVER;cover.layout_id=43;CHECK(dsr_connection_save(&cover)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==4);
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH&&loaded[1].device.endpoint_kind==DSR_ENDPOINT_COVER&&loaded[0].layout_id==42&&loaded[1].layout_id==43);
- unsigned before=write_opens;((uint32_t*)blobs[2])[0]=4;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&cover)!=ESP_OK&&write_opens==before);((uint32_t*)blobs[2])[0]=3;
+ unsigned before=write_opens;((uint32_t*)blobs[2])[0]=5;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&cover)!=ESP_OK&&write_opens==before);((uint32_t*)blobs[2])[0]=3;
  CHECK(dsr_connection_remove(&cover)==ESP_OK&&dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH);CHECK(!memcmp(blobs[1],legacy,256));admission_open();
 }
 static void test_cover_scheduler(void)

@@ -85,7 +85,7 @@ static int card_slot(unsigned index)
  for(size_t i=0;i<fleet.count;i++){
   const dsr_connection_t *c=&fleet.slots[i].connection;
   if(!c->layout_id&&!c->legacy_fallback)continue;
-  if((c->device.endpoint_kind==DSR_ENDPOINT_COVER)!=(card->kind==DSR_DEVICE_COVER))continue;
+  if(c->device.endpoint_kind!=(card->kind==DSR_DEVICE_COVER?DSR_ENDPOINT_COVER:card->kind==DSR_DEVICE_LIGHT?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH))continue;
   if(c->device.channel!=card->channel||strcmp(c->device.host,card->host))continue;
   if(c->layout_id?c->layout_id==card->id:!dsr_network_layout_reserved(card->id))return (int)i;
  }
@@ -116,7 +116,7 @@ static void publish_runtime(uint32_t now)
   if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
   const dsr_fleet_slot_t *s=&fleet.slots[i];
   dsr_runtime_device_t r={.device=s->connection.device,.telemetry=s->connection.telemetry,.error=s->result,
-   .pending=dsr_actions_reserved(&s->connection.device)||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER)),.stop_pending=s->urgent_stop||s->mailbox_pending==2,
+   .pending=dsr_actions_reserved(&s->connection.device)||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT)),.stop_pending=s->urgent_stop||s->mailbox_pending==2,
    .can_stop=s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&s->layout_enabled&&dsr_wifi_connected()&&!binding_target(s)&&!s->blocked&&!s->urgent_stop&&s->mailbox_pending!=2,.has_sample_time=s->sample_valid,
    .sample_age_ms=s->sample_valid?now-s->sample_ms:0,.operation_id=s->command_id};
   r.device.online=r.device.online&&s->layout_enabled&&dsr_wifi_connected()&&s->sample_valid&&now-s->sample_ms<=15000;
@@ -137,7 +137,7 @@ static void render(void)
    if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
    dsr_mobile_device_t *d=&mobile_model.devices[mobile_model.device_count++];const dsr_device_t *c=&fleet.slots[i].connection.device;
    snprintf(d->name,sizeof(d->name),"%s",c->name);snprintf(d->host,sizeof(d->host),"%s",c->host);d->id=fleet.slots[i].connection.layout_id;
-   snprintf(d->model,sizeof(d->model),"Shelly • kanał %u",c->channel);d->channel=c->channel;d->room=DSR_UI_NO_ROOM;d->kind=c->endpoint_kind==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:DSR_DEVICE_RELAY;
+   snprintf(d->model,sizeof(d->model),"Shelly • kanał %u",c->channel);d->channel=c->channel;d->room=DSR_UI_NO_ROOM;d->kind=c->endpoint_kind==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:c->endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY;
   }
  }
  for(unsigned i=0;i<mobile_model.device_count;i++){
@@ -146,7 +146,7 @@ static void render(void)
   snprintf(d->identity,sizeof(d->identity),"%s",c->device_id);d->generation=c->generation;d->endpoint_kind=c->endpoint_kind;
   d->can_refresh=(d->id||(!layout&&mobile_model.device_count==1))&&s->layout_enabled&&!binding_target(s);
   snprintf(d->host,sizeof(d->host),"%s",c->host);d->online=mobile_model.wifi&&c->online&&s->layout_enabled&&s->sample_valid&&lv_tick_get()-s->sample_ms<=15000;d->output=c->output;
-  d->busy=d->command_pending=dsr_actions_reserved(&s->connection.device)||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER));
+  d->busy=d->command_pending=dsr_actions_reserved(&s->connection.device)||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT));
   d->has_sample_time=s->sample_valid;d->sample_ms=s->sample_ms;d->error=s->result;
   if(c->endpoint_kind==DSR_ENDPOINT_COVER){const dsr_cover_status_t *cover=&s->connection.telemetry.cover;
    d->can_cover=dsr_cover_can_move(cover,(dsr_cover_intent_t){.command=DSR_COVER_OPEN});
@@ -155,7 +155,8 @@ static void render(void)
    d->has_position=d->online&&(cover->flags&DSR_COVER_POSITION);d->position_pct=cover->current_pos;d->cover_errors=cover->errors;
    d->cover_state=cover->state==DSR_COVER_STATE_OPENING?DSR_COVER_OPENING:cover->state==DSR_COVER_STATE_CLOSING?DSR_COVER_CLOSING:cover->state==DSR_COVER_STATE_CALIBRATING?DSR_COVER_CALIBRATING:cover->state?DSR_COVER_STOPPED:DSR_COVER_UNKNOWN;
   }
-  d->can_switch=c->has_switch&&!s->blocked&&s->layout_enabled;d->has_power=d->online&&c->has_power;d->power_w=c->power_w;
+  if(c->endpoint_kind==DSR_ENDPOINT_LIGHT){d->light=s->connection.telemetry.light;d->can_light=!s->blocked&&s->layout_enabled&&dsr_light_can_set(&d->light,(dsr_light_intent_t){.command=DSR_LIGHT_ON});}
+  d->can_switch=(c->has_switch||d->can_light)&&!s->blocked&&s->layout_enabled;d->has_power=d->online&&c->has_power;d->power_w=c->power_w;
   d->has_voltage=d->online&&s->connection.telemetry.has_voltage;d->voltage_v=s->connection.telemetry.voltage_v;
   d->has_current=d->online&&s->connection.telemetry.has_current;d->current_a=s->connection.telemetry.current_a;
   d->has_energy=d->online&&s->connection.telemetry.has_energy;d->energy_wh=s->connection.telemetry.energy_wh;
@@ -308,8 +309,19 @@ bool dsr_network_energy_at(unsigned index,dsr_mobile_device_t *out)
 bool dsr_network_history_device(uint32_t id,dsr_mobile_device_t *out)
 {for(unsigned i=0;i<mobile_model.device_count;i++)if(id&&mobile_model.devices[i].id==id)return dsr_network_energy_at(i,out);return false;}
 
+static void mobile_light_send(unsigned index,dsr_light_intent_t intent)
+{
+ if(index>=mobile_model.device_count)return;
+ uint32_t id=mobile_model.devices[index].id;render();index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
+ int at=card_slot(index);if(at<0||binding_target(&fleet.slots[at]))return;
+ uint32_t operation_id;dsr_result_t result=dsr_workspace_light_request(&fleet.slots[at].connection.device,intent,&operation_id);
+ if(result==DSR_OK)fleet.slots[at].mailbox_pending=1;else{fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
+ render();
+}
+static void mobile_brightness(unsigned index,uint8_t brightness){mobile_light_send(index,(dsr_light_intent_t){.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=brightness});}
 static void mobile_output(unsigned index,bool on)
 {
+ if(index<mobile_model.device_count&&mobile_model.devices[index].endpoint_kind==DSR_ENDPOINT_LIGHT){mobile_light_send(index,(dsr_light_intent_t){.command=on?DSR_LIGHT_ON:DSR_LIGHT_OFF});return;}
  int at=card_slot(index);if(at<0)return;
  dsr_result_t result=binding_target(&fleet.slots[at])||dsr_actions_reserved(&fleet.slots[at].connection.device)?DSR_BUSY:dsr_fleet_request(&fleet,(unsigned)at,on,dsr_wifi_connected(),lv_tick_get());
  if(result!=DSR_OK){fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
@@ -345,7 +357,7 @@ static void mobile_refresh(uint32_t id)
  unsigned index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
  int at=card_slot(index);if(at<0)return;
  dsr_fleet_slot_t *s=&fleet.slots[at];
- if(!s->layout_enabled||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER)))return;
+ if(!s->layout_enabled||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT)))return;
  s->blocked=s->command_error=false;s->result=DSR_OK;s->failures=0;s->next_poll=lv_tick_get();
  /* Existing in-flight GET is already the requested read. Queued SETs still
   * keep scheduler priority; ordinary polling keeps its original cursor. */
@@ -429,7 +441,7 @@ static void bind_device(lv_event_t *event)
         dsr_sc_label_set_text(message, "Invalid details. Channel range: 0-15"); return;
     }
     pending.device.channel = (uint8_t)value;
-    if(endpoint_choice&&lv_dropdown_get_selected(endpoint_choice)==1){pending.device.endpoint_kind=DSR_ENDPOINT_COVER;pending.device.generation=DSR_GEN2_PLUS;}
+    if(endpoint_choice&&lv_dropdown_get_selected(endpoint_choice)>0){pending.device.endpoint_kind=lv_dropdown_get_selected(endpoint_choice)==1?DSR_ENDPOINT_COVER:DSR_ENDPOINT_LIGHT;pending.device.generation=DSR_GEN2_PLUS;}
     dsr_result_t result = submit(DSR_JOB_BIND, false);
     dsr_sc_label_set_text(message, result == DSR_OK ? "Checking device before saving..." : result_text(result));
 }
@@ -446,9 +458,9 @@ static void manual_device(lv_event_t *event)
     field(3, "Login (Gen2+: admin)", "admin", 32, false);
     field(4, "Shelly password (optional)", "", 64, true);
     dsr_ui_label(form,"Rodzina API",0,420,268);
-    endpoint_choice=lv_dropdown_create(form);lv_obj_set_pos(endpoint_choice,0,444);lv_obj_set_size(endpoint_choice,268,44);lv_dropdown_set_options(endpoint_choice,"Switch / Relay\nCover Gen2+");
+    endpoint_choice=lv_dropdown_create(form);lv_obj_set_pos(endpoint_choice,0,444);lv_obj_set_size(endpoint_choice,268,44);lv_dropdown_set_options(endpoint_choice,"Switch / Relay\nCover Gen2+\nLight Gen2+");
     dsr_onboarding_footer(lv_screen_active(),"Anuluj",dsr_network_device,"Check & save device",bind_device);
-    dsr_ui_label(form, "Do 16 endpointów Switch/Cover.\nCover wymaga Gen2+ i aktywnego profilu rolety.\nZmiana profilu nie jest wykonywana.\nDane logowania w niezaszyfrowanym NVS.", 0, 508, 268);
+    dsr_ui_label(form, "Do 16 endpointów Switch/Cover/Light.\nCover i Light wymagają Gen2+.\nProfil i kalibracja nie są zmieniane.\nDane logowania w niezaszyfrowanym NVS.", 0, 508, 268);
 }
 
 void dsr_network_device(lv_event_t *event)
@@ -477,7 +489,7 @@ static uint32_t layout_find(const cJSON *r,const dsr_connection_t *c,bool *exist
   const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*host=cJSON_GetObjectItemCaseSensitive(v,"host"),*channel=cJSON_GetObjectItemCaseSensitive(v,"channel");
   if(c->layout_id&&(uint32_t)id->valueint!=c->layout_id)continue;
   if(c->layout_id)*exists=true;
-  const cJSON *kind=cJSON_GetObjectItemCaseSensitive(v,"kind");if(!cJSON_IsString(kind)||(!strcmp(kind->valuestring,"cover"))!=(c->device.endpoint_kind==DSR_ENDPOINT_COVER))continue;
+  const cJSON *kind=cJSON_GetObjectItemCaseSensitive(v,"kind");if(!cJSON_IsString(kind)||dsr_endpoint_from_kind(kind->valuestring)!=c->device.endpoint_kind)continue;
   if(channel->valueint==c->device.channel&&!strcmp(host->valuestring,c->device.host)&&
     (c->layout_id||!dsr_network_layout_reserved((uint32_t)id->valueint)))return (uint32_t)id->valueint;
  }
@@ -641,7 +653,7 @@ static void poll(lv_timer_t *timer)
    else if(request.device.endpoint_kind==DSR_ENDPOINT_COVER&&request.cover.command==DSR_COVER_STOP){
     result=s->blocked?s->result:dsr_worker_stop_request(&s->connection,request.operation_id);
     if(result==DSR_OK){dsr_fleet_cancel_queued(&fleet,(unsigned)at);s->urgent_stop=true;}
-   }else result=request.device.endpoint_kind==DSR_ENDPOINT_COVER?dsr_fleet_cover_request(&fleet,(unsigned)at,request.cover,wifi,now):dsr_fleet_request(&fleet,(unsigned)at,request.on,wifi,now);
+   }else result=request.device.endpoint_kind==DSR_ENDPOINT_COVER?dsr_fleet_cover_request(&fleet,(unsigned)at,request.cover,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_LIGHT?dsr_fleet_light_request(&fleet,(unsigned)at,request.light,wifi,now):dsr_fleet_request(&fleet,(unsigned)at,request.on,wifi,now);
    s->command_id=request.operation_id;if(result!=DSR_OK){s->result=result;s->command_error=true;}intent_changed=true;
   }
  }
@@ -674,7 +686,7 @@ void dsr_network_init(void)
 {
     (void)dsr_actions_init();
     (void)dsr_history_init(); /* Optional PSRAM only; files load on sole worker. */
-    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_charts=dsr_ui_history_open,.open_energy=dsr_ui_energy_open};
+    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_charts=dsr_ui_history_open,.open_energy=dsr_ui_energy_open,.set_brightness=mobile_brightness};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

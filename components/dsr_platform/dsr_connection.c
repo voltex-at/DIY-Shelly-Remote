@@ -28,8 +28,8 @@ bool dsr_connection_valid(const dsr_connection_t *c, bool bound)
         !memchr(c->device.device_id, 0, sizeof(c->device.device_id)) ||
         !memchr(c->credentials.username, 0, sizeof(c->credentials.username)) ||
         !memchr(c->credentials.password, 0, sizeof(c->credentials.password)) ||
-        !dsr_ipv4_valid(c->device.host) || c->device.channel > DSR_MAX_CHANNEL || c->device.endpoint_kind>DSR_ENDPOINT_COVER ||
-        (c->device.endpoint_kind==DSR_ENDPOINT_COVER&&c->device.generation!=DSR_GEN2_PLUS)) return false;
+        !dsr_ipv4_valid(c->device.host) || c->device.channel > DSR_MAX_CHANNEL || c->device.endpoint_kind>DSR_ENDPOINT_LIGHT ||
+        (c->device.endpoint_kind!=DSR_ENDPOINT_SWITCH&&c->device.generation!=DSR_GEN2_PLUS)) return false;
     return !bound || (c->device.device_id[0] &&
         (c->device.generation == DSR_GEN1 || c->device.generation == DSR_GEN2_PLUS));
 }
@@ -63,46 +63,48 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found)
 typedef struct {
     uint32_t schema,count;
     struct {dsr_device_t device;dsr_credentials_t credentials;uint32_t layout_id;} items[DSR_MAX_DEVICES];
-} connection_registry_v3_t;
-_Static_assert(sizeof(connection_registry_v3_t)==sizeof(legacy_registry_v2_t),"registry v3 fixed footprint");
+} connection_registry_v4_t;
+_Static_assert(sizeof(connection_registry_v4_t)==sizeof(legacy_registry_v2_t),"registry v4 fixed footprint");
 static bool same_endpoint(const dsr_device_t *a,const dsr_device_t *b)
 {return !strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->endpoint_kind==b->endpoint_kind&&a->channel==b->channel;}
-static esp_err_t registry_read_origin(connection_registry_v3_t *registry,bool *legacy_origin)
+static esp_err_t registry_read_origin(connection_registry_v4_t *registry,bool *legacy_origin)
 {
     if(legacy_origin)*legacy_origin=false;
-    memset(registry,0,sizeof(*registry));registry->schema=3;
+    memset(registry,0,sizeof(*registry));registry->schema=4;
     nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
     if(error!=ESP_OK&&error!=ESP_ERR_NVS_NOT_FOUND)return error;
     if(error==ESP_OK){
         size_t length=sizeof(*registry);error=nvs_get_blob(handle,"registry",registry,&length);nvs_close(handle);
         if(error!=ESP_ERR_NVS_NOT_FOUND){
             if(error!=ESP_OK)return error;
-            if(length!=sizeof(*registry)||registry->count>DSR_MAX_DEVICES||(registry->schema!=2&&registry->schema!=3))return ESP_ERR_INVALID_SIZE;
+            if(length!=sizeof(*registry)||registry->count>DSR_MAX_DEVICES||(registry->schema!=2&&registry->schema!=3&&registry->schema!=4))return ESP_ERR_INVALID_SIZE;
             if(registry->schema==2){
                 for(uint32_t i=0;i<registry->count;i++){
                     legacy_device_v1_t old;memcpy(&old,&registry->items[i].device,sizeof(old));
                     registry->items[i].device=import_legacy(&old);
                 }
-                registry->schema=3; /* Lazy in-RAM import; next mutation writes v3. */
+                /* Frozen v2 padding has no transport authority. */
             }
             for(uint32_t i=0;i<registry->count;i++){
+                if(registry->schema==3&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_COVER)return ESP_ERR_INVALID_SIZE;
                 dsr_connection_t candidate={.device=registry->items[i].device,.credentials=registry->items[i].credentials};
                 if(!dsr_connection_valid(&candidate,true)||registry->items[i].layout_id>1000000)return ESP_ERR_INVALID_SIZE;
                 for(uint32_t j=0;j<i;j++)if(same_endpoint(&registry->items[i].device,&registry->items[j].device)||(registry->items[i].layout_id&&registry->items[i].layout_id==registry->items[j].layout_id))return ESP_ERR_INVALID_SIZE;
             }
+            registry->schema=4; /* Lazy RAM import; no write until a user mutation. */
             return ESP_OK;
         }
     }
     dsr_connection_t legacy;bool found=false;error=dsr_connection_load(&legacy,&found);
-    if(error==ESP_OK){memset(registry,0,sizeof(*registry));registry->schema=3;if(found){registry->count=1;registry->items[0].device=legacy.device;registry->items[0].credentials=legacy.credentials;if(legacy_origin)*legacy_origin=true;}}
+    if(error==ESP_OK){memset(registry,0,sizeof(*registry));registry->schema=4;if(found){registry->count=1;registry->items[0].device=legacy.device;registry->items[0].credentials=legacy.credentials;if(legacy_origin)*legacy_origin=true;}}
     memset(&legacy,0,sizeof(legacy));return error;
 }
-static esp_err_t registry_read(connection_registry_v3_t *registry)
+static esp_err_t registry_read(connection_registry_v4_t *registry)
 {return registry_read_origin(registry,NULL);}
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count)
 {
     if(!out||!count)return ESP_ERR_INVALID_ARG;
-    *count=0;connection_registry_v3_t *registry=calloc(1,sizeof(*registry));if(!registry)return ESP_ERR_NO_MEM;
+    *count=0;connection_registry_v4_t *registry=calloc(1,sizeof(*registry));if(!registry)return ESP_ERR_NO_MEM;
     bool legacy_origin=false;esp_err_t error=registry_read_origin(registry,&legacy_origin);
     if(error==ESP_OK&&registry->count>capacity)error=ESP_ERR_INVALID_SIZE;
     if(error==ESP_OK){
@@ -114,13 +116,13 @@ esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *cou
     }
     memset(registry,0,sizeof(*registry));free(registry);return error;
 }
-static esp_err_t registry_write(const connection_registry_v3_t *registry)
+static esp_err_t registry_write(const connection_registry_v4_t *registry)
 {
  nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READWRITE,&handle);
  if(error!=ESP_OK)return error;
  error=nvs_set_blob(handle,"registry",registry,sizeof(*registry));if(error==ESP_OK)error=nvs_commit(handle);nvs_close(handle);
  if(error!=ESP_OK)return error;
- connection_registry_v3_t *readback=calloc(1,sizeof(*readback));if(!readback)return ESP_ERR_NO_MEM;
+ connection_registry_v4_t *readback=calloc(1,sizeof(*readback));if(!readback)return ESP_ERR_NO_MEM;
  error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
  if(error==ESP_OK){size_t length=sizeof(*readback);error=nvs_get_blob(handle,"registry",readback,&length);if(error==ESP_OK&&(length!=sizeof(*readback)||memcmp(registry,readback,sizeof(*registry))))error=ESP_FAIL;nvs_close(handle);}
  memset(readback,0,sizeof(*readback));free(readback);return error;
@@ -129,7 +131,7 @@ esp_err_t dsr_connection_save(const dsr_connection_t *connection)
 {
     if(!dsr_connection_valid(connection,true)||connection->layout_id>1000000)return ESP_ERR_INVALID_ARG;
     if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
-    connection_registry_v3_t *registry=calloc(1,sizeof(*registry));
+    connection_registry_v4_t *registry=calloc(1,sizeof(*registry));
     if(!registry){dsr_activity_end();return ESP_ERR_NO_MEM;}
     esp_err_t error=registry_read(registry);
     if(error==ESP_OK){
@@ -155,7 +157,7 @@ static esp_err_t registry_change(const dsr_connection_t *connection,bool remove)
 {
  if(!dsr_connection_valid(connection,true)||(!remove&&(!connection->layout_id||connection->layout_id>1000000)))return ESP_ERR_INVALID_ARG;
  if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
- connection_registry_v3_t *registry=calloc(1,sizeof(*registry));esp_err_t error=registry?registry_read(registry):ESP_ERR_NO_MEM;
+ connection_registry_v4_t *registry=calloc(1,sizeof(*registry));esp_err_t error=registry?registry_read(registry):ESP_ERR_NO_MEM;
  if(error==ESP_OK){uint32_t at=0;while(at<registry->count&&!same_endpoint(&registry->items[at].device,&connection->device))at++;
   /* A previous remove may have reached Flash before commit/readback failed.
    * Verified absence is its durable ACK; never rewrite unrelated endpoints. */
@@ -171,7 +173,7 @@ esp_err_t dsr_connection_remove(const dsr_connection_t *connection){return regis
 esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id)
 {
  if(!connection||!id)return ESP_ERR_INVALID_ARG;
- connection_registry_v3_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
+ connection_registry_v4_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
  esp_err_t e=registry_read(r);if(e==ESP_OK){e=ESP_ERR_NOT_FOUND;for(uint32_t i=0;i<r->count;i++)if(same_endpoint(&r->items[i].device,&connection->device)){*id=r->items[i].layout_id;e=ESP_OK;break;}}
  memset(r,0,sizeof(*r));free(r);return e;
 }

@@ -226,6 +226,11 @@ int main(void)
  CHECK(dsr_workspace_output_request(&devices[0].device,true,NULL)==DSR_INVALID);admission_open();
  CHECK(dsr_activity_restart_reserve());CHECK(dsr_workspace_output_request(&devices[0].device,true,&operation)==DSR_BUSY);dsr_activity_restart_cancel();admission_open();
  cover_mailboxes();
+ /* Same physical ID/channel is still two independent transport families. */
+ dsr_runtime_device_t light[2]={device("shared-light",0),device("shared-light",0)};light[1].device.endpoint_kind=DSR_ENDPOINT_LIGHT;light[1].device.has_switch=false;light[1].telemetry.light=(dsr_light_status_t){.brightness=0,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS};publish(light,2);
+ CHECK(dsr_workspace_output_request(&light[1].device,true,&operation)==DSR_UNSUPPORTED);CHECK(dsr_workspace_light_request(&light[0].device,(dsr_light_intent_t){.command=DSR_LIGHT_ON},&operation)==DSR_UNSUPPORTED);
+ CHECK(dsr_workspace_light_request(&light[1].device,(dsr_light_intent_t){.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=0},&operation)==DSR_OK);CHECK(dsr_workspace_light_request(&light[1].device,(dsr_light_intent_t){.command=DSR_LIGHT_OFF},&operation)==DSR_BUSY);take_with_outer(&request);CHECK(request.device.endpoint_kind==DSR_ENDPOINT_LIGHT&&request.light.command==DSR_LIGHT_SET_BRIGHTNESS&&request.light.brightness==0&&request.operation_id==operation);admission_open();
+ for(unsigned condition=0;condition<4;condition++){light[1].pending=false;light[1].device.online=condition!=0;light[1].sample_age_ms=condition==1?15001:0;light[1].error=condition==2?DSR_AUTH_REQUIRED:DSR_OK;light[1].telemetry.light.conditions=condition==3?DSR_LIGHT_UNCALIBRATED:0;publish(light,2);CHECK(dsr_workspace_light_request(&light[1].device,(dsr_light_intent_t){.command=DSR_LIGHT_ON},&operation)==(condition<2?DSR_OFFLINE:condition==2?DSR_AUTH_REQUIRED:DSR_UNSUPPORTED));admission_open();}
  printf("PASS: %u actual workspace/runtime checks; AP handoff TTL/wrap/restart, identity mailboxes, compaction, count0 and per-endpoint admission; RTOS/Flash/HTTP MODEL\n",checks);
  return 0;
 }

@@ -3,6 +3,8 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Rodzina API", "API family", "API-Familie"],
+ ["Light poza grupami Switch", "Light excluded from Switch groups", "Light außerhalb von Switch-Gruppen"],
  ["Grupy", "Groups", "Gruppen"],
  ["Grupa", "Group", "Gruppe"],
  ["Aktywność", "Activity", "Aktivität"],
@@ -159,7 +161,7 @@ function editDevice(item){
  const passLabel=el('label',m('Hasło Shelly')),password=el('input');password.type='password';password.autocomplete='off';password.maxLength=64;passLabel.append(password);form.append(loginLabel,passLabel);
  n.append(button(m('Sprawdź i powiąż połączenie'),async()=>{try{notice(m('Sprawdzanie tożsamości Shelly…'));await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:item.host,name:item.name,channel:item.channel,username:login.value,password:password.value})});password.value='';for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,500));const status=await(await request('status')).json();if(!status.device_busy){notice(serverMessage(status.device_message)||m('Sprawdź wynik na ekranie pilota.'));return;}}notice(m('Sprawdzanie trwa. Wynik pojawi się na pilocie.'));}catch(error){password.value='';notice(error.uiMessage||serverMessage(error.message));}},'primary'));
 }
-function editGroup(item){const {n}=editBase('groups',item);n.append(el('p',m('Grupa: do 16 kanałów Switch, jawne Włącz i Wyłącz.'),'muted'));for(const d of config.devices.filter(d=>['light','relay','plug'].includes(d.kind))){const label=el('label',d.name),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);changed();});label.prepend(check);n.append(label);}}
+function editGroup(item){const {n}=editBase('groups',item);n.append(el('p',m('Grupa: do 16 kanałów Switch, jawne Włącz i Wyłącz.'),'muted'));for(const d of config.devices.filter(d=>['relay','plug'].includes(d.kind)||item.members.includes(d.id))){const supported=['relay','plug'].includes(d.kind),label=el('label',d.name+(supported?'':` • ${m('Light poza grupami Switch')}`)),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{if(check.checked&&!supported){check.checked=false;return;}item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);changed();});label.prepend(check);n.append(label);}}
 function editScene(item){const {n}=editBase('scenes',item);n.append(el('p',m('Jawne działania sceny. Wykonanie wymaga obsługi typu urządzenia przez moduł komunikacji.'),'muted'));for(const [index,a]of item.actions.entries()){const row=el('div',undefined,'row');select(row,m('Urządzenie'),a.device,config.devices.map(d=>[d.id,d.name]),v=>{a.device=Number(v);a.command=config.devices.find(d=>d.id===a.device)?.kind==='cover'?'open':'on';editScene(item);});select(row,m('Działanie'),a.command,(config.devices.find(d=>d.id===a.device)?.kind==='cover'?[['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]:[['on',m('Włącz')],['off',m('Wyłącz')],['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]).filter(([command])=>config.devices.find(d=>d.id===a.device)?.kind==='cover'||['on','off'].includes(command)),v=>a.command=v);row.append(button('×',()=>{item.actions.splice(index,1);changed();editScene(item);}));n.append(row);}n.append(button(m('+ Działanie'),()=>{if(!config.devices.length||item.actions.length>=8)return notice(m('Dodaj urządzenie; limit sceny to 8 działań.'));item.actions.push({device:config.devices[0].id,command:config.devices[0].kind==='cover'?'open':'on'});changed();editScene(item);}));}
 function move(d,id,delta){const at=d.tiles.findIndex(t=>t.id===id),to=at+delta;if(to<0||to>=d.tiles.length)return;d.tiles.splice(to,0,d.tiles.splice(at,1)[0]);changed();editDashboard(d);}
 function editDashboard(d){const {n,form}=editBase('dashboards',d);select(form,m('Pulpit startowy'),config.active_dashboard===d.id?'yes':'no',[['yes',m('Tak')],['no',m('Nie')]],v=>{if(v==='yes')config.active_dashboard=d.id;});n.append(el('p',m('Przeciągaj karty albo użyj strzałek. Karty urządzeń zawsze zajmują pełną szerokość.'),'muted'));for(const t of d.tiles){const row=el('div',undefined,'tile');row.draggable=true;row.dataset.id=t.id;row.addEventListener('dragstart',()=>{dragId=t.id;row.classList.add('dragging');});row.addEventListener('dragend',()=>row.classList.remove('dragging'));row.addEventListener('dragover',e=>e.preventDefault());row.addEventListener('drop',e=>{e.preventDefault();const a=d.tiles.findIndex(x=>x.id===dragId),b=d.tiles.findIndex(x=>x.id===t.id);if(a>=0&&b>=0){d.tiles.splice(b,0,d.tiles.splice(a,1)[0]);changed();editDashboard(d);}});row.append(el('span','⠿','drag'));const target=config[t.type==='device'?'devices':t.type==='room'?'rooms':t.type==='scene'?'scenes':'groups'].find(x=>x.id===t.ref);const text=el('div',undefined,'grow');text.append(el('h3',target?.name||m('Brak obiektu')),el('p',m('{0} · {1}',m({device:'Urządzenie',room:'Pomieszczenie',scene:'Scena',group:'Grupa'}[t.type]),t.span===2?m('pełna szerokość'):m('½ szerokości')),'muted'));row.append(text,button('↑',()=>move(d,t.id,-1)),button('↓',()=>move(d,t.id,1)),button(m('Edytuj'),()=>editTile(d,t)),button('×',()=>{d.tiles=d.tiles.filter(x=>x.id!==t.id);changed();editDashboard(d);}));n.append(row);}if(!d.tiles.length)empty(n,m('Ten pulpit jest pusty.'));n.append(button(m('+ Dodaj kartę'),()=>{if(d.tiles.length>=24)return notice(m('Limit: 24 karty na pulpit.'));if(!config.devices.length&&!config.rooms.length&&!config.scenes.length&&!config.groups.length)return notice(m('Najpierw dodaj pomieszczenie lub urządzenie.'));const type=config.devices.length?'device':config.rooms.length?'room':config.scenes.length?'scene':'group',a=config[type==='device'?'devices':type==='room'?'rooms':type==='scene'?'scenes':'groups'];const tile={id:nextId(d.tiles),type,ref:a[0].id,span:2,height:1,fields:255};d.tiles.push(tile);changed();editTile(d,tile);},'primary'));}
@@ -216,17 +218,18 @@ function onboardingMethods(parent){
   finally{if(onboardingCurrent(generation)){onboardingStarting=false;updateOnboardingChoice();}}
  },'primary');footer.append(button(m('Anuluj'),()=>{invalidateOnboarding();onboardingChoice=null;onboardingCards=[];onboardingNext=null;page='devices';render();}),onboardingNext);parent.append(footer);updateOnboardingChoice();
 }
-let manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0};
+let manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0,family:''};
 function manualOnboarding(parent){
  onboardingSteps(parent,3);parent.append(el('p',m('Zaawansowane: adres, tożsamość API i stan zostaną sprawdzone przed dodaniem.')));
  const form=el('div',undefined,'fields');parent.append(form);
  const host=lanInput(form,m('Adres IPv4 Shelly'),manualDraft.host),name=lanInput(form,m('Nazwa urządzenia'),manualDraft.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]),channel=lanInput(form,m('Kanał 0–15'),manualDraft.channel,'number'),user=lanInput(form,m('Login'),manualDraft.username),password=lanInput(form,m('Hasło Shelly'),manualDraft.password,'password');
+ const family=lanSelect(form,m('Rodzina API'),[['','Switch / Relay'],['cover','Cover Gen2+'],['light','Light Gen2+']]);family.value=manualDraft.family;
  room.value=String(manualDraft.room);channel.min=0;channel.max=15;channel.step=1;
- const inputs={host,name,room,channel,username:user,password};for(const [key,input]of Object.entries(inputs))input.addEventListener('input',()=>manualDraft[key]=input.value);
+ const inputs={host,name,room,channel,username:user,password,family};for(const [key,input]of Object.entries(inputs))input.addEventListener('input',()=>manualDraft[key]=input.value);
  const apply=button(m('Sprawdź i zapisz połączenie'),()=>{
   if(apply.disabled)return;
   if(!host.value.trim()||!name.value.trim()||!Number.isInteger(Number(channel.value))||Number(channel.value)<0||Number(channel.value)>15)return notice(m('Sprawdź adres, nazwę i kanał 0–15.'));
-  lanSelected={host:host.value.trim(),id:'',model:m('Adres IP • zaawansowane'),name:name.value};lanCredentials={username:user.value,password:password.value};bindLan(name.value,room.value,channel.value,apply,true);
+  lanSelected={host:host.value.trim(),id:'',model:m('Adres IP • zaawansowane'),name:name.value};lanCredentials={username:user.value,password:password.value};bindLan(name.value,room.value,family.value?`${family.value}:${channel.value}`:channel.value,apply,true);
  },'primary');const footer=el('div',undefined,'onboarding-footer');footer.append(apply);parent.append(footer);
 }
 let lanBound=[];
@@ -300,7 +303,7 @@ function lanInput(parent,label,value='',type='text'){
  const l=el('label',label),i=el('input');i.type=type;i.value=value;setUIAttribute(i,'aria-label',label);i.maxLength=type==='password'?64:47;l.append(i);parent.append(l);return i;
 }
 function lanSelect(parent,label,items){const l=el('label',label),s=el('select');setUIAttribute(s,'aria-label',label);for(const [value,name]of items){const o=el('option',name);o.value=value;s.append(o);}l.append(s);parent.append(l);return s;}
-function openDiscovery(){if(dirty||saving)return notice(m('Zapisz szkic konfiguracji przed dodaniem połączenia.'));invalidateOnboarding();onboardingChoice=null;manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0};page='discovery';lanMode='start';lanCredentials=null;render();}
+function openDiscovery(){if(dirty||saving)return notice(m('Zapisz szkic konfiguracji przed dodaniem połączenia.'));invalidateOnboarding();onboardingChoice=null;manualDraft={host:'',name:'',username:'admin',password:'',channel:0,room:0,family:''};page='discovery';lanMode='start';lanCredentials=null;render();}
 async function scanLan(generation){
  if(!Number.isSafeInteger(generation))generation=++lanGeneration; // DOM click passes an Event.
  if(!onboardingCurrent(generation))return;
@@ -333,7 +336,7 @@ async function pollLan(generation){
 }
 async function bindLan(name,room,channel,button,manual=false){
  if(button.disabled||page!=='discovery')return;const generation=++lanGeneration;
- button.disabled=true;const cover=String(channel).startsWith('cover:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover?String(channel).slice(6):channel),...lanCredentials};if(cover)body.endpoint_kind=1;
+ button.disabled=true;const cover=String(channel).startsWith('cover:'),light=String(channel).startsWith('light:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover||light?String(channel).slice(6):channel),...lanCredentials};if(cover||light)body.endpoint_kind=cover?1:2;
  try{
   await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!onboardingCurrent(generation))return;notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
   for(let i=0;i<100;i++){
@@ -343,7 +346,7 @@ async function bindLan(name,room,channel,button,manual=false){
    if(s.device_busy||s.busy)continue;
    if(s.device_result!==0){if(s.device_result===4&&!manual){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
    const configResponse=await request('config');if(!onboardingCurrent(generation))return;
-   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&d.room===body.room&&d.name===body.name);
+   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&(d.kind==='light')===(body.endpoint_kind===2)&&d.room===body.room&&d.name===body.name);
    page='devices';lanCredentials=null;invalidateOnboarding();showConfig(current);notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
   }
   throw failure(m('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.'));
@@ -370,7 +373,7 @@ function discoveryView(){
   const u=lanInput(form,m('Login'),'admin'),p=lanInput(form,m('Hasło Shelly'),'','password');n.append(button(m('Sprawdź urządzenie'),()=>inspectLan(lanSelected,{username:u.value,password:p.value}),'primary'));return n;
  }
  const name=lanInput(form,m('Nazwa urządzenia'),lanSelected.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]);
- const channels=[];for(let kind=0;kind<2;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?lanSnapshot.capabilities.covers:0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`cover:${i}`:i,`${kind?'Cover':'Switch'} ${i}`]);
+ const channels=[];for(let kind=0;kind<3;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?(kind===1?lanSnapshot.capabilities.covers:lanSnapshot.capabilities.lights):0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`${kind===1?'cover':'light'}:${i}`:i,`${kind===1?'Cover':kind===2?'Light':'Switch'} ${i}`]);
  const channel=lanSelect(form,m('Kanał z odpowiedzi API'),channels.length?channels:[['',m('Brak obsługiwanego kanału')]]);
  n.append(el('p',m('Dodanie zachowuje poprzednie urządzenia i ich kanały.')));
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);

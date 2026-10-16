@@ -264,7 +264,7 @@
 {"Pozycjonowanie niedostępne","Position control unavailable","Positionierung nicht verfügbar"},
 {"Rodzina API","API family","API-Familie"},
 {"Kanał API (pierwszy to 0)","API channel (first is 0)","API-Kanal (erster ist 0)"},
-{"Do 16 endpointów Switch/Cover.\nCover wymaga Gen2+ i aktywnego profilu rolety.\nZmiana profilu nie jest wykonywana.\nDane logowania w niezaszyfrowanym NVS.","Up to 16 Switch/Cover endpoints.\nCover requires Gen2+ and an active cover profile.\nThe profile is not changed.\nCredentials in unencrypted NVS.","Bis zu 16 Switch/Cover-Endpunkte.\nCover erfordert Gen2+ und ein aktives Rollladenprofil.\nDas Profil wird nicht geändert.\nZugangsdaten in unverschlüsseltem NVS."},
+{"Do 16 endpointów Switch/Cover/Light.\nCover i Light wymagają Gen2+.\nProfil i kalibracja nie są zmieniane.\nDane logowania w niezaszyfrowanym NVS.","Up to 16 Switch/Cover/Light endpoints.\nCover and Light require Gen2+.\nProfile and calibration are not changed.\nCredentials in unencrypted NVS.","Bis zu 16 Switch/Cover/Light-Endpunkte.\nCover und Light erfordern Gen2+.\nProfil und Kalibrierung werden nicht geändert.\nZugangsdaten in unverschlüsseltem NVS."},
 
 {"Historia rolet nie jest obsługiwana", "Cover history is not supported", "Rollladenverlauf wird nicht unterstützt"},
 
@@ -287,3 +287,9 @@
 {"Zweryfikowano API","API verified","API geprüft"},
 
 {"Nie potwierdzono modelu ani RPC. Ta reklama nie umożliwia dodania do Wi-Fi.","Model and RPC are unverified. This advertisement cannot be used to add Wi-Fi.","Modell und RPC sind nicht bestätigt. Diese Werbung ermöglicht kein Hinzufügen zum WLAN."},
+{"Jasność • Light RPC","Brightness • Light RPC","Helligkeit • Light RPC"},
+{"Sterowanie światłem zablokowane","Light controls blocked","Lichtsteuerung gesperrt"},
+{"Przejście do","Transition to","Übergang zu"},
+{"0% jasności nie oznacza OFF","0% brightness does not mean OFF","0% Helligkeit bedeutet nicht AUS"},
+{"Historia światła nie jest obsługiwana","Light history is not supported","Lichtverlauf wird nicht unterstützt"},
+{"Tylko własny Shelly Gen2+ z przekaźnikiem, roletą lub Light w otwartym setup. Hasło Wi-Fi wymaga kolejnej zgody.","Only your own Shelly Gen2+ with Switch, Cover or Light in open setup. Wi-Fi password requires another consent.","Nur eigenes Shelly Gen2+ mit Switch, Cover oder Light im offenen Setup. WLAN-Passwort erfordert weitere Zustimmung."},

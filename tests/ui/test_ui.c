@@ -21,7 +21,7 @@
 
 static unsigned checks;
 static unsigned screenshots,requests;
-static unsigned job_counts[DSR_JOB_PAIRING_REVOKE+1];
+static unsigned job_counts[DSR_JOB_LIGHT+1];
 void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t error,dsr_manifest_result_t why);
 void test_native_ota_uncertain(void);
 void test_native_ota_notes(const char *text);

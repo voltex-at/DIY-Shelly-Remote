@@ -25,7 +25,7 @@ async function fixture(cover=false){
  root.append(workspace);workspace.append(parent);
  const document={documentElement:{lang:'en'},createElement:tag=>new Node(tag),querySelector:selector=>selector==='#workspace'?workspace:null};
  const makeDevice=(device_id,channel)=>({device_id,generation:2,channel,host:'192.0.2.'+(channel+10),name:device_id,online:true,output:false,has_switch:true,has_power:true,power_w:2.5,has_voltage:false,has_current:false,pending:false,error:0,sample_age_ms:0,operation_id:0});
- const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
+ const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover===2)Object.assign(devices[0],{endpoint_kind:2,has_switch:false,has_brightness:true,brightness:38,can_light:true,transitioning:false,has_brightness_target:false,brightness_target:0,light_errors:0,light_conditions:0});else if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
  const state={boot:17,devices,gets:0,posts:[],dropPost:false,stale:null,hold:false,release:null};
  const context={window:{},document,page:'devices',config:null,queueMicrotask,performance:{now:()=>clock},
   MutationObserver:class{constructor(fn){observer=fn;}observe(){}},
@@ -34,7 +34,7 @@ async function fixture(cover=false){
    if(options?.method==='POST'){
     const body=JSON.parse(options.body);state.posts.push(body);
     const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel&&(item.endpoint_kind??0)===(body.endpoint_kind??0));assert(d);
-    eq(route,body.endpoint_kind===1?'devices/cover':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
+    eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
     return{json:async()=>({accepted:true,operation_id:d.operation_id,boot_id:state.boot})};
    }
    eq(route,'devices/runtime');state.gets++;
@@ -114,6 +114,30 @@ async function fixture(cover=false){
  for(const invalidate of [d=>d.online=false,d=>d.pending=true,d=>d.host='192.0.2.99',d=>{d.has_target=true;d.target=12;},d=>d.sample_age_ms=15001]){
   const f=await fixture(true),range=f.cards()[0].children[5].children[3];range.value='67';range.listeners.input();invalidate(f.state.devices[0]);await f.refresh();Object.assign(f.state.devices[0],{online:true,pending:false,sample_age_ms:0});await f.refresh();await range.listeners.change();eq(f.state.posts.length,0);eq(range.value,'38');
   range.value='71';range.listeners.input();await range.listeners.change();eq(f.state.posts.length,1);eq(f.state.posts[0].position,71);
+ }
+
+ {
+  const f=await fixture(2),card=f.cards()[0],actions=card.children[5].children,range=actions[2],preview=card.children[6];
+  eq(actions.length,3);ok(!range.disabled);ok(preview.textContent.includes('38%'));
+  range.value='67';range.listeners.input();eq(f.state.posts.length,0);await f.refresh();eq(f.cards()[0],card);eq(range.value,'67');f.locale('de');eq(range.value,'67');ok(preview.textContent.includes('67%'));
+  await range.listeners.change();eq(f.state.posts[0],{device_id:'shelly-a',generation:2,channel:0,endpoint_kind:2,command:'brightness',brightness:67});ok(range.disabled);eq(f.state.devices[0].brightness,38);
+  f.state.devices[0].pending=false;f.state.devices[0].brightness=67;await f.refresh();ok(!range.disabled);eq(range.value,'67');
+  await actions[1].listeners.click();eq(f.state.posts[1].command,'off');ok(!('brightness' in f.state.posts[1]));f.state.devices[0].pending=false;f.state.devices[0].output=false;await f.refresh();
+  f.state.devices[0].brightness=0;f.state.devices[0].output=true;await f.refresh();ok(preview.textContent.includes('0%'));ok(card.children[1].textContent.includes('EIN')); // zero brightness is not OFF
+ }
+ for(const invalidate of [d=>d.online=false,d=>d.pending=true,d=>d.host='192.0.2.99',d=>{d.transitioning=true;d.has_brightness_target=true;d.brightness_target=12;},d=>d.sample_age_ms=15001,d=>{d.can_light=false;d.light_conditions=2;}]){
+  const f=await fixture(2),range=f.cards()[0].children[5].children[2];range.value='67';range.listeners.input();invalidate(f.state.devices[0]);await f.refresh();Object.assign(f.state.devices[0],{online:true,pending:false,sample_age_ms:0,can_light:true,light_conditions:0});await f.refresh();await range.listeners.change();eq(f.state.posts.length,0);eq(range.value,'38');
+  range.value='0';range.listeners.input();await range.listeners.change();eq(f.state.posts[0].brightness,0);eq(f.state.posts[0].command,'brightness');
+ }
+ {
+  const f=await fixture(2),range=f.cards()[0].children[5].children[2];range.value='90';range.listeners.input();range.listeners.pointercancel();await range.listeners.change();eq(f.state.posts.length,0);eq(range.value,'38');
+  f.state.dropPost=true;range.value='50';range.listeners.input();await range.listeners.change();eq(f.state.posts.length,1);ok(range.disabled);await f.refresh();await range.listeners.change();eq(f.state.posts.length,1);ok(range.disabled);f.state.boot++;f.state.devices[0].pending=false;await f.refresh();ok(!range.disabled);
+ }
+ for(const bad of [{brightness:null},{brightness:-1},{brightness:101},{brightness:0.5},{can_light:'true'},{light_conditions:-1},{transitioning:null}]){
+  const f=await fixture(2);Object.assign(f.state.devices[0],bad);await f.refresh();for(const card of f.cards())for(const button of card.children[5].children)ok(button.disabled);
+ }
+ for(const blocked of [{has_brightness:false},{light_errors:1},{light_conditions:2}]){
+  const f=await fixture(2),actions=f.cards()[0].children[5].children;Object.assign(f.state.devices[0],blocked);await f.refresh();for(const control of actions)ok(control.disabled);await actions[0].listeners.click();eq(f.state.posts.length,0);
  }
  console.log(`PASS: ${checks} deterministic actual-runtime checks; delayed GET/POST loss, independent controls, freshness, epoch, locale; DOM/HTTP MODEL`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

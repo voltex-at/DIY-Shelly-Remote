@@ -132,8 +132,14 @@ async function lifecycle(){
  parent=open();state=api.state();state.cards[2].node.click();fail=true;await state.next.click();const count=requests.length;await new Promise(r=>setImmediate(r));eq(requests.length,count);eq(context.lanMode,'start');ok(!state.next.disabled);fail=false;
  parent=open();const cancel=buttons(parent).find(n=>n.textContent==='Anuluj');cancel.click();eq(context.page,'devices');eq(api.state().choice,null);
  parent=open();state=api.state();state.cards[3].node.click();await state.next.click();eq(context.lanMode,'manual');const form=new Node('div');api.manual(form);
- const flatten=n=>[n,...n.children.flatMap(flatten)],fields=flatten(form).filter(n=>n.tag==='input'||n.tag==='select');eq(fields.length,6);fields[0].set('192.0.2.20');fields[1].set('User manual');fields[2].set('7');fields[3].set('1');fields[4].set('owner');fields[5].set('MODEL-only-password');
+ const flatten=n=>[n,...n.children.flatMap(flatten)],fields=flatten(form).filter(n=>n.tag==='input'||n.tag==='select');eq(fields.length,7);fields[0].set('192.0.2.20');fields[1].set('User manual');fields[2].set('7');fields[3].set('1');fields[4].set('owner');fields[5].set('MODEL-only-password');
  const apply=buttons(form).find(n=>n.textContent==='Sprawdź i zapisz połączenie');hold=true;const before=requests.length;apply.click();await new Promise(r=>setImmediate(r));ok(apply.disabled);apply.click();eq(requests.length,before+1);const body=JSON.parse(requests.at(-1).opts.body);eq(body,{host:'192.0.2.20',name:'User manual',room:7,channel:1,username:'owner',password:'MODEL-only-password'});eq(requests.at(-1).route,'devices/bind');hold=false;fail=true;release();await new Promise(r=>setImmediate(r));ok(!apply.disabled);const last=requests.length;await new Promise(r=>setImmediate(r));eq(requests.length,last); // no uncertain POST replay
+ for(const family of ['cover','light']){
+  fail=true;const target=new Node('div');api.manual(target);const inputs=flatten(target).filter(n=>n.tag==='input'||n.tag==='select');inputs[6].set(family);
+  const saved=buttons(target).find(n=>n.textContent==='Sprawdź i zapisz połączenie'),count=requests.length;saved.click();await new Promise(r=>setImmediate(r));eq(requests.length,count+1);
+  eq(JSON.parse(requests.at(-1).opts.body),{host:'192.0.2.20',name:'User manual',room:7,channel:1,username:'owner',password:'MODEL-only-password',endpoint_kind:family==='cover'?1:2});ok(!saved.disabled);
+  const reopened=new Node('div');api.manual(reopened);eq(flatten(reopened).filter(n=>n.tag==='select').at(-1).value,family);eq(requests.length,count+1);
+ }
  fail=false;parent=open();state=api.state();state.cards[2].node.click();hold=true;
  const cancelledStart=state.next.click();await new Promise(r=>setImmediate(r));
  buttons(parent).find(n=>n.textContent==='Anuluj').click();eq(context.page,'devices');

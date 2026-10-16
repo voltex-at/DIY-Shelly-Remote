@@ -11,6 +11,7 @@
 #endif
 
 _Static_assert(sizeof(dsr_mobile_model_t)<=8192,"bounded shared mobile view model");
+_Static_assert(sizeof(dsr_mobile_device_t)==320&&sizeof(dsr_mobile_model_t)==6944,"Light uses existing mobile padding");
 static dsr_mobile_model_t model;
 static dsr_mobile_model_t preview_saved;
 static bool cover_preview;
@@ -28,6 +29,9 @@ static uint8_t cover_preview_position;
 static uint32_t cover_drag_id;
 static lv_obj_t *cover_preview_label;
 static lv_timer_t *age_timer;
+static bool light_drag;
+static uint32_t light_drag_id;
+static lv_obj_t *light_slider,*light_preview_label;
 static void render(void);
 static void update_sample_age(void)
 {
@@ -43,7 +47,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){cover_drag=false;cover_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -376,6 +380,48 @@ static void cover_details(lv_obj_t *root)
  dsr_sc_panel(controls,147,12,1,40,DSR_SC_EDGE,0);
  if(!model.demo){const char *footer=d->error!=DSR_OK?"Ruch zablokowany":!d->online?"Brak aktualnego odczytu":d->cover_errors||d->cover_state==DSR_COVER_CALIBRATING?"Ruch zablokowany":!d->can_cover?"Brak obsługi Cover RPC":!d->can_position?"Pozycjonowanie niedostępne":NULL;if(footer)center(dsr_sc_text(root,footer,12,415,296,&dsr_roboto_11,0xe1bb70));}
 }
+static bool light_enabled(const dsr_mobile_device_t *d)
+{return !model.demo&&d->endpoint_kind==DSR_ENDPOINT_LIGHT&&d->online&&d->error==DSR_OK&&!d->busy&&d->can_light&&actions.set_brightness;}
+static void light_drag_event(lv_event_t *event)
+{
+ if(selected>=model.device_count)return;
+ dsr_mobile_device_t *d=&model.devices[selected];lv_event_code_t code=lv_event_get_code(event);
+ if(code==LV_EVENT_PRESS_LOST||!light_enabled(d)){light_drag=false;if(light_preview_label)lv_label_set_text(light_preview_label,"");if(light_slider)lv_slider_set_value(light_slider,d->light.brightness,LV_ANIM_OFF);return;}
+ if(code==LV_EVENT_PRESSED){light_drag=true;light_drag_id=d->id;}
+ if(!light_drag||light_drag_id!=d->id)return;
+ int value=lv_slider_get_value(lv_event_get_target(event));if(value<0||value>100){light_drag=false;return;}
+ if(light_preview_label){char text[48];snprintf(text,sizeof(text),"%s %d%%",dsr_sc_tr("Podgląd"),value);lv_label_set_text(light_preview_label,text);}
+ if(code==LV_EVENT_RELEASED){
+  light_drag=false;if(light_preview_label)lv_label_set_text(light_preview_label,"");
+  lv_indev_t *input=lv_indev_active();lv_point_t point;lv_area_t area;lv_obj_get_coords(lv_event_get_target(event),&area);
+  if(!input)return;
+  lv_indev_get_point(input,&point);
+  if(point.x<area.x1-12||point.x>area.x2+12||point.y<area.y1-12||point.y>area.y2+12){lv_slider_set_value(light_slider,d->light.brightness,LV_ANIM_OFF);return;}
+  actions.set_brightness(selected,(uint8_t)value);
+ }
+}
+static void light_details(lv_obj_t *root)
+{
+ const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK;char text[80];
+ lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
+ dsr_sc_text(panel,"Jasność • Light RPC",12,12,272,&dsr_roboto_16,DSR_SC_TEXT);
+ const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?"Wysyłanie polecenia…":d->light.conditions||d->light.errors?"Sterowanie światłem zablokowane":d->output?"Włączone • Online":"Wyłączone • Online";
+ center(dsr_sc_text(panel,state,8,42,280,&dsr_roboto_12,DSR_SC_MUTED));
+ if(readable&&(d->light.flags&DSR_LIGHT_BRIGHTNESS))snprintf(text,sizeof(text),"%u%%",d->light.brightness);else snprintf(text,sizeof(text),"—");
+ center(dsr_sc_text(panel,text,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
+ light_preview_label=dsr_sc_text(panel,"",8,106,280,&dsr_roboto_14,DSR_SC_BLUE);center(light_preview_label);
+ light_slider=lv_slider_create(panel);lv_obj_set_pos(light_slider,24,145);lv_obj_set_size(light_slider,248,24);lv_slider_set_range(light_slider,0,100);lv_slider_set_value(light_slider,readable?d->light.brightness:0,LV_ANIM_OFF);
+ lv_obj_set_ext_click_area(light_slider,12);lv_obj_set_style_bg_color(light_slider,dsr_sc_color(DSR_SC_OFF),LV_PART_KNOB|LV_STATE_DISABLED);lv_obj_set_style_bg_color(light_slider,dsr_sc_color(DSR_SC_OFF),LV_PART_INDICATOR|LV_STATE_DISABLED);
+ lv_obj_remove_flag(light_slider,LV_OBJ_FLAG_SCROLL_CHAIN_HOR|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+ lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_PRESS_LOST,NULL);
+ if(!light_enabled(d))lv_obj_add_state(light_slider,LV_STATE_DISABLED);
+ if(readable&&(d->light.flags&DSR_LIGHT_TRANSITION))snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Przejście do"),d->light.target);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("0% jasności nie oznacza OFF"));
+ center(dsr_sc_text(panel,text,8,184,280,&dsr_roboto_12,DSR_SC_MUTED));
+ sample_age=dsr_sc_text(panel,"",8,226,280,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
+ lv_obj_t *controls=dsr_sc_panel(root,12,355,296,62,DSR_SC_CARD,10);power_button(controls,selected,12,6,48);
+ center(dsr_sc_text(controls,d->output?"Wyłącz":"Włącz",68,22,132,&dsr_roboto_14,DSR_SC_TEXT));
+ lv_obj_t *read=dsr_sc_button(controls,206,7,82,48,DSR_SC_PANEL,10,refresh,NULL);center(dsr_sc_text(read,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT));if(d->busy||!d->can_refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
+}
 static void details(lv_obj_t *root)
 {
     if(selected>=model.device_count)return;
@@ -383,6 +429,7 @@ static void details(lv_obj_t *root)
     if(d->kind==DSR_DEVICE_COVER){
         cover_details(root);return;
     }
+    if(d->endpoint_kind==DSR_ENDPOINT_LIGHT){light_details(root);return;}
     lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
     dsr_sc_text(panel,"Główne sterowanie",13,12,270,&dsr_roboto_16,DSR_SC_TEXT);
     const char *status=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
@@ -431,7 +478,7 @@ static void device_settings(lv_obj_t *root)
 }
 static void render(void)
 {
-    cover_drag=false;cover_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
+    cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
     lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
@@ -504,6 +551,12 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
         preview_saved.demo=false;
 #endif
         return;}
+    if(light_drag&&selected<model.device_count){
+     const dsr_mobile_device_t *old=&model.devices[selected],*next=NULL;
+     for(unsigned i=0;i<m->device_count;i++)if(m->devices[i].id==light_drag_id)next=&m->devices[i];
+     if(next&&light_enabled(next)&&next->generation==old->generation&&next->endpoint_kind==old->endpoint_kind&&next->channel==old->channel&&!strcmp(next->identity,old->identity)&&!strcmp(next->host,old->host)&&next->light.target==old->light.target&&(next->light.flags&DSR_LIGHT_TRANSITION)==(old->light.flags&DSR_LIGHT_TRANSITION)){model=*m;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==light_drag_id)selected=i;update_sample_age();return;}
+     light_drag=false;
+    }
     if(cover_drag&&selected<model.device_count){
      const dsr_mobile_device_t *old=&model.devices[selected];const dsr_mobile_device_t *next=NULL;
      for(unsigned i=0;i<m->device_count;i++)if(m->devices[i].id==cover_drag_id)next=&m->devices[i];

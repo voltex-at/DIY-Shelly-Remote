@@ -16,17 +16,17 @@ typedef struct {
 } dsr_settings_t;
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
-typedef struct {bool has_voltage,has_current,has_energy;dsr_cover_status_t cover;double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
+typedef struct {bool has_voltage,has_current,has_energy;union{dsr_cover_status_t cover;dsr_light_status_t light;};double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
 typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
 /* Volatile origin consumes tail padding; never enters installed raw records. */
 _Static_assert(offsetof(dsr_connection_t,legacy_fallback)==offsetof(dsr_connection_t,layout_id)+4&&sizeof(dsr_connection_t)==offsetof(dsr_connection_t,layout_id)+8,"origin consumes existing connection tail padding");
-_Static_assert(sizeof(dsr_cover_status_t)==5&&sizeof(dsr_telemetry_t)==32,"Cover occupies five energy telemetry padding bytes");
+_Static_assert(sizeof(dsr_cover_status_t)==5&&sizeof(dsr_light_status_t)==5&&sizeof(dsr_telemetry_t)==32&&sizeof(dsr_connection_t)==296,"typed status occupies the existing five telemetry bytes");
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
 esp_err_t dsr_settings_save(const dsr_settings_t *settings);
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found);
-/* Typed schema-3 registry; frozen v1/v2 import defaults to Switch0. */
+/* Typed schema-4 registry; frozen v1/v2 Switch0 and v3 Switch/Cover import. */
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count);
 esp_err_t dsr_connection_save(const dsr_connection_t *connection);
 esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id);
@@ -67,6 +67,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
+dsr_result_t dsr_http_light(dsr_connection_t *connection,dsr_light_intent_t intent);
 /* Sole worker invokes an optional urgent-STOP callback between HTTP legs.
  * The callback is never installed by HTTP fixtures or other transports. */
 void dsr_http_urgent_hook(bool (*hook)(void));
@@ -81,14 +82,14 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
 typedef void (*dsr_http_job_write_hook_t)(void);
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
     dsr_connection_t connection;
     dsr_settings_t settings;
     /* Different job kinds reuse the two existing public-intent bytes. */
-    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;};
+    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;dsr_light_intent_t light;};
     union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;};
 } dsr_job_t;
 _Static_assert(sizeof(dsr_job_t)==560&&offsetof(dsr_job_t,on)==406&&offsetof(dsr_job_t,ap_confirmed)==407&&offsetof(dsr_job_t,ap)==408,"Cover retains the existing job footprint and payload offsets");
@@ -102,6 +103,7 @@ typedef struct {
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;
+_Static_assert(sizeof(dsr_event_t)==1192,"Light retains the existing event footprint");
 typedef enum {DSR_BIND_VERIFY,DSR_BIND_WORKSPACE,DSR_BIND_PRIVATE} dsr_bind_stage_t;
 /* One outstanding operation until receive; bounded queues, no command replay. */
 esp_err_t dsr_worker_start(void);
