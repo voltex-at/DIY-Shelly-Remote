@@ -17,6 +17,10 @@ including APP/ELF/partition/SPIFFS provenance and actual LCD/browser renders.
 This source still needs its own target/browser/artifact acceptance. Independent
 review has reproduced stale Web responses, availability/command log aliasing
 and post-write uncertainty; their regression fixes are integration gates.
+Common configuration/status reads also keep document/edit/view ownership.
+Independent delayed request/body cases reproduced lost drafts and false
+conflicts; generation and per-read guards preserve later edits, Save/BIND,
+explicit reload and fresh recovery. The 21-case/81-check corpus is GREEN.
 No physical device action, main merge, Stable or automation change.
 
 ## Existing PR50 — shared Web pairing revocation port
