@@ -24,12 +24,15 @@ static void bind_rebind_regression(void)
   }CHECK(seen==3);cJSON_Delete(saved);
   /* Even after loss of shared storage, fallback reads the previous private
    * bindings, never the uncommitted replacement locator or password. */
-  test_workspace_raw_fault(1);wifi.connected=true;dsr_network_home(NULL);click("Relay A");click("Odśwież stan");seen=0;
+  test_workspace_raw_fault(1);wifi.connected=true;seen=0;
+  const char *names[]={"Relay A","Sibling A1","Relay B"};
+  /* Contextual refresh deliberately targets one stable ID, not the fleet. */
+  for(unsigned target=0;target<3;target++){dsr_network_home(NULL);click(names[target]);click("Odśwież stan");
   while(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);const dsr_connection_t *c=&submitted.connection;
    if(!strcmp(c->device.device_id,"shelly-A")){CHECK(!strcmp(c->device.host,"192.168.1.60")&&!strcmp(c->credentials.password,"first-private"));seen|=c->device.channel==1?4:1;}
    else {CHECK(!strcmp(c->device.device_id,"shelly-B")&&!strcmp(c->device.host,"192.168.1.51")&&!strcmp(c->credentials.password,"second-private"));seen|=2;}
    response=(dsr_event_t){.device=c->device};deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);
-  }CHECK(seen==7&&publish_jobs==pubs);wifi.connected=false;tick();test_workspace_raw_fault(0);dsr_network_home(NULL);
+  }}CHECK(seen==7&&publish_jobs==pubs);wifi.connected=false;tick();test_workspace_raw_fault(0);dsr_network_home(NULL);
  }
  /* Web removal in either finalization window cannot be resurrected by a
   * late private ACK. The actual worker mapping guard is tested separately. */

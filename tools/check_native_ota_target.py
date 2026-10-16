@@ -39,4 +39,4 @@ for unit,limit in [('dsr_native_ota',2304),('dsr_ui_native_ota',1280),('dsr_ota_
    require(fields[1].isdigit() and fields[3] not in symbols,'Invalid static symbol: '+line);symbols[fields[3]]=int(fields[1])
  total=sum(symbols.values());require(0<total<=limit,'Updater fixed storage exceeds budget: '+unit);states[unit]={'bytes':total,'maximum_bytes':limit,'symbols':symbols}
 a.out.write_text(json.dumps({'retained_real_caller_functions':retained,'own_frames':reports,'fixed_storage':states,'actual_internal_bss_bytes':memory['internal_bss_bytes'],'maximum_internal_bss_bytes':81920,'configured_worker_stack_bytes':10240,'configured_ui_stack_bytes':8192,'lvgl_psram_pool_bytes':131072,'sdk_transitive_stack_or_heap_peak_measured':False,'approved_publisher_anchor_or_release':False,'physical_install_or_rollback_verified':False},indent=2)+'\n')
-print('PASS: real native updater ELF retained, static frames/fixed state and80KiB BSS; no job/event or stack/pool growth')
+print('PASS: real native updater ELF retained, static frames/fixed state and80KiB BSS; no extra OTA job payload; existing stack/pool limits retained')

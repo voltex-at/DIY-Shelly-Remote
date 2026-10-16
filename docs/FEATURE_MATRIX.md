@@ -14,6 +14,28 @@ target exact-source CI/artefakt oraz physical install/rollback nadal osobno.
 Historyczne opisy etapów backend-only poniżej nie opisują obecnego kompletnego
 przepływu kodu i nie stanowią odbioru autentycznego wydania ani sprzętu.
 
+## #22: INTERNAL 24 h — pion host, integracja Flash wstrzymana przez P0
+
+[Kontrakt i ograniczenia](ISSUE22_HISTORY_PL.md): prawdziwe zaakceptowane
+PROBE/SET readback → PSRAM ring5min → existing sole worker → dwa CRC journals.
+Dolna Energia/LCD Charts/WWW używają wspólnego query per physical key+kind0,
+1h/24h W/V/A i rzeczywiste Wh; UTC, zero/brak/stale/reset/luki rozróżnione.
+RAM-only przy niedostępnym/uszkodzonym/nowszym storage, bez format/erase/mount
+lub geometry changes. Host regresje i footprint opisane w kontrakcie; final
+ESP target/browser CI oraz physical restart/retencja pozostają bramkami.
+Publikacja/integracja nowych zapisów czeka na P0. SD/7dni nadal osobno.
+
+## #29A: Ustawienia wybranego Shelly na aktualnym runtime
+
+Port istniejącego PR34 `693d869` na bazę PR53, [zakres/testy](DEVICE_SETTINGS_PL.md).
+`Sterowanie → Ustawienia → Edytuj kartę` działa per stable ID, lokalna nazwa/pokój
+przez obecny CAS/exact ACK i powrót do tego samego urządzenia. Status/ID/API/W/V/A
+z aktualnego fleet. Manualny GET tylko wybranego bindingu, bez kasowania auth/rate
+pozostałych; unbound/reused host/zmieniony locator nie odpytują obcego endpointu.
+Regresje rzeczywistego LVGL PL/EN/DE, A/B/IO/CAS, reorder i kontekst pokoju;
+target CI i fizyczny test tej integracji nadal otwarte. Nie jest to RPC settings,
+historia #22/#29B ani zamknięcie #29. NVS/schema/registry/migrations bez zmian.
+
 
 ## #19: rzeczywiste dodawanie przez otwarty fabryczny AP
 
@@ -323,7 +345,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | --- | --- | --- | --- | --- |
 | Dolne Pulpit / Dom | Nawigacja edytorów i podgląd LCD | Lokalna konfiguracja | CI tested: przejścia i obszary dotyku | #6, PR #13; zdjęcie LCD i regresja nawigacji |
 | Dolne Ustawienia / Dodaj | Urządzenia / System | Pilot, kreatory | CI tested: rzeczywiste callbacki | #6/#7; przejście do Wi-Fi, LAN, BLE |
-| Dolna Energia | Brak wykonawcy energii | Modele z licznikiem, docelowo | Not implemented: disabled, bez komendy | #22; licznik i historia na rzeczywistym modelu |
+| Dolna Energia | Fresh comparable W total + per-endpoint actual Wh/Charts | Accepted Switch/relay telemetry | Host implemented; target/physical/P0 pending | #22; ISSUE22_HISTORY_PL.md |
 | Górna Aktywność | Brak dziennika | Lokalny ograniczony log | Not implemented: disabled | #21; czas/NTP, retencja, częściowe błędy |
 | Górne Grupy / Sceny | Edytor definicji scen | Wymagany multi-device | Not implemented: executor i grupy; zakładki disabled | #20/#21; minimum dwa rzeczywiste Shelly |
 | Aktywna zakładka widoku | Aktualna sekcja | Wskaźnik bieżącej strony | CI tested: statyczny wskaźnik, nie martwy przycisk | #25; brak kliknięcia bez działania |
@@ -336,8 +358,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | ON/OFF karty i szczegółów | Bezpośredniego SET w WWW brak; podgląd jest read-only | Jeden Gen1 relay lub Gen2+ switch | CI tested: identity/auth/SET/readback; wcześniejsze ON/OFF Gen3 potwierdzone fizycznie | #12, PR #14/#17; ponowny test 1PM Mini Gen3 |
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
 | W/V/A / wiek próbki / offline | Ten sam framebuffer | Tylko obecne i poprawne pola API | CI tested: parser, zera/braki/błędy, stabilny polling | #12; porównać realne V/A z API |
-| Szczegóły Wykresy | Brak historii | Rzeczywista retencja potrzebna | Not implemented: disabled | #22; pomiar po czasie, Flash, restart/offline |
-| Szczegóły Ustawienia | Lokalna definicja host/kanał/typ; nie RPC settings | API konkretnego urządzenia | Not implemented: zakładka disabled | #23/#24; potwierdzony model/capability |
+| Szczegóły Wykresy | Shared 1h/24h W/V/A/Wh query, UTC gaps | Real accepted readbacks; RAM + worker journals | Host implemented; target/physical/P0 pending | #22; ISSUE22_HISTORY_PL.md |
+| Szczegóły Ustawienia | Wspólna lokalna nazwa/pokój + fleet status/ID/W/V/A; wybrany GET | Zweryfikowany binding relay/Switch; RPC settings osobno | Implemented, host LVGL tested; exact-head CI/physical pending | #29A, port PR34; DEVICE_SETTINGS_PL.md |
 | Karta sceny / ikona ołówka | Edytor scen | Zapis definicji, bez wykonawcy | CI tested: edycja; Not implemented: uruchamianie scen | #21; nie przedstawiać otwarcia edytora jako wykonania |
 
 ## Dodawanie i rzeczywiste urządzenia
@@ -403,8 +425,8 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
   operacyjny zapis definicji. Nie wykonuje scen lub wielu urządzeń.
 - `cover_control → actions.set_cover` i Stop: w produkcyjnym bindingu brak
   takich callbacków; przyciski są disabled. DEMO działa tylko lokalnie.
-- `scene_card`: prowadzi do edycji, nie do SET. `Energia`, `Wykresy`, `Grupy`,
-  `Sceny`, `Aktywność`, AP i settings RPC nie mają wykonawcy; są disabled.
+- `scene_card`: prowadzi do edycji, nie do SET. `Energia`/`Wykresy` mają pion #22 opisany powyżej. `Grupy`,
+  `Sceny`, `Aktywność` i settings RPC nie mają wykonawcy; są disabled.
 - `toolbar Info`: usunięto martwą akcję, jest realny modal i Zamknij. Bieżące
   zakładki bez callbacków są statycznymi wskaźnikami, nie przyciskami no-op.
 - `brightness/sleep → dsr_board_*`: rzeczywiste wywołania sterownika.

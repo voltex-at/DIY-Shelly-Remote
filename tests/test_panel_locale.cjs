@@ -34,7 +34,7 @@ async function fixture(browser,options={}){
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   if(!u.pathname.startsWith('/api/')){
    if(u.pathname==='/favicon.ico')return route.fulfill({status:404,body:''});
-   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
+   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
    return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});
   }
   state.requests.push({path:u.pathname,method:req.method()});

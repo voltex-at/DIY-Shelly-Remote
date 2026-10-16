@@ -2,6 +2,7 @@
 #define DSR_UI_INTERNAL_H
 #include "lvgl.h"
 #include "dsr_platform.h"
+#include "dsr_ui_mobile.h"
 #include "dsr_discovery.h"
 #include "dsr_ble_rpc.h"
 #include "dsr_ui_style.h"
@@ -61,11 +62,20 @@ void dsr_network_reset_view(void);
 void dsr_network_home(lv_event_t *event);
 void dsr_network_rooms(void);
 void dsr_network_room_context(uint32_t id);
+void dsr_network_device_settings(uint32_t id);
+void dsr_network_device_control(uint32_t id);
+bool dsr_network_history_device(uint32_t id,dsr_mobile_device_t *out);
+bool dsr_network_energy_at(unsigned index,dsr_mobile_device_t *out);
+void dsr_ui_history_open(uint32_t id);
+void dsr_ui_energy_open(void);
+void dsr_ui_history_hide(void);
+void dsr_ui_history_tick(void);
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_edit_dashboard(void);
 void dsr_ui_config_diagnostics(lv_event_t *event);
 void dsr_ui_edit_device(uint32_t id);
+void dsr_ui_edit_local_device(uint32_t id);
 void dsr_ui_add_room(void);
 void dsr_ui_edit_room(uint32_t id);
 void dsr_ui_select_dashboard(void);

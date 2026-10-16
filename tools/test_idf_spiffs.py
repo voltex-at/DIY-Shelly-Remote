@@ -51,6 +51,7 @@ sources = [spiffs / "esp_spiffs.c", spiffs / "spiffs_api.c",
            ROOT / "components/dsr_platform/dsr_config_health.c",
            ROOT / "components/dsr_config/dsr_config.c",
            ROOT / "components/dsr_config/dsr_config_store.c",
+           ROOT / "components/dsr_config/dsr_photo_name.c",
            ROOT / "components/dsr_core/dsr_core.c",
            ROOT / "tests/storage/test_idf_config.c"]
 json_library = ["-l:libcjson.so.1"]

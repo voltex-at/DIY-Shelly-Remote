@@ -1,6 +1,7 @@
 #include "dsr_platform.h"
 #include "dsr_ap_private.h"
 #include "dsr_activity.h"
+#include "dsr_history.h"
 #ifdef DSR_BOARD_ES3C35P
 #include "dsr_native_ota.h"
 #endif
@@ -20,7 +21,14 @@ static void network_task(void *arg)
     for (;;) {
         if (xQueueReceive(jobs, &job, portMAX_DELAY) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_OTA_CHECK||job.kind==DSR_JOB_OTA_INSTALL){
+        if(job.kind==DSR_JOB_HISTORY_SERVICE||job.kind==DSR_JOB_HISTORY_CLOCK){
+#ifdef DSR_BOARD_ES3C35P
+            if(job.kind==DSR_JOB_HISTORY_SERVICE)dsr_history_service();else dsr_history_clock_execute();
+            event.result=DSR_OK;
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
+        } else if(job.kind==DSR_JOB_OTA_CHECK||job.kind==DSR_JOB_OTA_INSTALL){
 #ifdef DSR_BOARD_ES3C35P
             dsr_native_ota_execute(&job,&event);
 #else
@@ -103,9 +111,13 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_LAN_STA_VERIFY) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_HISTORY_CLOCK) return DSR_INVALID;
     if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;
-    if(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL){
+    if(job->kind==DSR_JOB_HISTORY_SERVICE||job->kind==DSR_JOB_HISTORY_CLOCK){
+#ifndef DSR_BOARD_ES3C35P
+        return DSR_UNSUPPORTED;
+#endif
+    } else if(job->kind==DSR_JOB_OTA_CHECK||job->kind==DSR_JOB_OTA_INSTALL){
 #ifdef DSR_BOARD_ES3C35P
         if(!dsr_native_ota_admitted(job->id,job->kind))return DSR_INVALID;
 #else

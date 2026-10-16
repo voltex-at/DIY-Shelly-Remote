@@ -20,7 +20,7 @@ args=p.parse_args()
 (ROOT/'build-ui').mkdir(exist_ok=True)
 work=Path(tempfile.mkdtemp(prefix='panel-fixture-',dir=ROOT/'build-ui'))
 include=Path('/usr/include/cjson') if Path('/usr/include/cjson/cJSON.h').exists() else ROOT/'.test-deps'
-subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_platform/dsr_ble_model.c']],'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
+subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_config/dsr_photo_name.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_platform/dsr_ble_model.c']],'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
 lib=ctypes.CDLL(str(work/'config.so'));libc=ctypes.CDLL(None);libc.free.argtypes=[ctypes.c_void_p]
 lib.dsr_config_default.restype=ctypes.c_void_p
 lib.dsr_config_replace.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_uint32,ctypes.c_char_p];lib.dsr_config_replace.restype=ctypes.c_void_p
@@ -81,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         global config,lan_ready_at,save_delay,ble_ready_at
         if not self.path.startswith('/api/'):
-            files={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/panel.css':'panel.css'}
+            files={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/history.js':'history.js','/panel.css':'panel.css'}
             if self.path not in files:return self.send(404,{})
             f=ROOT/'components/dsr_platform/web'/files[self.path]
             return self.send(200,f.read_bytes(),{'html':'text/html; charset=utf-8','js':'text/javascript; charset=utf-8','css':'text/css'}[f.suffix[1:]])

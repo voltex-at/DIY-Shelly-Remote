@@ -34,6 +34,7 @@ jobs:
           node tests/test_panel.cjs
           node tests/test_panel_runtime.cjs
           node tests/test_panel_runtime_model.cjs
+          node tests/test_panel_history_model.cjs
           node tests/test_panel_ap_model.cjs
           node tests/test_panel_ble_model.cjs
           node tests/test_web_locale_dictionary.cjs
@@ -126,6 +127,7 @@ jobs:
           python3 tools/check_ap_target.py --build-dir build-board --out build-board/AP.json
           python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
           python3 tools/check_ble_target.py --build-dir build-board --out build-board/BLE.json
+          python3 tools/check_history_target.py --build-dir build-board --out build-board/HISTORY.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -168,6 +170,8 @@ jobs:
           cp docs/MULTI_DEVICE_PL.md docs/ISSUE19_AP_PL.md build-board/AP.json build-board/FLEET.json build-board/package/
           cp docs/NATIVE_OTA_PL.md build-board/NATIVE_OTA.json build-board/package/
           cp docs/BLE_RPC_B1_PL.md build-board/BLE.json build-board/package/
+          cp docs/DEVICE_SETTINGS_PL.md build-board/package/
+          cp docs/ISSUE22_HISTORY_PL.md build-board/HISTORY.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

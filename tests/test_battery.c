@@ -88,6 +88,9 @@ bool dsr_workspace_mapping_matches(const dsr_connection_t *c){return mapping_all
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
+static unsigned history_services,history_clocks;
+void dsr_history_service(void){CHECK(worker_context&&!dsr_activity_restart_reserve());history_services++;}
+void dsr_history_clock_execute(void){CHECK(worker_context&&!dsr_activity_restart_reserve());history_clocks++;}
 int main(void)
 {
  CHECK(dsr_battery_read(NULL)==ESP_ERR_INVALID_ARG);
@@ -168,6 +171,13 @@ int main(void)
  dsr_job_t sta={.id=198,.kind=DSR_JOB_LAN_STA_VERIFY,.settings={.ssid="Home",.password="private-home-psk",.wifi_security=DSR_WIFI_WPA2},.ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.generation=2}};strcpy(sta.connection.device.host,"192.168.1.10");
  CHECK(dsr_worker_submit(&sta)==DSR_OK);if(!setjmp(stop))worker(NULL);dsr_event_t verified;CHECK(dsr_worker_receive(&verified)&&verified.id==198&&verified.result==DSR_OK&&ap_executed==6&&ap_prepared==2&&wifi_prepared==1);admission_open();
  sta.ap_identity.auth_required=true;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);sta.ap_identity.auth_required=false;sta.ap_identity.mac[0]=0;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);
+ /* History has no payload growth, binding, HTTP or radio handoff. The sole
+  * worker's existing lease remains held through event acknowledgement. */
+ for(unsigned kind=DSR_JOB_HISTORY_SERVICE;kind<=DSR_JOB_HISTORY_CLOCK;kind++){
+  dsr_job_t job={.id=300+kind,.kind=kind};CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(!dsr_activity_restart_reserve());worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=false;CHECK(!dsr_activity_restart_reserve());dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.result==DSR_OK);admission_open();
+ }
+ CHECK(history_services==1&&history_clocks==1);
+ CHECK(dsr_activity_restart_reserve());dsr_job_t history={.kind=DSR_JOB_HISTORY_SERVICE};CHECK(dsr_worker_submit(&history)==DSR_BUSY);dsr_activity_restart_cancel();temporary_ap=true;CHECK(dsr_worker_submit(&history)==DSR_BUSY);temporary_ap=false;
  dsr_job_t invalid={.kind=DSR_JOB_DISPLAY_SAVE};
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=101;
  CHECK(dsr_worker_submit(&invalid)==DSR_INVALID);invalid.settings.brightness=70;invalid.settings.idle_seconds=3601;

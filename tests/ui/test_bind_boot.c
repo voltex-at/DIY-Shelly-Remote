@@ -31,6 +31,7 @@ int main(int argc,char **argv)
  if(mode==1||mode==3){click("Boot pending C");lv_obj_t *power=power_target(lv_screen_active());CHECK(power&&lv_obj_has_state(power,LV_STATE_DISABLED));unsigned before=requests;lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(requests==before&&job_counts[DSR_JOB_SET_OUTPUT]==0&&!dsr_network_layout_reserved(30));}
  if(mode==2){click("Boot legacy");lv_obj_t *power=power_target(lv_screen_active());CHECK(power&&!lv_obj_has_state(power,LV_STATE_DISABLED));lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&job_counts[DSR_JOB_SET_OUTPUT]==1);response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
  CHECK(!in_flight&&!maintenance_ready&&publish_jobs==0);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ if(mode==3){dsr_network_device_settings(30);CHECK(find_label(lv_screen_active(),"Tożsamość niepotwierdzona")&&find_label(lv_screen_active(),"Brak aktywnego połączenia"));CHECK(job_counts[DSR_JOB_SET_OUTPUT]==0&&publish_jobs==0);}
  screenshot(mode==0?"244-bind-boot-unpublished-quarantine":mode==1?"245-bind-boot-ACK-without-private":mode==2?"246-bind-boot-legacy-origin":"248-bind-boot-pending-matching-workspace");
  printf("PASS: %u actual LVGL BIND restart checks, mode%u; NVS/workspace/SDK MODEL; no physical restart or writes\n",checks,mode);lv_deinit();return 0;
 }

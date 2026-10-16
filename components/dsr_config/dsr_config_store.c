@@ -1,4 +1,5 @@
 #include "dsr_config.h"
+#include "dsr_photo_name.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,10 +55,7 @@ bool dsr_config_store_collect_photos(const char *dir,unsigned *removed,char erro
  DIR *directory=opendir(dir);if(!directory){safe=false;snprintf(error,96,"Cannot open photo directory");goto done;}
  struct dirent *entry;
  while((entry=readdir(directory))){
-  const char *name=entry->d_name;if(strlen(name)!=37||name[0]!='p'||strcmp(name+33,".rgb"))continue;
-  char id[33];memcpy(id,name+1,32);id[32]=0;bool valid=true;
-  for(unsigned n=0;n<32;n++)if(!((id[n]>='0'&&id[n]<='9')||(id[n]>='a'&&id[n]<='f')))valid=false;
-  if(!valid)continue;
+  const char *name=entry->d_name;char id[33];if(!dsr_photo_filename_id(name,id))continue;
   bool referenced=false;const cJSON *room;
   for(unsigned i=0;i<2;i++)cJSON_ArrayForEach(room,cJSON_GetObjectItemCaseSensitive(roots[i],"rooms")){
    const cJSON *photo=cJSON_GetObjectItemCaseSensitive(room,"photo");if(cJSON_IsString(photo)&&!strcmp(photo->valuestring,id))referenced=true;

@@ -173,6 +173,12 @@ static void test_telemetry(void)
  data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
  const char *bad[]={"{\"output\":true,\"voltage\":\"230.4\"}","{\"output\":true,\"current\":null}","{\"output\":true,\"voltage\":false}","{\"output\":true,\"current\":[]}","{\"output\":true,\"voltage\":-1}","{\"output\":true,\"current\":-0.1}","{\"output\":true,\"current\":1e999}","{\"output\":true,\"voltage\":1e100}","{\"output\":true,\"apower\":\"4.1\"}"};
  for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
+ /* Gen2 aenergy.total is Wh; by_minute values are mWh and are never used
+  * as a cumulative total. Missing/null differs from a real zero. */
+ const char *energies[]={"{\"output\":false,\"aenergy\":{\"total\":0}}","{\"output\":false,\"aenergy\":{\"total\":123.5,\"by_minute\":[999999]}}","{\"output\":false,\"aenergy\":null}","{\"output\":false,\"aenergy\":{\"total\":null}}","{\"output\":false,\"aenergy\":{\"by_minute\":[1]}}"};
+ for(unsigned i=0;i<5;i++){data[1].body=energies[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.telemetry.has_energy==(i<2));if(i<2)CHECK(c.telemetry.energy_wh==(i?123.5:0));}
+ const char *bad_energy[]={"{\"output\":false,\"aenergy\":3}","{\"output\":false,\"aenergy\":{\"total\":-1}}","{\"output\":false,\"aenergy\":{\"total\":\"0\"}}","{\"output\":false,\"aenergy\":{\"total\":1e999}}"};
+ for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
  data[0].status=401;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
 }
 static void test_storage(void)

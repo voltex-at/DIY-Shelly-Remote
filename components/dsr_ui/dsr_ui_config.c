@@ -54,11 +54,16 @@ static bool editor_active;
 static bool own_save;
 static bool dashboard_picker;
 static bool room_editor,room_new,room_deleted;
+/* Contextual name/room editor ported from PR34 (693d869); all persistence and
+ * migration remain the current shared workspace/CAS implementation. */
+static bool device_editor;
+static uint32_t context_device_id;
+static const char *device_input_error;
 static lv_obj_t *room_dialog,*settings_dialog;
 static bool settings_context,appearance_editor;
 static unsigned tile_page;
 static cJSON *fields_tile;
-typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY} save_target_t;
+typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY,SAVE_DEVICE} save_target_t;
 static save_target_t view_save_target,submitted_save_target;
 static uint32_t view_generation,submitted_generation;
 static bool room_return_detail;
@@ -78,8 +83,8 @@ static void config_log(const char *stage,int code)
 #endif
 }
 static void clear_draft(void)
-{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;submitted_save_target=view_save_target=SAVE_STAY;}
-void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=false;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
+{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
+void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
 static void settings_stay(lv_event_t *event)
 {(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
 static void settings_discard(lv_event_t *event)
@@ -105,11 +110,12 @@ static void show_menu(void);
 static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
 static void show_room_form(void);
+static void show_device_form(void);
 static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);if(body)lv_obj_set_height(body,292);}
 static void focus(lv_event_t *event)
 {if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
 static void set_text(lv_event_t *event)
-{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
+{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;device_input_error=NULL;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
 static void set_number(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateNumber(strtoul(lv_textarea_get_text(lv_event_get_target(event)),NULL,10)));}
 static lv_obj_t *screen(const char *title)
@@ -142,7 +148,7 @@ void dsr_ui_config_diagnostics(lv_event_t *event)
 {if(!dsr_ui_settings_can_open())return;dsr_ui_workspace_hide();error_return_rooms=false;error_return_settings=true;open_error=OPEN_OK;diagnostics(event);}
 static void config_error(open_result_t result)
 {
- clear_draft();editor_active=false;room_editor=room_new=room_deleted=false;room_dialog=settings_dialog=NULL;open_error=result;
+ clear_draft();editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=settings_dialog=NULL;open_error=result;
  lv_obj_t *root=screen("Konfiguracja niedostępna");dsr_sc_label_set_text(status_label,"Nie można otworzyć edytora");
  dsr_config_health_t h;dsr_config_health_snapshot(&h);
  const char *reason=result==OPEN_PANEL?"Serwer HTTPS jest niedostępny. Kod parowania nie został utworzony.":result==OPEN_STORAGE?(h.storage==DSR_STORAGE_NONEMPTY?"Magazyn konfiguracji niedostępny: niepusta partycja SPIFFS nie została zamontowana.":"Magazyn konfiguracji jest niedostępny."):result==OPEN_PARSE||result==OPEN_INVALID?"Nie można odczytać poprawnej konfiguracji. Sprawdź pamięć i kopię danych.":"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.";
@@ -166,6 +172,9 @@ static void save(lv_event_t *event)
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
  if(room_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
   dsr_sc_label_set_text(status_label,!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
+ }
+ if(device_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+  device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";dsr_sc_label_set_text(status_label,device_input_error);return;
  }
  char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
  cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
@@ -226,7 +235,7 @@ static void choose_photo(lv_event_t *event)
  * as the full editor. Only their entry points and navigation differ. */
 static bool room_dirty(void){return draft&&(!saved_baseline||!cJSON_Compare(draft,saved_baseline,true));}
 static void room_leave(lv_event_t *event)
-{(void)event;bool detail=room_return_detail;uint32_t id=room_return_id;if(detail)dsr_network_room_context(id);else dsr_network_rooms();}
+{(void)event;if(device_editor){dsr_network_device_settings(context_device_id);return;}bool detail=room_return_detail;uint32_t id=room_return_id;if(detail)dsr_network_room_context(id);else dsr_network_rooms();}
 static void room_dialog_close(lv_event_t *event)
 {(void)event;if(room_dialog){lv_obj_delete(room_dialog);room_dialog=NULL;}}
 static lv_obj_t *room_modal(const char *title,const char *text)
@@ -291,6 +300,15 @@ static void show_room_form(void)
   dsr_sc_text(body,dsr_photo_id(0)?"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.":"Brak zdjęć w pamięci. Dodaj zdjęcia w Web Panelu.",2,room_new?236:292,280,&dsr_roboto_12,DSR_SC_MUTED);
  }
  if(deleted_saved)dsr_ui_button(root,"Wstecz",12,420,296,room_back,NULL);else actions(root,room_back);
+}
+static void show_device_form(void)
+{
+ lv_obj_t *root=screen("Edytuj kartę urządzenia");room_dialog=NULL;
+ view_save_target=SAVE_DEVICE;
+ lv_obj_set_y(body,118);lv_obj_set_height(body,280);
+ add_field("Nazwa","name",0,false);object_choice("Pomieszczenie","room",80);
+ dsr_sc_text(body,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,168,280,&dsr_roboto_14,DSR_SC_MUTED);
+ actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)
 {
@@ -385,6 +403,7 @@ static void tiles_page(lv_event_t *event){tile_page=(unsigned)(uintptr_t)lv_even
 static void show_entity(cJSON *entity)
 {
  if(room_editor){editing=entity;show_room_form();return;}
+ if(device_editor){editing=entity;show_device_form();return;}
  editing=entity;lv_obj_t *root=screen("Edytuj konfigurację");add_field("Nazwa","name",0,false);
  view_save_target=SAVE_COLLECTION;
  bool room=!strcmp(collection_name,"rooms"),dashboard=!strcmp(collection_name,"dashboards");
@@ -449,7 +468,7 @@ void dsr_ui_config_appearance(lv_event_t *event)
  (void)event;if(!dsr_ui_settings_can_open())return;
  settings_context=true;appearance_editor=true;error_return_rooms=false;error_return_settings=true;
  open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
- editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  appearance(NULL);
 }
 void dsr_ui_config_registry(lv_event_t *event)
@@ -457,18 +476,18 @@ void dsr_ui_config_registry(lv_event_t *event)
  (void)event;if(!dsr_ui_settings_can_open())return;
  settings_context=true;appearance_editor=false;error_return_rooms=false;error_return_settings=true;
  open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
- editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ editor_active=true;dashboard_picker=room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  show_menu();
 }
 void dsr_ui_edit_dashboard(void)
 {
  settings_context=appearance_editor=error_return_settings=false;error_return_rooms=false;config_log("edit_dashboard",0);open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
- room_editor=room_new=room_deleted=false;room_dialog=NULL;editor_active=true;dashboard_picker=false;tile_page=0;config_log("show_menu",0);show_menu();
+ room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;editor_active=true;dashboard_picker=false;tile_page=0;config_log("show_menu",0);show_menu();
 }
 static bool room_begin(void)
 {
  settings_context=appearance_editor=error_return_settings=false;error_return_rooms=true;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return false;}
- editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=false;room_dialog=NULL;
+ editor_active=room_editor=true;dashboard_picker=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  room_return_detail=false;room_return_id=0;
  snprintf(collection_name,sizeof(collection_name),"rooms");return true;
 }
@@ -501,12 +520,20 @@ void dsr_ui_edit_device(uint32_t id)
   snprintf(collection_name,sizeof(collection_name),"devices");show_entity(entry);return;
  }
 }
+void dsr_ui_edit_local_device(uint32_t id)
+{
+ if(!room_begin())return;
+ room_editor=false;device_editor=true;context_device_id=id;error_return_rooms=false;
+ snprintf(collection_name,sizeof(collection_name),"devices");
+ cJSON *d;cJSON_ArrayForEach(d,cJSON_GetObjectItemCaseSensitive(draft,"devices"))if((uint32_t)integer(d,"id")==id){editing=d;show_device_form();return;}
+ room_leave(NULL);
+}
 static void pick_dashboard(lv_event_t *event)
 {cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),(unsigned)(uintptr_t)lv_event_get_user_data(event));save(NULL);}
 void dsr_ui_select_dashboard(void)
 {
  settings_context=appearance_editor=error_return_settings=false;error_return_rooms=false;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
- draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=false;room_dialog=NULL;
+ draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  view_save_target=SAVE_HOME;
  cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
@@ -539,6 +566,7 @@ void dsr_ui_workspace_tick(void)
   if(clean&&submitted_generation==view_generation&&target!=SAVE_STAY){
    if(target==SAVE_HOME){return_home(NULL);return;}
    if(target==SAVE_ROOMS){room_leave(NULL);return;}
+   if(target==SAVE_DEVICE){room_leave(NULL);return;}
    if(target==SAVE_SETTINGS){return_settings(NULL);return;}
    if(target==SAVE_MENU){show_menu();return;}
    if(target==SAVE_COLLECTION){show_collection(NULL);return;}
@@ -553,6 +581,7 @@ void dsr_ui_workspace_tick(void)
   if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
+ if(device_editor&&device_input_error){dsr_sc_label_set_text(status_label,device_input_error);return;}
  if(own_save)dsr_sc_label_set_text(status_label,"Zapisywanie…");
  else if(save_failed)dsr_sc_label_set_text(status_label,"Zapis nie powiódł się. Zmiany pozostają w edytorze.");
  else if(dirty)dsr_sc_label_set_text(status_label,save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany");

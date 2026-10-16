@@ -36,7 +36,7 @@
   const waiting=d.pending||!!l?.waiting;
   card.state.textContent=text(waiting?'pending':fresh(card)?(d.output?'on':'off'):'offline');
   card.age.textContent=fresh(card)?text('age',{seconds:Math.floor(age(card)/1000)}):text('unknown');
-  card.measure.textContent=fresh(card)?[['has_power','power_w','W'],['has_voltage','voltage_v','V'],['has_current','current_a','A']].filter(([has,value])=>d[has]===true&&Number.isFinite(d[value])).map(([,value,unit])=>`${d[value].toLocaleString(document.documentElement.lang,{maximumFractionDigits:2})} ${unit}`).join(' · '):'';
+  card.measure.textContent=fresh(card)?[['has_power','power_w','W'],['has_voltage','voltage_v','V'],['has_current','current_a','A'],['has_energy','energy_wh','Wh']].filter(([has,value])=>d[has]===true&&Number.isFinite(d[value])).map(([,value,unit])=>`${d[value].toLocaleString(document.documentElement.lang,{maximumFractionDigits:2})} ${unit}`).join(' · '):'';
   card.error.textContent=l?.message?text(l.message):d.error?text('error',{code:d.error}):'';
   for(const [button,on]of [[card.on,true],[card.off,false]]){button.textContent=text(on?'turnOn':'turnOff');button.disabled=!fresh(card)||waiting;button.setAttribute('aria-label',`${text(on?'turnOn':'turnOff')}: ${d.name}`);}
  }
@@ -46,7 +46,7 @@
   if(Number.isFinite(delay))expiryTimer=setTimeout(expire,Math.max(1,delay));
  }
  function translate(){if(!current())return;section.querySelector('h2').textContent=text('title');if(status.dataset.message)status.textContent=text(status.dataset.message);for(const card of cards.values())paint(card);}
- function fail(){if(!current())return;status.dataset.message='unavailable';status.textContent=text('unavailable');for(const card of cards.values()){card.data={...card.data,online:false};paint(card);}}
+ function fail(){window.dsrHistorySnapshot?.(null);if(!current())return;status.dataset.message='unavailable';status.textContent=text('unavailable');for(const card of cards.values()){card.data={...card.data,online:false};paint(card);}}
  function create(d){
   const root=node('article','runtime-card'),head=node('div','runtime-heading'),name=node('h3'),identity=node('p','muted'),address=node('p','muted'),state=node('p'),measure=node('p'),age=node('p','muted'),error=node('p','runtime-error'),actions=node('div','actions'),on=node('button'),off=node('button');
   on.type=off.type='button';error.setAttribute('role','status');head.append(name,identity,address);actions.append(on,off);root.append(head,state,measure,age,error,actions);
@@ -64,7 +64,7 @@
   }
   for(const [k,c]of cards)if(!keep.has(k)){c.root.remove();cards.delete(k);local.delete(k);}
   status.dataset.message=snapshot.devices.length?'':'empty';status.textContent=snapshot.devices.length?'':text('empty');
-  expire();
+  window.dsrHistorySnapshot?.(snapshot,started);expire();
  }
  async function refresh(){
   if(!current()||fetching)return;fetching=true;const serial=++fetchSerial,started=performance.now();

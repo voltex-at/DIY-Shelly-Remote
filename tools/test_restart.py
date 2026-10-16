@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     subprocess.run([os.environ.get('CC','cc'),*writer_flags,*[str(ROOT/s) for s in sources],'-l:libcjson.so.1','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
     binary=tmp/'photos'
-    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_photos.c','tests/restart/photos.c']
+    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_photos.c','components/dsr_config/dsr_photo_name.c','tests/restart/photos.c']
     wraps=['malloc','fopen','fwrite','fflush','fileno','fsync','fclose']
     subprocess.run([os.environ.get('CC','cc'),*writer_flags,*[str(ROOT/s) for s in sources],*[f'-Wl,--wrap={name}' for name in wraps],'-lcrypto','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

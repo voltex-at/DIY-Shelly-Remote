@@ -16,10 +16,11 @@ typedef struct {
 } dsr_settings_t;
 typedef struct { char username[33], password[65]; } dsr_credentials_t;
 /* Volatile measurements, deliberately excluded from the legacy NVS record. */
-typedef struct {bool has_voltage,has_current;double voltage_v,current_a;} dsr_telemetry_t;
+typedef struct {bool has_voltage,has_current,has_energy;double voltage_v,current_a,energy_wh;} dsr_telemetry_t;
 typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
 /* Volatile origin consumes tail padding; never enters installed raw records. */
 _Static_assert(offsetof(dsr_connection_t,legacy_fallback)==offsetof(dsr_connection_t,layout_id)+4&&sizeof(dsr_connection_t)==offsetof(dsr_connection_t,layout_id)+8,"origin consumes existing connection tail padding");
+_Static_assert(sizeof(dsr_telemetry_t)<=32,"bounded telemetry extension for history/Cover");
 
 /* Prototype storage is unencrypted NVS. Never log credentials. */
 esp_err_t dsr_settings_load(dsr_settings_t *out);
@@ -66,7 +67,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;

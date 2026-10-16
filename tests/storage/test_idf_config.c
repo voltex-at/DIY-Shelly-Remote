@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "dsr_config.h"
+#include "dsr_photo_name.h"
 #include "spiffs.h"
 
 typedef struct { int fd; } test_file_t;
@@ -79,7 +80,9 @@ static void expect_document(unsigned low,unsigned high)
 }
 static void sentinel(bool create)
 {
- int fd=vfs->open_p(context,"/sentinel.rgb",create?O_WRONLY|O_CREAT|O_TRUNC:O_RDONLY,0);CHECK(fd>=0);
+ char name[38],object[40];CHECK(dsr_photo_filename("00000000000000000000000000000001",name));
+ snprintf(object,sizeof(object),"/%s",name);CHECK(strlen(object)<32);
+ int fd=vfs->open_p(context,object,create?O_WRONLY|O_CREAT|O_TRUNC:O_RDONLY,0);CHECK(fd>=0);
  for(unsigned block=0;block<256;block++){
   uint8_t data[256];for(unsigned i=0;i<256;i++)data[i]=(uint8_t)((block+i)%251);
   if(create)CHECK(vfs->write_p(context,fd,data,sizeof(data))==(ssize_t)sizeof(data));
@@ -106,6 +109,9 @@ int main(int argc,char **argv)
  CHECK(argc==2||argc==3);CHECK(test_original_main(2,argv)==0);CHECK(format_calls==4);
  uint8_t *shared=mmap(NULL,DATA_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(shared!=MAP_FAILED);
  flash=shared;gc_workload=true;memset(flash,0xff,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_OK);ready();
+ unsigned old_writes=writes,old_erases=erases;
+ CHECK(vfs->open_p(context,"/p00000000000000000000000000000001.rgb",O_WRONLY|O_CREAT|O_TRUNC,0)<0);
+ CHECK(writes==old_writes&&erases==old_erases); /* Genuine NAME_LEN32 regression. */
  sentinel(true);
  unsigned before_gc=erases;
  /* Exercise both real slots until original SPIFFS has actually collected. */

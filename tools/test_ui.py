@@ -39,7 +39,7 @@ includes = [lvgl, ROOT / "tests/ui", ROOT / "tests/support",
 flags += [item for folder in includes for item in ["-I", str(folder)]]
 sources = list(sorted((lvgl / "src").rglob("*.c")))
 sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
-            "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
+            "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_history.c", "components/dsr_platform/dsr_history_model.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
 sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_icons.c"]
 sources += [ROOT / "components/dsr_platform/dsr_activity.c", ROOT / "components/dsr_platform/dsr_fleet.c", ROOT / "tests/ui/native_ota_fixture.c"]

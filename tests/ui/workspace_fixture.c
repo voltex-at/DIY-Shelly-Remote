@@ -102,7 +102,9 @@ void dsr_ap_cancel(void){ap_cancels++;}
 bool dsr_wifi_temporary_active(void){return ap_temporary;}
 /* Handoff provider MODEL; actual workspace TTL/admission tested separately. */
 static bool ap_open_requested,ap_open_available;
-int64_t esp_timer_get_time(void){return (int64_t)lv_tick_get()*1000;}
+static uint32_t timer_boot_offset;
+void test_timer_boot_offset(uint32_t offset){timer_boot_offset=offset;}
+int64_t esp_timer_get_time(void){return ((int64_t)lv_tick_get()+timer_boot_offset)*1000;}
 void test_ap_handoff_request(void){ap_open_requested=true;}
 bool test_ap_handoff_available(void){return ap_open_available;}
 void dsr_workspace_ap_publish(bool available,bool active,uint32_t now_ms)
@@ -131,3 +133,28 @@ void test_rpc_update(dsr_ble_rpc_phase_t phase,dsr_result_t result,bool active,c
 
 void dsr_ble_handoff_publish(bool available,bool active,uint32_t now){(void)available;(void)active;(void)now;}
 bool dsr_ble_handoff_take(dsr_ble_device_t *candidate,uint32_t now){(void)candidate;(void)now;return false;}
+/* History UI provider MODEL: actual aggregation/identity code, no filesystem
+ * or SDK clock in LVGL tests. Production sole-worker persistence is separate. */
+#include "../../components/dsr_platform/dsr_history_private.h"
+static dsr_history_model_t history_model;
+static uint32_t history_utc=1760000100u;
+static bool history_clock,history_no_time;
+static uint32_t history_due_now;
+static unsigned history_due_calls;
+uint32_t test_history_due_now(void){return history_due_now;}
+unsigned test_history_due_calls(void){return history_due_calls;}
+void test_history_time(uint32_t utc){history_utc=utc;history_no_time=!utc;}
+void test_history_clear(void){memset(&history_model,0,sizeof(history_model));}
+esp_err_t dsr_history_init(void){return ESP_OK;}
+void dsr_history_status(dsr_history_status_t *out){*out=(dsr_history_status_t){.state=DSR_HISTORY_READY,.clock_valid=!history_no_time,.now_utc=history_utc,.step_seconds=300,.retention_seconds=86400,.clock_pending=history_clock};}
+void dsr_history_binding(const dsr_connection_t *c,bool enabled){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel};memcpy(k.device_id,c->device.device_id,64);(void)dsr_history_model_binding(&history_model,&k,enabled);}
+void dsr_history_forget(const dsr_device_t *d){for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(!strcmp(history_model.slots[i].key.device_id,d->device_id)&&history_model.slots[i].key.channel==d->channel&&history_model.slots[i].key.generation==d->generation)history_model.slots[i].active=false;}
+void dsr_history_record(const dsr_connection_t *c,uint32_t request){dsr_history_key_t k={.layout_id=c->layout_id,.generation=c->device.generation,.channel=c->device.channel};memcpy(k.device_id,c->device.device_id,64);dsr_history_model_record(&history_model,&k,&c->device,&c->telemetry,request,history_utc,lv_tick_get());}
+dsr_history_series_t *dsr_history_query(const dsr_history_key_t *k,unsigned hours){dsr_history_series_t *s=calloc(1,sizeof(*s));if(!s)return NULL;dsr_history_status(&s->status);for(unsigned i=0;i<DSR_HISTORY_SLOTS;i++)if(history_model.slots[i].active&&dsr_history_key_equal(k,&history_model.slots[i].key)){if(history_utc)dsr_history_model_query(&history_model,i,hours,history_utc,s);s->key=*k;return s;}free(s);return NULL;}
+void dsr_history_series_free(dsr_history_series_t *s){free(s);}
+bool dsr_history_service_due(uint32_t now){history_due_now=now;history_due_calls++;return false;}
+void dsr_history_service(void){}
+bool dsr_history_request_clock(void){if(history_clock)return false;history_clock=true;return true;}
+bool dsr_history_clock_pending(void){return history_clock;}
+void dsr_history_clock_execute(void){history_clock=false;}
+void dsr_history_cancel_clock(void){history_clock=false;}

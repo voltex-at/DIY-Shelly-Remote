@@ -180,6 +180,18 @@ static dsr_result_t status(dsr_connection_t *connection)
         for(unsigned i=0;i<3;i++)if(optional[i]&&(!cJSON_IsNumber(optional[i])||!isfinite(optional[i]->valuedouble)||fabs(optional[i]->valuedouble)>1e9||(i&&optional[i]->valuedouble<0))){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
         if(voltage){connection->telemetry.has_voltage=true;connection->telemetry.voltage_v=voltage->valuedouble;}
         if(current){connection->telemetry.has_current=true;connection->telemetry.current_a=current->valuedouble;}
+        /* Switch.GetStatus aenergy.total is Wh, not by_minute's mWh. Gen1
+         * /relay has no such field; its separate /meter uses W-min and is not
+         * fabricated or fetched by this relay adapter. Optional null is absent. */
+        const cJSON *energy=cJSON_GetObjectItemCaseSensitive(root,"aenergy");
+        if(energy&&!cJSON_IsNull(energy)){
+            if(!cJSON_IsObject(energy)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+            const cJSON *total=cJSON_GetObjectItemCaseSensitive(energy,"total");
+            if(total&&!cJSON_IsNull(total)){
+                if(!cJSON_IsNumber(total)||!isfinite(total->valuedouble)||total->valuedouble<0||total->valuedouble>1e12){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+                connection->telemetry.has_energy=true;connection->telemetry.energy_wh=total->valuedouble;
+            }
+        }
     }
     device->output = cJSON_IsTrue(output);
     device->has_switch = device->online = true;

@@ -1,5 +1,15 @@
 # Project status
 
+## 0.7.29 — integrated energy history, contextual settings and photo filenames
+
+Stacked on exact P0 PR57/51124b4 (5/5 CI and received FACTORY/UPDATE/BIN/ELF
+proof). This branch adds #22 with empty-bucket and monotonic-clock regression
+fixes, one canonical SNTP owner shared with native OTA, contextual settings
+ported from PR34 and reconciled with concurrent PR55, and compact full128bit
+photo names compatible with unchanged SPIFFS geometry. No duplicate #29 PR.
+Integrated native/actual LVGL and final target/browser/physical acceptance
+remain distinct gates. No device writes, main merge or Stable.
+
 ## 0.7.28 — P0 durable BIND publication and separate FACTORY/UPDATE packages
 
 BIND verification now stays in RAM. Exact durable workspace ACK precedes one
@@ -71,6 +81,34 @@ independent actual actor1936, discovery3316/55cases/61OOM, actual discovery fetc
 136982, SNTP gate162 and LVGL3992/134 frames PASS. Target CI/ELF/BIN audit is a
 separate current-source gate. Physical transfer/rollback/persistence is open;
 no device writes, main merge or Stable publication occurred.
+## #22 — INTERNAL 24h history host vertical; P0 storage integration held
+
+Actual correlated endpoint readbacks feed a bounded PSRAM 5-minute ring. LCD
+Energy/Charts and authenticated WWW share exact identity/kind/channel queries,
+1h/24h W/V/A and actual Wh counters, UTC gaps/reset/missing/zero distinction.
+The sole worker owns two bounded CRC journals and confirmed readback; no new
+task or filesystem geometry/mount/format changes. Unmounted/future/corrupt
+storage remains preserved and RAM-only. Canonical lazy SNTP must be shared
+with the native OTA bridge at integration, never two services.
+[Contract, footprint, write volume and limits](docs/ISSUE22_HISTORY_PL.md).
+Host tests do not prove physical retention/endurance or final target budgets.
+Publication/new Flash integration is held pending the active P0 storage work.
+
+## #29A — contextual Device Settings integrated with current fleet
+
+Ports existing PR34 source693d869 onto PR53 base267c32f, preserving current
+workspace CAS, exact durable ACK, CRUD return/delete and private fleet mapping.
+Settings and local name/room editing follow stable IDs through reorder/back;
+Refresh resolves only the selected bound endpoint and leaves other endpoints'
+auth/rate/command errors intact. Unbound/reused-host and changed-locator cards
+cannot read someone else's Shelly. No registry/NVS/schema/migration changes.
+Actual LVGL tests cover deferred IO/retry, SaveA/editB, conflict, PL/EN/DE,
+room context, long names, missing IDs and repeated navigation. See
+[scope and physical acceptance](docs/DEVICE_SETTINGS_PL.md). Current target CI
+and physical acceptance are pending. History/Charts #22/#29B and model-specific
+RPC settings #23 remain open; this does not close #29 or the frozen backlog.
+Local UBSan: actual LVGL 4086/137 frames, review 2635/24, full native and config 265
+PASS; 40 editor cycles warmed LVGL heap 97432→97432. Radio/Flash providers are MODEL.
 
 ## 0.7.25 — factory AP onboarding with physical consent (#19)
 

@@ -1,4 +1,5 @@
 #include "dsr_config.h"
+#include "dsr_photo_name.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,45 @@ static unsigned checks;
 #define CHECK(x) do {checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}} while(0)
 static void invalid(cJSON *r,const char *key,cJSON *value)
 {char error[96];cJSON *copy=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(copy,key,value);CHECK(!dsr_config_validate(copy,error));cJSON_Delete(copy);}
+static void photo_names(const char *vectors)
+{
+ FILE *f=fopen(vectors,"r");CHECK(f);char id[33],expected[38];unsigned count=0;
+ while(fscanf(f,"%32s %37s",id,expected)==2){
+  char name[38],decoded[33],legacy[38];CHECK(dsr_photo_filename(id,name));CHECK(!strcmp(name,expected)&&strlen(name)==27);
+  CHECK(dsr_photo_filename_id(name,decoded)&&!strcmp(id,decoded));
+  snprintf(legacy,sizeof(legacy),"p%s.rgb",id);CHECK(dsr_photo_filename_id(legacy,decoded)&&!strcmp(id,decoded));
+  for(unsigned i=1;i<=22;i++){char invalid[38];strcpy(invalid,name);invalid[i]='/';CHECK(!dsr_photo_filename_id(invalid,decoded));}
+  /* Last sextet has four padding bits: A/B represent the same decoded data
+   * under a permissive decoder. Only the canonical zero-padding form exists. */
+  char invalid[38];strcpy(invalid,name);invalid[22]=name[22]=='A'?'B':name[22]=='Q'?'R':name[22]=='g'?'h':'x';
+  CHECK(!dsr_photo_filename_id(invalid,decoded));count++;
+ }
+ CHECK(count==258&&fclose(f)==0);
+ char name[38],decoded[33];CHECK(!dsr_photo_filename("../config0.dat",name));CHECK(!dsr_photo_filename("0000000000000000000000000000000G",name));
+ CHECK(!dsr_photo_filename_id("../config0.dat",decoded));CHECK(!dsr_photo_filename_id("pAAAAAAAAAAAAAAAAAAAAAA.rgb/",decoded));
+}
+static void compact_photo_gc(cJSON *source,const char *base)
+{
+ char dir[512],path[600],id[33],name[38],error[96];snprintf(dir,sizeof(dir),"%s/compact-photos",base);CHECK(!mkdir(dir,0700));
+ for(unsigned i=1;i<=3;i++){
+  snprintf(id,sizeof(id),"%032x",i);CHECK(dsr_photo_filename(id,name));snprintf(path,sizeof(path),"%s/%s",dir,name);FILE *f=fopen(path,"wb");CHECK(f&&fclose(f)==0);
+  if(i<=2){snprintf(path,sizeof(path),"%s/p%s.rgb",dir,id);f=fopen(path,"wb");CHECK(f&&fclose(f)==0);}
+ }
+ cJSON *doc=cJSON_Duplicate(source,true),*room=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(doc,"rooms"),0);CHECK(doc&&room);
+ for(unsigned i=1;i<=2;i++){
+  snprintf(id,sizeof(id),"%032x",i);cJSON_ReplaceItemInObjectCaseSensitive(room,"photo",cJSON_CreateString(id));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),i);
+  char *json=cJSON_PrintUnformatted(doc);CHECK(dsr_config_store_save(dir,json,error));free(json);
+ }
+ unsigned removed;CHECK(dsr_config_store_collect_photos(dir,&removed,error)&&removed==1);
+ for(unsigned i=1;i<=2;i++){
+  snprintf(id,sizeof(id),"%032x",i);CHECK(dsr_photo_filename(id,name));snprintf(path,sizeof(path),"%s/%s",dir,name);CHECK(!access(path,F_OK));
+  snprintf(path,sizeof(path),"%s/p%s.rgb",dir,id);CHECK(!access(path,F_OK));
+ }
+ snprintf(path,sizeof(path),"%s/config0.dat",dir);FILE *f=fopen(path,"wb");CHECK(f&&fclose(f)==0);CHECK(!dsr_config_store_collect_photos(dir,&removed,error)&&removed==0);
+ cJSON_ReplaceItemInObjectCaseSensitive(room,"photo",cJSON_CreateString(""));
+ for(unsigned i=3;i<=4;i++){cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),i);char *json=cJSON_PrintUnformatted(doc);CHECK(dsr_config_store_save(dir,json,error));free(json);}
+ CHECK(dsr_config_store_collect_photos(dir,&removed,error)&&removed==4);cJSON_Delete(doc);
+}
 static void photo_gc(cJSON *source,const char *base)
 {
  char dir[512],file[600],id[33],error[96];snprintf(dir,sizeof(dir),"%s/photos",base);CHECK(!mkdir(dir,0700));
@@ -33,7 +73,7 @@ static void photo_gc(cJSON *source,const char *base)
 }
 int main(int argc,char **argv)
 {
- CHECK(argc==2);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
+ CHECK(argc==3);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
  invalid(r,"schema",cJSON_CreateNumber(2));invalid(r,"revision",cJSON_CreateNumber(0));invalid(r,"revision",cJSON_CreateNumber(1.5));invalid(r,"language",cJSON_CreateString("xx"));invalid(r,"accent",cJSON_CreateNumber(0x1000000));invalid(r,"active_dashboard",cJSON_CreateNumber(99));
  invalid(r,"language",cJSON_CreateString("pl||en"));
  cJSON_AddStringToObject(r,"password","must-not-be-stored");CHECK(!dsr_config_validate(r,error));cJSON_DeleteItemFromObjectCaseSensitive(r,"password");
@@ -59,6 +99,7 @@ int main(int argc,char **argv)
  loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&error[0]);
  CHECK(dsr_config_store_save(argv[1],initial,error));
  photo_gc(r,argv[1]);
+ compact_photo_gc(r,argv[1]);
  cJSON_ReplaceItemInObjectCaseSensitive(r,"schema",cJSON_CreateNumber(2));char *future=cJSON_PrintUnformatted(r);uint32_t header[]={0x44535231,(uint32_t)strlen(future),dsr_config_crc32(future,strlen(future)),1};
  snprintf(path,sizeof(path),"%s/config1.dat",argv[1]);f=fopen(path,"wb");CHECK(f);CHECK(fwrite(header,sizeof(header),1,f)==1);CHECK(fwrite(future,1,strlen(future),f)==strlen(future));CHECK(!fclose(f));free(future);
  loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&strstr(error,"Newer"));CHECK(!dsr_config_store_save(argv[1],initial,error));
