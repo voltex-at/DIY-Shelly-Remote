@@ -1,5 +1,7 @@
 #include "dsr_workspace.h"
 #include "dsr_panel_permission.h"
+#include "dsr_ota_upload.h"
+#include "dsr_ota_image.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
 #include "dsr_platform.h"
@@ -31,7 +33,7 @@ extern const unsigned char panel_js_end[] asm("_binary_panel_js_end");
 extern const unsigned char panel_css_start[] asm("_binary_panel_css_start");
 extern const unsigned char panel_css_end[] asm("_binary_panel_css_end");
 /* The marker is validated inside uploaded binaries, not from a client claim. */
-__attribute__((used)) const char dsr_ota_board_marker[]="DSR-OTA:lcdwiki-es3c35p-n16r8:config-api-1";
+__attribute__((used)) const char dsr_ota_board_marker[]=DSR_OTA_IMAGE_BOARD_MARKER;
 static SemaphoreHandle_t lock;
 static char pairing[17];static int64_t pair_until,ota_until;static unsigned attempts;
 static unsigned char token_hash[32];static bool has_token,need_preview;
@@ -133,32 +135,8 @@ static esp_err_t ota(httpd_req_t *r)
  const esp_partition_t *slot=esp_ota_get_next_update_partition(NULL);
  if(!slot||r->content_len<512||r->content_len>slot->size)return json(r,"400 Bad Request","{\"error\":\"Upload the application BIN, not a merged USB image\"}");
  char expected[65]={0};if(httpd_req_get_hdr_value_str(r,"X-SHA256",expected,sizeof(expected))!=ESP_OK||strlen(expected)!=64)return json(r,"400 Bad Request","{\"error\":\"SHA256 required\"}");
- for(unsigned i=0;i<64;i++)if(!isxdigit((unsigned char)expected[i]))return json(r,"400 Bad Request","{}");
- uint8_t buffer[4096],tail[80]={0},first[512];size_t received=0,tail_size=0,first_size=0;bool marker=false;esp_ota_handle_t handle=0;
- mbedtls_sha256_context hash;mbedtls_sha256_init(&hash);mbedtls_sha256_starts(&hash,0);esp_err_t error=ESP_OK;
- while(received<r->content_len){
-  size_t want=r->content_len-received;if(want>sizeof(buffer))want=sizeof(buffer);
-  int n=httpd_req_recv(r,(char *)buffer,want);if(n<=0){error=ESP_FAIL;break;}
-  if(received==0&&!handle){
-   size_t take=(size_t)n;if(take>sizeof(first)-first_size)take=sizeof(first)-first_size;memcpy(first+first_size,buffer,take);first_size+=take;
-   if(first_size<sizeof(first))continue;
-   if(first[0]!=0xe9||first[12]!=9||first[13]!=0){error=ESP_FAIL;break;}
-   const esp_app_desc_t *description=(const esp_app_desc_t *)(const void *)(first+32);
-   if(description->magic_word!=ESP_APP_DESC_MAGIC_WORD||strncmp(description->project_name,"diy_shelly_remote",sizeof(description->project_name))){error=ESP_FAIL;break;}
-   error=esp_ota_begin(slot,r->content_len,&handle);if(error!=ESP_OK)break;
-   /* Process the accumulated prefix once, including any bytes received after
-    * it in this read. Earlier short TCP reads must never reject a valid BIN. */
-   size_t prefix_before=first_size-take;
-   if(prefix_before){mbedtls_sha256_update(&hash,first,prefix_before);error=esp_ota_write(handle,first,prefix_before);if(error!=ESP_OK)break;received+=prefix_before;}
-  }
-  unsigned char probe[sizeof(buffer)+80];memcpy(probe,tail,tail_size);memcpy(probe+tail_size,buffer,(size_t)n);
-  for(size_t i=0;i+sizeof(dsr_ota_board_marker)<=tail_size+(size_t)n;i++)if(!memcmp(probe+i,dsr_ota_board_marker,sizeof(dsr_ota_board_marker)))marker=true;
-  tail_size=(size_t)n<sizeof(tail)?(size_t)n:sizeof(tail);memcpy(tail,buffer+n-tail_size,tail_size);
-  mbedtls_sha256_update(&hash,buffer,(size_t)n);error=esp_ota_write(handle,buffer,(size_t)n);if(error!=ESP_OK)break;received+=(size_t)n;
- }
- uint8_t digest[32];char actual[65];mbedtls_sha256_finish(&hash,digest);mbedtls_sha256_free(&hash);for(unsigned i=0;i<32;i++)sprintf(actual+i*2,"%02x",digest[i]);
- if(error==ESP_OK&&(received!=r->content_len||!marker||!equal(actual,expected,64)))error=ESP_FAIL;
- if(error==ESP_OK){error=esp_ota_end(handle);handle=0;}if(handle)esp_ota_abort(handle);
+ uint8_t digest[32];if(!dsr_ota_upload_sha256(expected,64,digest))return json(r,"400 Bad Request","{}");
+ esp_err_t error=dsr_ota_upload_receive(r,slot,digest);
  if(error!=ESP_OK)return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");
  if(esp_ota_set_boot_partition(slot)!=ESP_OK)return json(r,"500 Internal Server Error","{\"error\":\"Boot slot not changed\"}");
  return json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");

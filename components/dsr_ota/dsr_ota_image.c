@@ -33,13 +33,13 @@ static bool header_valid(const dsr_ota_image_t *s)
   && le32(p+32)==0xabcd5432u
   && !memcmp(p+80,project,sizeof(project));
 }
-dsr_image_result_t dsr_ota_image_reset(dsr_ota_image_t *s,const dsr_ota_verified_t *v)
+static dsr_image_result_t reset_checksum(dsr_ota_image_t *s,size_t size,const uint8_t sha256[32])
 {
  if(!s)return DSR_IMAGE_ARGUMENT;
  release_hash(s);memset(s,0,sizeof(*s));
- if(!v||v->size<DSR_OTA_IMAGE_PREFIX_SIZE||v->size>DSR_OTA_IMAGE_MAX_SIZE)
+ if(!sha256||size<DSR_OTA_IMAGE_PREFIX_SIZE||size>DSR_OTA_IMAGE_MAX_SIZE)
   return fail(s,DSR_IMAGE_ARGUMENT);
- s->expected_size=v->size;memcpy(s->expected,v->sha256,32);
+ s->expected_size=size;memcpy(s->expected,sha256,32);
  /* KMP carry survives arbitrarily short chunks, including the first 512 B. */
  for(size_t i=1,j=0;i<sizeof(marker);i++){
   while(j&&marker[i]!=marker[j])j=s->fallback[j-1];
@@ -50,18 +50,24 @@ dsr_image_result_t dsr_ota_image_reset(dsr_ota_image_t *s,const dsr_ota_verified
  if(mbedtls_sha256_starts(&s->hash,0))return fail(s,DSR_IMAGE_CRYPTO);
  return DSR_IMAGE_OK;
 }
-dsr_image_result_t dsr_ota_image_create(const dsr_ota_verified_t *v,dsr_ota_image_t **out)
+dsr_image_result_t dsr_ota_image_reset(dsr_ota_image_t *s,const dsr_ota_verified_t *v)
+{return reset_checksum(s,v?v->size:0,v?v->sha256:NULL);}
+static dsr_image_result_t create_checksum(size_t size,const uint8_t sha256[32],dsr_ota_image_t **out)
 {
  if(!out)return DSR_IMAGE_ARGUMENT;
  *out=NULL;
- if(!v||v->size<DSR_OTA_IMAGE_PREFIX_SIZE||v->size>DSR_OTA_IMAGE_MAX_SIZE)
+ if(!sha256||size<DSR_OTA_IMAGE_PREFIX_SIZE||size>DSR_OTA_IMAGE_MAX_SIZE)
   return DSR_IMAGE_ARGUMENT;
  dsr_ota_image_t *s=calloc(1,sizeof(*s));
  if(!s)return DSR_IMAGE_NOMEM;
- dsr_image_result_t r=dsr_ota_image_reset(s,v);
+ dsr_image_result_t r=reset_checksum(s,size,sha256);
  if(r!=DSR_IMAGE_OK){dsr_ota_image_destroy(s);return r;}
  *out=s;return DSR_IMAGE_OK;
 }
+dsr_image_result_t dsr_ota_image_create(const dsr_ota_verified_t *v,dsr_ota_image_t **out)
+{return create_checksum(v?v->size:0,v?v->sha256:NULL,out);}
+dsr_image_result_t dsr_ota_image_create_dev_checksum(size_t size,const uint8_t sha256[32],dsr_ota_image_t **out)
+{return create_checksum(size,sha256,out);}
 dsr_image_result_t dsr_ota_image_update(dsr_ota_image_t *s,const void *data,size_t length)
 {
  if(!s)return DSR_IMAGE_ARGUMENT;

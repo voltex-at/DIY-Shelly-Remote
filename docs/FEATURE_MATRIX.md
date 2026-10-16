@@ -1,4 +1,12 @@
-# Matryca funkcji — 0.7.12, rewizja 13
+# Matryca funkcji — 0.7.13, rewizja 14
+
+## #24: istniejący dev Web upload — integracja strumienia
+
+[Kontrakt/testy](OTA_UPLOAD_STREAM_PL.md): receiver wykorzystuje helper dla
+wszystkich bajtów, exact sink i begin/write/end/abort; auth/approval/partycje
+bez zmian. To nadal klientowy checksum + lokalna zgoda, **nie signed OTA**.
+Native truststore pusty; fizyczny transfer/rollback i P0 nadal niezaliczone.
+PR #39 2a3e7dd: CI5/5,38853370330, zweryfikowany BIN/ELF/partycje.
 
 ## #24: strumień app BIN — backend bez Flash
 

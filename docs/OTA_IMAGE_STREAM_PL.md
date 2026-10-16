@@ -1,5 +1,9 @@
 # #24 — walidator strumienia app BIN, nie instalator (0.7.12-dev)
 
+Opis etapu PR #39 poniżej jest historyczny. Jego późniejsza integracja legacy
+dev uploadu ma [osobny kontrakt i testy](OTA_UPLOAD_STREAM_PL.md); nie jest
+podpisanym updaterem i nie omija manifest-first native API.
+
 Ten etap kontynuuje verifier manifestu z PR #38. Nie zmienia lokalnego
 uploadera, autoryzacji, partycji, SPIFFS, NVS ani testowanego obrazu P0.
 Nie pobiera danych, nie wywołuje `esp_ota_begin/write/end`, nie wybiera slotu

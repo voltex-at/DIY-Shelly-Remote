@@ -1,5 +1,31 @@
 # Project status
 
+## 0.7.13 — integrate streamed validation into existing dev Web upload (#24)
+
+The actual receiver uses the shared validator for every byte, retains the first
+512 B until header acceptance and writes prefix/remainder once. Heap workspace
+4608 B replaces large local buffers/probe. All receive/hash/write failures abort
+only a live handle; end invalidates it even on failure. Boot selection remains
+in the existing endpoint, after success only. No auth/partition/restart change.
+Explicit dev checksum factory does not pretend client X-SHA256 is a signed
+manifest; uppercase checksum letters now reject before Flash (never succeeded
+previously). Native signed trust remains empty and separate.
+Additional review gate: PR39 diagnostic S3 ELF really retained the full board
+marker in loadable .flash.rodata; image-helper force retention is now LCDWiki-
+only, with negative checks on actual diagnostic BINs in both target builds.
+Local UBSan: upload/actual endpoint136002, image2741363, native/config265 and
+LVGL2237/96 PASS. New exact CI/artifact and physical acceptance are separate.
+[Contract, regressions and physical gates](docs/OTA_UPLOAD_STREAM_PL.md).
+
+PR #39 source 2a3e7dd passed exact-source CI 5/5
+[run 38853370330](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38853370330).
+Downloaded firmware/debug ZIP CRC/SHA, segments, app checksum/appended SHA,
+chip/version/source/ELF SHA/license/unchanged partitions verified. App1697472 B,
+SHA256 c758358ed7e2b3b49ab3ef54192d139c27016a1871b26d33c48203f74ae21e5a.
+Real helper target context724 B, own frames32/64 B; BSS/UI stack unchanged.
+Actual app passes OpenSSL+Python and original pinned software Mbed TLS with
+chunks1/511/512/4096. No physical pass, installation or main/Stable claim.
+
 ## 0.7.12 — bounded streamed app-BIN validation (#24), no installer
 
 Independent backend copies accepted manifest size/hash, hashes every byte,

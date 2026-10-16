@@ -18,6 +18,11 @@ typedef enum {
  * create always clears *out; destroy(NULL) is safe. No stack-sized image probe. */
 dsr_image_result_t dsr_ota_image_create(const dsr_ota_verified_t *verified,
  dsr_ota_image_t **out);
+/* LEGACY DEVELOPMENT UPLOAD ONLY: untrusted client checksum, NOT a signed
+ * manifest or authorization. Caller retains existing local/cookie/boot gates
+ * and one-shot physical consent. Never use this entry for native signed OTA. */
+dsr_image_result_t dsr_ota_image_create_dev_checksum(size_t size,
+ const uint8_t sha256[32],dsr_ota_image_t **out);
 /* Explicit cancellation/reuse: discards the previous hash, prefix and marker.
  * A reset failure leaves the context failed, never retaining prior success. */
 dsr_image_result_t dsr_ota_image_reset(dsr_ota_image_t *image,

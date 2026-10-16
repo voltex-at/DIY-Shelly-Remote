@@ -16,7 +16,7 @@ trust=Path(__file__).resolve().parents[1]/"components/dsr_ota/dsr_ota_trust.c"
 assert hashlib.sha256(trust.read_bytes()).hexdigest()=="a607f1e4bc9e8a6ac80336637a15d2447abc06f8f11d1bea889d6bb6cebf142b","unreviewed production trust provider"
 nm=subprocess.check_output(["xtensa-esp32s3-elf-nm","-S","--defined-only",str(args.elf)],text=True)
 symbols={line.split()[-1]:line.split() for line in nm.splitlines() if len(line.split()) in (3,4)}
-required=["dsr_ota_manifest_verify","dsr_ota_trusted_key","crypto_ed25519_check","crypto_eddsa_check_equation","dsr_ota_image_create","dsr_ota_image_update","dsr_ota_image_finish","dsr_ota_image_context_size"]
+required=["dsr_ota_manifest_verify","dsr_ota_trusted_key","crypto_ed25519_check","crypto_eddsa_check_equation","dsr_ota_image_create","dsr_ota_image_create_dev_checksum","dsr_ota_image_update","dsr_ota_image_finish","dsr_ota_image_context_size","dsr_ota_upload_receive","dsr_ota_upload_sha256"]
 for name in required:
     assert name in symbols,name
 sha512=[name for name in symbols if name.startswith("crypto_sha512") or name=="sha512_compress"]
