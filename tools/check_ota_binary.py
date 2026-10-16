@@ -21,6 +21,7 @@ for name in required:
     assert name in symbols,name
 assert "dsr_ota_fetch_manifest" in symbols,"manifest fetch backend not retained"
 assert "dsr_ota_fetch_app" in symbols,"app validation chain not retained"
+assert "dsr_ota_release_candidate_parse" in symbols,"release candidate parser not retained"
 sha512=[name for name in symbols if name.startswith("crypto_sha512") or name=="sha512_compress"]
 assert sha512,"SHA512 implementation missing from target"
 for name in ["crypto_ed25519_sign","crypto_ed25519_key_pair","crypto_eddsa_sign","crypto_eddsa_key_pair"]:

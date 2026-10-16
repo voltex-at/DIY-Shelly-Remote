@@ -54,11 +54,13 @@ jobs:
       - name: Verify blank provisioning with original pinned IDF SPIFFS
         run: |
           git clone --depth 1 --filter=blob:none --sparse --branch v5.5.4 https://github.com/espressif/esp-idf.git .test-deps/esp-idf
-          git -C .test-deps/esp-idf sparse-checkout set components/spiffs components/http_parser
-          git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs
+          git -C .test-deps/esp-idf sparse-checkout set components/spiffs components/http_parser components/json
+          git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs components/json/cJSON
           python3 tools/test_idf_spiffs.py --sanitize
       - name: Verify raw HTTP fragmentation with original pinned IDF parser
         run: python3 tools/test_ota_fetch_parser.py --idf .test-deps/esp-idf --sanitize
+      - name: Verify release corpus with original pinned IDF cJSON and full sanitizers
+        run: python3 tools/test_ota_release.py --cjson-source .test-deps/esp-idf/components/json/cJSON --sanitize
   diagnostic:
     runs-on: ubuntu-24.04
     strategy:
@@ -101,6 +103,7 @@ jobs:
           python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
           python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
           python3 tools/check_ota_fetch_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/OTA_FETCH.json
+          python3 tools/check_ota_release_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/OTA_RELEASE.json
           python3 - <<'PY'
           from pathlib import Path
           sdk=Path('sdkconfig').read_text()
@@ -134,6 +137,7 @@ jobs:
           cp docs/OTA_UPLOAD_STREAM_PL.md build-board/package/
           cp docs/OTA_FETCH_PL.md build-board/OTA_FETCH.json build-board/package/
           cp docs/OTA_DOWNLOAD_PL.md build-board/package/
+          cp docs/OTA_RELEASE_PL.md build-board/OTA_RELEASE.json build-board/package/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/package/licenses/MONOCYPHER_LICENCE.md
           cp docs/BOOT_MEMORY_FIX_PL.md build-board/package/
           cp docs/STARTUP_RECOVERY_PL.md build-board/package/

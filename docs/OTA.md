@@ -17,6 +17,9 @@ release discovery, UI orchestration, application download or installation.
 It uses the existing image validator, without Flash, app-byte output, slot
 selection, UI caller or reboot. Successful validation cannot install the
 discarded bytes; a future installer must download/verify again under its gates.
+0.7.16 adds a [pure single-Release Stable candidate parser](OTA_RELEASE_PL.md),
+not metadata transport/discovery or publisher approval. Explicit caller tag/
+asset policy, strict JSON and own-repo routing cannot replace signed manifests.
 Target certificate date validation is enabled; unset system UTC refuses fetch.
 Trusted time setup and physical TLS validation are still open gates.
 A checksum does not authenticate the publisher. Only deliberately

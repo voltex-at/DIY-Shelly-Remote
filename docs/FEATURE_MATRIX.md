@@ -1,4 +1,21 @@
-# Matryca funkcji — 0.7.15, rewizja 16
+# Matryca funkcji — 0.7.16, rewizja 17
+
+## #24: pojedynczy Release → kandydat Stable, nie approved Release
+
+[Kontrakt](OTA_RELEASE_PL.md): pure bounded JSON/cJSON parser, jawny tag/asset/
+STABLE policy, typed draft/prerelease=false, own-repo API id i jeden uploaded
+manifest asset. UTF8/escapes/NUL/decoded duplicates i limity przed akceptacją.
+Wynik candidate, nie verified; brak sieci/UI/Flash/latest/version inference.
+Production naming, UTC/publisher/signed Release i pełny updater nadal otwarte.
+Parent PR42 1153d710: CI5/5/38865021733 i rzeczywisty BIN/ELF/partycje sprawdzone;
+actual app SHA cb04113b3d786e8a32a742bef3a1c9a914c67194557d48cfd490a049a3e5c2a7.
+Ten parser wymaga własnych regresji, exact-source CI/artefaktu i późniejszej
+integracji; nie zamyka #24 ani fizycznego odbioru P0.
+Parser UBSan27989/1162 cases,34 positive candidates,27 genuine cJSON OOM PASS;
+niezależny Python oracle, UTF8/decoded-dupes/resource boundaries i mutacje.
+Cross-review bez blockerów; target i pełne sanitizery CI osobną bramką.
+Original IDF cJSON pin+SHA obu plików: UBSan29868/1162/29 OOM PASS;
+osobny CI instrumentuje też dependency, nie tylko wrapper z biblioteką systemową.
 
 ## #24: pobranie i walidacja app BIN — bez instalacji
 

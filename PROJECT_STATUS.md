@@ -1,5 +1,50 @@
 # Project status
 
+## 0.7.16 — pure Stable release candidate parser (#24), not approval/discovery
+
+Single GitHub Release object, explicit caller tag/asset/STABLE policy. No latest
+or list selection, tag-to-semver inference, network/UI/Flash or new production
+convention. Root id/same own-repo API URL, exact tag, typed draft/prerelease=false
+and exactly one uploaded named manifest asset,size1..2048, exact repo download
+URL. Output is only UNVERIFIED CANDIDATE routing, not approved release or signed
+metadata. Author/digest/immutable/notes cannot authenticate publisher. Empty
+production trust remains unchanged. [Contract](docs/OTA_RELEASE_PL.md).
+
+Alloc-free strict preflight<=16KiB/depth8containers/512values, canonical uintsafe53
+numbers, valid UTF8/escapes/surrogates, global raw/decoded-NUL rejection; genuine
+cJSON decode and duplicate-key rejection after decode in EVERY object, including
+ignored nested metadata. All failures zero output. Bounds are not measurements
+of cJSON heap/recursive-transitive stack peak. Target own-frame/symbol/dependency
+audit prepared; independent corpus/sanitizers and exact CI/artifact are gates.
+Coordinator primary-source and implementation review: no blockers.
+Independent reviewer corpus:27989 UBSan checks/1162 cases,34 positive candidates,
+27 real cJSON allocation faults; exact-sized non-NUL-terminated input buffers.
+Python stdlib oracle, all baseline truncations,700 seeded mutations and strict
+UTF8/decoded-dupe/resource/policy boundaries pass. Root repeated independently;
+reviewer and coordinator code review: no blockers. Full sanitizers/target pending.
+Additional exact IDF cJSON c859b25 source/header HEAD/SHA pins:29868 UBSan
+checks/1162 cases/29 real allocation faults PASS. Separate CI instruments the
+dependency itself, not only a wrapper linked with uninstrumented system cJSON.
+Local LSan /proc/ptrace restriction is NOT a sanitizer PASS. Transient empty
+LVGL cached object quarantined/rebuilt; unchanged UI2237/96,review2635/24,
+full native/config265 UBSan pass after rebuild, without UI source changes.
+
+Latest parent PR42 source1153d710: [exact CI38865021733](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38865021733)
+5/5 PASS. Downloaded firmware12031475637/debug12030762817: CRC/SHA/source/version/
+chip/project/all segments/checksum/ELF SHA/license/unchanged partitions checked.
+App1772880 B SHA cb04113b3d786e8a32a742bef3a1c9a914c67194557d48cfd490a049a3e5c2a7;
+ELFdbd5c147ac4d8434ac681161e666b603bd6f8250abeb87573a5277f1a2b17cff.
+Actual file passes unchanged signed HOST-fixture chain with OpenSSL and original
+pinned Mbed TLS SOFTWARE SHA:10015211 HOST/169661 production-empty checks,
+36/34 alloc faults; production always zero app requests. No physical TLS/Flash/
+auth/rollback/P0 claim. Diagnostic-S3 allocated sections lack full board marker.
+
+P0 PR33 still81e734d, no new physical PASS; main51c5840 unchanged. No erase,
+nonempty format/partition/main/Stable. Correct UTC, approved publisher anchor/
+rotation/signed Release, production naming/dev policy, release metadata transport,
+LCD/worker/progress/consent/power/serialized install/health/rollback remain open.
+Global backlog,24h internal history and later optional microSD still required.
+
 ## 0.7.15 — manifest-first app stream validation/discard (#24), not installer
 
 Public chain fetches/verifies manifest first; only DSR_FETCH_OK permits any app
