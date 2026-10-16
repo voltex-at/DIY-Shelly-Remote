@@ -5,7 +5,11 @@
 const {chromium}=require('playwright');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-locale');
-fs.mkdirSync(out,{recursive:true});process.env.TMPDIR=process.env.TMPDIR||out;
+fs.mkdirSync(out,{recursive:true});
+// Chrome creates a UNIX SingletonSocket under TMPDIR; the artifact directory
+// is too long on Actions. Keep its own temp directory short and separate.
+const browserTemp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP||path.dirname(root),'dsr-web-'));
+process.env.TMPDIR=browserTemp;
 let checks=0,active;
 const ok=(v,message)=>{assert(v,message);checks++;},eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
 async function shot(page,file){await page.evaluate(()=>{if(document.querySelector('#test-model-badge'))return;const n=document.createElement('div');n.id='test-model-badge';n.textContent='HOST TEST / HTTP MODEL';n.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1000;font:10px sans-serif;background:#f6c45b;color:#111;padding:2px 5px;pointer-events:none';document.body.append(n);});await page.screenshot({path:file,fullPage:true});}
@@ -105,5 +109,5 @@ async function preserve(f,selector){
   await Promise.all([page.waitForResponse(r=>r.url().endsWith('/ble/cancel')),page.locator('#ble-cancel').click()]);await page.evaluate(()=>pollBle(bleGeneration));ok(await page.locator('#ble-cancel').isDisabled());for(const l of ['pl','en','de']){await switchTo(f,l);eq(await page.locator('#ble-status').textContent(),{pl:'Skan przerwany',en:'Scan cancelled',de:'Scan abgebrochen'}[l]);}
   state.paired=false;await page.evaluate(()=>poll());await page.locator('#pairing').waitFor({state:'visible'});for(const l of ['pl','en','de'])await switchTo(f,l);eq(state.errors,[]);await f.context.close();
  }
- await browser.close();console.log(`PASS: ${checks} locale checks; actual shipped assets; HTTP/session/radio/reboot MODEL, no device/TLS proof`);
+ await browser.close();fs.rmSync(browserTemp,{recursive:true,force:true});console.log(`PASS: ${checks} locale checks; actual shipped assets; HTTP/session/radio/reboot MODEL, no device/TLS proof`);
 })().catch(async e=>{console.error(e);if(active)await active.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});process.exit(1);});
