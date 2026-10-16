@@ -27,7 +27,11 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     subprocess.run([os.environ.get('CC','cc'),*flags,str(ROOT/'components/dsr_platform/dsr_activity.c'),str(ROOT/'tests/restart/panel.c'),'-lcrypto','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
     writer_flags=[*flags]
-    for folder in ['tests/actor','components/dsr_config/include','components/dsr_core/include','.test-deps']:writer_flags+=['-I',str(ROOT/folder)]
+    for folder in ['tests/actor','components/dsr_config/include','components/dsr_core/include']:writer_flags+=['-I',str(ROOT/folder)]
+    json_include=Path('/usr/include/cjson')
+    if not (json_include/'cJSON.h').exists():json_include=ROOT/'.test-deps'
+    if not (json_include/'cJSON.h').exists():raise SystemExit('Install libcjson-dev to run restart workspace fixtures')
+    writer_flags+=['-I',str(json_include)]
     binary=tmp/'workspace'
     sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_workspace.c','components/dsr_platform/dsr_config_health.c','components/dsr_config/dsr_config.c','components/dsr_core/dsr_core.c','tests/restart/workspace.c']
     subprocess.run([os.environ.get('CC','cc'),*writer_flags,*[str(ROOT/s) for s in sources],'-l:libcjson.so.1','-lm','-o',str(binary)],check=True)
