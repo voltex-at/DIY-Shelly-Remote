@@ -106,7 +106,9 @@ static unsigned save_trial(const uint8_t *baseline,uint8_t *shared,const char *n
 int main(int argc,char **argv)
 {
  setvbuf(stdout,NULL,_IONBF,0);
- CHECK(argc==2||argc==3);CHECK(test_original_main(2,argv)==0);CHECK(format_calls==4);
+ CHECK(argc==2||argc==3);CHECK(test_original_main(2,argv)==0);
+ /* blank, I/O fail, retry, 3 resumed prefixes (991 is repaired by mount), 2x(real cut + resume), 6 partial headers, final blank = 17 */
+ CHECK(format_calls==17);
  uint8_t *shared=mmap(NULL,DATA_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);CHECK(shared!=MAP_FAILED);
  flash=shared;gc_workload=true;memset(flash,0xff,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_OK);ready();
  unsigned old_writes=writes,old_erases=erases;

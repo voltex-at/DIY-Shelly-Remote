@@ -65,6 +65,31 @@ static void unmount(void)
 {CHECK(esp_vfs_spiffs_unregister("dsrdata")==ESP_OK&&!vfs&&!locks&&!esp_spiffs_mounted("dsrdata"));}
 static void ready(void)
 {dsr_config_health_t h;dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_READY&&h.storage_error==ESP_OK&&vfs&&locks==1&&priority==3);}
+static void expected_header(unsigned block,uint8_t out[4])
+{uint16_t magic=(uint16_t)(0x20140529u^256u^((DATA_SIZE/4096)-block));out[0]=(uint8_t)magic;out[1]=(uint8_t)(magic>>8);out[2]=out[3]=0;}
+static void remnant(unsigned complete)
+{memset(flash,0xff,DATA_SIZE);for(unsigned block=0;block<complete;block++)expected_header(block,flash+block*4096+252);}
+static unsigned roundtrip_count;
+static void roundtrip(void)
+{
+ char name[24];snprintf(name,sizeof(name),"/resume%u.dat",roundtrip_count++);
+ const char text[]="resumed format holds a real file";
+ int fd=vfs->open_p(context,name,O_WRONLY|O_CREAT|O_TRUNC,0);CHECK(fd>=0);
+ CHECK(vfs->write_p(context,fd,text,sizeof(text))==(ssize_t)sizeof(text));
+ CHECK(vfs->fsync_p(context,fd)==0&&vfs->close_p(context,fd)==0);unmount();
+ const unsigned w=writes,e=erases;
+ CHECK(dsr_storage_mount()==ESP_OK);ready();
+ fd=vfs->open_p(context,name,O_RDONLY,0);CHECK(fd>=0);char out[sizeof(text)]={0};
+ CHECK(vfs->read_p(context,fd,out,sizeof(out))==(ssize_t)sizeof(text)&&!memcmp(out,text,sizeof(text)));
+ CHECK(vfs->close_p(context,fd)==0);unmount();CHECK(writes==w&&erases==e);
+}
+static void refused(void)
+{
+ memcpy(original,flash,DATA_SIZE);const unsigned w=writes,e=erases;
+ CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks&&priority==3);
+ dsr_config_health_t h;dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_NONEMPTY);
+ CHECK(writes==w&&erases==e&&!memcmp(original,flash,DATA_SIZE));
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);
@@ -115,34 +140,69 @@ int main(int argc,char **argv)
  CHECK(vfs->read_p(context,fd,out,sizeof(out))==sizeof(json)-1&&!strcmp(out,json));
  CHECK(vfs->close_p(context,fd)==0);unmount();
  CHECK(writes==saved_writes&&erases==saved_erases&&!memcmp(original,flash,DATA_SIZE));
- /* Synthetic reproduction of the observed 313/992 formatting prefix; no dump. */
+ /* Interrupted first format (observed 313/992 and 109/992 prefixes): the
+  * remnant holds only formatter headers, so the next boot resumes ONE full
+  * format pass instead of refusing forever. Synthetic prefixes, no dump. */
+ const unsigned prefixes[]={1,109,313,991};
+ for(unsigned p=0;p<sizeof(prefixes)/sizeof(prefixes[0]);p++){
+  remnant(prefixes[p]);saved_writes=writes;saved_erases=erases;gc_workload=prefixes[p]==991;
+  CHECK(dsr_storage_mount()==ESP_OK);ready();
+  /* 991/992: SPIFFS_mount itself repairs a single unformatted block. */
+  CHECK(prefixes[p]==991?erases==saved_erases+1:erases==saved_erases+DATA_SIZE/4096);gc_workload=false;
+  roundtrip();
+ }
+ /* The ACTUAL upstream formatter, interrupted by I/O after sector 109/313,
+  * produces a remnant that the next boot completes with one pass. */
+ const unsigned cuts[]={109,313};
+ for(unsigned c=0;c<2;c++){
+  memset(flash,0xff,DATA_SIZE);saved_erases=erases;interrupted_offset=cuts[c]*4096;
+  CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks&&priority==3);
+  dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_PROVISION_ERROR);
+  CHECK(erases==saved_erases+cuts[c]);
+  memcpy(original,flash,DATA_SIZE);remnant(cuts[c]);CHECK(!memcmp(original,flash,DATA_SIZE));
+  interrupted_offset=DATA_SIZE;saved_erases=erases;
+  CHECK(dsr_storage_mount()==ESP_OK);ready();CHECK(erases==saved_erases+DATA_SIZE/4096);
+  roundtrip();
+ }
+ /* NOR-partial header programs on the first unfinished block (power cut
+  * between/within the 2-byte writes), including block 0, also resume. */
+ const uint8_t partial[][4]={{0xff,0xff,0x00,0x00},{0xff,0xff,0x7f,0xff},{0xfd,0xff,0x00,0x00}};
+ for(unsigned n=0;n<3;n++)for(unsigned at=0;at<2;at++){
+  const unsigned block=at?109:0;remnant(block);
+  uint8_t want[4];expected_header(block,want);
+  for(unsigned i=0;i<4;i++)flash[block*4096+252+i]=partial[n][i]|want[i];
+  CHECK(memcmp(flash+block*4096+252,want,4)!=0);
+  saved_erases=erases;CHECK(dsr_storage_mount()==ESP_OK);ready();
+  CHECK(erases==saved_erases+DATA_SIZE/4096);roundtrip();
+ }
+ /* Anything a formatter cannot have written is refused byte-for-byte:
+  * object-lookup entry, data page byte, last byte, a header on a block after
+  * the first unfinished one (gap), a cleared bit outside the header pattern,
+  * a nonzero erase count and two partial blocks. */
+ const unsigned bad_offsets[]={108*4096+0,108*4096+250,108*4096+256,4096*40+4095,DATA_SIZE-1,200*4096+252,200*4096+254};
+ for(unsigned n=0;n<sizeof(bad_offsets)/sizeof(bad_offsets[0]);n++){
+  remnant(109);flash[bad_offsets[n]]&=0xfe;
+  refused();
+ }
+ remnant(109);flash[50*4096+254]=1;refused();          /* erase count != 0 */
+ remnant(109);flash[50*4096+252]&=0x7f;refused(); /* magic bit cleared */
+ remnant(109);flash[109*4096+254]=0;flash[110*4096+254]=0;refused(); /* two partial */
+ remnant(109);for(unsigned block=200;block<210;block++){uint8_t w[4];expected_header(block,w);memcpy(flash+block*4096+252,w,4);}refused(); /* gap */
+ /* The real file-bearing filesystem from the start of this test is never a remnant. */
+ memset(flash,0xff,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_OK);ready();
+ fd=vfs->open_p(context,"/keep.dat",O_WRONLY|O_CREAT|O_TRUNC,0);CHECK(fd>=0);
+ CHECK(vfs->write_p(context,fd,payload,sizeof(payload))==(ssize_t)sizeof(payload));
+ CHECK(vfs->fsync_p(context,fd)==0&&vfs->close_p(context,fd)==0);unmount();
+ /* Corrupt block 900's magic so SPIFFS_mount fails with real lookup data present. */
+ for(unsigned block=900;block<902;block++)flash[block*4096+252]=flash[block*4096+253]=0;
+ refused();
+ /* A remnant of another geometry (prior 4 MiB length magic) is not ours. */
  memset(flash,0xff,DATA_SIZE);
- for(unsigned block=0;block<313;block++){
-  uint16_t magic=(uint16_t)(0x20140529u^256u^((DATA_SIZE/4096)-block));
-  flash[block*4096+252]=(uint8_t)magic;flash[block*4096+253]=(uint8_t)(magic>>8);
-  flash[block*4096+254]=flash[block*4096+255]=0;
- }
- memcpy(original,flash,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks&&priority==3);
- dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_NONEMPTY);
- CHECK(writes==saved_writes&&erases==saved_erases&&!memcmp(original,flash,DATA_SIZE));
- /* The original formatter interrupted by an I/O error produces that prefix. */
- memset(flash,0xff,DATA_SIZE);interrupted_offset=313*4096;
- esp_err_t interrupted=dsr_storage_mount();
- CHECK(interrupted==ESP_FAIL&&!vfs&&!locks&&priority==3);
- dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_PROVISION_ERROR);
- CHECK(erases==saved_erases+313&&!memcmp(original,flash,DATA_SIZE));
- interrupted_offset=DATA_SIZE;saved_writes=writes;saved_erases=erases;
- CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks&&priority==3);
- dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_NONEMPTY);
- CHECK(writes==saved_writes&&erases==saved_erases&&!memcmp(original,flash,DATA_SIZE));
- /* A prior 4 MiB length-magic geometry must not be reformatted as 3.875 MiB. */
- for(unsigned block=0;block<DATA_SIZE/4096;block++){
+ for(unsigned block=0;block<109;block++){
   uint16_t magic=(uint16_t)(0x20140529u^256u^(1024u-block));
-  flash[block*4096+252]=(uint8_t)magic;flash[block*4096+253]=(uint8_t)(magic>>8);
+  flash[block*4096+252]=(uint8_t)magic;flash[block*4096+253]=(uint8_t)(magic>>8);flash[block*4096+254]=flash[block*4096+255]=0;
  }
- memcpy(original,flash,DATA_SIZE);CHECK(dsr_storage_mount()==ESP_FAIL&&!vfs&&!locks);
- dsr_config_health_snapshot(&h);CHECK(h.storage==DSR_STORAGE_NONEMPTY);
- CHECK(writes==saved_writes&&erases==saved_erases&&!memcmp(original,flash,DATA_SIZE));
- printf("PASS: %u IDF/SPIFFS integration checks; single 992-sector format at idle priority, 313-sector interruption/preservation, file write/read, ten remounts, I/O failures and upstream image; simulated NOR, not hardware\n",checks);
+ refused();
+ printf("PASS: %u IDF/SPIFFS integration checks; single 992-sector format at idle priority, interrupted-format resume (1/109/313/991 prefixes, real 109/313 cuts, partial headers) and byte-exact refusal of anything else, file write/read, ten remounts, I/O failures and upstream image; simulated NOR, not hardware\n",checks);
  return 0;
 }

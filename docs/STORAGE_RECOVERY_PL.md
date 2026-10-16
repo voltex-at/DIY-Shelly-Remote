@@ -1,5 +1,61 @@
 # Magazyn — inicjalizacja 0.7.7 i kopia bez zapisu (#28 / PR #33)
 
+## Wznowienie przerwanego pierwszego formatu (2026-10-17, lokalny patch, NIE na GitHubie)
+
+**Zmiana zachowania.** Do tej pory przerwany pierwszy format (prefiks 109/992
+lub 313/992) był traktowany jak „niepusty FS” i blokował magazyn na zawsze.
+Test hostowy wręcz to utrwalał. Jedno przerwanie w ~1 min formatu (ekran LCD
+jest wtedy czarny, bo `dsr_ui_init` startuje później) oznaczało trwałą utratę
+magazynu do ręcznego recovery.
+
+`dsr_storage_mount()` po nieudanym montażu skanuje całą partycję i rozróżnia
+trzy przypadki:
+
+- **pusta** (same 0xFF) — jeden format, jak dotąd;
+- **resztka przerwanego formatu** — wznowienie jednego pełnego formatu;
+- **wszystko inne** — odmowa, każdy bajt bez zmian, jak dotąd.
+
+Resztka musi wyglądać dokładnie tak, jak zostawia ją `SPIFFS_format()` z
+IDF 5.5.4 dla TEJ geometrii (992 bloki, strona 256 B, magia z długością):
+
+- bloki 0..N−1 mają dokładny nagłówek formatera: magia
+  `0x20140529^256^(992−blok)` pod +252 oraz licznik kasowań 0 pod +254;
+- blok N może mieć częściowo zaprogramowany nagłówek (bity skasowane tylko
+  tam, gdzie wzorzec ma zera);
+- wszystkie dalsze bloki i każdy inny bajt każdego bloku to 0xFF.
+
+Wpis lookup, strona danych, nazwa pliku, nagłówek innej geometrii, licznik ≠ 0,
+dwa częściowe bloki albo „dziura” (nagłówek po pierwszym niedokończonym
+bloku) → odmowa. Taka resztka z definicji nie zawiera bajtu użytkownika.
+Brak dodatkowych zadań, watchdogów, zmian priorytetów ani partycji.
+
+**Testy (prawdziwy IDF 5.5.4 SPIFFS, symulowany NOR — NIE sprzęt):**
+
+- prefiksy 1/109/313 → jeden pełny format (992 kasowania), zapis/odczyt pliku
+  i remount bez zapisów;
+- prefiks 991 → naprawia go sam `SPIFFS_mount` (1 kasowanie);
+- prawdziwy formatter przerwany I/O po 109 i 313 sektorach daje bajt w bajt
+  ten sam prefiks, a następny start go kończy;
+- 6 wariantów częściowego nagłówka (także blok 0) → wznowienie;
+- 12 wariantów „obcych” bajtów, w tym realny FS z plikiem i uszkodzoną magią
+  → odmowa, bajty identyczne.
+
+Test był czerwony na starym `dsr_storage.c` i jest zielony po zmianie.
+Pełne `tools/test.py --sanitize` i `tools/test_config.py --sanitize` są zielone.
+
+**Przyczyna przerwania nadal NIEUSTALONA.** Hipotezy, w kolejności
+prawdopodobieństwa:
+
+1. zewnętrzny reset w trakcie ~45–60 s czarnego ekranu (odłączenie zasilania,
+   EN, ponowne połączenie ESPConnect/USB-Serial-JTAG);
+2. brownout przy kasowaniu Flash z aktywnym Wi-Fi;
+3. watchdog.
+
+Różne punkty przerwania (109 vs 313) przemawiają raczej za resetem
+zewnętrznym niż za stałym limitem czasu. Rozstrzyga `reset_reason` z
+następnego startu (logowany już w `app_main`): POWERON, USB, BROWNOUT,
+TASK_WDT, INT_WDT lub PANIC.
+
 ## Dwa warianty instalacji FACTORY i UPDATE (2026-10-16)
 
 W [decyzji właściciela](https://github.com/voltex-at/DIY-Shelly-Remote/issues/28#issuecomment-6217161680)

@@ -54,8 +54,14 @@ instead of the former success-only assertion (which allowed two passes).
 Every erase must occur with the startup priority temporarily at idle; the
 previous priority must be restored on success/error. These are API-policy
 checks, not a simulated scheduler or measured watchdog timing.
-A synthetic 313-marker prefix must remain byte-identical on refused mount.
-An actual upstream format with injected write/erase failure after sector 313
-must produce that same prefix, report failure, release resources, restore
-priority and preserve the prefix on a subsequent boot/mount. This is I/O fault
-injection; the owner's original interruption cause remains unproven.
+2026-10-17 (supersedes the former "313 prefix stays refused" rule): an
+interrupted first format leaves only formatter headers. Synthetic 1/109/313
+prefixes, partial header programs (including block 0) and the actual upstream
+formatter cut by injected I/O failure after sector 109/313 must each be
+completed by exactly one 992-sector pass on the next boot, then hold a real
+file across a remount. 991/992 is repaired by SPIFFS_mount itself (1 erase).
+Any byte a formatter cannot have written (lookup entry, data page, last byte,
+gap, nonzero erase count, two partial blocks, other-geometry magic, a real
+file-bearing FS with damaged magic) is refused with every byte preserved.
+This is I/O fault injection on simulated NOR; the owner's original
+interruption cause remains unproven.
