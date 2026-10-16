@@ -1,5 +1,25 @@
 # Project status
 
+## PR #33 verification follow-up — owner testing clean 0.7.6
+
+The owner has authorized a one-time full erase of their own board and is testing
+source `ecdac4ee0d3332a4ee1a4ad4f0d3df664b1d4818`. Its exact-source CI
+[run 38831522391](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38831522391)
+was independently checked: all five jobs succeeded. Physical acceptance remains
+open; no repeated erase is proposed. The earlier backup prerequisite below does
+not block this explicitly authorized clean test. Unknown existing data on any
+other installation still must be preserved.
+
+A test-only follow-up now runs real `dsr_storage.c` with original pinned IDF
+5.5.4 mount/format wrapper and SPIFFS core on simulated NOR. Blank provisioning,
+file persistence over ten remounts, nonempty-byte preservation, I/O failures and
+the upstream-generated image pass locally with UBSan. The documented upstream
+unaligned-index exception is limited to dependency code. Native CI repeats with
+ASan/UBSan/LSan; its new exact-head result is separate from the green ecdac4e run.
+Firmware source/version/partitions and the owner's test binary are unchanged.
+Local existing native/config/UI/review regressions also pass. No actual Flash,
+RTOS, RF or physical pass is inferred. [Evidence, queue and remaining acceptance](docs/PR33_ACCEPTANCE.md).
+
 ## 0.7.6 — storage blocker diagnostics and read-only recovery (#28 / PR #33)
 
 The owner's physical 0.7.4 log confirms nonempty, unmountable dsrdata with

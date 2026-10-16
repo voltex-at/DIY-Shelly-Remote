@@ -51,6 +51,12 @@ jobs:
         run: |
           python3 tools/test.py --sanitize
           python3 tools/test_config.py --sanitize
+      - name: Verify blank provisioning with original pinned IDF SPIFFS
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch v5.5.4 https://github.com/espressif/esp-idf.git .test-deps/esp-idf
+          git -C .test-deps/esp-idf sparse-checkout set components/spiffs
+          git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs
+          python3 tools/test_idf_spiffs.py --sanitize
   diagnostic:
     runs-on: ubuntu-24.04
     strategy:

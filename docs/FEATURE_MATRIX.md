@@ -1,4 +1,12 @@
-# Matryca funkcji — 0.7.6, rewizja 6
+# Matryca funkcji — 0.7.6, rewizja 7
+
+**Aktualny odbiór:** właściciel zaakceptował jednorazowe pełne erase swojej płytki
+i testuje czystą instalację source `ecdac4e`. CI tego źródła sprawdzone: **5/5**,
+[run 38831522391](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38831522391).
+Dodany test oryginalnego wrappera/core IDF SPIFFS na symulowanej NOR przechodzi
+lokalnie (nowe CI osobno). Nie zmienia firmware i nie potwierdza fizycznego
+odbioru. [Dowody i otwarte bramki](PR33_ACCEPTANCE.md). To nie jest zgoda na
+automatyczny lub ponowny erase ani merge/Stable.
 
 **Blokada fizyczna #28:** instalacja 0.7.4 nie montuje niepustego dsrdata
 (log SPIFFS_ERR_NOT_A_FS), więc edytory i HTTPS nie działają. 0.7.4 nie
@@ -63,7 +71,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Pasek + / ołówek | Dodaj / Edytuj | Lokalny kreator / edytor | CI tested: rzeczywiste przejścia | #6/#7; brak regresji źródeł danych |
 | Pasek Info | Stan konfiguracji + podgląd | Liczby z aktualnego modelu | CI tested: modal z rzeczywistą nazwą, definicjami i online; Zamknij | #25, ten PR; pointer hit-test, aktualizacja modelu, PL/EN/DE |
 | Pomieszczenie / zdjęcie / powrót | Edycja pomieszczenia / preview | Lokalne dane | CI tested: dwie kolumny, filtr urządzeń, przewijanie | #6/#28; LCD, fotografie i listy po restarcie |
-| Pomieszczenia: Dodaj / ołówek / Edytuj pokój / Usuń | Wspólny CRUD i rewizja | Do 8 pokojów, trwałe ID | Host tested: formularz, foto, CAS, błędy, potwierdzenie usuwania i zależności; target CI wymagane | #28; [test płytki](ROOM_EDITOR_PL.md), restart/OTA i sync |
+| Pomieszczenia: Dodaj / ołówek / Edytuj pokój / Usuń | Wspólny CRUD i rewizja | Do 8 pokojów, trwałe ID | CI tested na ecdac4e: formularz, foto, CAS, błędy, potwierdzenie usuwania i zależności; odbiór fizyczny otwarty | #28; [test płytki](ROOM_EDITOR_PL.md), restart/OTA i sync |
 | Karta urządzenia → szczegóły | Konfiguracja wpisu, LCD preview | Obsługiwany stan bieżącego modelu | CI tested: nawigacja, stable ID, offline | #6/#12; realne dane po zmianie konfiguracji |
 | ON/OFF karty i szczegółów | Bezpośredniego SET w WWW brak; podgląd jest read-only | Jeden Gen1 relay lub Gen2+ switch | CI tested: identity/auth/SET/readback; wcześniejsze ON/OFF Gen3 potwierdzone fizycznie | #12, PR #14/#17; ponowny test 1PM Mini Gen3 |
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
