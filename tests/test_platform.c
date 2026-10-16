@@ -360,6 +360,7 @@ static void test_ap_protocol(void)
 }
 #include "cover_platform.inc"
 #include "light_platform.inc"
+#include "rgb_platform.inc"
 static unsigned guard_calls,guard_block,write_attempts;
 static void test_write_attempt(void){write_attempts++;}
 static dsr_result_t test_guard(void){return ++guard_calls>=guard_block?DSR_BUSY:DSR_OK;}
@@ -373,6 +374,8 @@ static void test_registered_guard(void)
  c=light_connection();cover_payload="{\"id\":0,\"on\":true}";
  step_t light[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false},{"/rpc/Light.Set","null",200,true,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false}};
  for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(light,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_light(&c,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ c=rgb_connection();cover_payload="{\"id\":0,\"on\":true}";step_t rgb[]={{"/shelly",rgb_identity,200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false},{"/rpc/RGB.Set","null",200,true,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false}};
+ for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(rgb,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  cover_payload=NULL;
  /* Gen1 changes a relay with GET: method alone must not define the boundary. */
  c=connection();c.device.generation=DSR_GEN1;c.device.has_switch=true;strcpy(c.device.device_id,"AABBCCDDEEFF");
@@ -382,7 +385,7 @@ static void test_registered_guard(void)
 int main(void)
 {
     test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
-    test_light_opposite_transition();
+    test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
 }

@@ -105,3 +105,5 @@ int main(void)
 /* Separate PR50 runtime revoke provider; its actual panel/NVS path is covered
  * by tools/test_pairing.py. Actor tests never request this job. */
 esp_err_t dsr_panel_pairing_revoke(void){return ESP_OK;}
+
+dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent){(void)c;(void)intent;return DSR_INVALID;}

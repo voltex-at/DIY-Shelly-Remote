@@ -50,9 +50,13 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
         caps.sensors=get(r,"tmp")||get(r,"hum")||get(r,"bat")||get(r,"sensor");
     }else if(generation>=2&&generation<=4){
         for(const cJSON *v=r->child;v;v=v->next){const char *colon=strchr(v->string,':');if(!colon)continue;
-            bool sw=!strncmp(v->string,"switch:",7),cover=!strncmp(v->string,"cover:",6),light=!strncmp(v->string,"light:",6);
-            if(sw||cover||light){char *end;long index=strtol(colon+1,&end,10);if(!colon[1]||*end||index<0||index>15||!cJSON_IsObject(v)||!unique_keys(v)||!integral(get(v,"id"),(int)index,(int)index))return DSR_BAD_RESPONSE;
-                if(cover){if(!text(get(v,"state"),32))return DSR_BAD_RESPONSE;caps.covers|=(uint16_t)(1u<<index);}
+            bool sw=!strncmp(v->string,"switch:",7),cover=!strncmp(v->string,"cover:",6),light=!strncmp(v->string,"light:",6),rgb=!strncmp(v->string,"rgb:",4);
+            if(sw||cover||light||rgb){char *end;long index=strtol(colon+1,&end,10);if(!colon[1]||*end||index<0||index>15||!cJSON_IsObject(v)||!unique_keys(v)||!integral(get(v,"id"),(int)index,(int)index))return DSR_BAD_RESPONSE;
+                if(rgb){
+                    const cJSON *color=get(v,"rgb");if(strcmp(v->string,"rgb:0")||index!=0||!cJSON_IsBool(get(v,"output"))||!integral(get(v,"brightness"),0,100)||!cJSON_IsArray(color)||cJSON_GetArraySize(color)!=3)return DSR_BAD_RESPONSE;
+                    for(const cJSON *c=color->child;c;c=c->next)if(!integral(c,0,255))return DSR_BAD_RESPONSE;
+                    caps.rgbs|=1;
+                }else if(cover){if(!text(get(v,"state"),32))return DSR_BAD_RESPONSE;caps.covers|=(uint16_t)(1u<<index);}
                 else{if(!cJSON_IsBool(get(v,"output"))||(light&&!integral(get(v,"brightness"),0,100)))return DSR_BAD_RESPONSE;*(sw?&caps.switches:&caps.lights)|=(uint16_t)(1u<<index);}
             }else if(!strncmp(v->string,"temperature:",12)||!strncmp(v->string,"humidity:",9)||!strncmp(v->string,"devicepower:",12))caps.sensors=cJSON_IsObject(v)||caps.sensors;
         }

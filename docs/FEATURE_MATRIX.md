@@ -1,5 +1,13 @@
 # Matryca funkcji — 0.7.33, rewizja 34
 
+## #23: RGB Plus RGBW PM — lokalny pełny pion
+
+[Kontrakt RGB3](RGB_GEN2_PL.md): wyłącznie SNDC-0D4P10WW Gen2 już w profilu
+rgb, GET/ON/OFF/jasność/kolor, typed BIND, LCD i authenticated WWW. Publiczna
+kategoria light pozostaje schema2; prywatny kind3 wybiera transport. RGBW/CCT,
+zmiana profilu i historia/grupy/sceny RGB pozostają niewspierane. Testy hostowe
+nie stanowią fizycznego potwierdzenia Shelly ani pilota.
+
 ## #23: biały Light Gen2+ — kandydat pełnego pionu
 
 [Kontrakt i migracja](LIGHT_GEN2_PL.md): osobny typed Light2, GET/ON/OFF/jasność,
@@ -433,7 +441,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Wiele urządzeń Shelly | Trwały registry do16 endpointów + własny stan/sterowanie | Bounded serial I/O, nie16 równoległych połączeń | Kod + genuine native/LVGL; exact CI i fizyczny odbiór otwarte | #20; min2 fizyczne Shelly, offline/DHCP/restart/heap |
 | Roleta Otwórz / Zamknij / Stop / pozycja | Typowany runtime i te same intencje | Aktywny Cover Gen2+; bez kalibracji/profile/slats/Gen1 | Genuine HTTP/NVS/worker/LVGL + modele WWW; target/fizyczny odbiór otwarty | #23; [kontrakt i limity](COVER_GEN2_PL.md), własny priorytetowy STOP |
 | Roleta edycja ołówkiem | Edytuj definicję | Zapisany wpis | CI tested: otwiera istniejący edytor; DEMO disabled | PR #16; właściwe ID po zmianie kolejności |
-| Dimmer / RGB/RGBW / termostat | Brak funkcjonalnego kontrolera | API danego modelu | Not implemented | #23; osobny typ/PR, capability i readback |
+| RGBW / CCT / Gen1 dimmer / termostat | Brak funkcjonalnego kontrolera | API danego modelu | Not implemented | #23; osobny typ/PR, capability i readback |
 | Czujnik otwarcia / bateria / temperatura / wilgotność | Definicja typu / preview | Wymagane rzeczywiste źródło danych | UI mock w fixture; Not implemented: adapter czujnika/BLU | #18/#23; odczyt modelu i unavailable, bez fikcyjnego zera |
 
 ## Konfiguracja, zdjęcia i system

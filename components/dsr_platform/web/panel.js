@@ -223,7 +223,7 @@ function manualOnboarding(parent){
  onboardingSteps(parent,3);parent.append(el('p',m('Zaawansowane: adres, tożsamość API i stan zostaną sprawdzone przed dodaniem.')));
  const form=el('div',undefined,'fields');parent.append(form);
  const host=lanInput(form,m('Adres IPv4 Shelly'),manualDraft.host),name=lanInput(form,m('Nazwa urządzenia'),manualDraft.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]),channel=lanInput(form,m('Kanał 0–15'),manualDraft.channel,'number'),user=lanInput(form,m('Login'),manualDraft.username),password=lanInput(form,m('Hasło Shelly'),manualDraft.password,'password');
- const family=lanSelect(form,m('Rodzina API'),[['','Switch / Relay'],['cover','Cover Gen2+'],['light','Light Gen2+']]);family.value=manualDraft.family;
+ const family=lanSelect(form,m('Rodzina API'),[['','Switch / Relay'],['cover','Cover Gen2+'],['light','Light Gen2+'],['rgb','RGB Plus RGBW PM']]);family.value=manualDraft.family;
  room.value=String(manualDraft.room);channel.min=0;channel.max=15;channel.step=1;
  const inputs={host,name,room,channel,username:user,password,family};for(const [key,input]of Object.entries(inputs))input.addEventListener('input',()=>manualDraft[key]=input.value);
  const apply=button(m('Sprawdź i zapisz połączenie'),()=>{
@@ -336,7 +336,7 @@ async function pollLan(generation){
 }
 async function bindLan(name,room,channel,button,manual=false){
  if(button.disabled||page!=='discovery')return;const generation=++lanGeneration;
- button.disabled=true;const cover=String(channel).startsWith('cover:'),light=String(channel).startsWith('light:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover||light?String(channel).slice(6):channel),...lanCredentials};if(cover||light)body.endpoint_kind=cover?1:2;
+ button.disabled=true;const cover=String(channel).startsWith('cover:'),light=String(channel).startsWith('light:'),rgb=String(channel).startsWith('rgb:');const body={host:lanSelected.host,...(lanSelected.id?{expected_id:lanSelected.id}:{}),name,room:Number(room),channel:Number(cover||light?String(channel).slice(6):rgb?String(channel).slice(4):channel),...lanCredentials};if(cover||light||rgb)body.endpoint_kind=cover?1:rgb?3:2;
  try{
   await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!onboardingCurrent(generation))return;notice(m('Sprawdzanie tożsamości i zapisywanie połączenia…'));
   for(let i=0;i<100;i++){
@@ -346,7 +346,7 @@ async function bindLan(name,room,channel,button,manual=false){
    if(s.device_busy||s.busy)continue;
    if(s.device_result!==0){if(s.device_result===4&&!manual){lanMode='credentials';render();}throw failure(lanError(s.device_result));}
    const configResponse=await request('config');if(!onboardingCurrent(generation))return;
-   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&(d.kind==='light')===(body.endpoint_kind===2)&&d.room===body.room&&d.name===body.name);
+   const current=await configResponse.json();if(!onboardingCurrent(generation))return;const saved=current.devices.find(d=>d.host===body.host&&d.channel===body.channel&&(d.kind==='cover')===(body.endpoint_kind===1)&&(d.kind==='light')===([2,3].includes(body.endpoint_kind))&&d.room===body.room&&d.name===body.name);
    page='devices';lanCredentials=null;invalidateOnboarding();showConfig(current);notice(saved?m('Połączenie, nazwa i pomieszczenie zapisane.'):m('Połączenie zapisano. Konfiguracja pulpitu wymaga sprawdzenia.'));return;
   }
   throw failure(m('Nie potwierdzono zakończenia zapisu. Sprawdź stan na pilocie.'));
@@ -373,7 +373,7 @@ function discoveryView(){
   const u=lanInput(form,m('Login'),'admin'),p=lanInput(form,m('Hasło Shelly'),'','password');n.append(button(m('Sprawdź urządzenie'),()=>inspectLan(lanSelected,{username:u.value,password:p.value}),'primary'));return n;
  }
  const name=lanInput(form,m('Nazwa urządzenia'),lanSelected.name),room=lanSelect(form,m('Pomieszczenie'),[[0,m('Nieprzypisane')],...config.rooms.map(r=>[r.id,r.name])]);
- const channels=[];for(let kind=0;kind<3;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?(kind===1?lanSnapshot.capabilities.covers:lanSnapshot.capabilities.lights):0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`${kind===1?'cover':'light'}:${i}`:i,`${kind===1?'Cover':kind===2?'Light':'Switch'} ${i}`]);
+ const channels=[];for(let kind=0;kind<4;kind++)for(let i=0;i<16;i++)if(lanSelected.model!=='S3GW-1DBT001'&&((kind?(lanSelected.generation>=2?(kind===1?lanSnapshot.capabilities.covers:kind===2?lanSnapshot.capabilities.lights:lanSnapshot.capabilities.rgbs):0):lanSnapshot.capabilities.switches)&(1<<i)))channels.push([kind?`${kind===1?'cover':kind===2?'light':'rgb'}:${i}`:i,`${kind===1?'Cover':kind===2?'Light':kind===3?'RGB':'Switch'} ${i}`]);
  const channel=lanSelect(form,m('Kanał z odpowiedzi API'),channels.length?channels:[['',m('Brak obsługiwanego kanału')]]);
  n.append(el('p',m('Dodanie zachowuje poprzednie urządzenia i ich kanały.')));
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);

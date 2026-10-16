@@ -602,7 +602,7 @@ void dsr_ui_workspace_tick(void)
  else if(dirty)dsr_sc_label_set_text(status_label,save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany");
  else if(save_confirmed)dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");
 }
-typedef struct {dsr_device_t device;uint32_t layout_id,room,version;char previous_host[16];} migration_t;
+typedef struct {dsr_device_t device;uint32_t layout_id,room,version,candidate_id;char previous_host[16];} migration_t;
 static migration_t migrations[DSR_MAX_DEVICES];
 _Static_assert(sizeof(migrations)<=4096,"Migration fixed storage budget");
 static size_t migration_count;
@@ -612,8 +612,9 @@ static dsr_result_t migration_result=DSR_OK;
 static bool migration_failed;
 static bool migration_match(const cJSON *v,const migration_t *m)
 {
- if(dsr_endpoint_from_kind(string(v,"kind"))!=m->device.endpoint_kind)return false;
+ if(!dsr_endpoint_layout_matches(m->device.endpoint_kind,string(v,"kind")))return false;
  if(m->layout_id)return (uint32_t)integer(v,"id")==m->layout_id;
+ if(m->device.endpoint_kind==DSR_ENDPOINT_RGB)return false; /* New typed RGB never converts a host-only Light card. */
  if(integer(v,"channel")!=m->device.channel)return false;
  /* An unpublished endpoint may adopt legacy layout only if another durable
   * endpoint does not already own that numeric ID. */
@@ -628,7 +629,7 @@ static bool replace_text(cJSON *o,const char *key,const char *value)
  if(!ok)cJSON_Delete(v);
  return ok;
 }
-static bool merge_migration(cJSON *r,const migration_t *m)
+static bool merge_migration(cJSON *r,migration_t *m)
 {
  cJSON *a=cJSON_GetObjectItemCaseSensitive(r,"devices"),*found=NULL;int id=1;
  for(cJSON *v=a->child;v;v=v->next){if(migration_match(v,m)&&!found)found=v;if(integer(v,"id")>=id)id=integer(v,"id")+1;}
@@ -648,13 +649,17 @@ static bool merge_migration(cJSON *r,const migration_t *m)
    cJSON_AddItemToArray(tiles,t);
   }
  }
+ m->candidate_id=(uint32_t)integer(found,"id");
  if(!replace_text(found,"host",m->device.host))return false;
  if(m->room!=UINT32_MAX){uint32_t room=m->room;if(room&&object_index(item(r,"rooms"),(int)room)==255)room=0;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(found,"room"),room);if(!replace_text(found,"name",m->device.name))return false;}
  return true;
 }
 static void migration_ack(void)
 {
- size_t count=0;for(size_t i=0;i<migration_count;i++)if(migrations[i].version>migration_submitted)migrations[count++]=migrations[i];
+ size_t count=0;for(size_t i=0;i<migration_count;i++){
+  if(migrations[i].version>migration_submitted)migrations[count++]=migrations[i];
+  else if(migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB&&migrations[i].candidate_id)dsr_network_migrated_layout(&migrations[i].device,migrations[i].candidate_id);
+ }
  memset(migrations+count,0,(migration_count-count)*sizeof(*migrations));migration_count=count;
  cJSON_Delete(migration_document);migration_document=NULL;migration_failed=false;migration_result=migration_count?DSR_BUSY:DSR_OK;
 }
@@ -670,6 +675,8 @@ static void migration_tick(void)
   cJSON_Delete(migration_document);migration_document=NULL;
   /* Revision conflicts are retried from a fresh snapshot. Failed Flash ACK
    * is reported as IO; a BIND caller cancels its unapplied RAM intent. */
+  bool rgb_unconfirmed=false;for(size_t i=0;i<migration_count;i++)if(migrations[i].device.endpoint_kind==DSR_ENDPOINT_RGB&&!migrations[i].layout_id&&migrations[i].candidate_id)rgb_unconfirmed=true;
+  if(rgb_unconfirmed&&revision!=migration_revision){migration_failed=true;migration_result=DSR_CONFLICT;migration_retry=lv_tick_get()+5000;return;}
   if(revision==migration_revision){migration_failed=true;migration_result=DSR_IO;migration_retry=lv_tick_get()+5000;return;}
  }
  if(busy||(migration_failed&&(int32_t)(lv_tick_get()-migration_retry)<0))return;
@@ -699,7 +706,7 @@ void dsr_ui_workspace_migrate_bound(const dsr_connection_t *connection,uint32_t 
  size_t i=0;for(;i<migration_count;i++)if(migrations[i].device.endpoint_kind==connection->device.endpoint_kind&&migrations[i].device.channel==connection->device.channel&&migrations[i].device.generation==connection->device.generation&&!strcmp(migrations[i].device.device_id,connection->device.device_id))break;
  if(i==DSR_MAX_DEVICES){migration_failed=true;migration_result=DSR_FULL;return;}
  if(i==migration_count)migration_count++;
- migrations[i].device=connection->device;migrations[i].layout_id=connection->layout_id;migrations[i].room=room;migrations[i].version=++migration_serial;
+ migrations[i].device=connection->device;migrations[i].layout_id=connection->layout_id;migrations[i].room=room;migrations[i].candidate_id=0;migrations[i].version=++migration_serial;
  snprintf(migrations[i].previous_host,sizeof(migrations[i].previous_host),"%s",previous_host?previous_host:"");migration_failed=false;migration_result=DSR_BUSY;
 }
 bool dsr_ui_workspace_migrate_status(dsr_result_t *result)

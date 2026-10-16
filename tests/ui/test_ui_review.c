@@ -270,3 +270,5 @@ int main(int argc,char **argv)
  printf("PASS: %u review checks, %u real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks,frames_saved);
  lv_deinit();return 0;
 }
+
+void dsr_network_migrated_layout(const dsr_device_t *device,uint32_t id){(void)device;(void)id;}

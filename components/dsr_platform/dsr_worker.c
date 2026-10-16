@@ -169,7 +169,7 @@ static void network_task(void *arg)
             dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id);
             if(owned){actor_connection=&job.connection;actor_job=job.id;previous_guard=dsr_http_job_guard(actor_guard);previous_write=dsr_http_job_write_hook(actor_write);}
 #endif
-            event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):dsr_http_set_output(&job.connection, job.on);
+            event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
 #ifdef DSR_BOARD_ES3C35P
             if(owned){(void)dsr_http_job_guard(previous_guard);(void)dsr_http_job_write_hook(previous_write);actor_connection=NULL;actor_job=0;}
 #endif
@@ -217,7 +217,8 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_LIGHT) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_RGB) return DSR_INVALID;
+    if(job->kind==DSR_JOB_RGB&&(!dsr_rgb_intent_valid(job->rgb)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_RGB))return DSR_INVALID;
     if(job->kind==DSR_JOB_LIGHT&&(!dsr_light_intent_valid(job->light)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_LIGHT))return DSR_INVALID;
     if(job->kind==DSR_JOB_COVER&&(!dsr_cover_intent_valid(job->cover)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_COVER||job->cover.command==DSR_COVER_STOP))return DSR_INVALID;
     if(dsr_wifi_temporary_active()&&(job->kind<DSR_JOB_AP_SCAN||job->kind>DSR_JOB_AP_VERIFY))return DSR_BUSY;

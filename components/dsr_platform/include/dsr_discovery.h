@@ -10,7 +10,7 @@ typedef struct {
     uint8_t generation;
     bool auth_required;
 } dsr_lan_device_t;
-typedef struct {uint16_t switches, covers, lights;bool sensors;} dsr_lan_capabilities_t;
+typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors;} dsr_lan_capabilities_t;
 typedef enum {DSR_LAN_IDLE,DSR_LAN_SCANNING,DSR_LAN_DONE,DSR_LAN_CANCELLED,
               DSR_LAN_NO_WIFI,DSR_LAN_INSPECTING,DSR_LAN_INSPECTED,DSR_LAN_ERROR} dsr_lan_phase_t;
 typedef struct {

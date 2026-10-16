@@ -17,7 +17,7 @@ typedef enum {
 } dsr_result_t;
 
 typedef enum { DSR_GEN1 = 1, DSR_GEN2_PLUS = 2 } dsr_generation_t;
-typedef enum { DSR_ENDPOINT_SWITCH=0, DSR_ENDPOINT_COVER=1, DSR_ENDPOINT_LIGHT=2 } dsr_endpoint_kind_t;
+typedef enum { DSR_ENDPOINT_SWITCH=0, DSR_ENDPOINT_COVER=1, DSR_ENDPOINT_LIGHT=2, DSR_ENDPOINT_RGB=3 } dsr_endpoint_kind_t;
 typedef enum {DSR_COVER_STATE_UNKNOWN,DSR_COVER_STATE_OPEN,DSR_COVER_STATE_CLOSED,DSR_COVER_STATE_OPENING,DSR_COVER_STATE_CLOSING,DSR_COVER_STATE_STOPPED,DSR_COVER_STATE_CALIBRATING} dsr_cover_state_t;
 enum {DSR_COVER_VALID=1,DSR_COVER_POSITION=2,DSR_COVER_TARGET=4,DSR_COVER_POSITION_CONTROL=8};
 typedef struct {uint8_t state,current_pos,target_pos,flags,errors;} dsr_cover_status_t;
@@ -28,6 +28,18 @@ enum {DSR_LIGHT_CALIBRATING=1,DSR_LIGHT_UNCALIBRATED=2,DSR_LIGHT_NO_LOAD=4,DSR_L
 typedef struct {uint8_t brightness,target,flags,errors,conditions;} dsr_light_status_t;
 typedef enum {DSR_LIGHT_NONE,DSR_LIGHT_ON,DSR_LIGHT_OFF,DSR_LIGHT_SET_BRIGHTNESS} dsr_light_command_t;
 typedef struct {uint8_t command,brightness;} dsr_light_intent_t;
+/* Current sample only. Full transition targets are validated transiently at
+ * HTTP readback, never squeezed into an incomplete or optimistic sample. */
+enum {DSR_RGB_VALID=1,DSR_RGB_TRANSITION=2,DSR_RGB_ERROR=4};
+#define DSR_RGB_MODEL "SNDC-0D4P10WW"
+typedef struct {uint8_t r,g,b,brightness,flags;} dsr_rgb_status_t;
+typedef enum {DSR_RGB_NONE,DSR_RGB_ON,DSR_RGB_OFF,DSR_RGB_SET_BRIGHTNESS,DSR_RGB_SET_COLOR} dsr_rgb_command_t;
+typedef struct {uint8_t command;union {uint8_t brightness;uint8_t rgb[3];};} dsr_rgb_intent_t;
+bool dsr_rgb_intent_valid(dsr_rgb_intent_t intent);
+bool dsr_rgb_can_set(const dsr_rgb_status_t *status,dsr_rgb_intent_t intent);
+/* Public schema2 retains visual category light; private stable layout binding
+ * selects Light2 versus RGB3. This helper never authorizes host-only retyping. */
+bool dsr_endpoint_layout_matches(uint8_t endpoint_kind,const char *display_kind);
 typedef struct {
     char host[DSR_HOST_SIZE];
     char name[DSR_NAME_SIZE];
@@ -49,7 +61,7 @@ bool dsr_cover_intent_valid(dsr_cover_intent_t intent);
 bool dsr_cover_can_move(const dsr_cover_status_t *status,dsr_cover_intent_t intent);
 bool dsr_light_intent_valid(dsr_light_intent_t intent);
 bool dsr_light_can_set(const dsr_light_status_t *status,dsr_light_intent_t intent);
-/* Workspace kind is a transport family, never a hint to alias another API. */
+/* Public visual category. Transport routing always uses the private typed binding. */
 uint8_t dsr_endpoint_from_kind(const char *kind);
 const char *dsr_endpoint_kind_name(uint8_t kind);
 
@@ -61,6 +73,7 @@ typedef struct {
     bool post;
 } dsr_request_t;
 dsr_result_t dsr_cover_request_build(uint8_t channel,dsr_cover_intent_t intent,dsr_request_t *out);
+dsr_result_t dsr_rgb_request_build(uint8_t channel,dsr_rgb_intent_t intent,dsr_request_t *out);
 dsr_result_t dsr_light_request_build(uint8_t channel,dsr_light_intent_t intent,dsr_request_t *out);
 
 bool dsr_ipv4_valid(const char *host);

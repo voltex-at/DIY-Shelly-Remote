@@ -60,6 +60,19 @@ dsr_result_t dsr_fleet_light_request(dsr_fleet_t *f,unsigned index,dsr_light_int
  if(!dsr_activity_begin())return DSR_BUSY;
  s->queued=true;s->light=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
 }
+dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *f,unsigned index,dsr_rgb_intent_t intent,bool wifi,uint32_t now)
+{
+ if(!f||index>=f->count||!dsr_rgb_intent_valid(intent))return DSR_INVALID;
+ dsr_fleet_slot_t *s=&f->slots[index];
+ if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_RGB)return DSR_UNSUPPORTED;
+ if(s->queued||(s->in_flight&&s->operation==DSR_JOB_RGB))return DSR_BUSY;
+ if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
+ if(!wifi||!s->connection.device.online||!s->sample_valid||now-s->sample_ms>15000)return DSR_OFFLINE;
+ if(s->blocked)return s->result;
+ if(!dsr_rgb_can_set(&s->connection.telemetry.rgb,intent))return DSR_UNSUPPORTED;
+ if(!dsr_activity_begin())return DSR_BUSY;
+ s->queued=true;s->rgb=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+}
 void dsr_fleet_cancel_queued(dsr_fleet_t *f,unsigned index)
 {if(f&&index<f->count)discard(&f->slots[index]);}
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
@@ -78,14 +91,14 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
   if(s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0)return false;
- dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_JOB_LIGHT:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
- if(s->queued){if(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER)job->cover=s->cover;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT)job->light=s->light;else job->on=s->on;}
+ dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_JOB_LIGHT:s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB?DSR_JOB_RGB:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
+ if(s->queued){if(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER)job->cover=s->cover;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT)job->light=s->light;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB)job->rgb=s->rgb;else job->on=s->on;}
  *index=(unsigned)at;return true;
 }
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
- if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT)discard(s);
+ if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB)discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
 }
 bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,uint32_t now)
@@ -97,7 +110,7 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(!dsr_endpoint_equal(&s->connection.device,&event->device)||strcmp(s->connection.device.host,event->device.host))result=DSR_IDENTITY_MISMATCH;
  if(result==DSR_OK){s->connection.device=event->device;s->connection.telemetry=event->telemetry;s->failures=0;if(event->device.online){s->sample_valid=true;s->sample_ms=now;}}
  else {s->connection.device.online=false;s->connection.device.has_power=false;memset(&s->connection.telemetry,0,sizeof(s->connection.telemetry));if(s->failures<4)s->failures++;}
- if(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
+ if(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
  s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED;
  s->next_poll=now+(s->failures?(5000u<<s->failures):5000u);
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}

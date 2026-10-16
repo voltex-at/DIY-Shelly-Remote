@@ -165,7 +165,7 @@ void dsr_ui_ble_rpc_tick(void)
    inspecting=false;
    if(lan_copy->phase!=DSR_LAN_INSPECTED){failed(lan_copy->result);return;}
    if(!same(&lan_copy->selected,&found)||strcmp(lan_copy->selected.host,found.host)){failed(DSR_IDENTITY_MISMATCH);return;}
-   if(!lan_copy->capabilities.switches&&!lan_copy->capabilities.covers&&!lan_copy->capabilities.lights){failed(DSR_UNSUPPORTED);return;}
+   if(!lan_copy->capabilities.switches&&!lan_copy->capabilities.covers&&!lan_copy->capabilities.lights&&!lan_copy->capabilities.rgbs){failed(DSR_UNSUPPORTED);return;}
    dsr_lan_capabilities_t caps=lan_copy->capabilities;active=false;release();dsr_ui_lan_adopt(&found,&caps);
   }
  }

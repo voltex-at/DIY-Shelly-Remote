@@ -11,7 +11,7 @@ typedef struct {
  uint8_t failures;
  bool sample_valid,blocked,command_error,queued,in_flight,layout_enabled,urgent_stop;
  uint8_t mailbox_pending; /* LCD accepted intent before shared-mailbox take: move1/STOP2. */
- union {bool on;dsr_cover_intent_t cover;dsr_light_intent_t light;};
+ union {bool on;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_rgb_intent_t rgb;};
  dsr_job_kind_t operation;
 } dsr_fleet_slot_t;
 typedef struct {
@@ -26,6 +26,7 @@ int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);
 dsr_result_t dsr_fleet_request(dsr_fleet_t *fleet,unsigned index,bool on,bool wifi,uint32_t now);
 dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *fleet,unsigned index,dsr_cover_intent_t intent,bool wifi,uint32_t now);
+dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *fleet,unsigned index,dsr_rgb_intent_t intent,bool wifi,uint32_t now);
 dsr_result_t dsr_fleet_light_request(dsr_fleet_t *fleet,unsigned index,dsr_light_intent_t intent,bool wifi,uint32_t now);
 void dsr_fleet_cancel_queued(dsr_fleet_t *fleet,unsigned index);
 bool dsr_fleet_next(dsr_fleet_t *fleet,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index);

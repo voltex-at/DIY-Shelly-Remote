@@ -18,7 +18,7 @@ typedef struct {
  size_t tx_length,tx_used,rx_length,rx_used,pending_length;
 } dsr_rpc_stream_t;
 typedef struct {dsr_rpc_step_t kind;uint32_t session,sequence;uint16_t connection;const uint8_t *bytes;size_t length;uint8_t control[4];} dsr_rpc_action_t;
-typedef struct {dsr_lan_device_t device;char firmware[32];bool confirmed;} dsr_rpc_identity_t;
+typedef struct {dsr_lan_device_t device;char firmware[32];bool confirmed,rgb_profile;} dsr_rpc_identity_t;
 
 /* Private transport-independent protocol. Buffer ownership remains with its
  * manager until disconnect/drain. Response storage is RX_MAX+1 bytes, including

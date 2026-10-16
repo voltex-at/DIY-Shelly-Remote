@@ -99,6 +99,7 @@ static void wrapper(void)
  dsr_connection_t cover=c;cover.device.endpoint_kind=DSR_ENDPOINT_COVER;cover.layout_id=2;cover.device.power_w=777;cover.telemetry.energy_wh=999;
  dsr_history_binding(&cover,true);dsr_history_binding(&cover,false);dsr_history_record(&cover,2);dsr_history_forget(&cover.device);
  dsr_history_key_t ck=k;ck.kind=DSR_ENDPOINT_COVER;CHECK(!dsr_history_query(&ck,1)&&!dsr_history_json(&ck,1));
+ for(unsigned family=DSR_ENDPOINT_LIGHT;family<=DSR_ENDPOINT_RGB;family++){cover.device.endpoint_kind=(uint8_t)family;dsr_history_binding(&cover,true);dsr_history_record(&cover,3);dsr_history_forget(&cover.device);ck.kind=(uint8_t)family;CHECK(!dsr_history_query(&ck,1)&&!dsr_history_json(&ck,1));}
  s=dsr_history_query(&k,1);CHECK(s&&s->key.layout_id==1&&s->count==1&&s->points[0].power==0&&s->points[0].energy_wh==0&&s->points[0].count[0]==1);dsr_history_series_free(s);
  char *json=dsr_history_json(&k,1);CHECK(json);cJSON *r=cJSON_Parse(json);CHECK(r&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"points"))==1&&!strcmp(cJSON_GetObjectItemCaseSensitive(r,"timezone")->valuestring,"UTC"));cJSON_Delete(r);free(json);
  clock_utc+=300;monotonic+=301000;CHECK(dsr_history_service_due((uint32_t)monotonic));worker=true;dsr_history_service();worker=false;s=dsr_history_query(&k,24);CHECK(s&&s->status.durable);dsr_history_series_free(s);

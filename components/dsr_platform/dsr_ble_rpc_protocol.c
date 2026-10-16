@@ -117,6 +117,7 @@ dsr_result_t dsr_rpc_identity(const cJSON *result,dsr_rpc_identity_t *out)
  const cJSON *ver=cJSON_GetObjectItemCaseSensitive(result,"ver"),*provision=cJSON_GetObjectItemCaseSensitive(result,"provision");
  bool before_two;
  if(!cJSON_IsString(ver)||!supported_version(ver->valuestring,&before_two)||!cJSON_IsString(provision)||(strcmp(provision->valuestring,"pending")&&strcmp(provision->valuestring,"confirmed")))return DSR_UNSUPPORTED;
+ const cJSON *profile=cJSON_GetObjectItemCaseSensitive(result,"profile");identity.rgb_profile=identity.device.generation==2&&cJSON_IsString(profile)&&!strcmp(profile->valuestring,"rgb")&&!strcmp(identity.device.model,DSR_RGB_MODEL);
  strcpy(identity.firmware,ver->valuestring);identity.confirmed=!strcmp(provision->valuestring,"confirmed");*out=identity;return DSR_OK;
 }
 dsr_result_t dsr_rpc_setup_policy(const cJSON *system,const cJSON *methods,const cJSON *status,const dsr_rpc_identity_t *identity)
@@ -128,7 +129,8 @@ dsr_result_t dsr_rpc_setup_policy(const cJSON *system,const cJSON *methods,const
  if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)>256)return DSR_BAD_RESPONSE;
  for(unsigned i=0;i<sizeof(required)/sizeof(required[0]);i++){bool found=false;for(const cJSON *v=list->child;v;v=v->next){if(!cJSON_IsString(v))return DSR_BAD_RESPONSE;if(!strcmp(v->valuestring,required[i]))found=true;}if(!found)return DSR_UNSUPPORTED;}
  dsr_lan_capabilities_t caps={0};dsr_result_t parsed=dsr_lan_parse_capabilities(status,identity->device.generation,&caps);if(parsed!=DSR_OK)return parsed;
- if(!caps.switches&&!caps.covers&&!caps.lights)return DSR_UNSUPPORTED;
+ if(!caps.switches&&!caps.covers&&!caps.lights&&!caps.rgbs)return DSR_UNSUPPORTED;
+ if(caps.rgbs){if(!identity->rgb_profile)return DSR_UNSUPPORTED;const char *rgb_methods[]={"RGB.GetStatus","RGB.Set"};for(unsigned i=0;i<2;i++){bool found=false;for(const cJSON *v=list->child;v;v=v->next)if(!strcmp(v->valuestring,rgb_methods[i]))found=true;if(!found)return DSR_UNSUPPORTED;}}
  if(caps.lights){const char *light_methods[]={"Light.GetStatus","Light.Set"};for(unsigned i=0;i<2;i++){bool found=false;for(const cJSON *v=list->child;v;v=v->next)if(!strcmp(v->valuestring,light_methods[i]))found=true;if(!found)return DSR_UNSUPPORTED;}}
  for(const cJSON *v=status->child;v;v=v->next)if(!strncmp(v->string,"devicepower:",12)&&cJSON_GetObjectItemCaseSensitive(v,"battery"))return DSR_UNSUPPORTED;
  return DSR_OK;

@@ -99,6 +99,7 @@ void dsr_ui_workspace_tick(void);
 void dsr_ui_workspace_hide(void);
 void dsr_ui_workspace_migrate(const dsr_connection_t *connection);
 void dsr_ui_workspace_migrate_cancel(const dsr_device_t *device);
+void dsr_network_migrated_layout(const dsr_device_t *device,uint32_t id);
 bool dsr_ui_workspace_migrate_status(dsr_result_t *result);
 bool dsr_network_layout_reserved(uint32_t id);
 bool dsr_network_endpoint_added(const char *id,dsr_generation_t generation,unsigned channel);

@@ -25,7 +25,7 @@ async function fixture(cover=false){
  root.append(workspace);workspace.append(parent);
  const document={documentElement:{lang:'en'},createElement:tag=>new Node(tag),querySelector:selector=>selector==='#workspace'?workspace:null};
  const makeDevice=(device_id,channel)=>({device_id,generation:2,channel,host:'192.0.2.'+(channel+10),name:device_id,online:true,output:false,has_switch:true,has_power:true,power_w:2.5,has_voltage:false,has_current:false,pending:false,error:0,sample_age_ms:0,operation_id:0});
- const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover===2)Object.assign(devices[0],{endpoint_kind:2,has_switch:false,has_brightness:true,brightness:38,can_light:true,transitioning:false,has_brightness_target:false,brightness_target:0,light_errors:0,light_conditions:0});else if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
+ const devices=[makeDevice('shelly-a',0),makeDevice('shelly-b',1)];if(cover===3)Object.assign(devices[0],{endpoint_kind:3,has_switch:false,has_rgb:true,rgb:[12,34,56],brightness:38,can_rgb:true,transitioning:false,rgb_error:false});else if(cover===2)Object.assign(devices[0],{endpoint_kind:2,has_switch:false,has_brightness:true,brightness:38,can_light:true,transitioning:false,has_brightness_target:false,brightness_target:0,light_errors:0,light_conditions:0});else if(cover)Object.assign(devices[0],{endpoint_kind:1,has_switch:false,cover_state:5,has_position:true,position:38,has_target:false,target:0,can_move:true,can_position:true,can_stop:true,stop_pending:false,cover_errors:0});
  const state={boot:17,devices,gets:0,posts:[],dropPost:false,stale:null,hold:false,release:null};
  const context={window:{},document,page:'devices',config:null,queueMicrotask,performance:{now:()=>clock},
   MutationObserver:class{constructor(fn){observer=fn;}observe(){}},
@@ -34,7 +34,7 @@ async function fixture(cover=false){
    if(options?.method==='POST'){
     const body=JSON.parse(options.body);state.posts.push(body);
     const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel&&(item.endpoint_kind??0)===(body.endpoint_kind??0));assert(d);
-    eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
+    eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':body.endpoint_kind===3?'devices/rgb':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
     return{json:async()=>({accepted:true,operation_id:d.operation_id,boot_id:state.boot})};
    }
    eq(route,'devices/runtime');state.gets++;
@@ -55,6 +55,22 @@ async function fixture(cover=false){
  return{state,context,view,cards,button,advance,mount,locale:lang=>{document.documentElement.lang=lang;observer();},refresh:()=>context.window.dsrRuntimeRefresh()};
 }
 (async()=>{
+ {
+  const f=await fixture(3),card=f.cards()[0],range=card.children[5].children.find(n=>n.type==='range'),toggle=card.children[7],panel=card.children[8],color=panel.children[0],apply=panel.children[2];
+  ok(!f.button(0).disabled);eq(color.value,'#0c2238');ok(apply.disabled);toggle.listeners.click();ok(!panel.hidden);eq(f.state.posts.length,0);
+  color.value='#ff1100';color.listeners.input();eq(f.state.posts.length,0);ok(!apply.disabled);await f.refresh();f.locale('de');eq(color.value,'#ff1100');eq(f.cards()[0],card);eq(f.state.posts.length,0);
+  await apply.listeners.click();eq(f.state.posts.length,1);eq(f.state.posts[0],{device_id:'shelly-a',generation:2,channel:0,endpoint_kind:3,command:'rgb',rgb:[255,17,0]});ok(apply.disabled);ok(color.disabled);await apply.listeners.click();eq(f.state.posts.length,1);
+  f.state.devices[0].pending=false;f.state.devices[0].rgb=[255,17,0];await f.refresh();eq(color.value,'#ff1100');ok(!color.disabled);ok(apply.disabled);
+  range.value='0';range.listeners.input();eq(f.state.posts.length,1);await range.listeners.change();eq(f.state.posts.length,2);eq(f.state.posts[1].endpoint_kind,3);eq(f.state.posts[1].command,'brightness');eq(f.state.posts[1].brightness,0);
+ }
+ for(const loss of ['offline','host','transition','fault','epoch','age','color']){
+  const f=await fixture(3),card=f.cards()[0],panel=card.children[8],color=panel.children[0],apply=panel.children[2];
+  color.value='#ff1100';color.listeners.input();ok(!apply.disabled);const d=f.state.devices[0];
+  if(loss==='offline')d.online=false;else if(loss==='host')d.host='192.0.2.99';else if(loss==='transition')d.transitioning=true;else if(loss==='fault')d.rgb_error=true;else if(loss==='epoch')f.state.boot++;else if(loss==='color')d.rgb=[1,2,3];else f.advance(15001);
+  if(loss!=='age')await f.refresh();ok(apply.disabled);await apply.listeners.click();eq(f.state.posts.length,0);
+  d.online=true;d.transitioning=false;d.rgb_error=false;d.sample_age_ms=0;await f.refresh();ok(apply.disabled);await apply.listeners.click();eq(f.state.posts.length,0);color.value='#010203';color.listeners.input();await apply.listeners.click();eq(f.state.posts.length,1);eq(f.state.posts[0].rgb,[1,2,3]);
+ }
+
  {
   const f=await fixture();eq(f.state.gets,1);eq(f.cards().length,2);ok(!f.button(0).disabled);ok(!f.button(1).disabled);
   f.state.stale=clone(f.state.devices);await f.button(0).listeners.click();eq(f.state.posts.length,1);ok(f.button(0).disabled);ok(!f.button(1).disabled);

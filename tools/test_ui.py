@@ -93,3 +93,10 @@ if not args.review:
     light_binary=build / "test_light_ui"
     subprocess.run([cc,*flags,*map(str,light_objects),"-lm","-l:libcjson.so.1","-o",str(light_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     subprocess.run([str(light_binary),str(screens)],check=True,cwd=build)
+
+if not args.review:
+    rgb_object=compile_source(ROOT / "tests/ui/test_rgb_ui.c")
+    rgb_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[rgb_object]
+    rgb_binary=build / "test_rgb_ui"
+    subprocess.run([cc,*flags,*map(str,rgb_objects),"-lm","-l:libcjson.so.1","-o",str(rgb_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(rgb_binary),str(screens)],check=True,cwd=build)

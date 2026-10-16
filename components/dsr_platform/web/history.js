@@ -39,7 +39,7 @@
   try{const response=await request('history/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device_id:d.device_id,generation:d.generation,kind:kind(d),channel:d.channel,hours:range})});const data=await response.json();if(current()&&token===serial&&chosen===selected&&hours===range){if(!validSeries(data,d))throw Error('history shape');series=data;message='';draw();}}
   catch{if(current()&&token===serial){series=null;message='unavailable';draw();}}finally{fetching=false;if(current()&&(chosen!==selected||hours!==range))refresh();}
  }
- window.dsrHistorySnapshot=(snapshot,started=performance.now())=>{devices=Array.isArray(snapshot?.devices)?snapshot.devices.filter(d=>d.device_id&&(d.generation===1||d.generation===2)&&[0,1,2].includes(kind(d))):[];devices=devices.filter((d,i,a)=>a.findIndex(x=>key(x)===key(d))===i);received=started;draw();refresh();};
+ window.dsrHistorySnapshot=(snapshot,started=performance.now())=>{devices=Array.isArray(snapshot?.devices)?snapshot.devices.filter(d=>d.device_id&&(d.generation===1||d.generation===2)&&[0,1,2,3].includes(kind(d))):[];devices=devices.filter((d,i,a)=>a.findIndex(x=>key(x)===key(d))===i);received=started;draw();refresh();};
  window.dsrHistoryMount=parent=>{++serial;root=node('section',undefined,'box history-section');parent.append(root);queueMicrotask(()=>{draw();refresh();});};
  window.dsrHistoryRefresh=refresh;
  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});

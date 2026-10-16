@@ -6,7 +6,22 @@ static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
 uint8_t dsr_endpoint_from_kind(const char *kind)
 {return kind&&!strcmp(kind,"cover")?DSR_ENDPOINT_COVER:kind&&!strcmp(kind,"light")?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;}
 const char *dsr_endpoint_kind_name(uint8_t kind)
-{return kind==DSR_ENDPOINT_COVER?"cover":kind==DSR_ENDPOINT_LIGHT?"light":"relay";}
+{return kind==DSR_ENDPOINT_COVER?"cover":(kind==DSR_ENDPOINT_LIGHT||kind==DSR_ENDPOINT_RGB)?"light":"relay";}
+bool dsr_endpoint_layout_matches(uint8_t kind,const char *display)
+{return kind==DSR_ENDPOINT_RGB?display&&!strcmp(display,"light"):kind==dsr_endpoint_from_kind(display);}
+bool dsr_rgb_intent_valid(dsr_rgb_intent_t i)
+{return i.command>=DSR_RGB_ON&&i.command<=DSR_RGB_SET_COLOR&&(i.command==DSR_RGB_SET_COLOR||(i.rgb[1]==0&&i.rgb[2]==0&&(i.command==DSR_RGB_SET_BRIGHTNESS?i.brightness<=100:i.brightness==0)));}
+bool dsr_rgb_can_set(const dsr_rgb_status_t *s,dsr_rgb_intent_t i)
+{return s&&dsr_rgb_intent_valid(i)&&(s->flags&DSR_RGB_VALID)&&!(s->flags&(DSR_RGB_TRANSITION|DSR_RGB_ERROR));}
+dsr_result_t dsr_rgb_request_build(uint8_t channel,dsr_rgb_intent_t i,dsr_request_t *out)
+{
+ if(!out||channel!=0||!dsr_rgb_intent_valid(i))return DSR_INVALID;
+ memset(out,0,sizeof(*out));out->post=true;strcpy(out->path,"/rpc/RGB.Set");
+ if(i.command==DSR_RGB_SET_COLOR)snprintf(out->body,sizeof(out->body),"{\"id\":0,\"rgb\":[%u,%u,%u]}",i.rgb[0],i.rgb[1],i.rgb[2]);
+ else if(i.command==DSR_RGB_SET_BRIGHTNESS)snprintf(out->body,sizeof(out->body),"{\"id\":0,\"brightness\":%u}",i.brightness);
+ else snprintf(out->body,sizeof(out->body),"{\"id\":0,\"on\":%s}",i.command==DSR_RGB_ON?"true":"false");
+ return DSR_OK;
+}
 bool dsr_light_intent_valid(dsr_light_intent_t i)
 {return i.command>=DSR_LIGHT_ON&&i.command<=DSR_LIGHT_SET_BRIGHTNESS&&(i.command==DSR_LIGHT_SET_BRIGHTNESS?i.brightness<=100:i.brightness==0);}
 bool dsr_light_can_set(const dsr_light_status_t *s,dsr_light_intent_t i)
@@ -87,7 +102,8 @@ dsr_result_t dsr_registry_upsert(dsr_registry_t *registry, const dsr_device_t *d
     if (!registry || !device || registry->count > DSR_MAX_DEVICES ||
         !memchr(device->host, '\0', sizeof(device->host)) ||
         !memchr(device->name, '\0', sizeof(device->name)) ||
-        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL || device->endpoint_kind>DSR_ENDPOINT_LIGHT ||
+        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL || device->endpoint_kind>DSR_ENDPOINT_RGB ||
+        (device->endpoint_kind==DSR_ENDPOINT_RGB&&device->channel!=0) ||
         (device->endpoint_kind!=DSR_ENDPOINT_SWITCH&&device->generation!=DSR_GEN2_PLUS) ||
         (device->generation != DSR_GEN1 && device->generation != DSR_GEN2_PLUS)) return DSR_INVALID;
     for (size_t i = 0; i < registry->count; i++) {
