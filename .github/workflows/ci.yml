@@ -54,9 +54,11 @@ jobs:
       - name: Verify blank provisioning with original pinned IDF SPIFFS
         run: |
           git clone --depth 1 --filter=blob:none --sparse --branch v5.5.4 https://github.com/espressif/esp-idf.git .test-deps/esp-idf
-          git -C .test-deps/esp-idf sparse-checkout set components/spiffs
+          git -C .test-deps/esp-idf sparse-checkout set components/spiffs components/http_parser
           git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs
           python3 tools/test_idf_spiffs.py --sanitize
+      - name: Verify raw HTTP fragmentation with original pinned IDF parser
+        run: python3 tools/test_ota_fetch_parser.py --idf .test-deps/esp-idf --sanitize
   diagnostic:
     runs-on: ubuntu-24.04
     strategy:

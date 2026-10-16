@@ -19,6 +19,27 @@ Full native/config265, unchanged LVGL2237/96 and review2635/24 pass locally;
 exact-source target CI/artifact and physical network tests are separate gates.
 [Contract, source references and remaining gates](docs/OTA_FETCH_PL.md).
 
+PR #41 source 7744651: exact-source CI 5/5
+[run 38858870344](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38858870344).
+Downloaded firmware12028162155/debug12028097266 pass archive CRC/SHA,
+source/version/chip/project, every flasher/merged segment, app XOR/appended SHA,
+ELF descriptor SHA, license and unchanged partition table. App1772528 B SHA256
+8b3b3ee48bd12c7464a03ab8765544e9ef7b5ddaa2f395c147ed92b80ebc974a;
+ELF8899cf7c3b5d3474ca517feccb2f42ab3e91fed5a2ef5aa3719669c27380aaa7.
+Target fetch frames32/48/64 B, heap context compile-time bound<=8192 B;
+BSS48904 internal/145504 external and UI stack8192 unchanged. Actual BIN also
+passes existing receiver/pinned software SHA memory sink chunks1/511/512/4096.
+These are target/build/host proofs, not device TLS, installation or P0 acceptance.
+
+Additional test-only follow-up uses original IDF HTTP parser7355072 with both
+file SHA256 pins, real fetch/verifier/Ed25519 and independent HOST signatures:
+3010 raw-wire cases/provider,1614269 HOST-trust/2109597 production-empty
+UBSan checks PASS. Each response fragment size, every truncated CL/chunked
+prefix, trailers, duplicate/conflicting headers, body cached with headers,
+malformed wire and modified signed bytes covered. SDK header assembly/cache/
+transport remain explicit models; no sockets/TLS/hardware proof. Full sanitizer
+CI for this follow-up is pending; local LSan is blocked by restricted /proc.
+
 PR #40 source 3501a67: exact-source CI 5/5
 [run 38854805117](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38854805117).
 Firmware/debug CRC/SHA/source/version/chip/segments/checksum/ELF SHA/license/

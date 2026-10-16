@@ -6,6 +6,10 @@
 i istniejący verifier. Date checks włączone; unset UTC odmawia, nie dodano SNTP.
 Produkcja ma pusty publisher truststore. Brak LCD/release pickera/app download/
 Flash/instalacji. Fizyczny TLS/time/network peak i pełne OTA nadal otwarte.
+PR #41 7744651: CI5/5/38858870344, pobrany BIN1772528 B/ELF/partycje/audit
+sprawdzone. Dodatkowy test-only raw HTTP harness:3010 przypadków/provider,
+UBSan1614269/2109597 PASS, oryginalny przypięty parser IDF; transport SDK nadal
+modelowany. Pełny sanitizer CI tego follow-up osobno, nie physical TLS PASS.
 PR #40 3501a67: CI5/5/38854805117 i rzeczywisty BIN/ELF/receiver zweryfikowane.
 
 ## #24: istniejący dev Web upload — integracja strumienia

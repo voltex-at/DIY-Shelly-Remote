@@ -87,6 +87,25 @@ akceptację wyłącznie przez **DSR_FETCH_OK**, nie sam result verifiera.
 Native/config265, UI2237/96 i review2635/24 PASS. Niezależne review koordynatora
 bez blockerów; target CI oraz fizyczny TLS pozostają oddzielnymi bramkami.
 
+PR #41 source7744651: exact-source CI38858870344 **5/5 PASS**. Pobrany BIN
+1772528 B (SHA256 `8b3b3ee48bd12c7464a03ab8765544e9ef7b5ddaa2f395c147ed92b80ebc974a`)
+i ELF, CRC/SHA ZIP, source/version/chip/project, segmenty, checksum/SHA app,
+ELF SHA w descriptorze, licencje i niezmienione partycje sprawdzone. Target:
+własne ramki fetch32/48/64 B, bound kontekstu<=8192 B, internal/external BSS
+48904/145504 B i UI stack8192 B bez zmian. To nie pomiar transitive SDK/TLS peak.
+
+Test-only follow-up: `tools/test_ota_fetch_parser.py --idf PATH --sanitize`
+czyta oryginalne `http_parser.c/h` z commita IDF
+`735507283d5b2f9fb363a1901172dbd9e847945d`, sprawdza SHA256 obu plików,
+nie pobiera sieci i nie vendoruje SDK. Rzeczywisty parser, fetch i Ed25519,
+3010 raw-wire przypadków na provider (UBSan1614269 HOST/2109597 production
+empty PASS): każda wielkość fragmentu odpowiedzi CL/chunked, każdy urwany
+prefiks, trailers, framing/duplikaty, body razem z headers, malformed bytes
+i zmienione podpisane dane. **Header assembly/cache/transport klienta SDK są
+nadal modelami**; brak prawdziwej sieci/certyfikatów i bramki sprzętowej.
+Pełne ASan/UBSan/LSan dla follow-up sprawdza osobny krok CI; lokalny LSan
+jest blokowany przez ograniczony dostęp /proc, nie liczy się jako PASS.
+
 Nadal otwarte: źródło poprawnego czasu, zatwierdzony klucz i signed Release,
 release discovery, integracja LCD/worker, app download/progress/cancel,
 instalacja, zdrowy boot/rollback oraz fizyczne zachowanie Wi-Fi/Rooms/zdjęć.
