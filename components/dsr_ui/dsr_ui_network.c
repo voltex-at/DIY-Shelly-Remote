@@ -546,6 +546,14 @@ static void __attribute__((noinline)) consume_stop(uint32_t now,bool outer_pendi
   }render();
  }
 }
+/* Keep the private BIND snapshot out of the main LVGL polling frame. */
+static void __attribute__((noinline)) consume_bind(void)
+{
+ if(!busy&&!finishing_bind&&!dsr_worker_stop_pending()){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
+  pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
+  if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
+ }}
+}
 static void poll(lv_timer_t *timer)
 {
  (void)timer;if(!dsr_activity_begin())return;uint32_t now=lv_tick_get();dsr_event_t event;
@@ -632,10 +640,7 @@ static void poll(lv_timer_t *timer)
   }
  }
  if(intent_changed)render();
- if(!busy&&!finishing_bind&&!dsr_worker_stop_pending()){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
-  pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
-  if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
- }}
+ consume_bind();
  static uint32_t config_revision;uint32_t next_revision=dsr_workspace_revision();if(config_revision!=next_revision){config_revision=next_revision;render();}
  reconcile_layout(false);
  if(finishing_bind||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_wifi_ui_active()||dsr_network_ota_busy())dsr_actions_mode_block();
