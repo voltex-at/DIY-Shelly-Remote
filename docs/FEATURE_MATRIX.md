@@ -27,5 +27,34 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
 | Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 
-Poza zakresem tej wersji: Stable, zmiana tablicy partycji, Gen1, sterowanie H&T,
-historia Light/RGB/Cover.
+| Nazwa zamiast SKU w kreatorze, na kartach i w Web Panelu (decyzja 2026-10-18) | nie | nie | zgłoszone (lista „Gefundene Geräte” i nagłówek karty pokazują SKU, np. `SPSH-002PE16EU`) | — |
+| Pole modelu w Settings wypełniane z `model` (zamiast „Modell nicht ausgelesen”) | nie | nie | zgłoszone (`shellypro2cover`) | — |
+| Synchronizacja nazwy z Shelly, wariant B — nazwa lokalna ma pierwszeństwo (decyzja 2026-10-18) | nie | nie | brak testu | — |
+| Rozpoznawanie typu po `profile` i komponentach, wszystkie kanały (decyzja 2026-10-18) | nie | nie | zgłoszone (Pro 2 Cover pokazuje tylko „Kanal 0”) | — |
+
+### Decyzje właściciela 2026-10-18 (szczegóły do powyższych wierszy)
+
+1. **Nazwa zamiast SKU.** Kolejność wyświetlania: nazwa lokalna → `name` z
+   Shelly → przyjazna nazwa modelu → `id`. SKU jako druga linia. Przy duplikacie
+   lub braku nazwy dopisek końcówki MAC (np. „Lampa · 2b84”). Klucz wiązania
+   pozostaje `id`/MAC; nazwa nie trafia do nazw plików SPIFFS. Sprawdzić znaki
+   PL/DE w czcionce LVGL i skracanie długich nazw.
+2. **Synchronizacja nazwy — wariant B.** Osobno przechowywane: nazwa lokalna i
+   ostatnio odczytana nazwa z Shelly (odświeżana w tle zawsze). Nazwa lokalna ma
+   pierwszeństwo. „Karte bearbeiten” ma opcję „Użyj nazwy z Shelly”, która czyści
+   nazwę lokalną. Pilot nie zapisuje nazwy w Shelly (bez `Sys.SetConfig`).
+   Odbiór: zmiana nazwy w aplikacji Shelly widoczna na LCD i w WWW po kolejnym
+   odświeżeniu statusu (karty bez nazwy lokalnej); nazwa lokalna zachowana;
+   reset przywraca synchronizację; pusta `name` → nazwa modelu; brak duplikatów
+   i utraty pokoju, kanału i historii; stan zachowany po restarcie.
+3. **Rozpoznawanie typu.** `profile` (tylko urządzenia wieloprofilowe) określa
+   tryb; lista komponentów (`switch:N`, `cover:N`, `light:N`, `rgb:N`, `rgbw:N`,
+   `temperature:N`, `humidity:N`…) jest źródłem prawdy; `app` tylko podpowiedź.
+   Brak znanego komponentu → „nieobsługiwane”, nigdy zastępczy przekaźnik.
+   Urządzenia wielokanałowe: zaproponować wszystkie kanały.
+4. **Gen1 odrzucone** — brak urządzeń do testów.
+
+Kolejność: po zamknięciu bieżących prac P0 — najpierw (1)+(2), potem (3).
+
+Poza zakresem tej wersji: Stable, zmiana tablicy partycji, Gen1 (decyzja
+właściciela 2026-10-18: odrzucone), sterowanie H&T, historia Light/RGB/Cover.
