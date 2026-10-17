@@ -36,8 +36,8 @@ int main(int argc,char **argv)
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  /* Boot splash follows the NVS style hint before the workspace exists. */
  style_hint=DSR_SC_STYLE_GRAPHITE;dsr_ui_splash_begin();CHECK(dsr_ui_splash_visible()&&provision_gate&&dsr_ui_brand_splash()==dsr_ui_brand_splash());
- screenshot("300-splash-dark");dsr_ui_splash_end();CHECK(!provision_gate);dsr_ui_splash_release();
- style_hint=DSR_SC_STYLE_LIGHT;dsr_ui_splash_begin();CHECK(dsr_sc_style()==DSR_SC_STYLE_LIGHT);screenshot("301-splash-light");dsr_ui_splash_end();
+ screenshot("330-splash-dark");dsr_ui_splash_end();CHECK(!provision_gate);dsr_ui_splash_release();
+ style_hint=DSR_SC_STYLE_LIGHT;dsr_ui_splash_begin();CHECK(dsr_sc_style()==DSR_SC_STYLE_LIGHT);screenshot("331-splash-light");dsr_ui_splash_end();
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();CHECK(!dsr_ui_splash_visible());tick();
  /* Same frames in graphite (dark art) and light; the hint follows the config. */
  const char *styles[]={"graphite","light"};
@@ -45,19 +45,19 @@ int main(int argc,char **argv)
   publish_style(styles[s]);const bool light=s==1;CHECK(dsr_sc_style()==(light?DSR_SC_STYLE_LIGHT:DSR_SC_STYLE_GRAPHITE)&&style_hint==dsr_sc_style());
   char name[48];const double minimum=4.0;
   dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(const void *)dsr_ui_brand_background());
-  contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-home-%s",302+s*10,styles[s]);screenshot(name);
+  contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-home-%s",332+s*10,styles[s]);screenshot(name);
   if(!s){
    dsr_network_device(NULL);choose_method("Dodaj ręcznie (IP)");lv_textarea_set_text(find_type(lv_screen_active(),&lv_textarea_class),"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
    response.device=(dsr_device_t){.host="192.168.1.77",.name="Desk lamp",.device_id="shellyplus1-AABBCCDDEEFF",.generation=DSR_GEN2_PLUS,.online=true,.has_switch=true,.output=true,.has_power=true,.power_w=4.1};
    response.telemetry=(dsr_telemetry_t){.has_voltage=true,.has_current=true,.voltage_v=230.4,.current_a=0.018};deliver(DSR_OK,DSR_WIFI_IDLE);
   }
-  dsr_network_home(NULL);tick();CHECK(find_label(lv_screen_active(),"Desk lamp"));contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-card-%s",303+s*10,styles[s]);screenshot(name);
-  click("Desk lamp");tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-device-%s",304+s*10,styles[s]);screenshot(name);
-  dsr_ui_open_settings();tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-settings-%s",305+s*10,styles[s]);screenshot(name);
-  tap_row("Wygląd i język");tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-appearance-%s",306+s*10,styles[s]);screenshot(name);
-  dsr_network_device(NULL);tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-wizard-%s",307+s*10,styles[s]);screenshot(name);
-  choose_method("Dodaj ręcznie (IP)");tick();snprintf(name,sizeof(name),"%u-style-form-%s",308+s*10,styles[s]);screenshot(name);
-  dsr_ui_edit_dashboard();tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-editor-%s",309+s*10,styles[s]);screenshot(name);
+  dsr_network_home(NULL);tick();CHECK(find_label(lv_screen_active(),"Desk lamp"));contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-card-%s",333+s*10,styles[s]);screenshot(name);
+  click("Desk lamp");tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-device-%s",334+s*10,styles[s]);screenshot(name);
+  dsr_ui_open_settings();tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-settings-%s",335+s*10,styles[s]);screenshot(name);
+  tap_row("Wygląd i język");tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-appearance-%s",336+s*10,styles[s]);screenshot(name);
+  dsr_network_device(NULL);tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-wizard-%s",337+s*10,styles[s]);screenshot(name);
+  choose_method("Dodaj ręcznie (IP)");tick();snprintf(name,sizeof(name),"%u-style-form-%s",338+s*10,styles[s]);screenshot(name);
+  dsr_ui_edit_dashboard();tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-editor-%s",339+s*10,styles[s]);screenshot(name);
   dsr_network_home(NULL);tick();
  }
  /* Theme switch back to dark restores dark art; hint written once per change. */

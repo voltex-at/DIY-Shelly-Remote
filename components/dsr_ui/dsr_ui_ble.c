@@ -22,10 +22,30 @@ static void leave(lv_event_t *event){(void)event;dsr_ble_cancel();if(from_settin
 static void stop(lv_event_t *event){(void)event;dsr_ble_cancel();if(notice)dsr_sc_label_set_text(notice,"Zatrzymywanie skanu…");}
 static void back(lv_event_t *event){(void)event;detail=false;show_results();}
 static void provision(lv_event_t *event){(void)event;dsr_ui_ble_rpc_open(&selected_device);}
+/* Title: BLU model name, else the advertised local name (Gen2+ Shelly sends
+ * e.g. "ShellyPlus1PM-…"), else a Shelly manufacturer hint, else unknown. */
 static const char *title(const dsr_ble_device_t *d)
-{const char *model=dsr_ble_model_name(d);return model[0]?model:dsr_sc_tr(d->kind==DSR_BLE_SHELLY_RPC?"Shelly • reklamowane RPC":"Nierozpoznane urządzenie");}
+{
+ static char text[48];const char *model=dsr_ble_model_name(d);if(model[0])return model;
+ if(d->name[0])return d->name;
+ if(d->evidence&DSR_BLE_MFG){if(d->has_model)snprintf(text,sizeof(text),dsr_sc_tr("Shelly • model 0x%04X"),(unsigned)d->model_id);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Shelly • model nieznany"));return text;}
+ return dsr_sc_tr(d->kind==DSR_BLE_SHELLY_RPC?"Shelly • reklamowane RPC":"Nierozpoznane urządzenie");
+}
+/* Shelly MAC from the manufacturer block when present, else the radio address
+ * (NimBLE stores it little-endian). Discovery hint only, not authenticated. */
+static void address_text(const dsr_ble_device_t *d,char *out,size_t size)
+{
+ const uint8_t *a=d->address;
+ if(d->has_mac)snprintf(out,size,"MAC %02X:%02X:%02X:%02X:%02X:%02X",d->mac[0],d->mac[1],d->mac[2],d->mac[3],d->mac[4],d->mac[5]);
+ else snprintf(out,size,dsr_sc_tr("Adres BLE %02X:%02X:%02X:%02X:%02X:%02X"),a[5],a[4],a[3],a[2],a[1],a[0]);
+}
+static const char *rpc_state(const dsr_ble_device_t *d)
+{return d->kind==DSR_BLE_SHELLY_BLU?"Shelly BLU • czujnik/przycisk":d->has_flags?((d->flags&DSR_BLE_FLAG_RPC)?"RPC przez BLE: włączone":"RPC przez BLE: wyłączone"):d->kind==DSR_BLE_SHELLY_RPC?"RPC: do sprawdzenia po połączeniu":"Niezidentyfikowana reklama";}
 static const char *kind(const dsr_ble_device_t *d)
 {return d->kind==DSR_BLE_SHELLY_RPC?"Shelly • reklamowane RPC":d->kind==DSR_BLE_SHELLY_BLU?"Shelly BLU • reklama BLE":(d->evidence&DSR_BLE_BTHOME)?"BTHome • producent nieznany":"Niezidentyfikowana reklama";}
+/* Short form for the 320 px list row; the detail shows the full sentence. */
+static const char *rpc_short(const dsr_ble_device_t *d)
+{return d->kind==DSR_BLE_SHELLY_BLU?"Shelly BLU":d->has_flags?((d->flags&DSR_BLE_FLAG_RPC)?"RPC BLE: tak":"RPC BLE: nie"):d->kind==DSR_BLE_SHELLY_RPC?"RPC do sprawdzenia":"Inna reklama";}
 static void truncated(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_CLIP);}
 static void choose(lv_event_t *event)
 {
@@ -33,12 +53,14 @@ static void choose(lv_event_t *event)
  selected_device=scan.devices[selected];const dsr_ble_device_t *d=&selected_device;lv_obj_t *root=screen();
  lv_obj_t *card=dsr_sc_panel(root,12,88,296,98,DSR_SC_CARD,14);dsr_sc_icon(card,d->kind==DSR_BLE_SHELLY_BLU?DSR_ICON_CONTACT:DSR_ICON_PLUG,10,23,32,DSR_SC_TEXT);
  truncated(dsr_sc_text(card,title(d),54,10,230,&dsr_roboto_14,DSR_SC_TEXT),22);
- char advertised[96];snprintf(advertised,sizeof(advertised),dsr_sc_tr("Reklama: %s"),d->name[0]?d->name:dsr_sc_tr("bez nazwy"));
+ char advertised[96];address_text(d,advertised,sizeof(advertised));
  truncated(dsr_sc_text(card,advertised,54,37,230,&dsr_roboto_12,DSR_SC_MUTED),18);
  truncated(dsr_sc_text(card,kind(d),54,65,230,&dsr_roboto_12,DSR_SC_MUTED),18);
  dsr_sc_text(root,"Wykryto • nie sparowano",16,201,288,&dsr_roboto_16,DSR_SC_BLUE);
  char text[96];snprintf(text,sizeof(text),"RSSI %d dBm",d->rssi);dsr_sc_chip(root,text,16,233,200,DSR_SC_TEXT);
  if(d->evidence&DSR_BLE_BTHOME)dsr_sc_chip(root,d->encrypted?"BTHome v2 • szyfrowane":"BTHome v2 • jawne",16,261,288,DSR_SC_TEXT);
+ else if(d->kind!=DSR_BLE_OTHER||d->has_flags)dsr_sc_chip(root,rpc_state(d),16,261,288,(d->has_flags&&!(d->flags&DSR_BLE_FLAG_RPC))?0xffc18c:DSR_SC_TEXT);
+ if(d->has_flags&&(d->flags&(DSR_BLE_FLAG_AUTH|DSR_BLE_FLAG_PAIRING))){char extra[80];snprintf(extra,sizeof(extra),"%s%s%s",(d->flags&DSR_BLE_FLAG_AUTH)?dsr_sc_tr("Hasło włączone"):"",(d->flags&DSR_BLE_FLAG_AUTH)&&(d->flags&DSR_BLE_FLAG_PAIRING)?" • ":"",(d->flags&DSR_BLE_FLAG_PAIRING)?dsr_sc_tr("Tryb parowania"):"");dsr_sc_chip(root,extra,16+212,233,76,DSR_SC_MUTED);}
  notice=dsr_sc_text(root,"",16,294,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_sc_text(root,d->kind==DSR_BLE_SHELLY_RPC?"Otwarty setup Gen2+: sprawdź urządzenie, a następnie osobno potwierdź przekazanie Wi-Fi.":(d->kind==DSR_BLE_SHELLY_BLU||(d->evidence&DSR_BLE_BTHOME))?"Skan nie dodaje do Wi-Fi. BLU i BTHome nie są obsługiwane przez kreator Wi-Fi.":"Nie potwierdzono modelu ani RPC. Ta reklama nie umożliwia dodania do Wi-Fi.",16,331,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Wstecz",back,d->kind==DSR_BLE_SHELLY_RPC?"Dodaj przez BLE":NULL,d->kind==DSR_BLE_SHELLY_RPC?provision:NULL);
@@ -53,8 +75,8 @@ static void show_results(void)
   for(unsigned i=0;i<scan.count;i++){
    const dsr_ble_device_t *d=&scan.devices[i];if((unsigned)d->kind!=group)continue;
    if(!heading){dsr_sc_text(list,groups[group],4,y,288,&dsr_roboto_12,DSR_SC_MUTED);y+=26;heading=true;}
-   char advertised[80],status[96];snprintf(advertised,sizeof(advertised),dsr_sc_tr("Reklama: %s"),d->name[0]?d->name:dsr_sc_tr("bez nazwy"));
-   snprintf(status,sizeof(status),dsr_sc_tr("Wykryto • %d dBm • niesparowane"),d->rssi);
+   char advertised[80],status[96];address_text(d,advertised,sizeof(advertised));
+   snprintf(status,sizeof(status),"%d dBm • %s",d->rssi,dsr_sc_tr(rpc_short(d)));
    dsr_onboarding_result(list,y,d->kind==DSR_BLE_SHELLY_BLU?DSR_ICON_CONTACT:DSR_ICON_PLUG,title(d),advertised,status,false,choose,(void *)(uintptr_t)i);y+=96;
   }
  }

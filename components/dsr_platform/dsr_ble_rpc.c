@@ -195,7 +195,7 @@ static void run(bool host_ready)
 }
 dsr_result_t dsr_ble_rpc_start(const dsr_ble_device_t *candidate)
 {
- if(!candidate||candidate->kind!=DSR_BLE_SHELLY_RPC||!(candidate->evidence&DSR_BLE_RPC)||candidate->address_type>1||now_ms()-candidate->seen_ms>30000)return DSR_INVALID;
+ if(!candidate||candidate->kind!=DSR_BLE_SHELLY_RPC||!(candidate->evidence&DSR_BLE_RPC_HINTS)||candidate->address_type>1||now_ms()-candidate->seen_ms>30000)return DSR_INVALID;
  if(dsr_ap_sensitive()||dsr_wifi_temporary_active()||!dsr_wifi_connected())return DSR_BUSY;
  if(!mutex){mutex=xSemaphoreCreateMutex();if(!mutex)return DSR_IO;}
  lock();if(atomic_load(&active)||state.generation==UINT32_MAX){unlock();return DSR_BUSY;}

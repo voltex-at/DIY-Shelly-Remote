@@ -62,6 +62,20 @@ static void parser_tests(void)
  dsr_ble_device_t d;CHECK(dsr_ble_parse(blu,sizeof(blu),&d));CHECK(d.kind==DSR_BLE_SHELLY_BLU&&d.model_id==2);CHECK(!strcmp(dsr_ble_model_name(&d),"Shelly BLU DoorWindow"));
  CHECK(dsr_ble_parse(bthome,sizeof(bthome),&d));CHECK(d.kind==DSR_BLE_OTHER&&d.bthome_version==2&&!d.encrypted);
  CHECK(dsr_ble_parse(rpc,sizeof(rpc),&d));CHECK(d.kind==DSR_BLE_SHELLY_RPC&&!d.has_model);
+ /* Gen2+ Wi-Fi Shelly: 0x0BA9 flags (RPC bit) + MAC + model, no 128-bit UUID. */
+ const uint8_t shelly_rpc[]={16,0xff,0xa9,0x0b,0x01,0x05,0x00,0x0a,0xAA,0xBB,0xCC,0xDD,0xEE,0xFF,0x0b,0x34,0x12};
+ CHECK(dsr_ble_parse(shelly_rpc,sizeof(shelly_rpc),&d));CHECK(d.kind==DSR_BLE_SHELLY_RPC&&(d.evidence&DSR_BLE_RPC_FLAG)&&d.has_flags&&d.flags==5&&d.has_mac&&d.mac[0]==0xAA&&d.mac[5]==0xFF&&d.has_model&&d.model_id==0x1234&&!dsr_ble_model_name(&d)[0]);
+ const uint8_t shelly_no_rpc[]={6,0xff,0xa9,0x0b,0x01,0x01,0x00};
+ CHECK(dsr_ble_parse(shelly_no_rpc,sizeof(shelly_no_rpc),&d));CHECK(d.kind==DSR_BLE_OTHER&&(d.evidence&DSR_BLE_MFG)&&d.has_flags&&!(d.evidence&DSR_BLE_RPC_FLAG));
+ const uint8_t named[]={17,9,'S','h','e','l','l','y','P','l','u','s','1','-','A','B','C','D'};
+ CHECK(dsr_ble_parse(named,sizeof(named),&d));CHECK(d.kind==DSR_BLE_SHELLY_RPC&&(d.evidence&DSR_BLE_NAME));
+ const uint8_t blu_name[]={10,9,'S','B','B','T','-','0','0','2','C'};
+ CHECK(dsr_ble_parse(blu_name,sizeof(blu_name),&d));CHECK(d.kind==DSR_BLE_SHELLY_BLU);
+ {/* Name in the advertisement, flags+MAC in the scan response: one row. */
+  dsr_ble_snapshot_t m={0};dsr_ble_begin(&m,1);m.phase=DSR_BLE_SCANNING;uint8_t a[6]={9,8,7,6,5,4};
+  CHECK(dsr_ble_ingest(&m,m.generation,a,0,-70,named,sizeof(named),2)&&dsr_ble_ingest(&m,m.generation,a,0,-68,shelly_rpc,sizeof(shelly_rpc),3));
+  CHECK(m.count==1&&m.devices[0].kind==DSR_BLE_SHELLY_RPC&&!strcmp(m.devices[0].name,"ShellyPlus1-ABCD")&&m.devices[0].has_mac&&m.devices[0].rssi==-68);
+ }
  const uint8_t unrelated[]={3,9,'A','B'};CHECK(dsr_ble_parse(unrelated,sizeof(unrelated),&d));CHECK(!d.evidence);
  CHECK(!dsr_ble_parse(NULL,0,&d));CHECK(!dsr_ble_parse(blu,sizeof(blu),NULL));CHECK(!dsr_ble_parse(blu,32,&d));
  for(size_t n=1;n<sizeof(blu);n++)CHECK(!dsr_ble_parse(blu,n,&d));

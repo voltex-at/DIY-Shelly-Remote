@@ -10,13 +10,21 @@
 #define DSR_BLE_MAX_ADV 31u
 typedef enum {DSR_BLE_IDLE,DSR_BLE_STARTING,DSR_BLE_SCANNING,DSR_BLE_DONE,DSR_BLE_CANCELLED,DSR_BLE_UNAVAILABLE} dsr_ble_phase_t;
 typedef enum {DSR_BLE_SHELLY_RPC,DSR_BLE_SHELLY_BLU,DSR_BLE_OTHER} dsr_ble_kind_t;
-enum {DSR_BLE_MFG=1,DSR_BLE_RPC=2,DSR_BLE_BTHOME=4,DSR_BLE_BLU_SERVICE=8,DSR_BLE_NAME=16};
+enum {DSR_BLE_MFG=1,DSR_BLE_RPC=2,DSR_BLE_BTHOME=4,DSR_BLE_BLU_SERVICE=8,DSR_BLE_NAME=16,DSR_BLE_RPC_FLAG=32};
+/* Shelly 0x0BA9 manufacturer block 0x01 flag bits (shelly-api-docs, docs-ble). */
+enum {DSR_BLE_FLAG_DISCOVERABLE=1,DSR_BLE_FLAG_AUTH=2,DSR_BLE_FLAG_RPC=4,DSR_BLE_FLAG_BUZZER=8,DSR_BLE_FLAG_PAIRING=16};
+/* Any hint that a Gen2+ Wi-Fi Shelly may answer RPC over GATT. The 128-bit
+ * service UUID rarely fits the 31-byte legacy advertisement, so the Shelly
+ * manufacturer RPC flag or a "Shelly…" local name also qualify; the GATT
+ * session still verifies the real service before anything is written. */
+#define DSR_BLE_RPC_HINTS (DSR_BLE_RPC|DSR_BLE_RPC_FLAG|DSR_BLE_NAME)
 typedef struct {
     uint8_t address[6],address_type,evidence,bthome_version;
     int8_t rssi;
     char name[32];
-    uint16_t model_id;
-    bool has_model,encrypted;
+    uint16_t model_id,flags;
+    uint8_t mac[6];
+    bool has_model,encrypted,has_flags,has_mac;
     dsr_ble_kind_t kind;
     uint32_t seen_ms;
 } dsr_ble_device_t;

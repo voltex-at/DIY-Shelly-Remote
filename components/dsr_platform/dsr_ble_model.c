@@ -7,10 +7,12 @@ static const uint8_t rpc_uuid[]={0x5f,0x44,0x49,0x5f,0x43,0x56,0x53,0x5f,0x43,0x
 static const uint8_t blu_uuid[]={0x25,0x12,0xb5,0xcb,0xd4,0x60,0x80,0x0c,0x15,0xc3,0x9b,0xa9,0xac,0x5a,0x8a,0xde};
 static unsigned u16(const uint8_t *p){return (unsigned)p[0]|((unsigned)p[1]<<8);}
 static void increment(uint32_t *n){if(*n<UINT32_MAX)(*n)++;}
+static bool shelly_name(const char *n){return !strncmp(n,"Shelly",6)||!strncmp(n,"shelly",6);}
 static void classify(dsr_ble_device_t *d)
 {
- if((d->has_model&&dsr_ble_model_name(d)[0])||(d->evidence&DSR_BLE_BLU_SERVICE)||((d->evidence&(DSR_BLE_MFG|DSR_BLE_BTHOME))==(DSR_BLE_MFG|DSR_BLE_BTHOME)))d->kind=DSR_BLE_SHELLY_BLU;
- else if(d->evidence&DSR_BLE_RPC)d->kind=DSR_BLE_SHELLY_RPC;
+ if((d->has_model&&dsr_ble_model_name(d)[0])||(d->evidence&DSR_BLE_BLU_SERVICE)||((d->evidence&(DSR_BLE_MFG|DSR_BLE_BTHOME))==(DSR_BLE_MFG|DSR_BLE_BTHOME))||!strncmp(d->name,"SB",2))d->kind=DSR_BLE_SHELLY_BLU;
+ /* Gen2+ Wi-Fi Shelly: advertised RPC UUID, manufacturer RPC flag, or name. */
+ else if((d->evidence&(DSR_BLE_RPC|DSR_BLE_RPC_FLAG))||((d->evidence&DSR_BLE_NAME)&&shelly_name(d->name)))d->kind=DSR_BLE_SHELLY_RPC;
  else d->kind=DSR_BLE_OTHER;
 }
 const char *dsr_ble_model_name(const dsr_ble_device_t *d)
@@ -49,7 +51,10 @@ bool dsr_ble_parse(const uint8_t *data,size_t length,dsr_ble_device_t *out)
      /* Unknown extension: keep manufacturer evidence but don't guess layout. */
      if(!bytes)break;
      if(bytes>size-i)return false;
-     if(block==0x0b){d.has_model=true;d.model_id=(uint16_t)u16(p+i);}i+=bytes;
+     if(block==0x0b){d.has_model=true;d.model_id=(uint16_t)u16(p+i);}
+     else if(block==0x01){d.has_flags=true;d.flags=(uint16_t)u16(p+i);if(d.flags&DSR_BLE_FLAG_RPC)d.evidence|=DSR_BLE_RPC_FLAG;}
+     else {d.has_mac=true;memcpy(d.mac,p+i,6);}
+     i+=bytes;
     }
    }
   }
@@ -76,6 +81,8 @@ bool dsr_ble_ingest(dsr_ble_snapshot_t *s,uint32_t generation,const uint8_t addr
  dsr_ble_device_t *row=&s->devices[i];row->evidence|=d.evidence;
  if(d.name[0])memcpy(row->name,d.name,sizeof(row->name));
  if(d.has_model){row->has_model=true;row->model_id=d.model_id;}
+ if(d.has_flags){row->has_flags=true;row->flags=d.flags;}
+ if(d.has_mac){row->has_mac=true;memcpy(row->mac,d.mac,6);}
  if(d.evidence&DSR_BLE_BTHOME){row->bthome_version=d.bthome_version;row->encrypted=d.encrypted;}
  row->rssi=rssi;row->seen_ms=now;classify(row);s->serial++;return true;
 }

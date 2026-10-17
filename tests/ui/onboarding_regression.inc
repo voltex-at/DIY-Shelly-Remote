@@ -48,8 +48,11 @@ static void onboarding_regression(void)
   char name[30];snprintf(name,sizeof(name),i==2?"ShellyPro2Cover-TEST":"Shelly TEST %02u",i);uint8_t packet[31]={0};packet[0]=(uint8_t)(strlen(name)+1);packet[1]=9;memcpy(packet+2,name,strlen(name));test_ble_packet(packet,strlen(name)+2,i+1);
  }
  test_ble_finish(DSR_BLE_DONE);tick();dsr_ble_snapshot_t found;dsr_ble_snapshot(&found);CHECK(found.count==10);screenshot("307-onboarding-ten-advertisements");
- lv_obj_t *unknown=find_label(lv_screen_active(),"Reklama: ShellyPro2Cover-TEST");CHECK(unknown);lv_obj_scroll_to_view(lv_obj_get_parent(unknown),LV_ANIM_OFF);lv_obj_get_coords(lv_obj_get_parent(unknown),&after);tap((after.x1+after.x2)/2,(after.y1+after.y2)/2);
- CHECK(find_label(lv_screen_active(),"Nierozpoznane urządzenie")&&find_label(lv_screen_active(),"Reklama: ShellyPro2Cover-TEST")&&!find_label(lv_screen_active(),"Dodaj przez BLE"));expect_step(2);CHECK(test_rpc_starts()==rpc);screenshot("308-onboarding-unrecognized-advertisement");
+ lv_obj_t *unknown=find_label(lv_screen_active(),"ShellyPro2Cover-TEST");CHECK(unknown);lv_obj_scroll_to_view(lv_obj_get_parent(unknown),LV_ANIM_OFF);lv_obj_get_coords(lv_obj_get_parent(unknown),&after);tap((after.x1+after.x2)/2,(after.y1+after.y2)/2);
+ /* A "Shelly…" local name is a Gen2+ RPC candidate (UUID rarely fits the
+  * 31-byte advertisement). Adding still needs GATT service verification and
+  * physical consent; opening the detail alone starts nothing. */
+ CHECK(find_label(lv_screen_active(),"ShellyPro2Cover-TEST")&&find_label(lv_screen_active(),"RPC: do sprawdzenia po połączeniu")&&find_label(lv_screen_active(),"Dodaj przez BLE"));expect_step(2);CHECK(test_rpc_starts()==rpc);screenshot("308-onboarding-shelly-name-candidate");
  lv_tick_inc(31000);tick();CHECK(test_rpc_starts()==rpc);screenshot("309-onboarding-stale-advertisement");click("Wstecz");click("Ponów");test_ble_finish(DSR_BLE_DONE);tick();screenshot("310-onboarding-empty-BLE");click("Wstecz");click("Anuluj");
  clean_home();wifi.connected=true;dsr_network_device(NULL);lan=test_lan_scans();choose_method("Skanuj sieć Wi-Fi");CHECK(test_lan_scans()==lan+1);expect_step(2);screenshot("311-onboarding-real-LAN-scan");test_lan_found("{\"gen\":2,\"id\":\"shelly-TEST-onboarding\",\"mac\":\"102030405060\",\"model\":\"SNSW-001X16EU\",\"auth_en\":false}","192.0.2.44");tick();CHECK(find_label(lv_screen_active(),"Zweryfikowano API"));screenshot("312-onboarding-verified-LAN");click("Wstecz");click("Anuluj");
  for(unsigned language=0;language<=2;language++){

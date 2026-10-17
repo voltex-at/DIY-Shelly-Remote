@@ -104,7 +104,7 @@ void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate)
   cleanup=true;back_after_cleanup=false;dsr_ble_rpc_cancel(session.generation);phase=CLOSING;
   message("Bluetooth • kończenie","Zamykanie poprzedniej sesji. Poczekaj na potwierdzenie rozłączenia.");return;
  }
- if(!candidate||candidate->kind!=DSR_BLE_SHELLY_RPC||!(candidate->evidence&DSR_BLE_RPC))return;
+ if(!candidate||candidate->kind!=DSR_BLE_SHELLY_RPC||!(candidate->evidence&DSR_BLE_RPC_HINTS))return;
  if(dsr_ui_ap_active())return;
  selected=*candidate;memset(&session,0,sizeof(session));observed=0;phase=INTRO;
  lv_obj_t *root=screen("Dodać przez Bluetooth?");
