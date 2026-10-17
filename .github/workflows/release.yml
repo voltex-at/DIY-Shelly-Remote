@@ -3,12 +3,21 @@ name: Signed release
 # Tag dev-vX.Y.Z  -> Dev prerelease
 # The pilot's Firmware Update screen installs only a manifest signed with the
 # owner's key (secret DSR_OTA_SIGNING_KEY) that matches the compiled anchor.
+# Start it either by pushing the tag, or in the GitHub UI: Releases -> Draft a
+# new release -> new tag (pre-release for dev-v...) -> Publish. The job then
+# attaches the signed assets to that release.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
+  release:
+    types: [published]
 permissions:
   contents: read
-concurrency: release-${{ github.ref }}
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -21,7 +30,7 @@ jobs:
       - id: tag
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${RELEASE_TAG}"
           if [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=stable" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT";
           elif [[ "$tag" =~ ^dev-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=dev" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}-dev" >> "$GITHUB_OUTPUT";
           else echo "Unsupported tag $tag"; exit 1; fi
@@ -36,7 +45,7 @@ jobs:
           python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
           python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
           python3 tools/test_factory.py
-          python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source "$GITHUB_SHA" --tested "$GITHUB_SHA (release ${GITHUB_REF_NAME})"
+          python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source "$GITHUB_SHA" --tested "$GITHUB_SHA (release ${RELEASE_TAG})"
           CC=gcc python3 tools/test_idf_spiffs.py --idf-source "$IDF_PATH" --cjson-source "$IDF_PATH/components/json/cJSON" --factory-image build-board/installers/FACTORY-CLEAN-16MB/dsrdata.bin --verification-report build-board/installers/FACTORY-CLEAN-16MB/SPIFFS_MOUNT_PROOF.json --ubsan-only
           cp docs/INSTALL_FACTORY_PL.md build-board/installers/FACTORY-CLEAN-16MB/
           python3 tools/check_factory_package.py --package-dir build-board/installers
@@ -68,14 +77,18 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography
           python3 tools/test_ota_signer.py
           python3 tools/ota_sign_manifest.py --app release/diy_shelly_remote.bin --version ${{ needs.build.outputs.version }} \
-            --channel ${{ needs.build.outputs.channel }} --tag "$GITHUB_REF_NAME" --key-id voltex-ota-2026-1 \
+            --channel ${{ needs.build.outputs.channel }} --tag "$RELEASE_TAG" --key-id voltex-ota-2026-1 \
             --public-hex 23adf99d68e6ce2315a7b0b2b53c5839d9dd15e39ee748a24ec68841861a47fe \
             --out release/DIY-Shelly-Remote-es3c35p-manifest.json
           (cd release && sha256sum * > SHA256SUMS.txt)
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release (or attach to the one created in the UI)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          flags="--verify-tag --title ${GITHUB_REF_NAME} --notes-file docs/RELEASE_NOTES.md"
-          if [ "${{ needs.build.outputs.channel }}" = "dev" ]; then flags="$flags --prerelease"; else flags="$flags --latest"; fi
-          gh release create "$GITHUB_REF_NAME" $flags release/*
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release/* --clobber
+          else
+            flags="--verify-tag --title ${RELEASE_TAG} --notes-file docs/RELEASE_NOTES.md"
+            if [ "${{ needs.build.outputs.channel }}" = "dev" ]; then flags="$flags --prerelease"; else flags="$flags --latest"; fi
+            gh release create "$RELEASE_TAG" $flags release/*
+          fi
