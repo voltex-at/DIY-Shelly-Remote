@@ -109,6 +109,9 @@ void dsr_board_ui_quiesce(void){CHECK(!provision_gate);provision_quiesces++;}
 static unsigned provision_holds;
 void dsr_board_ui_hold(uint32_t ms){CHECK(provision_gate);provision_holds++;for(uint32_t t=0;t<ms;t+=250){lv_tick_inc(250);lv_timer_handler();}}
 uint32_t dsr_storage_format_progress(void){provision_progress_reads++;return provision_progress_value;}
+static uint8_t style_hint;static unsigned style_hint_writes;
+uint8_t dsr_style_hint_get(void){return style_hint;}
+void dsr_style_hint_set(uint8_t style){if(style!=style_hint){style_hint=style;style_hint_writes++;}}
 bool dsr_board_touch_available(void) {return true;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}
@@ -153,7 +156,7 @@ static void screenshot(const char *name)
     lv_obj_t *badge=NULL;
     unsigned frame=(unsigned)strtoul(name,NULL,10);
     unsigned badge_y=frame>=300?8:frame>=180&&frame<=199?8:frame>=160&&frame<=177?195:frame>=130?80:8;
-    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a);}
+    if(strtoul(name,NULL,10)>=50){badge=dsr_sc_panel(lv_layer_top(),226,badge_y,84,23,0x5c492a,5);lv_obj_set_style_bg_color(badge,lv_color_hex(0x5c492a),0);lv_obj_set_style_text_color(dsr_sc_text(badge,"TEST / DEMO",4,5,76,&dsr_roboto_11,0xffd68a),lv_color_hex(0xffd68a),0);}
     lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
     if(badge){unsigned at=((badge_y+12)*320+230)*3;CHECK(canvas[at]>60&&canvas[at+1]>40&&canvas[at+2]<70);}
     char path[512];snprintf(path,sizeof(path),"%s/%s.ppm",output,name);

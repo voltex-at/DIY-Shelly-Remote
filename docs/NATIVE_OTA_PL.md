@@ -1,5 +1,17 @@
 # Natywne podpisane OTA — #24, 0.7.26 DEV
 
+## Jak wydać aktualizację instalowaną z pilota (od 0.7.37)
+
+1. Jednorazowo: sekret `DSR_OTA_SIGNING_KEY` w ustawieniach repozytorium
+   (Actions secrets). Klucz publiczny `voltex-ota-2026-1` jest już w firmware.
+2. Wypchnij tag `vX.Y.Z` (Stable) albo `dev-vX.Y.Z` (Dev). Wersja musi być
+   wyższa od zainstalowanej bazy X.Y.Z. Workflow `Signed release` buduje
+   firmware, podpisuje manifest i publikuje Release z plikami
+   `diy_shelly_remote.bin`, `DIY-Shelly-Remote-es3c35p-manifest.json` i FACTORY.
+3. Na pilocie: Ustawienia → System → Firmware Update → (Zmień kanał) →
+   Sprawdź aktualizacje → Zainstaluj → potwierdź zasilanie → Uruchom ponownie.
+   Rollback działa, jeśli nowa wersja nie wystartuje UI.
+
 ## Pełny przepływ kodu, osobny odbiór wydania i sprzętu
 
 System → Firmware Update jest rzeczywistym klientem na istniejącym pojedynczym

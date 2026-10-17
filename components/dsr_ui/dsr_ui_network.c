@@ -432,7 +432,7 @@ static void form_start(const char *title)
     form = lv_obj_create(root); lv_obj_set_pos(form, 12, 134); lv_obj_set_size(form, 296, 268);
     lv_obj_set_style_pad_all(form, 8, 0); lv_obj_set_style_border_width(form, 0, 0);
     lv_obj_set_style_bg_color(form, dsr_sc_color(DSR_SC_BG), 0);
-    lv_obj_set_style_text_color(form, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_set_style_text_color(form, dsr_sc_color(0xf0f4fb), 0);
     keyboard = lv_keyboard_create(root); lv_obj_set_size(keyboard, 320, 210);
     dsr_ui_keyboard(keyboard);
     lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);

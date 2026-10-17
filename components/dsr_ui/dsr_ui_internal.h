@@ -122,4 +122,5 @@ bool dsr_ui_ble_active(void);
 void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage);
 const char *dsr_network_bind_result_text(dsr_result_t result,dsr_bind_stage_t stage);
 dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32_t room);
+void dsr_ui_apply_theme(void);
 #endif

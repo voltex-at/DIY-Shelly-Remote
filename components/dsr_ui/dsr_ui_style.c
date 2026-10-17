@@ -5,15 +5,49 @@
 #include <stdio.h>
 #ifndef DSR_UI_REVIEW_DEMO
 void dsr_ui_battery_header(lv_obj_t *root);
+#include "dsr_ui_brand.h"
 #endif
 
 static uint32_t accent=DSR_SC_BLUE;
-static bool midnight;
+static unsigned style;
 static unsigned language;
 unsigned dsr_sc_language(void){return language;}
-void dsr_sc_appearance(uint32_t color,bool night,unsigned locale){accent=color;midnight=night;language=locale<3?locale:0;}
+unsigned dsr_sc_style(void){return style;}
+void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<3?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:0;}
+/* "Jasny": every neutral token of the dark design maps to a light twin.
+ * Data colors (accent, RGB swatches, warnings) pass through unchanged. */
+static uint32_t light(uint32_t c)
+{
+ static const uint32_t map[][2]={
+  {DSR_SC_BG,0xeef2f6},{DSR_SC_PANEL,0xffffff},{DSR_SC_CARD,0xe3e8ed},{DSR_SC_EDGE,0xc3cbd3},
+  {DSR_SC_TEXT,0x14202b},{DSR_SC_MUTED,0x4f5d6b},{DSR_SC_NAV,0xffffff},{DSR_SC_OFF,0x7d8892},
+  {0xf0f4fb,0x14202b},{0x98aac0,0x7a8796},{0x45494d,0xffffff},{0x555b60,0xc9d0d7},{0x3c4246,0xdfe5eb},
+  {0x1a2733,0xe2e8ee},{0x344f71,0xc6daf2},{0x30373d,0xdde2e7},{0x232b33,0xf5f7f9},{0x9db5d1,0x47617c},
+  {0xa8bbd3,0x4d6782},{0x76e2b6,0x17855a},{0x72dfb0,0x17855a},{0xffb466,0xa95c0b},{0x5c492a,0xf3e2c0},
+  {0xffd68a,0x7a4d00},{0x41474b,0xffffff},{0x292d30,0xe6ebf0},
+  {0x252a2e,0xffffff},{0x244357,0xd6e6f8},{0x29343b,0xe3e8ed},{0x303943,0xdfe5eb},{0x25292b,0xffffff},
+  {0x262a2d,0xeef1f4},{0x414548,0xffffff},{0x60646b,0xc8cfd6},{0xe8ecef,0xdfe5eb},{0x818991,0x6b7682},
+  {0xe8edf2,0x14202b},{0xffc18c,0xa4500f},{0xe1bb70,0x8a6200},{0xffc077,0xa4500f}};
+ for(size_t i=0;i<sizeof(map)/sizeof(map[0]);i++)if(map[i][0]==c)return map[i][1];
+ return c;
+}
+/* Accent used AS TEXT on a light surface is darkened to stay readable;
+ * accent fills (buttons, bars) keep the configured color. */
+lv_color_t dsr_sc_text_color(uint32_t c)
+{
+ if(style==DSR_SC_STYLE_LIGHT&&c==DSR_SC_BLUE){
+  const uint32_t r=(accent>>16)&0xff,g=(accent>>8)&0xff,b=accent&0xff;
+  return lv_color_make((uint8_t)(r*3/5),(uint8_t)(g*3/5),(uint8_t)(b*3/5));
+ }
+ return dsr_sc_color(c);
+}
 lv_color_t dsr_sc_color(uint32_t c)
-{if(c==DSR_SC_BLUE)c=accent;if(midnight&&c==DSR_SC_BG)c=0x080f19;return lv_color_hex(c);}
+{
+ if(c==DSR_SC_BLUE)return lv_color_hex(accent);
+ if(style==DSR_SC_STYLE_MIDNIGHT&&c==DSR_SC_BG)c=0x080f19;
+ if(style==DSR_SC_STYLE_LIGHT)c=light(c);
+ return lv_color_hex(c);
+}
 const char *dsr_sc_tr(const char *text)
 {
  static const char *const words[][3]={
@@ -294,28 +328,38 @@ void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...)
  char text[512];va_list args;va_start(args,format);vsnprintf(text,sizeof(text),dsr_sc_tr(format),args);va_end(args);lv_label_set_text(label,text);
 }
 
+/* Screen root: solid fallback color plus the owner's background artwork. */
+void dsr_sc_background(lv_obj_t *root)
+{
+    lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
+#ifndef DSR_UI_REVIEW_DEMO
+    lv_obj_set_style_bg_image_src(root,dsr_ui_brand_background(),0);
+#endif
+}
 lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius)
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);
     lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
     lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_pad_all(o,0,0);
-    lv_obj_set_style_text_color(o,lv_color_hex(DSR_SC_TEXT),0);
+    lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
 {
     lv_obj_t *o=lv_label_create(p);lv_obj_remove_style_all(o);lv_label_set_text(o,dsr_sc_tr(s));
     lv_obj_set_pos(o,x,y);lv_obj_set_width(o,w);lv_obj_set_style_text_font(o,font,0);
-    lv_obj_set_style_text_color(o,dsr_sc_color(color),0);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_set_style_text_color(o,dsr_sc_text_color(color),0);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
     return o;
 }
 lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *ctx)
 {
     lv_obj_t *o=dsr_sc_panel(p,x,y,w,h,color,radius);
-    lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_style_bg_color(o,lv_color_hex(0x344f71),LV_STATE_PRESSED);
-    lv_obj_set_style_bg_color(o,lv_color_hex(0x30373d),LV_STATE_DISABLED);
+    lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);
     lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);
+    /* Light surfaces need an outline to read as tappable on the light art. */
+    if(style==DSR_SC_STYLE_LIGHT&&color!=DSR_SC_BLUE){lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}
     if(cb)lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
     return o;
 }
@@ -368,7 +412,7 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
 {
  lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
- lv_obj_set_style_bg_grad_color(bar,lv_color_hex(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
+ lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
  const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_ENERGY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){

@@ -211,7 +211,7 @@ static void card_control(lv_obj_t *parent,unsigned i,dsr_ui_icon_t icon,int x,in
 {
  (void)i;lv_obj_t *b=dsr_sc_button(parent,x,8,width,48,0xe8ecef,icon==DSR_ICON_POWER?LV_RADIUS_CIRCLE:12,cb,(void *)value);
  dsr_sc_icon_centered(b,icon,26,valid?DSR_SC_BLUE:0x818991);
- if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,lv_color_hex(0x555b60),LV_STATE_DISABLED);}
+ if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,dsr_sc_color(0x555b60),LV_STATE_DISABLED);}
 }
 static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
 {
@@ -219,7 +219,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR;
     unsigned fields=page==DSR_MOBILE_HOME&&model.configured_layout?d->fields:255;
     lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,0x41474b,DSR_SC_RADIUS,open_device,(void *)(uintptr_t)i);
-    lv_obj_set_style_bg_grad_color(card,lv_color_hex(0x3c4246),0);lv_obj_set_style_bg_grad_dir(card,LV_GRAD_DIR_VER,0);
+    lv_obj_set_style_bg_grad_color(card,dsr_sc_color(0x3c4246),0);lv_obj_set_style_bg_grad_dir(card,LV_GRAD_DIR_VER,0);
     lv_obj_t *thumb=dsr_sc_panel(card,8,9,50,50,d->online&&d->output?0x244357:0x29343b,LV_RADIUS_CIRCLE);
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
     int name_width=cover?124:sensor?218:166;
@@ -555,8 +555,7 @@ static void render(void)
 {
     rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
-    lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
-    lv_obj_set_style_bg_grad_color(root,lv_color_hex(0x1a2733),0);lv_obj_set_style_bg_grad_dir(root,LV_GRAD_DIR_VER,0);
+    dsr_sc_background(root);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     const char *title=(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS)&&selected<model.device_count?model.devices[selected].name:
         page==DSR_MOBILE_ROOM&&selected<model.room_count?model.rooms[selected].name:model.home_name[0]?model.home_name:"Mój dom";

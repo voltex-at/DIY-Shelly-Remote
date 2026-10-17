@@ -5,6 +5,7 @@
  * Progress is READ FROM FLASH (formatter block headers), not estimated. */
 #include "dsr_ui_provision.h"
 #include "dsr_ui_style.h"
+#include "dsr_ui_brand.h"
 #include "dsr_board.h"
 #include "dsr_boot.h"
 #include "dsr_storage_progress.h"
@@ -44,8 +45,8 @@ void dsr_ui_provision_show(bool resumed,uint32_t blocks,uint32_t remnant_blocks,
     if(root)return;
     resume=resumed;total=blocks;remnant=remnant_blocks;progress_source=progress;shown=0;started=lv_tick_get();
     lv_obj_t *screen=lv_screen_active();
-    lv_obj_set_style_bg_color(screen,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(screen,LV_OPA_COVER,0);
     root=dsr_sc_panel(screen,0,0,320,480,DSR_SC_BG,0);
+    lv_obj_set_style_bg_image_src(root,dsr_ui_brand_background(),0);
     dsr_sc_text(root,"Przygotowanie pamięci",16,28,288,&dsr_roboto_22,DSR_SC_TEXT);
     spinner=lv_spinner_create(root);
     lv_spinner_set_anim_params(spinner,1200,240);
@@ -105,6 +106,8 @@ static bool task_running;
  * main builds/updates objects while the gate is closed and the task idle. */
 static void observer_begin(bool resumed,uint32_t blocks,uint32_t remnant_blocks)
 {
+    /* The boot splash may already be rendering: take LVGL back first. */
+    dsr_boot_provisioning_ui(false);dsr_board_ui_quiesce();
     dsr_ui_provision_show(resumed,blocks,remnant_blocks,dsr_storage_format_progress);
     dsr_boot_provisioning_ui(true);
     task_running=dsr_board_start_ui_task(dsr_boot_ui_gate)==ESP_OK;

@@ -56,7 +56,7 @@ static bool validate_v1(const cJSON *r,char error[96])
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
  if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards|"))return fail(error,"Unknown configuration field");
  if(!number(r,"schema",1,1)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
- if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
+ if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight||light|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
  if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
  const cJSON *v;
@@ -90,7 +90,7 @@ static bool validate_v2(const cJSON *r,char error[96])
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
  if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards||groups|"))return fail(error,"Unknown configuration field");
  if(!number(r,"schema",DSR_CONFIG_SCHEMA,DSR_CONFIG_SCHEMA)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
- if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
+ if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight||light|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"groups",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
  if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
  const cJSON *v;

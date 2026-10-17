@@ -119,7 +119,7 @@ static void show_networks(void)
     dsr_wifi_info_t info; dsr_wifi_get_info(&info);
     lv_obj_t *caption = dsr_ui_label(root, info.connected ? info.ssid : "Select your 2.4 GHz network", 16, 81, 288);
     lv_label_set_long_mode(caption, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(caption, 20);
-    lv_obj_set_style_text_color(caption, lv_color_hex(0x9db5d1), 0);
+    lv_obj_set_style_text_color(caption, dsr_sc_color(0x9db5d1), 0);
     lv_obj_t *list = lv_obj_create(root); lv_obj_set_pos(list, 12, 115); lv_obj_set_size(list, 296, 287);
     lv_obj_set_style_pad_all(list, 0, 0); lv_obj_set_style_border_width(list, 0, 0);
     lv_obj_set_style_bg_color(list, dsr_sc_color(DSR_SC_BG), 0);
@@ -133,7 +133,7 @@ static void show_networks(void)
         lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, 20);
         lv_obj_t *details = dsr_ui_label(row, "", 12, 39, 254);
         dsr_sc_label_set_text_fmt(details, "%s  |  %d dBm", dsr_sc_tr(security_name(ap->security)), ap->rssi);
-        lv_obj_set_style_text_color(details, lv_color_hex(0xa8bbd3), 0);
+        lv_obj_set_style_text_color(details, dsr_sc_color(0xa8bbd3), 0);
         dsr_sc_icon(row,DSR_ICON_WIFI,246,11,22,DSR_SC_MUTED);
         if (ap->security == DSR_WIFI_UNSUPPORTED) lv_obj_add_state(row, LV_STATE_DISABLED);
     }
@@ -178,7 +178,7 @@ void dsr_wifi_ui_result(const dsr_event_t *event, dsr_job_kind_t kind)
         lv_obj_t *root = dsr_ui_screen("Wi-Fi connected", false); page = CONNECTED;
         dsr_wifi_info_t info; dsr_wifi_get_info(&info);
         lv_obj_t *success = dsr_ui_label(root, LV_SYMBOL_OK "  Connected", 16, 115, 288);
-        lv_obj_set_style_text_color(success, lv_color_hex(0x76e2b6), 0);
+        lv_obj_set_style_text_color(success, dsr_sc_color(0x76e2b6), 0);
         dsr_ui_label(root, candidate.ssid, 16, 168, 288);
         lv_obj_t *ip = dsr_ui_label(root, "", 16, 220, 288); dsr_sc_label_set_text_fmt(ip, "IP address: %s", info.ip);
         dsr_ui_label(root, "Network saved on this remote.\nIt will reconnect automatically.", 16, 269, 288);

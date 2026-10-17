@@ -76,6 +76,9 @@ int main(int argc,char **argv)
  CHECK(argc==3);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
  invalid(r,"schema",cJSON_CreateNumber(3));invalid(r,"revision",cJSON_CreateNumber(0));invalid(r,"revision",cJSON_CreateNumber(1.5));invalid(r,"language",cJSON_CreateString("xx"));invalid(r,"accent",cJSON_CreateNumber(0x1000000));invalid(r,"active_dashboard",cJSON_CreateNumber(99));
  invalid(r,"language",cJSON_CreateString("pl||en"));
+ /* "Jasny" (#owner 2026-10-17) is accepted; unknown or pipe-smuggled themes are not. */
+ {char error[96];cJSON *light=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(light,"theme",cJSON_CreateString("light"));CHECK(dsr_config_validate(light,error));cJSON_Delete(light);}
+ invalid(r,"theme",cJSON_CreateString("neon"));invalid(r,"theme",cJSON_CreateString("light||midnight"));invalid(r,"theme",cJSON_CreateString("Light"));
  cJSON_AddStringToObject(r,"password","must-not-be-stored");CHECK(!dsr_config_validate(r,error));cJSON_DeleteItemFromObjectCaseSensitive(r,"password");
  cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms"),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices"),*dash=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
  cJSON *room=cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}");cJSON_AddItemToArray(rooms,room);

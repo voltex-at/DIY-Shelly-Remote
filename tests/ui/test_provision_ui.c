@@ -17,7 +17,7 @@ int main(int argc,char **argv)
  provision_progress_value=300;advance(500);CHECK(find_label(lv_screen_active(),"496 / 992 bloków • 50%")); /* never moves backwards */
  provision_progress_value=5000;advance(500);CHECK(find_label(lv_screen_active(),"496 / 992 bloków • 50%")); /* out-of-range read ignored */
  screenshot("291-format-half-pl");
- o->end(ESP_OK);CHECK(!provision_gate&&provision_quiesces==2&&provision_holds==2&&find_label(lv_screen_active(),"Pamięć gotowa. Uruchamianie…")&&find_label(lv_screen_active(),"992 / 992 bloków • 100%"));
+ o->end(ESP_OK);CHECK(!provision_gate&&provision_quiesces==3&&provision_holds==2&&find_label(lv_screen_active(),"Pamięć gotowa. Uruchamianie…")&&find_label(lv_screen_active(),"992 / 992 bloków • 100%"));
  unsigned reads=provision_progress_reads;advance(3000);CHECK(provision_progress_reads==reads); /* no Flash probe after end */
  screenshot("292-format-done-pl");
  dsr_ui_provision_release();CHECK(!dsr_ui_provision_visible());advance(500);
@@ -32,7 +32,7 @@ int main(int argc,char **argv)
  /* UI task cannot start: gate closed again, no hold/quiesce, LCD stays dark. */
  unsigned quiesces=provision_quiesces,holds=provision_holds,lights=provision_backlight;fail_task_start=true;
  o->begin(false,992,0);CHECK(!provision_gate&&provision_holds==holds&&provision_backlight==lights);o->end(ESP_OK);dsr_ui_provision_release();
- CHECK(provision_quiesces==quiesces&&provision_holds==holds);fail_task_start=false;
+ CHECK(provision_quiesces==quiesces+1&&provision_holds==holds);fail_task_start=false;
  /* Locales follow dsr_sc_tr (first boot normally has the PL default). */
  dsr_sc_appearance(DSR_SC_BLUE,false,1);provision_progress_value=248;o->begin(false,992,0);advance(500);
  CHECK(find_label(lv_screen_active(),"Preparing storage")&&find_label(lv_screen_active(),"248 / 992 blocks • 25%"));CHECK(dsr_ui_provision_layout_ok());screenshot("295-format-en");o->end(ESP_OK);dsr_ui_provision_release();

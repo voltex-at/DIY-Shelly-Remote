@@ -79,7 +79,7 @@ static void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 static void draw(void)
 {
  if(!active)return;
- int scroll=body?lv_obj_get_scroll_y(body):0;body=NULL;lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
+ int scroll=body?lv_obj_get_scroll_y(body):0;body=NULL;lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
  dsr_sc_header(root,page==0?"Grupy":page==1?"Sceny":page==2?"Aktywność":"Wykonanie",false,dsr_wifi_connected(),back,NULL);
  const char *tabs[]={"Grupy","Sceny","Aktywność"};for(unsigned i=0;i<3;i++)button(root,tabs[i],(int)i*108,45,i==2?104:104,choose,i);
  dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=status_hash(&s);if(page==3)progress(root,&s);else if(page==2)activity(root);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);next_draw=lv_tick_get()+1000;

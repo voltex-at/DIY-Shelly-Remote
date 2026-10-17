@@ -127,7 +127,7 @@ static void energy(lv_obj_t *root)
 static void draw(void)
 {
  if(!active)return;
- lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
+ lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
  if(overview)energy(root);else detail(root);lv_obj_update_layout(root);next_draw=lv_tick_get()+5000;
 }
 void dsr_ui_energy_open(void)

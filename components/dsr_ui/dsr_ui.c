@@ -1,4 +1,6 @@
 #include "dsr_ui_provision.h"
+#include "dsr_ui_brand.h"
+#include "dsr_style_hint.h"
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
@@ -69,20 +71,20 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
 void dsr_ui_primary(lv_obj_t *obj)
 {
     lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_BLUE), 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0x287ec7), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(0x287ec7), LV_STATE_PRESSED);
 }
 
 void dsr_ui_textarea(lv_obj_t *obj)
 {
     lv_obj_set_style_text_font(obj, &dsr_roboto_18, 0);
     lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_PANEL), 0);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0xf0f4fb), 0);
-    lv_obj_set_style_text_color(obj, lv_color_hex(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(0xf0f4fb), 0);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
     lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_EDGE), 0);
     lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_BLUE), LV_STATE_FOCUSED);
     lv_obj_set_style_border_width(obj, 1, 0);
     lv_obj_set_style_radius(obj, 10, 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(0xf0f4fb), LV_PART_CURSOR);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(0xf0f4fb), LV_PART_CURSOR);
 }
 
 static void shell_navigation(lv_event_t *event)
@@ -102,9 +104,8 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
     lv_obj_remove_style_all(root);
-    lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
-    lv_obj_set_style_bg_color(root, dsr_sc_color(DSR_SC_BG), 0);
-    lv_obj_set_style_text_color(root, lv_color_hex(0xf0f4fb), 0);
+    dsr_sc_background(root);
+    lv_obj_set_style_text_color(root, dsr_sc_color(0xf0f4fb), 0);
     lv_obj_set_style_text_font(root, &dsr_roboto_14, 0);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
@@ -345,17 +346,26 @@ static void hardware(lv_event_t *event)
     dsr_ui_label(root, "Hardware test", 16, 100, 288);
     dsr_ui_label(root, "Display and touch test tools.\nCheck colors, corners and wake.", 16, 137, 288);
     lv_obj_t *status = dsr_ui_label(root, dsr_board_touch_available() ? "Touch controller: responding" : "Touch controller: NOT responding", 16, 200, 288);
-    lv_obj_set_style_text_color(status, lv_color_hex(dsr_board_touch_available() ? 0x72dfb0 : 0xffb466), 0);
+    lv_obj_set_style_text_color(status, dsr_sc_color(dsr_board_touch_available() ? 0x72dfb0 : 0xffb466), 0);
     dsr_ui_button(root, "Check touchscreen", 16, 252, 288, touch_test, NULL);
     dsr_ui_button(root, "Check display colors", 16, 316, 288, colors, NULL);
     dsr_ui_label(root, "ES3C35P / 320 x 480", 16, 390, 288);
 }
 
+/* Default LVGL widgets (lists, checkboxes, dropdowns) follow the style too. */
+void dsr_ui_apply_theme(void)
+{
+    dsr_style_hint_set((uint8_t)dsr_sc_style()); /* NVS write only on change */
+    static int applied=-1;const int light=dsr_sc_style()==DSR_SC_STYLE_LIGHT;
+    if(applied==light)return;
+    lv_display_t *display=lv_display_get_default();if(!display)return;
+    lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),!light,&dsr_roboto_14);
+    lv_display_set_theme(display,theme);applied=light;
+}
 void dsr_ui_init(void)
 {
     dsr_ui_provision_release(); /* first-format screen, if it was shown */
-    lv_display_t *display=lv_display_get_default();
-    lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),true,&dsr_roboto_14);
-    lv_display_set_theme(display,theme);
+    dsr_ui_splash_release();    /* boot splash, before any screen clean */
+    dsr_ui_apply_theme();
     dsr_network_init();dsr_network_start_view();
 }

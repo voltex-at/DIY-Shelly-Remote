@@ -42,6 +42,8 @@ esp_err_t dsr_panel_start(void) { call('P'); return ESP_OK; }
 esp_err_t dsr_lan_init(void) { call('L'); return ESP_OK; }
 esp_err_t dsr_ble_init(void) { call('E'); return ESP_OK; }
 esp_err_t dsr_restart_start(void) { return restart_error; }
+void dsr_ui_splash_begin(void) { call('Z'); }
+void dsr_ui_splash_end(void) { call('z'); }
 void dsr_ui_init(void) { call('I'); desired_brightness=20; /* UI fixture loads the saved brightness; real UI separately tested. */ }
 esp_err_t dsr_board_start_ui_task(bool (*ready)(void))
 { call('T'); CHECK(ready == dsr_boot_ui_gate && !ready()); CHECK(!dsr_ota_boot_confirm()); return ui_error; }
@@ -77,15 +79,15 @@ int main(void)
     /* Actual app_main returns normally on every injected critical error.
      * No restart/erase API or ESP_ERROR_CHECK substitute is linked here. */
     for (unsigned restart=0; restart<2; restart++) {
-        reset(); ui_error=ESP_ERR_NO_MEM; app_main(); diagnostic("NBSWFCPLEIT");
+        reset(); ui_error=ESP_ERR_NO_MEM; app_main(); diagnostic("NBZSWFCPLEzIT");
     }
-    reset(); ui_error=ESP_ERR_INVALID_STATE; app_main(); diagnostic("NBSWFCPLEIT");
-    reset(); backlight_error=ESP_FAIL; app_main(); diagnostic("NBSWFCPLEITK");
-    reset(); worker_error=ESP_ERR_NO_MEM; app_main(); diagnostic("NBSW");
+    reset(); ui_error=ESP_ERR_INVALID_STATE; app_main(); diagnostic("NBZSWFCPLEzIT");
+    reset(); backlight_error=ESP_FAIL; app_main(); diagnostic("NBZSWFCPLEzITK");
+    reset(); worker_error=ESP_ERR_NO_MEM; app_main(); diagnostic("NBZSW");
     reset(); nvs_error=ESP_ERR_INVALID_STATE; app_main(); diagnostic("N");
     reset(); board_error=ESP_FAIL; app_main(); diagnostic("NB");
     reset(); app_main();
-    CHECK(!strcmp(trace,"NBSWFCPLEITK") && dsr_boot_ready() && restored_brightness==20);
+    CHECK(!strcmp(trace,"NBZSWFCPLEzITK") && dsr_boot_ready() && restored_brightness==20);
     CHECK(dsr_ota_boot_confirm() && ota_marks == 1);
     confirm_error=ESP_FAIL; CHECK(!dsr_ota_boot_confirm() && ota_marks == 2);
     confirm_error=ESP_OK; CHECK(dsr_ota_boot_confirm() && ota_marks == 3);
@@ -101,9 +103,9 @@ int main(void)
     unsigned previous_reads=ota_reads; CHECK(!dsr_ota_boot_confirm() && ota_reads == previous_reads && ota_marks == 3);
     /* A fresh app_main represents an explicit subsequent boot, not an
      * automatic retry loop. It can recover from a previous process latch. */
-    reset(); wifi_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBSWFCLEITK"));
-    reset(); storage_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBSWFCLEITK"));
-    reset(); restart_error=ESP_ERR_NO_MEM; app_main(); CHECK(dsr_boot_ready()&&!strcmp(trace,"NBSWFCPLEITK"));
+    reset(); wifi_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBZSWFCLEzITK"));
+    reset(); storage_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBZSWFCLEzITK"));
+    reset(); restart_error=ESP_ERR_NO_MEM; app_main(); CHECK(dsr_boot_ready()&&!strcmp(trace,"NBZSWFCPLEzITK"));
     CHECK(dsr_activity_restart_reserve());unsigned marks=ota_marks;CHECK(!dsr_ota_boot_confirm()&&ota_marks==marks);dsr_activity_restart_cancel();
     printf("PASS: %u startup/recovery checks; actual app_main fault injection, UI/backlight/worker/NVS errors, subsequent boot, OTA pending/valid/error guards; host only\n",checks);
     return 0;

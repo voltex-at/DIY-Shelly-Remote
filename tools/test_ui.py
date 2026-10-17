@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build real pinned LVGL + firmware UI natively, without SDL or CMake."""
 import argparse
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
@@ -45,6 +46,15 @@ sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui
 sources += [ROOT / "components/dsr_platform/dsr_actions.c", ROOT / "components/dsr_platform/dsr_actions_api.c", ROOT / "components/dsr_platform/dsr_actions_parse.c", ROOT / "components/dsr_platform/dsr_actions_model.c", ROOT / "components/dsr_platform/dsr_activity.c", ROOT / "components/dsr_platform/dsr_fleet.c", ROOT / "tests/ui/native_ota_fixture.c"]
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","components/dsr_platform/dsr_discovery_model.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
+# Owner brand artwork: same bytes the firmware embeds via EMBED_FILES.
+brand_dir = Path(tempfile.mkdtemp(prefix="dsr-brand-"))
+for asset in sorted((ROOT / "components/dsr_ui/brand").glob("*.rgb565")):
+    symbol = "_binary_" + asset.name.replace(".", "_") + "_start"
+    # .incbin keeps compile memory flat (a 300 KB initializer list per image
+    # under ASan exhausted the CI-sized runner). Bytes are identical.
+    (brand_dir / (asset.stem + ".c")).write_text('__asm__(".section .rodata\\n.global ' + symbol + '\\n.balign 4\\n' + symbol + ':\\n.incbin \\"' + str(asset) + '\\"\\n.previous\\n");\n')
+    sources.append(brand_dir / (asset.stem + ".c"))
+sources.append(ROOT / "components/dsr_ui/dsr_ui_brand.c")
 if not args.review:
     sources += [ROOT / "components/dsr_platform/dsr_config_health.c"]
 if args.review:
@@ -112,3 +122,8 @@ if not args.review:
     provision_binary=build / "test_provision_ui"
     subprocess.run([cc,*flags,*map(str,provision_objects),"-lm","-l:libcjson.so.1","-o",str(provision_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     subprocess.run([str(provision_binary),str(screens)],check=True,cwd=build)
+    style_object=compile_source(ROOT / "tests/ui/test_style_ui.c")
+    style_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[style_object]
+    style_binary=build / "test_style_ui"
+    subprocess.run([cc,*flags,*map(str,style_objects),"-lm","-l:libcjson.so.1","-o",str(style_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+    subprocess.run([str(style_binary),str(screens)],check=True,cwd=build)

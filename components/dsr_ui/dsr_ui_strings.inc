@@ -62,6 +62,7 @@
 {"Pokaż","Show","Zeigen"},{"Otwarta","Open","Offen"},{"Nieobsługiwane","Unsupported","Nicht unterstützt"},
 {"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik","Lighting\nRelay\nPlug\nCover\nContact sensor\nSensor","Beleuchtung\nRelais\nSteckdose\nRollladen\nTürsensor\nSensor"},
 {"Grafitowy\nNocny","Graphite\nMidnight","Graphit\nNacht"},
+{"Grafitowy\nNocny\nJasny","Graphite\nMidnight\nLight","Graphit\nNacht\nHell"},
 {"Pokój","Room","Raum"},{"urz.","devices","Geräte"},
 {"Offline • odczyty niedostępne","Offline • readings unavailable","Offline • keine Messwerte"},
 {"Scena • %u działań","Scene • %u actions","Szene • %u Aktionen"},

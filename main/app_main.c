@@ -58,6 +58,7 @@ void app_main(void)
     }
 #ifdef DSR_BOARD_ES3C35P
     boot_memory("board_ready");
+    dsr_ui_splash_begin(); /* owner logo instead of a dark LCD during startup */
     dsr_settings_t settings;
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));
@@ -78,6 +79,7 @@ void app_main(void)
     boot_memory("discovery_ready");
     error=dsr_restart_start();
     if(error!=ESP_OK)ESP_LOGE(tag,"Deferred restart unavailable: %s",esp_err_to_name(error));
+    dsr_ui_splash_end();
     dsr_ui_init();
     boot_memory("ui_constructed");
     error = dsr_board_start_ui_task(dsr_boot_ui_gate);

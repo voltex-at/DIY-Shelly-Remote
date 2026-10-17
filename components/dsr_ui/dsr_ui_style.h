@@ -33,11 +33,16 @@ lv_obj_t *dsr_sc_icon(lv_obj_t *parent,dsr_ui_icon_t kind,int x,int y,int size,u
  * Do not use (parent_size-icon_size)/2 as a child's relative position. */
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint32_t color);
 void dsr_sc_icon_color(lv_obj_t *icon,uint32_t color);
-void dsr_sc_appearance(uint32_t accent,bool midnight,unsigned language);
+enum {DSR_SC_STYLE_GRAPHITE,DSR_SC_STYLE_MIDNIGHT,DSR_SC_STYLE_LIGHT};
+/* style: graphite / midnight / light ("Jasny"); a bool midnight still maps 0/1. */
+void dsr_sc_appearance(uint32_t accent,unsigned style,unsigned language);
+unsigned dsr_sc_style(void);
 const char *dsr_sc_tr(const char *text);
 void dsr_sc_label_set_text(lv_obj_t *label,const char *text);
 void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...);
 lv_color_t dsr_sc_color(uint32_t color);
+lv_color_t dsr_sc_text_color(uint32_t color);
+void dsr_sc_background(lv_obj_t *root);
 unsigned dsr_sc_language(void);
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
