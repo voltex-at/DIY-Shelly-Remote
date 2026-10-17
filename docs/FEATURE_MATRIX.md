@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.39-dev
+# Matryca funkcji — 0.7.40-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -20,11 +20,11 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Historia energii 24 h | tak | tak | brak testu | — |
 | Skan BLE i dodawanie Gen2+ przez BLE | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
-| OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami) | tak | FAIL (0.7.37, przyczyna: przekierowanie CDN), brak testu poprawki | — |
+| OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB) | tak | FAIL 0.7.37 (przekierowanie CDN) i 0.7.39 (kod 16/4: I/O po TLS), brak testu 0.7.40 | — |
 | Rollback po nieudanym starcie | tak (SDK) | model | brak testu | — |
 | Napięcie baterii na żądanie | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
-| Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.39 | — |
+| Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 
 Poza zakresem tej wersji: Stable, zmiana tablicy partycji, Gen1, sterowanie H&T,
 historia Light/RGB/Cover.
