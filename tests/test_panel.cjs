@@ -1,0 +1,85 @@
+/* Test actual shipped browser assets against the C-model/LVGL host harness.
+ * This is not a replacement for ESP32 radio/HTTP/flash hardware testing. */
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+let activePage;
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
+ const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'pl-PL'}),page=await context.newPage();let checks=0;
+ activePage=page;let bindPosts=0;
+ async function bindAndWait(){
+  const before=bindPosts;
+  // Register the response listener before clicking. A prior bind's identical
+  // success notice can remain visible until the new POST response arrives.
+  await Promise.all([
+   page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.request().method()==='POST'&&r.status()===202),
+   page.getByRole('button',{name:'Sprawdź i zapisz połączenie'}).click()
+  ]);
+  await page.waitForFunction(()=>page==='devices'&&document.querySelector('#notice').textContent.includes('Połączenie, nazwa i pomieszczenie zapisane.'));
+  assert.equal(bindPosts,before+1);checks++;
+ }
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));if(new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.method()==='POST')bindPosts++;});
+ await page.goto('http://127.0.0.1:8765/');await page.locator('#pairing').waitFor({state:'visible'});checks++;
+ await page.locator('#pair-code').fill('0123456789abcdef');await page.locator('#pair-form button').click();await page.locator('#workspace').waitFor({state:'visible'});checks++;
+ await page.getByRole('button',{name:'Pomieszczenia',exact:true}).click();await page.getByRole('button',{name:'+ Dodaj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Salon');await page.getByRole('button',{name:'← Wróć do listy'}).click();
+ await page.getByRole('button',{name:'Urządzenia',exact:true}).click();await page.getByRole('button',{name:'+ Dodaj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Światło w salonie');await page.getByLabel('Adres IPv4 Shelly').fill('192.168.1.77');await page.getByLabel('Pomieszczenie',{exact:true}).selectOption('1');
+ await page.getByRole('button',{name:'Pulpity',exact:true}).click();await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByRole('button',{name:'+ Dodaj kartę'}).click();await page.getByRole('button',{name:'← Wróć do pulpitu'}).click();
+ await page.getByRole('button',{name:'+ Dodaj kartę'}).click();await page.getByLabel('Typ karty').selectOption('room');await page.getByLabel('Szerokość').selectOption('1');await page.getByRole('button',{name:'← Wróć do pulpitu'}).click();
+ const tiles=page.locator('.tile');assert.equal(await tiles.count(),2);checks++;
+ await tiles.nth(0).dragTo(tiles.nth(1));checks++;await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#revision').textContent==='2');checks++;
+ const config=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert.equal(config.rooms[0].name,'Salon');assert.equal(config.devices[0].host,'192.168.1.77');assert.equal(config.dashboards[0].tiles[0].type,'room');checks+=3;
+ await page.waitForFunction(()=>document.querySelector('#preview-status').textContent.startsWith('Obraz pobrany'));checks++;
+ fs.mkdirSync(path.join('build-ui','panel-review'),{recursive:true});await page.screenshot({path:'build-ui/panel-review/panel-desktop.png',fullPage:true});
+ await page.evaluate(()=>fetch('/api/v1/test/reboot',{method:'POST'}));await page.reload();await page.locator('#workspace').waitFor({state:'visible'});assert.equal(await page.locator('#revision').textContent(),'2');checks++;
+ await page.evaluate(()=>fetch('/api/v1/test/touch-edit',{method:'POST'}));await page.waitForFunction(()=>document.querySelector('#revision').textContent==='3');checks++;
+ await page.getByRole('button',{name:'Pulpity',exact:true}).click();await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Zmiana w przeglądarce');
+ await page.evaluate(()=>fetch('/api/v1/test/touch-edit',{method:'POST'}));await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Konfiguracja zmieniła się'));assert(await page.locator('#save').isDisabled());checks++;
+ const sha=await page.evaluate(()=>sha256(new TextEncoder().encode('abc')));assert.equal(sha,'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');checks++;
+ await page.locator('#reload').click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'build-ui/panel-review/panel-mobile.png',fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));checks++;
+ await page.setViewportSize({width:1440,height:1050});await page.getByRole('button',{name:'Urządzenia',exact:true}).click();await page.getByRole('button',{name:'Wyszukaj Shelly w LAN'}).click();
+ assert(await page.getByRole('button',{name:'Wi-Fi AP • kreator na pilocie'}).isEnabled());assert(await page.getByRole('button',{name:'Bluetooth LE • skan'}).isEnabled());checks+=2;
+ let apState=1,apPosts=0;
+ await page.route('**/api/v1/ap',route=>route.fulfill({json:{handoff:apState,physical_confirmation_required:true}}));
+ await page.route('**/api/v1/ap/open',route=>{assert.equal(route.request().method(),'POST');assert.equal(route.request().postData(),null);apPosts++;apState=2;return route.fulfill({status:202,json:{queued:true,physical_confirmation_required:true}});});
+ await page.getByRole('button',{name:'Wi-Fi AP • kreator na pilocie'}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('#ap-open').disabled);assert.equal(apPosts,0);checks++;
+ await page.screenshot({path:'build-ui/panel-review/panel-ap-handoff.png',fullPage:true});
+ await page.locator('#ap-open').click();await page.waitForFunction(()=>document.querySelector('#ap-status').textContent.startsWith('Żądanie oczekuje'));assert(await page.locator('#ap-open').isDisabled());assert.equal(apPosts,1);checks+=2;
+ apState=3;await page.waitForFunction(()=>document.querySelector('#ap-status').textContent.startsWith('Kreator działa'));assert(await page.locator('#ap-open').isDisabled());assert.equal(apPosts,1);checks+=2;
+ apState=4;await page.waitForFunction(()=>!document.querySelector('#ap-open').disabled);assert.equal(apPosts,1);checks++;
+ await page.getByRole('button',{name:'← Metody dodawania'}).click();
+
+ let bleState=1,blePosts=0;
+ await page.route('**/api/v1/ble',async route=>{const response=await route.fetch(),snapshot=await response.json();return route.fulfill({json:{...snapshot,serial:42,handoff:bleState}});});
+ await page.route('**/api/v1/ble/open',route=>{assert.equal(route.request().method(),'POST');assert.deepEqual(route.request().postDataJSON(),{serial:42,index:1});blePosts++;bleState=2;return route.fulfill({status:202,json:{queued:true,physical_confirmation_required:true}});});
+ await page.getByRole('button',{name:'Bluetooth LE • skan'}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Szukaj BLE',exact:true}).click();
+ await page.getByText('Shelly BLU DoorWindow',{exact:true}).waitFor();assert((await page.locator('#ble-status').textContent()).includes('nie sparowano'));checks++;
+ assert.equal(await page.locator('#ble-results strong').count(),2);checks++;
+ await page.screenshot({path:'build-ui/panel-review/panel-ble-results.png',fullPage:true});
+ const bleOpen=page.getByRole('button',{name:'Otwórz kreator BLE na pilocie'});await bleOpen.waitFor();assert.equal(blePosts,0);assert(await bleOpen.isEnabled());checks+=2;
+ await bleOpen.click();await page.waitForFunction(()=>document.querySelector('#ble-status').textContent.startsWith('Dokończ kreator'));assert.equal(blePosts,1);checks++;
+ bleState=3;await page.waitForFunction(()=>document.querySelector('#ble-start').disabled);assert(await bleOpen.isDisabled());assert.equal(blePosts,1);checks+=2;
+ bleState=4;await page.waitForFunction(()=>!document.querySelector('#ble-results button').disabled);assert.equal(blePosts,1);checks++;
+
+ await page.getByRole('button',{name:'Szukaj BLE',exact:true}).click();await page.getByRole('button',{name:'Anuluj skan BLE',exact:true}).waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('#ble-cancel').disabled);await page.getByRole('button',{name:'Anuluj skan BLE',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#ble-status').textContent==='Skan przerwany');checks++;
+ await page.getByRole('button',{name:'← Metody dodawania'}).click();
+ await page.getByRole('button',{name:'Sieć lokalna',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).waitFor();checks++;
+ await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.getByLabel('Hasło Shelly',{exact:true}).fill('wrong-password');await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Błąd logowania'));checks++;
+ await page.getByLabel('Hasło Shelly',{exact:true}).fill('test-lan-password');await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.getByLabel('Kanał z odpowiedzi API').waitFor();assert.deepEqual(await page.getByLabel('Kanał z odpowiedzi API').locator('option').allTextContents(),['Switch 1','Switch 4']);assert.deepEqual(await page.getByLabel('Kanał z odpowiedzi API').locator('option').evaluateAll(options=>options.map(o=>o.value)),['1','4']);checks+=2;
+ await page.getByLabel('Nazwa urządzenia').fill('Przekaźnik LAN');await page.getByLabel('Pomieszczenie',{exact:true}).selectOption('1');await page.getByLabel('Kanał z odpowiedzi API').selectOption('4');await page.screenshot({path:'build-ui/panel-review/panel-lan-components.png',fullPage:true});
+ await bindAndWait();const bound=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(bound.devices.some(d=>d.host==='192.168.1.88'&&d.channel===4&&d.room===1));checks++;
+ await page.getByRole('button',{name:'Wyszukaj Shelly w LAN'}).click();await page.getByRole('button',{name:'Dodaj ręcznie (IP)',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
+ await page.getByLabel('Adres IPv4 Shelly',{exact:true}).fill('192.168.1.88');await page.getByLabel('Nazwa urządzenia',{exact:true}).fill('Ręczny kanał');await page.getByLabel('Kanał 0–15',{exact:true}).fill('1');await page.getByLabel('Hasło Shelly',{exact:true}).fill('test-lan-password');
+ await page.screenshot({path:'build-ui/panel-review/panel-manual-verified-bind.png',fullPage:true});await bindAndWait();const manual=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert(manual.devices.some(d=>d.host==='192.168.1.88'&&d.channel===1&&d.name==='Ręczny kanał'));checks++;
+ await page.getByRole('button',{name:'Pulpity',exact:true}).click();await page.getByRole('button',{name:'Edytuj',exact:true}).click();
+ await page.evaluate(()=>fetch('/api/v1/test/save-delay',{method:'POST',body:'1.5'}));
+ await page.getByLabel('Nazwa',{exact:true}).fill('Wersja A');await page.locator('#save').click();await page.getByLabel('Nazwa',{exact:true}).fill('Wersja B');
+ await page.waitForFunction(()=>document.querySelector('#notice').textContent.includes('Późniejsze zmiany pozostają niezapisane.'));
+ assert.equal(await page.getByLabel('Nazwa',{exact:true}).inputValue(),'Wersja B');assert(!(await page.locator('#save').isDisabled()));checks+=2;
+ const durableA=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert.equal(durableA.dashboards[0].name,'Wersja A');checks++;
+ await page.evaluate(()=>fetch('/api/v1/test/save-delay',{method:'POST',body:'0'}));await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#dirty').textContent==='Wszystkie zmiany zapisane');
+ const durableB=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert.equal(durableB.dashboards[0].name,'Wersja B');checks++;
+ assert.deepEqual(errors,[]);checks++;await browser.close();console.log(`PASS: ${checks} browser checks; shipped assets, pairing, C persistence, sync/conflict, LVGL preview and LAN onboarding with explicit host radio fixture`);
+})().catch(async e=>{console.error(e);if(activePage){fs.mkdirSync('build-ui/panel-review',{recursive:true});await activePage.screenshot({path:'build-ui/panel-review/failure.png',fullPage:true}).catch(()=>{});console.error(await activePage.locator('body').innerText().catch(()=>''));}process.exit(1)});

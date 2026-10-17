@@ -1,38 +1,44 @@
 # DIY Shelly Remote
 
-An unofficial open-source ESP32 touchscreen remote controller for Shelly smart home devices, with local Wi-Fi and Bluetooth connectivity.
+Unofficial open-source touchscreen remote for Shelly devices on the
+**LCDWiki ES3C35P N16R8** (ESP32-S3, 320×480). Fully local: Wi-Fi LAN and
+Bluetooth LE, no cloud, no CDN. Not affiliated with or endorsed by Shelly.
 
-**Current milestone: `0.2.0-local-dev`, on-device Wi-Fi and one local Shelly switch. The preceding bring-up boots and responds to touch on the user’s ES3C35P; new network/control behavior awaits its physical test.**
+Development version: `0.7.46-dev` (branch `work/p0-spiffs-ota-brand`, draft PR #65).
+There is no Stable release yet; `main` holds an older baseline.
 
-Project repository: [voltex-at/DIY-Shelly-Remote](https://github.com/voltex-at/DIY-Shelly-Remote). This independent firmware does not modify the separate sensor remote projects. It is not affiliated with or endorsed by Shelly.
+## Status
 
-## Current implementation
+| Area | Code | CI | Physical (ES3C35P) |
+| --- | --- | --- | --- |
+| Boot, display, touch, backlight | yes | yes | confirmed by owner (0.1.0) |
+| Wi-Fi + one Shelly switch ON/OFF | yes | yes | confirmed by owner (0.6.x) |
+| Multiple Shelly (up to 16), rooms, editor, Web Panel | yes | yes | in test, defects reported 0.7.23 |
+| SPIFFS first format with LCD progress | yes | yes | format passed (0.7.37); resume after reset pending |
+| BLE scan and Gen2+ onboarding over BLE | yes | yes | pending |
+| Covers | yes | yes | control confirmed (0.7.37) |
+| Light/Dimmer, RGBW, H&T, groups/scenes, energy history | yes | yes | pending |
+| Shelly BLU Motion/Door/Window, read through a Shelly gateway on LAN | yes (0.7.42) | yes | pending |
+| OTA from the device: catalogue, manifest, signature, version policy | yes | yes | confirmed by owner (0.7.40); full install and rollback pending |
 
-- ESP-IDF v5.5.4 project with a documented LCDWiki ES3C35P N16R8 board profile: ST77922 QSPI display, 320x480 portrait, 16 MB Flash and 8 MB OPI PSRAM.
-- LVGL 9.3.0 Home with confirmed relay state, explicit ON/OFF and optional actual Gen2+ power. On-screen Wi-Fi and Shelly forms with keyboard and scrolling. Hardware corner/color/brightness/off/wake tools remain available in Menu.
-- Bounded asynchronous ST77922 touch polling, single-owner LVGL task, DMA display flushing with four-pixel alignment, and actual memory checks at boot.
-- Manual IPv4 addition of one switch/channel, NVS persistence, Gen1 Basic / Gen2+ Digest via ESP-IDF, identity checks before requests, readback, offline handling and bounded background worker. No simulated devices. Prototype NVS is unencrypted; local Gen1 Basic HTTP has no transport confidentiality.
-- Two 6 MiB OTA application slots planned into the confirmed 16 MiB Flash layout. There is **no OTA installer yet**.
-- Native tests and GitHub Actions for diagnostic/board compilation and hardware-test artifacts. No stable release is published automatically.
+Details per feature: [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md).
+A green CI run is not a physical confirmation.
 
-Foundation validation: 94 portable assertions passed, including ASan/UBSan in GitHub Actions; ESP32 and ESP32-S3 diagnostic compilation passed in [run 38657250244](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38657250244). Board/UI changes have their own build evidence in [PROJECT_STATUS.md](PROJECT_STATUS.md). A successful compilation is not a physical board test.
+## Install
 
-## First installation and test
-
-Read [the ES3C35P guide](boards/lcdwiki-es3c35p/README.md) before using a hardware-test artifact. Use only the ES3C35P variant; generic diagnostic artifacts are not firmware for this board. For this version follow [the Polish local-control installation/test guide](docs/LOCAL_CONTROL_PL.md). It covers Wi-Fi setup, one saved authenticated switch, ON/OFF, state refresh, restart and offline tests. Multi-device UI, rooms/scenes, energy history, BLE and OTA installation remain future work.
-
-No phone, Home Assistant or cloud will be required for the final local-control functionality. All network/device states in production will come from real devices; no simulated devices are included in this bring-up build.
+- First installation over USB (erases data): [INSTALL_FACTORY_PL.md](docs/INSTALL_FACTORY_PL.md), image at **0x0**.
+- Later updates: from the remote (Settings → Firmware Update) or [INSTALL_UPDATE_PL.md](docs/INSTALL_UPDATE_PL.md).
+- Never use Erase All as a default step; see [STORAGE_RECOVERY_PL.md](docs/STORAGE_RECOVERY_PL.md).
 
 ## Development
 
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and the [docs index](docs/README.md).
+
 ```sh
-sudo apt-get install libcjson-dev
-python3 tools/test.py
+sudo apt-get install libcjson-dev libssl-dev
 python3 tools/test.py --sanitize
 ```
 
-See [BUILD.md](docs/BUILD.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [API.md](docs/API.md), [UI.md](docs/UI.md), [OTA.md](docs/OTA.md), [COMPATIBILITY.md](docs/COMPATIBILITY.md) and [ROADMAP.md](docs/ROADMAP.md).
-
-Original project code is [MIT](LICENSE). The panel initialization data derives from a separately attributed MIT project; driver/framework dependencies retain their own licenses. See [NOTICE.md](NOTICE.md). No official Shelly application code, graphics or logos are included.
-
-Current development firmware: [verified CI/artifact](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38662049616/artifacts/11939312624), 94 + 371 checks with ASan/UBSan and all three ESP-IDF builds passed. See [validation record](docs/VALIDATION.md) for exact source/tested commits and hashes.
+Original project code is [MIT](LICENSE). Third-party components keep their own
+licenses, see [NOTICE.md](NOTICE.md). No official Shelly code, graphics or logos
+are included.

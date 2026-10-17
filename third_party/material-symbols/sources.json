@@ -1,0 +1,31 @@
+{
+  "upstream": "https://github.com/google/material-design-icons",
+  "commit": "49d4db35df873165d6bd6ba09b063c7dafbac2f4",
+  "license": "Apache-2.0",
+  "sha256": {
+    "speed": "df76eca7b6eb6dac84153843c9726d4315b8bf015807454ed7bb16f91b40fbc6",
+    "home": "b29e5deb4467a06ec02ac358516fd8e5955c0d704fba8776f055b638cfbab607",
+    "bolt": "13195a03d22906ca3c7a78fc6e104cb269b98ddac7dca96c424fadc623c33f3c",
+    "settings": "6cd47de90647ece6b00922f497f8c4ea9c1649548cf15828d1df9d78d5bdf30d",
+    "add": "747fe04ec3eb546a96f514a5d2df9e81be53397818b83f05630519ab008bb6e9",
+    "power_settings_new": "a36801d7d46cf5583da72b93856b3f27a2ca7194df1150fb77bdc9b072bc3d41",
+    "arrow_back_ios_new": "c39b2c93b9dd429a9dd70eaf6982ce5499427e638891abe7f2dc66876aee5c6f",
+    "edit": "65d2e92a5a2d761c82125ecd95aa6fd8a389b6153a631ccc260c9aa658f65ef6",
+    "info": "ab779a17ff3bc8f5a30e3231509ef9ff6fee709ffcaa46fb65217ce170f03e14",
+    "power": "ceadf6b015ca2d987a5092184b4bb5e60c74fc5c79569a581130070e949d0098",
+    "lightbulb": "0a65bea39c8d035adc9833600e436fd9dcd62e72f82b23de48ff6815de2956af",
+    "chair": "c1b6520a95c649f02c33e6edea5d49079d153ce13fe734898380ffa4337c6bf3",
+    "bed": "97b209ce09473886548a11e15d9e76378f6be60edd3e929329d474aff7a51948",
+    "kitchen": "c09559211ba028b231b3b7e6d4dbf002fccea44b5bf3b882a09268c7f429e893",
+    "bathtub": "8abc10d349ebb3ab69e9cc11b1c97e5859ac8a04305c4f56cf6d9536c5626d0b",
+    "wifi": "f7c825d97360b22a97e7b5636fbf68ef08fab3de679811553d3eb07590163488",
+    "grid_view": "8c3937acee82f64fc66f6221d9103d0e5d69a71f5979fedb8c5e5d74a0727dc9",
+    "expand_more": "be3caefbe027b3fd65e88c363b86cc7af9f4bc71fa7c5187fcb02b0e40988a3d",
+    "keyboard_arrow_up": "dcb6dfccfaf37d4fc869e401a4954263f7f7389f9a7eb93145f41ad61a78f2a6",
+    "keyboard_arrow_down": "6539a5949b9a64b83f13f23e95c21f25715f140f7eac8c70f4560dc96fd6836e",
+    "sensor_door": "a68c5d4299a9e94bf6bdb8dc2647268a3955885c4a9c9cfa0341e6b1b365fe7e",
+    "blinds": "9536fc6bfb33e76f8b90f638f32fbb079dcada6c8791ae91b7df0ce723827323",
+    "battery_full": "ae2f6fbef5098bf19695ace7fd8b7405c601d1ed8346f6400e6de45d306da003",
+    "auto_awesome": "1063105af20333199d63de238ae67b803f56bccf9cf593967e0b8cd4f5107796"
+  }
+}

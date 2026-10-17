@@ -1,60 +1,119 @@
+#include "dsr_ui_provision.h"
+#include "dsr_ui_brand.h"
+#include "dsr_style_hint.h"
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
+#include "dsr_ui_mobile.h"
+#include "dsr_ui_style.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
+#include "dsr_workspace.h"
+#include "dsr_system_info.h"
+#include "dsr_restart.h"
+#include "dsr_panel_pairing.h"
 #include "lvgl.h"
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
 static lv_obj_t *touch_status;
-static lv_obj_t *brightness_text;
 static unsigned touches;
-static uint8_t brightness = 70;
-static const uint32_t BG = 0x10141c, CARD = 0x1b2330, ACCENT = 0x39a7ff;
+static lv_obj_t *expiry_label;
+static uint32_t issued_at;
+static bool expiry_pair;
+static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
+/* Accepted is process-lifetime state, not a screen state. Navigating away must
+ * neither cancel backend admission nor submit a second request on reopening. */
+static bool restart_accepted;
+static lv_obj_t *revoke_state_label,*revoke_status,*revoke_confirm_button,*revoke_cancel_button;
+static lv_obj_t *web_pairing_state,*web_pairing_generate;
+static bool revoke_pending;
+static const char *revoke_message="Potwierdź unieważnienie przyciskiem poniżej.";
+void dsr_ui_settings_hide(void)
+{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
+ revoke_state_label=revoke_status=revoke_confirm_button=revoke_cancel_button=NULL;
+ web_pairing_state=web_pairing_generate=NULL;}
+void dsr_ui_settings_tick(void)
+{
+ if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
+  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");expiry_label=NULL;
+ }
+}
+
 void dsr_ui_home(lv_event_t *event);
 static void menu(lv_event_t *event);
 
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width)
 {
     lv_obj_t *obj = lv_label_create(parent);
-    lv_label_set_text(obj, text);
+    dsr_sc_label_set_text(obj, text);
     lv_obj_set_pos(obj, x, y);
     lv_obj_set_width(obj, width);
     lv_label_set_long_mode(obj, LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(DSR_SC_TEXT), 0);
+    lv_obj_set_style_text_font(obj, &dsr_roboto_14, 0);
     return obj;
 }
 
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
                         lv_event_cb_t callback, void *context)
 {
-    lv_obj_t *obj = lv_button_create(parent);
-    lv_obj_set_pos(obj, x, y);
-    lv_obj_set_size(obj, width, 48);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(CARD), 0);
-    lv_obj_set_style_radius(obj, 12, 0);
+    lv_obj_t *obj = dsr_sc_button(parent,x,y,width,48,DSR_SC_CARD,DSR_SC_RADIUS,callback,context);
+    lv_obj_set_style_text_color(obj,dsr_sc_color(DSR_SC_TEXT),0);
     lv_obj_t *caption = lv_label_create(obj);
-    lv_label_set_text(caption, text);
+    lv_obj_set_style_text_font(caption, &dsr_roboto_16, 0);
+    lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
+    lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
-    if (callback) lv_obj_add_event_cb(obj, callback, LV_EVENT_CLICKED, context);
     return obj;
+}
+
+void dsr_ui_primary(lv_obj_t *obj)
+{
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_BLUE), 0);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(0x287ec7), LV_STATE_PRESSED);
+}
+
+void dsr_ui_textarea(lv_obj_t *obj)
+{
+    lv_obj_set_style_text_font(obj, &dsr_roboto_18, 0);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_PANEL), 0);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(0xf0f4fb), 0);
+    lv_obj_set_style_text_color(obj, dsr_sc_color(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
+    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_EDGE), 0);
+    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_BLUE), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_width(obj, 1, 0);
+    lv_obj_set_style_radius(obj, 10, 0);
+    lv_obj_set_style_bg_color(obj, dsr_sc_color(0xf0f4fb), LV_PART_CURSOR);
+}
+
+static void shell_navigation(lv_event_t *event)
+{
+ unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);
+ if(index<2){dsr_network_home(NULL);if(index==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);}
+ else if(index==3)dsr_ui_open_settings();else if(index==4)dsr_network_device(NULL);
 }
 
 lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
 {
     dsr_network_reset_view();
-    touch_status = brightness_text = NULL;
+    dsr_ui_workspace_hide();
+    dsr_mobile_hide();
+    touch_status = NULL;
+    dsr_ui_display_hide();
     lv_obj_t *root = lv_screen_active();
     lv_obj_clean(root);
-    lv_obj_set_style_bg_color(root, lv_color_hex(BG), 0);
-    lv_obj_set_style_text_color(root, lv_color_hex(0xf0f4fb), 0);
+    lv_obj_remove_style_all(root);
+    dsr_sc_background(root);
+    lv_obj_set_style_text_color(root, dsr_sc_color(0xf0f4fb), 0);
+    lv_obj_set_style_text_font(root, &dsr_roboto_14, 0);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
-    dsr_ui_label(root, "DIY SHELLY REMOTE", 16, 14, 288);
-    lv_obj_t *heading = dsr_ui_label(root, title, 16, 49, 288);
-    lv_obj_set_style_text_color(heading, lv_color_hex(ACCENT), 0);
-    if (navigation) {
-        dsr_ui_button(root, "Home", 12, 420, 140, dsr_ui_home, NULL);
-        dsr_ui_button(root, "Menu", 168, 420, 140, menu, NULL);
-    }
+    dsr_sc_header(root,"Mój dom",false,dsr_wifi_connected(),dsr_ui_home,NULL);
+    lv_obj_t *heading=dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);
+    lv_obj_set_height(heading,24);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
+    dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
+    if(navigation)dsr_sc_navigation(root,3,27,shell_navigation);
     return root;
 }
 
@@ -62,7 +121,7 @@ static void touch_hit(lv_event_t *event)
 {
     unsigned corner = (unsigned)(uintptr_t)lv_event_get_user_data(event);
     touches++;
-    lv_label_set_text_fmt(touch_status, "Corner %u detected\nTouch count: %u", corner, touches);
+    dsr_sc_label_set_text_fmt(touch_status, "Corner %u detected\nTouch count: %u", corner, touches);
 }
 
 static void touch_test(lv_event_t *event)
@@ -94,59 +153,188 @@ static void colors(lv_event_t *event)
         lv_obj_set_style_border_width(bar, 0, 0);
         lv_obj_set_style_radius(bar, 8, 0);
         lv_obj_t *caption = lv_label_create(bar);
-        lv_label_set_text(caption, names[i]);
+        dsr_sc_label_set_text(caption, names[i]);
         lv_obj_set_style_text_color(caption, lv_color_hex(i == 2 ? 0xffffff : 0x000000), 0);
         lv_obj_center(caption);
     }
 }
 
-static void change_brightness(lv_event_t *event)
-{
-    uint8_t percent = (uint8_t)lv_slider_get_value(lv_event_get_target(event));
-    if (dsr_board_set_backlight(percent) == ESP_OK) {
-        brightness = percent;
-        lv_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
-    }
-}
-
 static void sleep_display(lv_event_t *event) { (void)event; dsr_board_sleep_display(); }
 
-static void firmware(lv_event_t *event)
-{
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Firmware Update", true);
-    dsr_ui_label(root, "Current version", 16, 100, 288);
-    dsr_ui_label(root, esp_app_get_description()->version, 16, 133, 288);
-    dsr_ui_label(root, "Local switch development build.\nOnline updates are not available yet.", 16, 200, 288);
-}
-
-static void settings(lv_event_t *event)
-{
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Settings", true);
-    brightness_text = dsr_ui_label(root, "", 16, 92, 288);
-    lv_label_set_text_fmt(brightness_text, "Brightness: %u%%", (unsigned)brightness);
-    lv_obj_t *slider = lv_slider_create(root);
-    lv_obj_set_pos(slider, 24, 144);
-    lv_obj_set_size(slider, 272, 18);
-    lv_slider_set_range(slider, 10, 100);
-    lv_slider_set_value(slider, brightness, LV_ANIM_OFF);
-    lv_obj_add_event_cb(slider, change_brightness, LV_EVENT_VALUE_CHANGED, NULL);
-    dsr_ui_button(root, "Screen off / touch to wake", 16, 204, 288, sleep_display, NULL);
-    dsr_ui_button(root, "Firmware Update", 16, 270, 288, firmware, NULL);
-    dsr_ui_label(root, "Auto screen off: 60 seconds\nBrightness is temporary; BLE pending", 16, 346, 288);
-}
+void dsr_ui_open_settings(void) { if(dsr_ui_settings_can_open())menu(NULL); }
 
 static void hardware(lv_event_t *event);
+static void cover_preview(lv_event_t *event)
+{(void)event;dsr_mobile_cover_preview();}
+/* Every global section starts with a fresh LCD body; no cached object pointers
+ * survive Back/Home. Pair codes and tokens are never stored in this module. */
+static void settings_back(lv_event_t *event){(void)event;dsr_ui_open_settings();}
+static lv_obj_t *settings_body(const char *title)
+{
+ lv_obj_t *root=dsr_ui_screen(title,false);
+ lv_obj_t *body=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ dsr_ui_button(root,"Wstecz",12,420,296,settings_back,NULL);return body;
+}
+static lv_obj_t *row(lv_obj_t *body,const char *text,int y,lv_event_cb_t action)
+{return dsr_ui_button(body,text,0,y,296,action,NULL);}
+void dsr_ui_settings_network(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Sieć i połączenia");dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);
+ dsr_sc_text(body,wifi.connected?"Wi-Fi: połączono":"Wi-Fi: brak połączenia",4,4,284,&dsr_roboto_16,DSR_SC_TEXT);
+ lv_obj_t *ssid=dsr_sc_text(body,wifi.ssid[0]?wifi.ssid:"—",4,34,284,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_set_height(ssid,20);lv_label_set_long_mode(ssid,LV_LABEL_LONG_MODE_DOTS);
+ char text[48];snprintf(text,sizeof(text),"IPv4: %s",wifi.connected&&wifi.ip[0]?wifi.ip:"—");
+ dsr_sc_text(body,text,4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Wi-Fi setup",98,dsr_network_wifi);row(body,"Bluetooth LE • skan i setup",156,dsr_ui_ble_settings);
+ dsr_sc_text(body,"BLE: otwarte okno setup Gen2+. AP: otwarty punkt Shelly.",4,218,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Wi-Fi AP • dodaj Shelly",266,dsr_ui_ap_open);row(body,"Dodaj urządzenie Shelly",324,dsr_network_device);
+ row(body,"Odśwież",382,dsr_ui_settings_network);
+}
+static void web_panel(lv_event_t *event);
+static const char *pairing_state_text(void)
+{
+ dsr_panel_pairing_snapshot_t state;
+ if(!dsr_panel_pairing_snapshot(&state))return "Stan parowania niedostępny.";
+ if(state.revocation_unconfirmed)return "Trwałe unieważnienie: niepotwierdzone.";
+ return state.paired?"Dostęp WWW: aktywny.":"Dostęp WWW: nieaktywny.";
+}
+static void revoke_controls(void)
+{
+ if(web_pairing_state){
+  dsr_sc_label_set_text(web_pairing_state,revoke_pending?"Unieważnianie parowania…":pairing_state_text());
+  if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);else lv_obj_remove_state(web_pairing_generate,LV_STATE_DISABLED);
+ }
+ if(!revoke_status)return;
+ dsr_sc_label_set_text(revoke_status,revoke_pending?"Unieważnianie parowania…":revoke_message);
+ dsr_sc_label_set_text(revoke_state_label,pairing_state_text());
+ lv_obj_t *items[]={revoke_confirm_button,revoke_cancel_button};
+ for(unsigned i=0;i<2;i++)if(revoke_pending)lv_obj_add_state(items[i],LV_STATE_DISABLED);else lv_obj_remove_state(items[i],LV_STATE_DISABLED);
+}
+void dsr_ui_pairing_revoke_result(const dsr_event_t *event)
+{
+ if(!revoke_pending)return;
+ revoke_pending=false;
+ revoke_message=event->result==DSR_OK?"Parowanie unieważniono. Nowy dostęp wymaga nowego kodu.":"Nie potwierdzono trwałego unieważnienia. Spróbuj ponownie.";
+ revoke_controls();
+}
+static void revoke_confirm(lv_event_t *event)
+{
+ (void)event;if(revoke_pending||!revoke_status)return;
+ dsr_result_t accepted=dsr_network_request_pairing_revoke();
+ if(accepted==DSR_OK)revoke_pending=true;
+ else revoke_message="Pilot jest zajęty. Spróbuj ponownie.";
+ revoke_controls();
+}
+static void revoke_cancel(lv_event_t *event)
+{if(!revoke_pending)web_panel(event);}
+static void revoke_screen(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Unieważnij parowanie WWW");
+ revoke_state_label=dsr_sc_text(body,pairing_state_text(),4,6,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ revoke_status=dsr_sc_text(body,"",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
+ revoke_confirm_button=row(body,"Unieważnij parowanie",210,revoke_confirm);
+ revoke_cancel_button=row(body,"Anuluj",268,revoke_cancel);revoke_controls();
+}
+static void pair_browser(lv_event_t *event)
+{
+ (void)event;char code[17]={0};if(!revoke_pending&&dsr_panel_ready())dsr_panel_pair_begin(code);
+ lv_obj_t *body=settings_body("Parowanie Web Panelu");
+ if(!code[0]){dsr_sc_text(body,"Nie utworzono kodu. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);row(body,"Panel WWW / bezpieczeństwo",110,web_panel);return;}
+ dsr_sc_text(body,"Jednorazowy kod • 120 s • 5 prób",4,8,284,&dsr_roboto_14,DSR_SC_MUTED);
+ expiry_label=dsr_sc_text(body,code,4,54,284,&dsr_roboto_18,DSR_SC_TEXT);issued_at=lv_tick_get();expiry_pair=true;memset(code,0,sizeof(code));
+ dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",4,112,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Panel WWW / bezpieczeństwo",214,web_panel);
+}
+static void web_panel(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Panel WWW / bezpieczeństwo");
+ dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);dsr_config_health_t health;dsr_config_health_snapshot(&health);
+ dsr_sc_text(body,dsr_panel_ready()?"HTTPS uruchomiony":"HTTPS niedostępny",4,4,284,&dsr_roboto_16,DSR_SC_TEXT);
+ char address[48];if(wifi.connected&&wifi.ip[0])snprintf(address,sizeof(address),"https://%s",wifi.ip);else snprintf(address,sizeof(address),"IPv4: —");
+ dsr_sc_text(body,address,4,36,284,&dsr_roboto_14,DSR_SC_BLUE);dsr_sc_text(body,"https://shelly-remote.local",4,62,284,&dsr_roboto_14,DSR_SC_BLUE);
+ const char *fp=dsr_tls_fingerprint();char digest[80];snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp?fp:"",fp&&strlen(fp)>32?fp+32:"");
+ dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",4,100,284,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_11,DSR_SC_TEXT);
+ char status[64];snprintf(status,sizeof(status),"SPIFFS: %d / 0x%x",(int)health.storage,(unsigned)health.storage_error);
+ dsr_sc_text(body,status,4,172,284,&dsr_roboto_12,DSR_SC_MUTED);
+ web_pairing_generate=row(body,"Wygeneruj kod parowania",210,pair_browser);if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);
+ web_pairing_state=dsr_sc_text(body,revoke_pending?"Unieważnianie parowania…":pairing_state_text(),4,276,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,"Wspólne parowanie, nie lista aktywnych sesji.",4,324,284,&dsr_roboto_12,DSR_SC_MUTED);
+ row(body,"Unieważnij parowanie WWW",366,revoke_screen);
+ row(body,"Diagnostyka konfiguracji",424,dsr_ui_config_diagnostics);
+ row(body,"Odśwież",482,web_panel);
+}
+void dsr_ui_web_ota_open(lv_event_t *event)
+{
+ (void)event;bool accepted=dsr_panel_allow_ota();lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
+ lv_obj_t *status=dsr_sc_text(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);
+ if(accepted){expiry_label=status;issued_at=lv_tick_get();expiry_pair=false;}
+ dsr_sc_text(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",4,146,284,&dsr_roboto_14,DSR_SC_MUTED);
+}
+static void system_menu(lv_event_t *event);
+static void restart_cancel(lv_event_t *event)
+{if(!restart_accepted)system_menu(event);}
+static void restart_confirm(lv_event_t *event)
+{
+ (void)event;if(restart_accepted||!restart_status||!restart_confirm_button||!restart_cancel_button)return;
+ dsr_restart_result_t result=dsr_restart_request();
+ const char *text="Restart jest niedostępny. Spróbuj później.";
+ if(result==DSR_RESTART_ACCEPTED){
+  restart_accepted=true;text="Przyjęto żądanie restartu.";
+  lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);
+ }else if(result==DSR_RESTART_BUSY)text="Pilot jest zajęty. Spróbuj ponownie.";
+ dsr_sc_label_set_text(restart_status,text);
+}
+static void restart_screen(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Restart pilota");
+ dsr_sc_text(body,"Czy uruchomić pilot ponownie?",4,6,284,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(body,"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
+ restart_status=dsr_sc_text(body,restart_accepted?"Przyjęto żądanie restartu.":"Potwierdź restart przyciskiem poniżej.",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
+ restart_confirm_button=row(body,"Uruchom ponownie",210,restart_confirm);dsr_ui_primary(restart_confirm_button);
+ restart_cancel_button=row(body,"Anuluj",268,restart_cancel);
+ if(restart_accepted){lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);}
+}
+static void system_info(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Informacje i diagnostyka");dsr_system_info_t info;dsr_system_info_snapshot(&info);
+ dsr_sc_text(body,esp_app_get_description()->version,4,4,284,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(body,dsr_board_hardware_id(),4,36,284,&dsr_roboto_12,DSR_SC_MUTED);
+ char text[160];snprintf(text,sizeof(text),dsr_sc_tr("RAM wolna: %lu B\nNajwiększy blok: %lu B\nPSRAM wolna: %lu B\nFlash dostępna: %lu B / 0x%x"),(unsigned long)info.internal_free,(unsigned long)info.internal_largest,(unsigned long)info.psram_free,(unsigned long)info.flash_bytes,(unsigned)info.flash_error);
+ dsr_sc_text(body,text,4,76,284,&dsr_roboto_14,DSR_SC_TEXT);
+ row(body,"Diagnostyka konfiguracji",194,dsr_ui_config_diagnostics);
+ dsr_sc_text(body,"Restart: w menu System, po potwierdzeniu. Eksport i reset: niewdrożone.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
+ row(body,"Odśwież",342,system_info);
+}
+static void system_menu(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("System");
+ row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
+ row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
+ row(body,"Podgląd rolety • DEMO",232,cover_preview);row(body,"Restart pilota",290,restart_screen);
+}
+void dsr_ui_system_open(lv_event_t *event){system_menu(event);}
+static void screen_settings(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Ekran i komfort");row(body,"Ekran",0,dsr_ui_display_open);
+ row(body,"Screen off / touch to wake",58,sleep_display);
+ dsr_sc_text(body,"Pierwszy dotyk wybudza bez wykonania akcji.",4,128,284,&dsr_roboto_14,DSR_SC_MUTED);
+}
 static void menu(lv_event_t *event)
 {
-    (void)event;
-    lv_obj_t *root = dsr_ui_screen("Menu", true);
-    dsr_ui_button(root, "Wi-Fi setup", 16, 91, 288, dsr_network_wifi, NULL);
-    dsr_ui_button(root, "Add / replace Shelly", 16, 150, 288, dsr_network_device, NULL);
-    dsr_ui_button(root, "Hardware tests", 16, 209, 288, hardware, NULL);
-    dsr_ui_button(root, "Settings", 16, 268, 288, settings, NULL);
-    dsr_ui_label(root, "One switch in this version.\nRooms, scenes, BLE and OTA: planned.", 16, 340, 288);
+ (void)event;lv_obj_t *root=dsr_ui_screen("Ustawienia pilota",true);
+ lv_obj_t *body=dsr_sc_panel(root,12,86,296,330,DSR_SC_BG,0);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
+ const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_GRID,DSR_ICON_DASHBOARD,DSR_ICON_BATTERY,DSR_ICON_HOME,DSR_ICON_SETTINGS};
+ const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
+ for(unsigned i=0;i<6;i++){
+  lv_obj_t *button=row(body,names[i],(int)i*58,callbacks[i]);lv_obj_t *caption=lv_obj_get_child(button,0);
+  lv_obj_set_width(caption,236);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_LEFT,0);lv_obj_align(caption,LV_ALIGN_LEFT_MID,48,0);
+  dsr_sc_icon(button,icons[i],12,13,22,DSR_SC_BLUE);
+ }
 }
 
 void dsr_ui_home(lv_event_t *event) { dsr_network_home(event); }
@@ -158,10 +346,26 @@ static void hardware(lv_event_t *event)
     dsr_ui_label(root, "Hardware test", 16, 100, 288);
     dsr_ui_label(root, "Display and touch test tools.\nCheck colors, corners and wake.", 16, 137, 288);
     lv_obj_t *status = dsr_ui_label(root, dsr_board_touch_available() ? "Touch controller: responding" : "Touch controller: NOT responding", 16, 200, 288);
-    lv_obj_set_style_text_color(status, lv_color_hex(dsr_board_touch_available() ? 0x72dfb0 : 0xffb466), 0);
+    lv_obj_set_style_text_color(status, dsr_sc_color(dsr_board_touch_available() ? 0x72dfb0 : 0xffb466), 0);
     dsr_ui_button(root, "Check touchscreen", 16, 252, 288, touch_test, NULL);
     dsr_ui_button(root, "Check display colors", 16, 316, 288, colors, NULL);
     dsr_ui_label(root, "ES3C35P / 320 x 480", 16, 390, 288);
 }
 
-void dsr_ui_init(void) { dsr_network_init(); dsr_ui_home(NULL); }
+/* Default LVGL widgets (lists, checkboxes, dropdowns) follow the style too. */
+void dsr_ui_apply_theme(void)
+{
+    dsr_style_hint_set((uint8_t)dsr_sc_style()); /* NVS write only on change */
+    static int applied=-1;const int light=dsr_sc_style()==DSR_SC_STYLE_LIGHT;
+    if(applied==light)return;
+    lv_display_t *display=lv_display_get_default();if(!display)return;
+    lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),!light,&dsr_roboto_14);
+    lv_display_set_theme(display,theme);applied=light;
+}
+void dsr_ui_init(void)
+{
+    dsr_ui_provision_release(); /* first-format screen, if it was shown */
+    dsr_ui_splash_release();    /* boot splash, before any screen clean */
+    dsr_ui_apply_theme();
+    dsr_network_init();dsr_network_start_view();
+}

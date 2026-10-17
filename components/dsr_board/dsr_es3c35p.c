@@ -1,5 +1,6 @@
 /* LCDWiki ES3C35P board port. See boards/lcdwiki-es3c35p/README.md. */
 #include "dsr_board.h"
+#include "dsr_ui_task.h"
 #include "st77922_init.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -30,6 +31,7 @@ static bool ui_started;
 static bool sleeping;
 static bool consume_until_release;
 static uint8_t desired_brightness = 70;
+static uint16_t idle_seconds = 60;
 static esp_timer_handle_t tick_timer;
 static portMUX_TYPE touch_lock = portMUX_INITIALIZER_UNLOCKED;
 typedef struct { bool pressed; uint16_t x, y; } touch_sample_t;
@@ -48,6 +50,24 @@ esp_err_t dsr_board_set_backlight(uint8_t percent)
     if (percent > 0) desired_brightness = percent;
     return ESP_OK;
 }
+
+esp_err_t dsr_board_apply_display(uint8_t brightness, uint16_t seconds)
+{
+    if(brightness>100||seconds>3600)return ESP_ERR_INVALID_ARG;
+    /* Legacy records accept zero brightness. Keep wake usable, matching the
+     * existing UI minimum; never persist a changed value merely on load. */
+    uint8_t safe_brightness=brightness<10?10:brightness;
+    if(ui_started){
+        esp_err_t error=dsr_board_set_backlight(sleeping?0:safe_brightness);
+        if(error!=ESP_OK)return error;
+    } /* Bootstrap keeps light off until app_main starts the UI task. */
+    desired_brightness=safe_brightness;idle_seconds=seconds;
+    if(display)lv_display_trigger_activity(display);
+    return ESP_OK;
+}
+
+esp_err_t dsr_board_restore_backlight(void)
+{return dsr_board_set_backlight(desired_brightness);}
 
 void dsr_board_sleep_display(void)
 {
@@ -128,7 +148,7 @@ static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
     data->point.y = last_y;
     data->state = LV_INDEV_STATE_RELEASED;
     if (sleeping && sample.pressed) {
-        if (dsr_board_set_backlight(desired_brightness) != ESP_OK) return;
+        if (dsr_board_restore_backlight() != ESP_OK) return;
         sleeping = false;
         consume_until_release = true;
         lv_display_trigger_activity(display);
@@ -143,29 +163,26 @@ static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
 static void idle_check(lv_timer_t *timer)
 {
     (void)timer;
-    if (touch_ready && !sleeping && lv_display_get_inactive_time(display) >= 60000) dsr_board_sleep_display();
+    if (touch_ready && !sleeping && idle_seconds && lv_display_get_inactive_time(display) >= (uint32_t)idle_seconds*1000) dsr_board_sleep_display();
 }
 
 static void tick(void *arg) { (void)arg; lv_tick_inc(5); }
-static void ui_task(void *arg)
+esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void))
 {
-    (void)arg;
-    for (;;) {
-        uint32_t delay = lv_timer_handler();
-        if (delay < 10) delay = 10;
-        if (delay > 20) delay = 20;
-        vTaskDelay(pdMS_TO_TICKS(delay));
-    }
-}
-
-esp_err_t dsr_board_start_ui_task(void)
-{
+    /* The first-format screen may already have started the task with the
+     * same gate; app_main's later call is then a no-op, not a failure. */
+    if (ui_started && dsr_ui_task_started_with(startup_ready)) return ESP_OK;
     if (!display || ui_started) return ESP_ERR_INVALID_STATE;
-    lv_timer_create(idle_check, 500, NULL);
-    if (xTaskCreate(ui_task, "dsr_ui", 8192, NULL, 4, NULL) != pdPASS) return ESP_ERR_NO_MEM;
+    lv_timer_t *idle = lv_timer_create(idle_check, 500, NULL);
+    if (!idle) return ESP_ERR_NO_MEM;
+    esp_err_t error = dsr_ui_task_start(startup_ready);
+    if (error != ESP_OK) { lv_timer_delete(idle); return error; }
     ui_started = true;
     return ESP_OK;
 }
+
+void dsr_board_ui_quiesce(void) { dsr_ui_task_quiesce(); }
+void dsr_board_ui_hold(uint32_t ms) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 
 esp_err_t dsr_board_init(void)
 {

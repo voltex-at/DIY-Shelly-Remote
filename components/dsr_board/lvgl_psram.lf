@@ -1,0 +1,7 @@
+# Keep the 128 KiB LVGL object/renderer pool out of scarce internal SRAM.
+# Only this allocator object's BSS moves: LCD DMA, task stacks, TCBs and
+# interrupt-facing board state retain their existing internal placement.
+[mapping:dsr_lvgl_pool]
+archive: liblvgl__lvgl.a
+entries:
+    lv_mem_core_builtin (extram_bss)

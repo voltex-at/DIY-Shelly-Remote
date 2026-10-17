@@ -1,0 +1,111 @@
+name: Signed release
+# Tag vX.Y.Z      -> Stable release (GitHub "latest"), needs owner approval
+# Tag dev-vX.Y.Z  -> Dev prerelease
+# Start: push the tag, or in the GitHub UI: Releases -> Draft a new release ->
+# new tag on a commit whose "Firmware checks" passed 5/5 -> Publish (tick
+# "Set as a pre-release" for dev-v...). Exactly one run per tag (tag push only).
+#
+# gate:    tag == built commit, CI 5/5 for that commit, Stable approval
+#          environment; a release opened in the UI is hidden until complete.
+# build:   one reproducible build (CONFIG_APP_REPRODUCIBLE_BUILD).
+# publish: signed manifest; assets are uploaded once, never replaced; digests
+#          are read back before the release becomes visible.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
+permissions:
+  contents: read
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact commit, CI 5/5, Stable approval; hide an incomplete UI release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
+  build:
+    needs: gate
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v5.5.4
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        shell: bash
+        run: |
+          tag="${RELEASE_TAG}"
+          if [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=stable" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT";
+          elif [[ "$tag" =~ ^dev-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=dev" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}-dev" >> "$GITHUB_OUTPUT";
+          else echo "Unsupported tag $tag"; exit 1; fi
+      - name: Build ES3C35P firmware for the tag version
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} set-target esp32s3
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} build
+          python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
+          python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
+          python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
+          python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
+          python3 tools/test_factory.py
+          python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source "$GITHUB_SHA" --tested "$GITHUB_SHA (release ${RELEASE_TAG})"
+          CC=gcc python3 tools/test_idf_spiffs.py --idf-source "$IDF_PATH" --cjson-source "$IDF_PATH/components/json/cJSON" --factory-image build-board/installers/FACTORY-CLEAN-16MB/dsrdata.bin --verification-report build-board/installers/FACTORY-CLEAN-16MB/SPIFFS_MOUNT_PROOF.json --ubsan-only
+          cp docs/INSTALL_FACTORY_PL.md build-board/installers/FACTORY-CLEAN-16MB/
+          python3 tools/check_factory_package.py --package-dir build-board/installers
+          mkdir -p release
+          cp build-board/diy_shelly_remote.bin release/
+          python3 - <<'PY'
+          # Deterministic ZIP: sorted entries, fixed timestamps and modes.
+          import zipfile
+          from pathlib import Path
+          root=Path('build-board/installers/FACTORY-CLEAN-16MB')
+          with zipfile.ZipFile('release/DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for path in sorted(p for p in root.rglob('*') if p.is_file()):
+                  info=zipfile.ZipInfo(str(path.relative_to(root)),date_time=(2026,1,1,0,0,0))
+                  info.external_attr=0o644<<16;info.compress_type=zipfile.ZIP_DEFLATED
+                  z.writestr(info,path.read_bytes())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-release
+          path: release/
+          if-no-files-found: error
+  sign-and-publish:
+    needs: [gate, build]
+    runs-on: ubuntu-24.04
+    environment: ${{ needs.build.outputs.channel == 'stable' && 'stable-release' || 'release' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-release
+          path: release
+      - name: Sign manifest with the owner's key and verify with the firmware verifier
+        env:
+          DSR_OTA_SIGNING_KEY: ${{ secrets.DSR_OTA_SIGNING_KEY }}
+        run: |
+          test -n "$DSR_OTA_SIGNING_KEY" || { echo "Missing secret DSR_OTA_SIGNING_KEY"; exit 1; }
+          sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography
+          python3 tools/test_ota_signer.py
+          python3 tools/ota_sign_manifest.py --app release/diy_shelly_remote.bin --version ${{ needs.build.outputs.version }} \
+            --channel ${{ needs.build.outputs.channel }} --tag "$RELEASE_TAG" --key-id voltex-ota-2026-1 \
+            --public-hex 23adf99d68e6ce2315a7b0b2b53c5839d9dd15e39ee748a24ec68841861a47fe \
+            --out release/DIY-Shelly-Remote-es3c35p-manifest.json
+          (cd release && sha256sum * > SHA256SUMS.txt)
+      - name: Publish once (no replacement of existing assets), read back digests, then make visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release_tool.py publish --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA" --dir release --notes docs/RELEASE_NOTES.md
