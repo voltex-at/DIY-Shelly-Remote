@@ -20,7 +20,6 @@ void dsr_workspace_status(bool *busy,char message[96]);
 /* Pairing requires a local touch to open a 120-second, rate-limited window.
  * No shared/factory password. Pairing credentials must never be logged. */
 void dsr_panel_pair_begin(char code[17]);
-void dsr_panel_pair_cancel(void);
 /* True only when the ready panel accepted the physical 120-second window. */
 bool dsr_panel_allow_ota(void);
 esp_err_t dsr_panel_start(void);
@@ -39,7 +38,6 @@ const unsigned char *dsr_tls_key(void);
 const char *dsr_tls_fingerprint(void);
 bool dsr_workspace_bind(const dsr_connection_t *connection);
 bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t room);
-bool dsr_workspace_take_bind(dsr_connection_t *connection);
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *connection,uint32_t *room);
 void dsr_workspace_bind_result(dsr_result_t result);
 void dsr_workspace_bind_result_stage(dsr_result_t result,dsr_bind_stage_t stage);

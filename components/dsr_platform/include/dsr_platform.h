@@ -34,7 +34,6 @@ esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found);
 /* Typed schema-6 registry; frozen v1/v2 Switch0, v3 Cover, v4 Light, v5 RGB import. */
 esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *count);
 esp_err_t dsr_connection_save(const dsr_connection_t *connection);
-esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id);
 esp_err_t dsr_connection_publish(const dsr_connection_t *connection);
 esp_err_t dsr_connection_remove(const dsr_connection_t *connection);
 bool dsr_connection_valid(const dsr_connection_t *connection, bool bound);

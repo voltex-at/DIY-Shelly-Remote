@@ -1,12 +1,12 @@
 # Matryca funkcji — 0.7.33, rewizja 34
 
-[H&T Gen3](HT_GEN3_PL.md): exact S3SN-0U12A/gen3, typed kind4, jeden GetStatus
+[H&T Gen3](history/HT_GEN3_PL.md): exact S3SN-0U12A/gen3, typed kind4, jeden GetStatus
 z temperaturą/RH/baterią, read-only LCD/WWW i jawny Refresh. Uśpienie także USB;
 czas odpowiedzi ≠ czas pomiaru. Historia/sterowanie/pozostałe sensory nieobsługiwane.
 
 ## #23: RGB Plus RGBW PM — lokalny pełny pion
 
-[Kontrakt RGB3](RGB_GEN2_PL.md): wyłącznie SNDC-0D4P10WW Gen2 już w profilu
+[Kontrakt RGB3](history/RGB_GEN2_PL.md): wyłącznie SNDC-0D4P10WW Gen2 już w profilu
 rgb, GET/ON/OFF/jasność/kolor, typed BIND, LCD i authenticated WWW. Publiczna
 kategoria light pozostaje schema2; prywatny kind3 wybiera transport. RGBW/CCT,
 zmiana profilu i historia/grupy/sceny RGB pozostają niewspierane. Testy hostowe
@@ -14,7 +14,7 @@ nie stanowią fizycznego potwierdzenia Shelly ani pilota.
 
 ## #23: biały Light Gen2+ — kandydat pełnego pionu
 
-[Kontrakt i migracja](LIGHT_GEN2_PL.md): osobny typed Light2, GET/ON/OFF/jasność,
+[Kontrakt i migracja](history/LIGHT_GEN2_PL.md): osobny typed Light2, GET/ON/OFF/jasność,
 jedna intencja i rzeczywisty readback, priorytet celu przejścia nad bieżącym
 stanem. LCD/WWW, discovery/ręczny wybór rodziny oraz B1→LAN→BIND zachowują
 kreator #32 i tożsamość urządzenia. NVSv4 ma stary rozmiar i lazy import,
@@ -26,7 +26,7 @@ LCD przechodzą; własny target/browser/artefakty i sprzęt są osobnymi bramkam
 
 ## #21: rzeczywiste grupy, sceny i dziennik RAM — kandydat integracji
 
-[Kontrakt](ISSUE21_ACTIONS_PL.md): wspólny aktor LCD/WWW, grupy do8×16
+[Kontrakt](history/ISSUE21_ACTIONS_PL.md): wspólny aktor LCD/WWW, grupy do8×16
 Switch ON/OFF, sceny do8×8 jawnych akcji Switch/Cover, wyniki częściowe,
 nonce/generation i termin180s, bez automatycznego replay. Karta sceny uruchamia
 wykonanie; edycja jest osobna. Ręczny Cover STOP ma pierwszeństwo. Dziennik128
@@ -42,7 +42,7 @@ oznacza fizycznego odbioru nowych funkcji ani zamknięcia przerywanego blank for
 
 ## #32: wspólny kreator dodawania (integracja z grupami i scenami)
 
-[Kontrakt UI i granice dowodów](ISSUE32_ONBOARDING_PL.md): własny arkusz LCD
+[Kontrakt UI i granice dowodów](history/ISSUE32_ONBOARDING_PL.md): własny arkusz LCD
 nad zatrzymanym HOME, lokalny wybór BLE/AP/LAN/ręczny, jawny Dalej, offline,
 stałe przyciski i wspólne kroki/listy/stopki. Reklama BLE nie staje się
 modelem ani API identity. AP/B1 zachowują obie fizyczne zgody i cleanup.
@@ -68,7 +68,7 @@ przepływu kodu i nie stanowią odbioru autentycznego wydania ani sprzętu.
 
 ## #22: INTERNAL 24 h — zintegrowany pion, odbiór fizyczny osobno
 
-[Kontrakt i ograniczenia](ISSUE22_HISTORY_PL.md): prawdziwe zaakceptowane
+[Kontrakt i ograniczenia](history/ISSUE22_HISTORY_PL.md): prawdziwe zaakceptowane
 PROBE/SET readback → PSRAM ring5min → existing sole worker → dwa CRC journals.
 Dolna Energia/LCD Charts/WWW używają wspólnego query per physical key+kind0,
 1h/24h W/V/A i rzeczywiste Wh; UTC, zero/brak/stale/reset/luki rozróżnione.
@@ -79,7 +79,7 @@ first-boot P0 i przerwanie blank format pozostają otwarte. SD/7dni osobno.
 
 ## #29A: Ustawienia wybranego Shelly na aktualnym runtime
 
-Port istniejącego PR34 `693d869` na bazę PR53, [zakres/testy](DEVICE_SETTINGS_PL.md).
+Port istniejącego PR34 `693d869` na bazę PR53, [zakres/testy](history/DEVICE_SETTINGS_PL.md).
 `Sterowanie → Ustawienia → Edytuj kartę` działa per stable ID, lokalna nazwa/pokój
 przez obecny CAS/exact ACK i powrót do tego samego urządzenia. Status/ID/API/W/V/A
 z aktualnego fleet. Manualny GET tylko wybranego bindingu, bez kasowania auth/rate
@@ -91,7 +91,7 @@ historia #22/#29B ani zamknięcie #29. NVS/schema/registry/migrations bez zmian.
 
 ## #19: rzeczywiste dodawanie przez otwarty fabryczny AP
 
-[Kontrakt i ograniczenia](ISSUE19_AP_PL.md): skan Wi-Fi, BSSID-pinned RAM join,
+[Kontrakt i ograniczenia](history/ISSUE19_AP_PL.md): skan Wi-Fi, BSSID-pinned RAM join,
 tożsamość API, dwie fizyczne zgody, jeden Gen1 form/Gen2+ JSON POST i powrót
 do domu. Exact ID/MAC/generation + STA SSID/IP readback w LAN przed istniejącym
 formularzem i wielourządzeniowym BIND. Dane domowe/rejestr/pokoje nie są kasowane.
@@ -111,7 +111,7 @@ pair/auth/revoke i activity do lastclose/receive. Stare RAM uprawnienie, kod
 i OTA window blokowane przed NVS; erase ONLY token_hash + NOT_FOUND readback.
 Commit NVS nie jest rollbackiem; błąd nie obiecuje stanu Flash po restarcie.
 Pending bez duplikatów/hide/reopen, PL/EN/DE; testy/CI/artefakty/physical osobno.
-[Kontrakt](PAIRING_REVOKE_PL.md), bez namespace wipe/resetu/TLS rotation.
+[Kontrakt](history/PAIRING_REVOKE_PL.md), bez namespace wipe/resetu/TLS rotation.
 Port istniejącego PR50/b128694 na Cover/history/P0: panel786/worker4170,
 LVGL5137/169 + Cover105/7 PASS; 40cycles revoke heap105488→105488.
 Current-parent auth/API exact SHA guards bez zmian. Nie opublikowano nowego PR.
@@ -119,7 +119,7 @@ Current-parent auth/API exact SHA guards bez zmian. Nie opublikowano nowego PR.
 ## #5/#6: język Web Panelu niezależny od pilota
 
 [Zlecenie właściciela](https://github.com/voltex-at/DIY-Shelly-Remote/pull/5#issuecomment-6214082384)
-i [kontrakt](WEB_LOCALE_PL.md): header PL/EN/DE przed pairing/po401, lokalny
+i [kontrakt](history/WEB_LOCALE_PL.md): header PL/EN/DE przed pairing/po401, lokalny
 dsr.web.locale/browser fallback. Tylko jawne UI text/ARIA bindings, bez render,
 API, changed/Save/load i bez zmian shared language/revision. Pola/focus/files/
 paircode/dirty/conflict/strona pozostają. User names/SSID/preview nietłumaczone.
@@ -132,7 +132,7 @@ partycje sprawdzone, pełne dowody w PR48; jego nowy UI czeka na fizyczny retest
 
 ## #20: niezależne bindingi i sterowanie — nowy pion DEV, fizyczny odbiór otwarty
 
-[Kontrakt/migracja/test sprzętowy](MULTI_DEVICE_PL.md): rzeczywisty rejestr do16
+[Kontrakt/migracja/test sprzętowy](history/MULTI_DEVICE_PL.md): rzeczywisty rejestr do16
 endpointów identity/generation/channel, bez zastępowania pierwszego; lazy legacy
 NVS→osobny schema2 blob + exact readback, workspace schema1 bez zmian. Prywatne
 numericID, RAM verification→zbiorczy CAS/exact ACK workspace→pełny prywatny zapis
@@ -159,7 +159,7 @@ To NIE blank-format ani pełny TLS/pairing PASS. Nie ponawiać erase/przywracani
 0.7.21: fresh exact ACK + clean A + ta sama screen generation→kontekst poprzedni,
 B/IO/CAS/mismatch zostają. Widoczne48px delete dashboard/room, named modal przed
 mutacją draft, constraints recheck, osobneSave→ACK. Stabilny ID pokoju/fallback.
-[Kontrakt i krótki retest](EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
+[Kontrakt i krótki retest](history/EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
 bramki osobno. Revoke WWW był poza buildem0.7.21; obecny port PR50 opisano powyżej.
 LVGL UBSan3223/111, PL/EN/DE/max47char/48px i40cycles heap104456→104456 PASS;
 native/config265 PASS, niezależny review bez blockerów. Nowy UI fizycznie nieodebrany.
@@ -184,7 +184,7 @@ bez prawa do full erase/NVS/OTA slotów lub powtórzenia. Prywatne dane poza rep
 
 ## #24/#6: bezpieczny backend restartu (etap0.7.19)
 
-[Kontrakt/inventory](RESTART_PL.md): atomic admission queued/running/event i
+[Kontrakt/inventory](history/RESTART_PL.md): atomic admission queued/running/event i
 real poll handoff; NVS/workspace/bind/pair/photo/OTA+slot/boot health covered.
 Dedicated dispatcher stack4096 priority1, one-shot poza LVGL/HTTP; Web restart
 zachowuje auth/local-only i jawnie odmawia409/503. Nie ma erase/reset/formatu.
@@ -197,7 +197,7 @@ providerów NVS/RTOS/filesystem/Flash, nie odbiór fizyczny.
 
 ## #24: jawny Release → signed app validation/discard, nadal bez instalacji
 
-[Kontrakt](OTA_RELEASE_CHAIN_PL.md): full FETCH_OK metadata/parser → actual
+[Kontrakt](history/OTA_RELEASE_CHAIN_PL.md): full FETCH_OK metadata/parser → actual
 manifest length binding → genuine Ed25519 → signed app/image validation.
 Obie jawne STABLE policies, local version/slot nie z taga; empty production
 trust zawsze zero app requests. Każdy błąd zero out. Brak retained BIN/Flash/
@@ -212,7 +212,7 @@ SDK/TLS jawnie MODEL, nie hardware/Flash/approved Release. Review bez blockerów
 
 ## #24: HTTPS metadane jednego jawnego tagu — nadal kandydat
 
-[Kontrakt](OTA_RELEASE_FETCH_PL.md): wspólny TLS/framing transport, exact własny
+[Kontrakt](history/OTA_RELEASE_FETCH_PL.md): wspólny TLS/framing transport, exact własny
 GitHub API URL, zero redirects/auth/query/retry, HTTP200/body<=16384/complete.
 Close/cleanup/free transport przed realnym parserem; każdy błąd zero candidate.
 Nowy heap<=16640 B osobno, fetch<=8192 bez zmian; SDK/TLS/cJSON peak niezmierzony.
@@ -225,7 +225,7 @@ Koordynator code/memory review bez blockerów; transport/TLS to MODEL, nie płyt
 
 ## #24: pojedynczy Release → kandydat Stable, nie approved Release
 
-[Kontrakt](OTA_RELEASE_PL.md): pure bounded JSON/cJSON parser, jawny tag/asset/
+[Kontrakt](history/OTA_RELEASE_PL.md): pure bounded JSON/cJSON parser, jawny tag/asset/
 STABLE policy, typed draft/prerelease=false, own-repo API id i jeden uploaded
 manifest asset. UTF8/escapes/NUL/decoded duplicates i limity przed akceptacją.
 Wynik candidate, nie verified; brak sieci/UI/Flash/latest/version inference.
@@ -242,7 +242,7 @@ osobny CI instrumentuje też dependency, nie tylko wrapper z biblioteką systemo
 
 ## #24: pobranie i walidacja app BIN — bez instalacji
 
-[Kontrakt](OTA_DOWNLOAD_PL.md): publiczny manifest-first chain, osobna TLS/
+[Kontrakt](history/OTA_DOWNLOAD_PL.md): publiczny manifest-first chain, osobna TLS/
 redirect policy dla podpisanego app URL, exact size/SHA/header/board przez
 istniejący helper. Bajty są odrzucane, bez Flash/slot/reboot/UI i bez caller-
 created verified struct. Każdy błąd zeruje wynik; produkcyjny truststore pusty.
@@ -260,7 +260,7 @@ Nowszy backend wymaga własnego exact-source CI/artefaktu i testu sprzętowego.
 
 ## #24: transport manifestu HTTPS — backend, nie updater
 
-[Kontrakt i bramki](OTA_FETCH_PL.md): strict URL/one CDN hop/TLS/framing/bodycap
+[Kontrakt i bramki](history/OTA_FETCH_PL.md): strict URL/one CDN hop/TLS/framing/bodycap
 i istniejący verifier. Date checks włączone; unset UTC odmawia, nie dodano SNTP.
 Produkcja ma pusty publisher truststore. Brak LCD/release pickera/app download/
 Flash/instalacji. Fizyczny TLS/time/network peak i pełne OTA nadal otwarte.
@@ -272,7 +272,7 @@ PR #40 3501a67: CI5/5/38854805117 i rzeczywisty BIN/ELF/receiver zweryfikowane.
 
 ## #24: istniejący dev Web upload — integracja strumienia
 
-[Kontrakt/testy](OTA_UPLOAD_STREAM_PL.md): receiver wykorzystuje helper dla
+[Kontrakt/testy](history/OTA_UPLOAD_STREAM_PL.md): receiver wykorzystuje helper dla
 wszystkich bajtów, exact sink i begin/write/end/abort; auth/approval/partycje
 bez zmian. To nadal klientowy checksum + lokalna zgoda, **nie signed OTA**.
 Native truststore pusty; fizyczny transfer/rollback i P0 nadal niezaliczone.
@@ -280,7 +280,7 @@ PR #39 2a3e7dd: CI5/5,38853370330, zweryfikowany BIN/ELF/partycje.
 
 ## #24: strumień app BIN — backend bez Flash
 
-[Kontrakt i regresje](OTA_IMAGE_STREAM_PL.md). Dokładny rozmiar/SHA256,
+[Kontrakt i regresje](history/OTA_IMAGE_STREAM_PL.md). Dokładny rozmiar/SHA256,
 prefiks app/ESP32-S3/project i marker z NUL niezależnie od porcji; reset
 i fail-closed. Lokalny uploader pozostaje niezmieniony, integracja osobno
 po testach/review. Brak download/install/boot wyboru i brak physical pass.
@@ -302,7 +302,7 @@ brak physical pass. Statusy historycznych etapów poniżej nie zamykają #24.
 
 ## Pełne globalne Ustawienia — #6 / #24 / #25
 
-[Nowa mapa kliknięć i odbiór](GLOBAL_SETTINGS_PL.md). Status poniżej to
+[Nowa mapa kliknięć i odbiór](history/GLOBAL_SETTINGS_PL.md). Status poniżej to
 implementacja + lokalne testy hostowe; exact-source CI nowej gałęzi osobno.
 Źródło 2641ecd z PR #36 ma CI 5/5 w run 38839617735, ale brak physical pass.
 
@@ -330,9 +330,9 @@ podpisu, TLS/model/layout/channel/semver/size/SHA, strumieniowego transferu,
 postępu/anulowania, świadomej instalacji, zdrowego boot/rollback oraz faktycznie
 zatwierdzonego podpisanego wydania; lokalny dev upload tego nie zastępuje.
 
-Etap niezależny #6/#24: [trwała jasność i wygaszanie](DISPLAY_SETTINGS_PL.md), bez nowego schematu NVS; odbiór fizyczny otwarty.
+Etap niezależny #6/#24: [trwała jasność i wygaszanie](history/DISPLAY_SETTINGS_PL.md), bez nowego schematu NVS; odbiór fizyczny otwarty.
 
-Etap niezależny #6/#25: [napięcie BAT na żądanie](BATTERY_VOLTAGE_PL.md).
+Etap niezależny #6/#25: [napięcie BAT na żądanie](history/BATTERY_VOLTAGE_PL.md).
 
 | Zasilanie pilota | Stan | Bramka |
 | --- | --- | --- |
@@ -346,14 +346,14 @@ i diagnostyka. 0.7.7 zmienia inicjalizację pustej partycji na jeden format po
 pełnym blank-check, współdzielenie CPU z idle i logi etapów/czasu/wyniku.
 Test oryginalnego IDF wymaga dokładnie 992 erase i zachowania prefiksu 313.
 CI poprawki 81e734d: 5/5, [run 38835176199](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38835176199). Fizyczny pierwszy boot do odbioru; zielone CI
-nie jest physical pass. [Aktualne dowody i blokady](PR33_ACCEPTANCE.md).
+nie jest physical pass. [Aktualne dowody i blokady](history/PR33_ACCEPTANCE.md).
 
 **Historyczny test 0.7.6:** właściciel zaakceptował jednorazowe pełne erase swojej płytki
 i testuje czystą instalację source `ecdac4e`. CI tego źródła sprawdzone: **5/5**,
 [run 38831522391](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38831522391).
 Dodany test oryginalnego wrappera/core IDF SPIFFS na symulowanej NOR przechodzi
 lokalnie (nowe CI osobno). Nie zmienia firmware i nie potwierdza fizycznego
-odbioru. [Dowody i otwarte bramki](PR33_ACCEPTANCE.md). To nie jest zgoda na
+odbioru. [Dowody i otwarte bramki](history/PR33_ACCEPTANCE.md). To nie jest zgoda na
 automatyczny lub ponowny erase ani merge/Stable.
 
 **Blokada fizyczna #28:** instalacja 0.7.4 nie montuje niepustego dsrdata
@@ -367,13 +367,13 @@ dotyczą testów automatycznych, nie potwierdzenia działania tej płytki.
 
 0.7.4 dodaje kontekstowe Dodaj/Edytuj/Usuń pomieszczenie (#28), z istniejącym
 modelem, asynchronicznym potwierdzeniem zapisu, CAS i ochroną zależności.
-[Opis i test fizyczny](ROOM_EDITOR_PL.md). Nowy edytor wymaga odbioru na płytce.
+[Opis i test fizyczny](history/ROOM_EDITOR_PL.md). Nowy edytor wymaga odbioru na płytce.
 
 0.7.3 dodaje zatrzask diagnostyczny startu po uwadze recenzji PR #30: zwrócony
 błąd krytyczny nie wywołuje abort/restart/erase; LVGL i API administracyjne
 czekają na gotowość, a OTA nie potwierdza błędnego startu. Test rzeczywistego
 app_main z błędami wymuszonymi jest hostowy; nie oznacza odbioru fizycznego.
-[Polityka i testy](STARTUP_RECOVERY_PL.md). Odbiór fault recovery nadal otwarty.
+[Polityka i testy](history/STARTUP_RECOVERY_PL.md). Odbiór fault recovery nadal otwarty.
 
 ## Bramka regresji sprzętowej — 2026-10-16
 
@@ -382,7 +382,7 @@ Start 0.6.3 jest potwierdzony przez użytkownika. 0.7.1 **nie startuje na płytc
 0.7.2 poprawia rozmieszczenie pamięci i rezerwację wewnętrznego stosu UI oraz
 dodaje kontrolę rzeczywistego ELF i testy błędów startu/magazynu. Start,
 Wi-Fi/LAN/przekaźnik, BLE, HTTPS/OTA i trwałość danych wymagają ponownego testu
-według [BOOT_MEMORY_FIX_PL.md](BOOT_MEMORY_FIX_PL.md). Nie oznaczaj tej wersji
+według [BOOT_MEMORY_FIX_PL.md](history/BOOT_MEMORY_FIX_PL.md). Nie oznaczaj tej wersji
 ani BLE jako sprawdzonych fizycznie na podstawie hostowych fixture lub kompilacji.
 Nowsze zgłoszenie właściciela (16.10): płytka startuje, skan BLE odbiera reklamy
 (10 wyników na zdjęciu). Exact wersja/SHA nie zostały podane w potwierdzeniu.
@@ -419,7 +419,7 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Pasek + / ołówek | Dodaj / Edytuj | Lokalny kreator / edytor | CI tested: rzeczywiste przejścia | #6/#7; brak regresji źródeł danych |
 | Pasek Info | Stan konfiguracji + podgląd | Liczby z aktualnego modelu | CI tested: modal z rzeczywistą nazwą, definicjami i online; Zamknij | #25, ten PR; pointer hit-test, aktualizacja modelu, PL/EN/DE |
 | Pomieszczenie / zdjęcie / powrót | Edycja pomieszczenia / preview | Lokalne dane | CI tested: dwie kolumny, filtr urządzeń, przewijanie | #6/#28; LCD, fotografie i listy po restarcie |
-| Pomieszczenia: Dodaj / ołówek / Edytuj pokój / Usuń | Wspólny CRUD i rewizja | Do 8 pokojów, trwałe ID | CI tested na ecdac4e: formularz, foto, CAS, błędy, potwierdzenie usuwania i zależności; odbiór fizyczny otwarty | #28; [test płytki](ROOM_EDITOR_PL.md), restart/OTA i sync |
+| Pomieszczenia: Dodaj / ołówek / Edytuj pokój / Usuń | Wspólny CRUD i rewizja | Do 8 pokojów, trwałe ID | CI tested na ecdac4e: formularz, foto, CAS, błędy, potwierdzenie usuwania i zależności; odbiór fizyczny otwarty | #28; [test płytki](history/ROOM_EDITOR_PL.md), restart/OTA i sync |
 | Karta urządzenia → szczegóły | Konfiguracja wpisu, LCD preview | Obsługiwany stan bieżącego modelu | CI tested: nawigacja, stable ID, offline | #6/#12; realne dane po zmianie konfiguracji |
 | ON/OFF karty i szczegółów | Bezpośredniego SET w WWW brak; podgląd jest read-only | Jeden Gen1 relay lub Gen2+ switch | CI tested: identity/auth/SET/readback; wcześniejsze ON/OFF Gen3 potwierdzone fizycznie | #12, PR #14/#17; ponowny test 1PM Mini Gen3 |
 | Odśwież stan | Podgląd LCD / stan konfiguracji | Jeden aktywny switch | CI tested: GET, może dołączyć do bieżącego odczytu | PR #17; dotknięcie w czasie PROBE i brak ponowienia SET |
@@ -437,13 +437,13 @@ został zapisany. **Nie przenosimy tego dowodu na 0.7.1 lub na BLE.**
 | Nazwa / pomieszczenie / kanał / Zapisz | Te same pola i binding | Wspierany pojedynczy switch | CI tested: weryfikacja przed zastąpieniem starego bindingu | #7; restart, trwałość, błąd nie kasuje starego |
 | Ponów / Anuluj LAN | Skanuj ponownie / Przerwij | Radio Wi-Fi / LAN | CI tested: oddzielne zadanie i stan | #7; realny timeout i odłączenie Wi-Fi |
 | Dodaj ręcznie IP / klawiatura / sprawdź | Edycja hosta jest definicją; operacyjny binding przez LAN | Wspierany relay/switch | CI tested: lokalny bind, walidacja IPv4/kanału/identity | #7/#8; ręczny IP i błędne dane |
-| Wi-Fi AP | Kreator na LCD; WWW handoff integrowany osobno | Otwarte fabryczne Gen1/Gen2/3/4 z HTTP API bez hasła | Rzeczywisty driver/HTTP/LVGL; fizyczny odbiór i exact CI otwarte | #19; [zakres i odbiór](ISSUE19_AP_PL.md), dwie fizyczne zgody, RAM AP → home LAN → BIND |
+| Wi-Fi AP | Kreator na LCD; WWW handoff integrowany osobno | Otwarte fabryczne Gen1/Gen2/3/4 z HTTP API bez hasła | Rzeczywisty driver/HTTP/LVGL; fizyczny odbiór i exact CI otwarte | #19; [zakres i odbiór](history/ISSUE19_AP_PL.md), dwie fizyczne zgody, RAM AP → home LAN → BIND |
 | Bluetooth LE → Szukaj / Anuluj / Ponów | Bluetooth LE • skan, wspólne `/api/v1/ble*` | ESP32-S3 observer + faktyczne legacy ADV | CI tested: rzeczywisty adapter/parsing/UI; właściciel potwierdza odbiór RF, exact SHA niepodany | #18, PR #26; nadal >=10 cykli coexistence i porównanie payloadu |
 | Wynik BLE / szczegóły / RSSI / ostatnia reklama | Grupy i wyniki skanera | RPC UUID, Shelly manufacturer, BTHome v2 | CI tested: bez zgadywania generacji/modelu; wykryto ≠ sparowano | #18; model Wi-Fi i BLU jeśli dostępne, pusty skan, brak radia |
 | Wynik BLE RPC → Szukaj w LAN | Powrót do metod i LAN | Urządzenie faktycznie obecne w LAN | CI tested: przejście do istniejącego kreatora | #7/#18; BLE nie dodaje sam do Wi-Fi |
 | BLE pairing / provisioning / stałe BLU | Wyłącznie tekst o ograniczeniu, bez atrapy Add | Zgodny GATT/RPC/bonding/BTHome | Not implemented | #18 B1/B2/B3; osobny test modelu, autoryzacji i kluczy |
 | Wiele urządzeń Shelly | Trwały registry do16 endpointów + własny stan/sterowanie | Bounded serial I/O, nie16 równoległych połączeń | Kod + genuine native/LVGL; exact CI i fizyczny odbiór otwarte | #20; min2 fizyczne Shelly, offline/DHCP/restart/heap |
-| Roleta Otwórz / Zamknij / Stop / pozycja | Typowany runtime i te same intencje | Aktywny Cover Gen2+; bez kalibracji/profile/slats/Gen1 | Genuine HTTP/NVS/worker/LVGL + modele WWW; target/fizyczny odbiór otwarty | #23; [kontrakt i limity](COVER_GEN2_PL.md), własny priorytetowy STOP |
+| Roleta Otwórz / Zamknij / Stop / pozycja | Typowany runtime i te same intencje | Aktywny Cover Gen2+; bez kalibracji/profile/slats/Gen1 | Genuine HTTP/NVS/worker/LVGL + modele WWW; target/fizyczny odbiór otwarty | #23; [kontrakt i limity](history/COVER_GEN2_PL.md), własny priorytetowy STOP |
 | Roleta edycja ołówkiem | Edytuj definicję | Zapisany wpis | CI tested: otwiera istniejący edytor; DEMO disabled | PR #16; właściwe ID po zmianie kolejności |
 | RGBW / CCT / Gen1 dimmer / termostat | Brak funkcjonalnego kontrolera | API danego modelu | Not implemented | #23; osobny typ/PR, capability i readback |
 | Czujnik otwarcia / bateria / temperatura / wilgotność | Definicja typu / preview | Wymagane rzeczywiste źródło danych | UI mock w fixture; Not implemented: adapter czujnika/BLU | #18/#23; odczyt modelu i unavailable, bez fikcyjnego zera |

@@ -170,11 +170,3 @@ static esp_err_t registry_change(const dsr_connection_t *connection,bool remove)
 }
 esp_err_t dsr_connection_publish(const dsr_connection_t *connection){return registry_change(connection,false);}
 esp_err_t dsr_connection_remove(const dsr_connection_t *connection){return registry_change(connection,true);}
-
-esp_err_t dsr_connection_layout_id(const dsr_connection_t *connection,uint32_t *id)
-{
- if(!connection||!id)return ESP_ERR_INVALID_ARG;
- connection_registry_v6_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;
- esp_err_t e=registry_read(r);if(e==ESP_OK){e=ESP_ERR_NOT_FOUND;for(uint32_t i=0;i<r->count;i++)if(same_endpoint(&r->items[i].device,&connection->device)){*id=r->items[i].layout_id;e=ESP_OK;break;}}
- memset(r,0,sizeof(*r));free(r);return e;
-}

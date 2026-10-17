@@ -102,8 +102,6 @@ void dsr_panel_pair_begin(char code[17])
 {if(!dsr_boot_ready()||!panel_ready||!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
 bool dsr_panel_allow_ota(void)
 {return dsr_panel_ota_enable(lock,panel_ready,&ota_until);}
-void dsr_panel_pair_cancel(void)
-{if(lock){xSemaphoreTake(lock,portMAX_DELAY);memset(pairing,0,sizeof(pairing));pair_until=0;xSemaphoreGive(lock);}}
 bool dsr_panel_preview_requested(void)
 {if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)

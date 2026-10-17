@@ -528,13 +528,6 @@ void dsr_ui_edit_room(uint32_t id)
  /* A Web edit may remove/reorder rooms before the LCD click is handled. */
  room_leave(NULL);
 }
-void dsr_ui_edit_device(uint32_t id)
-{
- dsr_ui_edit_dashboard();if(!draft)return;
- cJSON *entry;cJSON_ArrayForEach(entry,cJSON_GetObjectItemCaseSensitive(draft,"devices"))if((uint32_t)integer(entry,"id")==id){
-  snprintf(collection_name,sizeof(collection_name),"devices");show_entity(entry);return;
- }
-}
 void dsr_ui_edit_local_device(uint32_t id)
 {
  if(!room_begin())return;

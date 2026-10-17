@@ -90,7 +90,6 @@ void dsr_onboarding_keyboard(lv_obj_t *root,bool shown);
 lv_obj_t *dsr_onboarding_result(lv_obj_t *list,int y,dsr_ui_icon_t icon,const char *title,const char *detail,const char *status,bool verified,lv_event_cb_t callback,void *context);
 void dsr_ui_edit_dashboard(void);
 void dsr_ui_config_diagnostics(lv_event_t *event);
-void dsr_ui_edit_device(uint32_t id);
 void dsr_ui_edit_local_device(uint32_t id);
 void dsr_ui_add_room(void);
 void dsr_ui_edit_room(uint32_t id);

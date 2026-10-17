@@ -198,7 +198,7 @@ licznik to postęp sprawdzania oraz start/zakończenie jednego przebiegu formatu
 go i nie naprawia automatycznie. Test pustej dsrdata lub preformatowanego obrazu
 wymaga osobno uzgodnionej konkretnej jednorazowej operacji po zachowaniu kopii.
 To nie jest zgoda na ponowny pełny erase, automatyczny format niepustego
-magazynu albo nadpisanie NVS. DEV nadal wymaga płytki; [bramki](PR33_ACCEPTANCE.md).
+magazynu albo nadpisanie NVS. DEV nadal wymaga płytki; [bramki](history/PR33_ACCEPTANCE.md).
 
 Poniżej procedura kopii/analizy bez zapisu oraz historyczna diagnostyka 0.7.6.
 

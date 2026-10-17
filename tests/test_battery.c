@@ -81,7 +81,6 @@ dsr_result_t dsr_wifi_scan(dsr_wifi_scan_t *s){(void)s;abort();}
 dsr_result_t dsr_wifi_connect_saved(const dsr_settings_t *s,dsr_wifi_status_t *d){(void)s;(void)d;abort();}
 static unsigned bind_probes;static dsr_result_t probe_result=DSR_OK;
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){CHECK(worker_wifi&&!dsr_activity_restart_reserve());bind_probes++;*d=c->device;d->online=d->has_switch=probe_result==DSR_OK;*t=(dsr_telemetry_t){.has_voltage=true,.voltage_v=230.0};return probe_result;}
-esp_err_t dsr_connection_layout_id(const dsr_connection_t *c,uint32_t *id){(void)c;(void)id;abort();}
 static unsigned publishes,removes;
 esp_err_t dsr_connection_publish(const dsr_connection_t *c){CHECK(c->layout_id==42&&!dsr_activity_restart_reserve());publishes++;return ESP_OK;}
 esp_err_t dsr_connection_remove(const dsr_connection_t *c){CHECK(!dsr_activity_restart_reserve());removes++;return c->layout_id==42?ESP_OK:ESP_FAIL;}

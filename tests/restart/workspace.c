@@ -42,7 +42,7 @@ int main(void)
  CHECK(dsr_activity_restart_reserve());before=saves;CHECK(!dsr_workspace_submit(document,2)&&!occupied&&saves==before);dsr_activity_restart_cancel();free(document);admission_open();
  dsr_connection_t c={0},taken;uint32_t room=0;
  CHECK(dsr_workspace_bind_with_room(&c,42)&&!dsr_activity_restart_reserve());CHECK(!dsr_workspace_bind(&c));
- CHECK(dsr_workspace_take_bind_with_room(&taken,&room)&&room==42&&!dsr_activity_restart_reserve());CHECK(!dsr_workspace_take_bind(&taken));
+ CHECK(dsr_workspace_take_bind_with_room(&taken,&room)&&room==42&&!dsr_activity_restart_reserve());CHECK(!dsr_workspace_take_bind_with_room(&taken,&room));
  dsr_workspace_bind_result(DSR_IO);admission_open();dsr_workspace_bind_result(DSR_IO);admission_open();
  CHECK(dsr_activity_restart_reserve());CHECK(!dsr_workspace_bind(&c));dsr_activity_restart_cancel();admission_open();
  printf("PASS: %u actual workspace/JSON admission checks; queue/storage MODEL, queued/save/result/bind/failure cleanup\n",checks);return 0;

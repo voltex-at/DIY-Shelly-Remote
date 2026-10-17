@@ -43,7 +43,6 @@ bool dsr_panel_pairing_snapshot(dsr_panel_pairing_snapshot_t *out)
 {if(!out)return false;memset(out,0,sizeof(*out));if(!https_ready||!pairing_available)return false;*out=(dsr_panel_pairing_snapshot_t){pairing_paired,pairing_uncertain};return true;}
 void test_pair_accept(bool accepted){pair_accepted=accepted;}
 void dsr_panel_pair_begin(char code[17]){pair_code_requests++;if(https_ready&&pair_accepted)strcpy(code,"0123456789abcdef");else code[0]=0;}
-void dsr_panel_pair_cancel(void){}
 static bool ota_accepted=true;
 void test_ota_accept(bool accepted){ota_accepted=accepted;}
 bool dsr_panel_allow_ota(void){return https_ready&&ota_accepted;}
@@ -59,7 +58,6 @@ void test_workspace_photos(bool enabled)
 const void *dsr_photo_pixels(const char *id){return photos_enabled&&id&&strlen(id)==32&&id[0]>='1'&&id[0]<='2'?photos[id[0]-'1']:NULL;}
 const char *dsr_photo_id(unsigned index){static const char *ids[]={"11111111111111111111111111111111","22222222222222222222222222222222"};return photos_enabled&&index<2?ids[index]:NULL;}
 const char *dsr_tls_fingerprint(void){return "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";}
-bool dsr_workspace_take_bind(dsr_connection_t *c){(void)c;return false;}
 bool dsr_workspace_take_bind_with_room(dsr_connection_t *c,uint32_t *room){(void)c;(void)room;return false;}
 void dsr_workspace_bind_result(dsr_result_t r){(void)r;}
 void dsr_workspace_bind_result_stage(dsr_result_t r,dsr_bind_stage_t stage){(void)r;(void)stage;}
