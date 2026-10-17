@@ -20,7 +20,8 @@ args=p.parse_args()
 (ROOT/'build-ui').mkdir(exist_ok=True)
 work=Path(tempfile.mkdtemp(prefix='panel-fixture-',dir=ROOT/'build-ui'))
 include=Path('/usr/include/cjson') if Path('/usr/include/cjson/cJSON.h').exists() else ROOT/'.test-deps'
-subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_config/dsr_photo_name.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_platform/dsr_ble_model.c']],'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
+layout_probe=work/'layout_probe.c';layout_probe.write_text('#include <stddef.h>\n#include "dsr_ble.h"\nsize_t test_ble_device_size(void){return sizeof(dsr_ble_device_t);}\nsize_t test_ble_kind_offset(void){return offsetof(dsr_ble_device_t,kind);}\n')
+subprocess.run(['cc','-std=c11','-D_POSIX_C_SOURCE=200809L','-shared','-fPIC','-I',str(include),'-I',str(ROOT/'tests/support'),'-I',str(ROOT/'components/dsr_platform/include'),'-I',str(ROOT/'components/dsr_config/include'),'-I',str(ROOT/'components/dsr_core/include'),*[str(ROOT/f) for f in ['components/dsr_config/dsr_config.c','components/dsr_config/dsr_config_store.c','components/dsr_config/dsr_photo_name.c','components/dsr_core/dsr_core.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_platform/dsr_ble_model.c']],str(layout_probe),'-l:libcjson.so.1','-lm','-o',str(work/'config.so')],check=True)
 lib=ctypes.CDLL(str(work/'config.so'));libc=ctypes.CDLL(None);libc.free.argtypes=[ctypes.c_void_p]
 lib.dsr_config_default.restype=ctypes.c_void_p
 lib.dsr_config_replace.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_uint32,ctypes.c_char_p];lib.dsr_config_replace.restype=ctypes.c_void_p
@@ -48,7 +49,11 @@ raw=lib.cJSON_Parse(b'{"switch:1":{"id":1,"output":false},"switch:4":{"id":4,"ou
 lan={'phase':0,'serial':0,'result':0,'devices':[],'selected':{},'capabilities':{}}
 lan_ready_at=0
 class BleDevice(ctypes.Structure):
-    _fields_=[('address',ctypes.c_uint8*6),('address_type',ctypes.c_uint8),('evidence',ctypes.c_uint8),('bthome_version',ctypes.c_uint8),('rssi',ctypes.c_int8),('name',ctypes.c_char*32),('model_id',ctypes.c_uint16),('has_model',ctypes.c_bool),('encrypted',ctypes.c_bool),('kind',ctypes.c_int),('seen_ms',ctypes.c_uint32)]
+    _fields_=[('address',ctypes.c_uint8*6),('address_type',ctypes.c_uint8),('evidence',ctypes.c_uint8),('bthome_version',ctypes.c_uint8),('rssi',ctypes.c_int8),('name',ctypes.c_char*32),('model_id',ctypes.c_uint16),('flags',ctypes.c_uint16),('mac',ctypes.c_uint8*6),('has_model',ctypes.c_bool),('encrypted',ctypes.c_bool),('has_flags',ctypes.c_bool),('has_mac',ctypes.c_bool),('kind',ctypes.c_int),('seen_ms',ctypes.c_uint32)]
+# The ctypes mirror must track the C struct exactly (a stale mirror broke
+# the BLE fixture once); fail loudly instead of reading shifted fields.
+lib.test_ble_device_size.restype=ctypes.c_size_t;lib.test_ble_kind_offset.restype=ctypes.c_size_t
+assert ctypes.sizeof(BleDevice)==lib.test_ble_device_size() and BleDevice.kind.offset==lib.test_ble_kind_offset(),'BleDevice ctypes mirror out of date'
 lib.dsr_ble_parse.argtypes=[ctypes.c_char_p,ctypes.c_size_t,ctypes.POINTER(BleDevice)];lib.dsr_ble_parse.restype=ctypes.c_bool
 lib.dsr_ble_model_name.argtypes=[ctypes.POINTER(BleDevice)];lib.dsr_ble_model_name.restype=ctypes.c_char_p
 ble_devices=[]
