@@ -24,6 +24,7 @@ static uint32_t status_hash(const dsr_actions_snapshot_t *s)
 static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,lv_event_cb_t cb,uintptr_t data)
 {lv_obj_t *b=dsr_sc_button(parent,x,y,width,40,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
 static void back(lv_event_t *event){(void)event;dsr_network_home(NULL);}
+static void open_web_panel(lv_event_t *event){dsr_ui_actions_hide();dsr_ui_web_panel_open(event);}
 static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);admission=DSR_OK;log_offset=0;log_epoch=0;draw();}
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
 {
@@ -72,7 +73,10 @@ static void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
   lv_obj_t *first=button(list,page?"Uruchom scenę":"Włącz grupę",0,y+36,page?280:136,run,((uintptr_t)id->valueint<<2)|(page?1:2));if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(first,LV_STATE_DISABLED);
   if(!page){lv_obj_t *off=button(list,"Wyłącz grupę",144,y+36,136,run,(uintptr_t)id->valueint<<2);if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(off,LV_STATE_DISABLED);}
  }
- if(!i)dsr_sc_text(list,"Dodaj wpis w edytorze konfiguracji.",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);
+ if(!i){
+  dsr_sc_text(list,page?"Brak scen. Utwórz scenę w Panelu WWW, w sekcji Sceny (cały dom).":"Brak grup. Utwórz grupę w Panelu WWW, w sekcji Grupy (cały dom).",8,12,270,&dsr_roboto_14,DSR_SC_MUTED);
+  button(list,"Otwórz Panel WWW",0,96,280,open_web_panel,0);
+ }
  cJSON_Delete(r);
  if(s->active)button(root,"Pokaż bieżące wykonanie",12,427,296,choose,3);else dsr_sc_text(root,"Polecenia wymagają zgodnego powiązania i uprawnień.",12,420,296,&dsr_roboto_12,DSR_SC_MUTED);
 }

@@ -17,6 +17,27 @@ static dsr_settings_t settings;
 static dsr_settings_t wifi_candidate;
 static dsr_connection_t pending;
 static dsr_fleet_t fleet;
+/* Advisory model/firmware strings by device id, RAM only, never persisted or trusted for control.
+ * Fed by the unauthenticated /shelly response every probe already reads. */
+static struct {char id[64];dsr_device_info_t info;} info_cache[DSR_MAX_DEVICES];
+static unsigned info_evict;
+static void remember_info(const char *id,const dsr_device_info_t *info)
+{
+ if(!id||!id[0]||!info||(!info->model[0]&&!info->fw[0]))return;
+ unsigned free_at=DSR_MAX_DEVICES;
+ for(unsigned i=0;i<DSR_MAX_DEVICES;i++){
+  if(!strcmp(info_cache[i].id,id)){info_cache[i].info=*info;return;}
+  if(!info_cache[i].id[0]&&free_at==DSR_MAX_DEVICES)free_at=i;
+ }
+ if(free_at==DSR_MAX_DEVICES){free_at=info_evict;info_evict=(info_evict+1u)%DSR_MAX_DEVICES;}
+ snprintf(info_cache[free_at].id,sizeof(info_cache[free_at].id),"%s",id);info_cache[free_at].info=*info;
+}
+static const dsr_device_info_t *find_info(const char *id)
+{
+ if(!id||!id[0])return NULL;
+ for(unsigned i=0;i<DSR_MAX_DEVICES;i++)if(!strcmp(info_cache[i].id,id))return &info_cache[i].info;
+ return NULL;
+}
 _Static_assert(sizeof(fleet)<=8192,"Fleet fixed storage budget");
 static bool busy,wifi_previous;
 static dsr_job_kind_t operation;
@@ -144,6 +165,7 @@ static void render(void)
   int at=card_slot(i);if(at<0)continue;
   dsr_mobile_device_t *d=&mobile_model.devices[i];const dsr_fleet_slot_t *s=&fleet.slots[at];const dsr_device_t *c=&s->connection.device;
   snprintf(d->identity,sizeof(d->identity),"%s",c->device_id);d->generation=c->generation;d->endpoint_kind=c->endpoint_kind;
+  {const dsr_device_info_t *info=find_info(c->device_id);if(info){if(info->model[0]&&!d->model[0])snprintf(d->model,sizeof(d->model),"%s",info->model);snprintf(d->fw,sizeof(d->fw),"%s",info->fw);}}
   d->can_refresh=(d->id||(!layout&&mobile_model.device_count==1))&&s->layout_enabled&&!binding_target(s);
   snprintf(d->host,sizeof(d->host),"%s",c->host);d->online=mobile_model.wifi&&c->online&&s->layout_enabled&&s->sample_valid&&lv_tick_get()-s->sample_ms<=15000;d->output=c->output;
   d->busy=d->command_pending=dsr_actions_reserved(&s->connection.device)||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT&&s->operation==DSR_JOB_PROBE)));
@@ -643,6 +665,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
   }else {
    bool same=dsr_endpoint_equal(&fleet.slots[active_slot].connection.device,&event.device)&&!strcmp(fleet.slots[active_slot].connection.device.host,event.device.host);
    bool accepted=dsr_fleet_complete(&fleet,active_slot,&event,now);
+   if(accepted&&same&&operation==DSR_JOB_PROBE&&event.result==DSR_OK)remember_info(fleet.slots[active_slot].connection.device.device_id,&event.info);
    /* A Wi-Fi drop during the request cannot publish a late ONLINE sample. */
    if(!dsr_wifi_connected())dsr_fleet_wifi(&fleet,false,now);
    if(accepted&&event.result==DSR_OK&&fleet.slots[active_slot].layout_enabled&&fleet.slots[active_slot].connection.device.online)dsr_history_record(&fleet.slots[active_slot].connection,event.id);

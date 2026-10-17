@@ -1,6 +1,8 @@
 0.7.41-dev: pasek stanu w nagłówku (godzina, bateria z animacją i szacunkiem procentu). Stable: brak.
 
 Zmiany względem 0.7.40-dev:
+- Ustawienia urządzenia: model i wersja firmware Shelly (Gen2+) z odpowiedzi `/shelly`, którą pilot i tak pobiera przy każdym odświeżeniu (bez dodatkowych zapytań). Wartości informacyjne: nie wpływają na sterowanie ani na wynik odświeżenia; brak odczytu pokazuje „nieodczytany". Uptime i siła sygnału Wi-Fi Shelly nie są jeszcze pobierane.
+- Grupy i Sceny: gdy lista jest pusta, ekran wskazuje, gdzie je utworzyć, i ma przycisk „Otwórz Panel WWW". Tworzenie grup i scen na samym LCD nie jest zaimplementowane.
 - Godzina HH:MM pod ikoną Wi-Fi. Czas jest synchronizowany automatycznie po połączeniu z Wi-Fi (jedno zapytanie SNTP do pool.ntp.org, ponawiane co 5 min przy błędzie); do czasu synchronizacji widać `--:--`. Strefa domyślna: Europa/Wiedeń (CET/CEST), zmiana w buildzie przez `-DDSR_TIMEZONE_POSIX`.
 - Bateria: ikona z animowanym wypełnieniem i procentem oznaczonym `~`. To SZACUNEK z napięcia BAT dla pojedynczego ogniwa Li-ion, nie pomiar stanu naładowania. Pomiar napięcia co 20 s; starszy niż 60 s pokazuje `?`. Poniżej 10% wypełnienie pulsuje. Nie ma animacji ładowania, bo płytka nie daje wiarygodnego sygnału ładowania.
 

@@ -98,7 +98,7 @@ static unsigned rgb_calls;
 dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent)
 {CHECK(c->device.endpoint_kind==DSR_ENDPOINT_RGB&&intent.command==DSR_RGB_SET_COLOR&&intent.rgb[0]==255&&intent.rgb[1]==17&&intent.rgb[2]==0);rgb_calls++;c->device.online=true;c->telemetry.rgb=(dsr_rgb_status_t){.flags=DSR_RGB_VALID,.r=255,.g=17,.b=0};return DSR_OK;}
 static unsigned ht_reads;
-dsr_result_t dsr_http_refresh(dsr_connection_t *c){if(c->device.endpoint_kind==DSR_ENDPOINT_HT){ht_reads++;c->device.online=true;c->telemetry=(dsr_telemetry_t){.has_temperature=true,.temperature_c=-12.5,.ht={.flags=DSR_HT_VALID}};return DSR_OK;}CHECK(inject_stop&&!stop_lock);inject_stop=false;CHECK(dsr_worker_stop_request(&stop_target,909)==DSR_OK&&urgent_hook&&urgent_hook());c->device.online=true;return DSR_OK;}
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *info){(void)info;if(c->device.endpoint_kind==DSR_ENDPOINT_HT){ht_reads++;c->device.online=true;c->telemetry=(dsr_telemetry_t){.has_temperature=true,.temperature_c=-12.5,.ht={.flags=DSR_HT_VALID}};return DSR_OK;}CHECK(inject_stop&&!stop_lock);inject_stop=false;CHECK(dsr_worker_stop_request(&stop_target,909)==DSR_OK&&urgent_hook&&urgent_hook());c->device.online=true;return DSR_OK;}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
 static void pairing_stop(void)
 {CHECK(!stop_lock&&dsr_worker_stop_request(&stop_target,6200)==DSR_OK);}

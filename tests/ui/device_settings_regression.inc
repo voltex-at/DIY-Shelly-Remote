@@ -6,10 +6,11 @@ static cJSON *settings_entry(cJSON *root,uint32_t id)
   if((uint32_t)cJSON_GetObjectItemCaseSensitive(d,"id")->valueint==id)return d;
  CHECK(!"Settings entry missing");return NULL;
 }
+static dsr_device_info_t settings_info; /* advisory /shelly strings for the next read */
 static void settings_read(dsr_result_t result,bool metering)
 {
  CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);
- response=(dsr_event_t){.device=submitted.connection.device};
+ response=(dsr_event_t){.device=submitted.connection.device};response.info=settings_info;memset(&settings_info,0,sizeof(settings_info));
  response.device.online=response.device.has_switch=result==DSR_OK;
  response.device.has_power=metering;response.device.power_w=6.8;
  response.telemetry=(dsr_telemetry_t){.has_voltage=metering,.voltage_v=229.1,.has_current=metering,.current_a=.030};
@@ -22,7 +23,7 @@ static void device_settings_regression(void)
  cJSON *original=room_document(),*r=room_document();
  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"rooms"),cJSON_Parse("{\"id\":888,\"name\":\"Settings test room\",\"icon\":0,\"photo\":\"\"}"));publish_document(r);
  dsr_network_device_settings(a);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);
- CHECK(find_label(lv_screen_active(),"Wybrane urządzenie")&&find_label(lv_screen_active(),"shelly-A")&&find_label(lv_screen_active(),"Model nieodczytany"));
+ CHECK(find_label(lv_screen_active(),"Wybrane urządzenie")&&find_label(lv_screen_active(),"shelly-A")&&find_label(lv_screen_active(),"Model nieodczytany")&&find_label(lv_screen_active(),"Firmware nieodczytany"));
  screenshot("230-settings-bound-offline");
  /* Independent failures remain blocked. An explicit read of A never clears
   * B's auth block, and the in-flight read already satisfies a duplicate. */
@@ -30,7 +31,10 @@ static void device_settings_regression(void)
  if(in_flight)settings_read(DSR_AUTH_REQUIRED,false);
  CHECK(!in_flight);dsr_network_device_settings(a);unsigned before=requests;
  tap(80,376);CHECK(in_flight&&requests==before+1&&!strcmp(submitted.connection.device.device_id,"shelly-A"));
- click("Odśwież status");CHECK(requests==before+1);settings_read(DSR_OK,true);
+ click("Odśwież status");CHECK(requests==before+1);
+ /* Model and firmware come from the identity response of the same probe; another device never inherits them. */
+ settings_info=(dsr_device_info_t){.model="S3SW-001P8EU",.fw="1.4.4"};settings_read(DSR_OK,true);
+ CHECK(find_label(lv_screen_active(),"Firmware: 1.4.4")&&find_label(lv_screen_active(),"S3SW-001P8EU")&&!find_label(lv_screen_active(),"Model nieodczytany")&&!find_label(lv_screen_active(),"Firmware nieodczytany"));screenshot("231-settings-firmware");
  CHECK(!in_flight&&dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS&&find_label(lv_screen_active(),"6.8 W • 229.1 V • 0.030 A"));
  screenshot("231-settings-real-status-fixture");
  /* A successful transport completion carrying B's identity cannot replace

@@ -81,6 +81,7 @@ void dsr_ui_actions_open(uint8_t kind);
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on);
 void dsr_ui_actions_tick(void);
 void dsr_ui_actions_hide(void);
+void dsr_ui_web_panel_open(lv_event_t *event); /* address, certificate fingerprint, pairing code */
 void dsr_network_wifi(lv_event_t *event);
 void dsr_network_device(lv_event_t *event);
 void dsr_ui_onboarding_open(lv_event_cb_t manual);
