@@ -95,6 +95,16 @@ int main(int argc,char **argv)
   dsr_network_home(NULL);tick();
  }
  test_workspace_photos(false);
+ /* Built-in room photos (owner artwork): selectable without uploads; tiles render them. */
+ rooms_document("pl","Salon");dsr_ui_edit_room(1);tick();CHECK(find_label(lv_screen_active(),"Wybierz zdjęcie z pamięci"));
+ click("Wybierz zdjęcie z pamięci");tick();CHECK(find_label(lv_screen_active(),"Salon")&&find_label(lv_screen_active(),"Dotknij, aby zmienić. Własne zdjęcia dodasz w Web Panelu."));
+ const char *hint="Dotknij, aby zmienić. Własne zdjęcia dodasz w Web Panelu.";click(hint);tick();CHECK(find_label(lv_screen_active(),"Kuchnia"));editor_layout("built-in photo");screenshot("354-room-builtin-photo");
+ for(unsigned i=1;i<dsr_room_photo_count();i++){CHECK(find_label(lv_screen_active(),dsr_room_photo(i)->label));click(hint);tick();}
+ CHECK(find_label(lv_screen_active(),"Wybierz zdjęcie z pamięci")); /* after the last built-in: no photo */
+ dsr_network_home(NULL);tick();
+ {cJSON *doc=room_document();cJSON *room=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(doc,"rooms"),0);CHECK(room);
+  cJSON_ReplaceItemInObjectCaseSensitive(room,"photo",cJSON_CreateString(dsr_room_photo(1)->id));publish_document(doc);tick();
+  dsr_network_rooms();tick();CHECK(find_type(lv_screen_active(),&lv_image_class));screenshot("355-rooms-builtin-photo");}
  /* User names are shown as typed: a room called "Dom" or "Ustawienia" stays
   * so in English, while UI words around it are translated. */
  static const char *const typed[]={"Dom","Ustawienia"};

@@ -65,7 +65,8 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         .password = authenticated ? connection->credentials.password : NULL,
         .auth_type = !authenticated ? HTTP_AUTH_TYPE_NONE :
             (connection->device.generation == DSR_GEN1 ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_DIGEST),
-        .max_authorization_retries = payload?-1:1,
+        /* AP provisioning never resends its secret-bearing body; device commands may answer a digest challenge. */
+        .max_authorization_retries = payload&&!control_write?-1:1,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) { free(response.text); return DSR_IO; }
@@ -88,7 +89,7 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     else if (status != 200) result = DSR_BAD_RESPONSE;
     else {
         *out = dsr_config_json_depth(response.text)?cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true):NULL;
-        bool null_ack=request->post&&(!strncmp(request->path,"/rpc/Cover.",11)||!strcmp(request->path,"/rpc/Light.Set")||!strcmp(request->path,"/rpc/RGB.Set"))&&cJSON_IsNull(*out);
+        bool null_ack=request->post&&(!strncmp(request->path,"/rpc/Cover.",11)||!strcmp(request->path,"/rpc/Light.Set")||!strcmp(request->path,"/rpc/RGB.Set")||!strcmp(request->path,"/rpc/BluTrv.Call"))&&cJSON_IsNull(*out);
         result = (cJSON_IsObject(*out)||null_ack)&&!strstr(response.text,"\\u0000") ? DSR_OK : DSR_BAD_RESPONSE;
         if (result != DSR_OK) { cJSON_Delete(*out); *out = NULL; }
         if (*out && cJSON_GetObjectItemCaseSensitive(*out, "error")) {
@@ -313,10 +314,13 @@ static bool rgb_parse(const cJSON *r,uint8_t channel,dsr_rgb_status_t *out,const
  if(matches&&intent)*matches=!(sample.flags&DSR_RGB_ERROR)&&(intent->command==DSR_RGB_SET_COLOR?!memcmp(color,intent->rgb,3):intent->command==DSR_RGB_SET_BRIGHTNESS?brightness->valueint==intent->brightness:cJSON_IsTrue(output)==(intent->command==DSR_RGB_ON));
  *out=sample;return true;
 }
+/* BLU TRV classification carried in the caller's telemetry (see DSR_BLU_TRV_CHECKED). */
+static uint8_t trv_hint(const dsr_connection_t *c){return c->device.endpoint_kind==DSR_ENDPOINT_BLU?(uint8_t)(c->telemetry.blu.errors&(DSR_BLU_TRV|DSR_BLU_TRV_CHECKED)):0u;}
 static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_intent_t *expected)
 {
     dsr_device_t *device = &connection->device;
     device->online = false; device->has_power = false;
+    uint8_t hint=trv_hint(connection);
     memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
     dsr_result_t result;
@@ -337,6 +341,22 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
             result=fetch_json(connection,&request,false,&root);
             if(result==DSR_OK){result=dsr_blu_apply_sensor(root,objects[i].sensor,objects[i].obj_id,&connection->telemetry);}
             cJSON_Delete(root);root=NULL;
+        }
+        if(result==DSR_OK){
+            int trv=(hint&DSR_BLU_TRV_CHECKED)?((hint&DSR_BLU_TRV)?1:0):-1;
+            if(trv<0){
+                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetConfig?id=%u",cid);dsr_result_t asked=fetch_json(connection,&request,false,&root);
+                /* An error answer means "no such BluTrv". Transport failures
+                 * stay unknown and are asked again next poll. */
+                if(asked==DSR_OK||asked==DSR_BAD_RESPONSE)trv=asked==DSR_OK&&dsr_blu_trv_linked(root,cid,cid);
+                cJSON_Delete(root);root=NULL;
+            }
+            if(trv>=0)connection->telemetry.blu.errors|=DSR_BLU_TRV_CHECKED;
+            if(trv==1){
+                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetStatus?id=%u",cid);result=fetch_json(connection,&request,false,&root);
+                if(result==DSR_OK)result=dsr_blu_parse_trv(root,cid,&connection->telemetry);
+                cJSON_Delete(root);root=NULL;
+            }
         }
         if(result!=DSR_OK)memset(&connection->telemetry,0,sizeof(connection->telemetry));
         device->has_switch=device->has_power=device->output=false;device->power_w=0;device->online=result==DSR_OK;return result;
@@ -399,7 +419,8 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
     if (!out || !dsr_connection_valid(connection, false)) return DSR_INVALID;
     dsr_connection_t probed = *connection;
     probed.device.online=probed.device.has_power=false;
-    memset(&probed.telemetry,0,sizeof(probed.telemetry));
+    uint8_t hint=trv_hint(connection);
+    memset(&probed.telemetry,0,sizeof(probed.telemetry));probed.telemetry.blu.errors=hint;
     dsr_result_t result = identity(connection, &probed.device);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id)){
         /* BLU bind from the LAN wizard knows only the gateway id; the probe
@@ -432,7 +453,8 @@ static dsr_result_t verify(dsr_connection_t *connection)
 
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 {
-    dsr_result_t result = verify(connection);
+    uint8_t hint=trv_hint(connection);
+    dsr_result_t result = verify(connection);connection->telemetry.blu.errors=hint; /* verify() clears telemetry */
     (void)urgent();if(result==DSR_OK)result=allowed();return result == DSR_OK ? status(connection) : result;
 }
 
@@ -482,6 +504,33 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  return status(c);
 }
 
+dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
+{
+ if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_BLU||c->device.generation!=DSR_GEN2_PLUS||!dsr_trv_intent_valid(intent))return DSR_INVALID;
+ uint8_t hint=trv_hint(c);
+ dsr_result_t result=verify(c);if(result!=DSR_OK)return result; /* gateway id + sensor MAC */
+ c->telemetry.blu.errors=hint;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ result=status(c);if(result!=DSR_OK)return result;
+ if(!(c->telemetry.blu.errors&DSR_BLU_TRV))return DSR_UNSUPPORTED;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ unsigned cid=DSR_BLU_FIRST_CID+c->device.channel;char payload[112];
+ snprintf(payload,sizeof(payload),"{\"id\":%u,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":%u.%u}}",cid,(unsigned)intent.half_c/2u,(unsigned)(intent.half_c%2u)*5u);
+ dsr_request_t request={.post=true};strcpy(request.path,"/rpc/BluTrv.Call");cJSON *ack=NULL;
+ /* The gateway relays over BLE: "normally within 10 seconds". */
+ result=fetch_json_payload(c,&request,false,&ack,15000,payload,"application/json",true);
+ if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
+ cJSON_Delete(ack);c->device.online=false;
+ if(urgent())return DSR_BAD_RESPONSE;
+ if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
+ result=allowed();if(result!=DSR_OK)return result;
+ result=status(c);if(result!=DSR_OK)return result;
+ /* The gateway acknowledged the TRV call. Its mirrored target_C can lag the
+  * BLE write by a poll; the LCD shows what the gateway reports, never the request. */
+ return DSR_OK;
+}
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_LIGHT||c->device.generation!=DSR_GEN2_PLUS||!dsr_light_intent_valid(intent))return DSR_INVALID;

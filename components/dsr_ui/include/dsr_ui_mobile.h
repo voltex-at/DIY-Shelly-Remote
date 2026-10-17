@@ -23,8 +23,8 @@ typedef struct {
     bool has_battery,has_temperature,has_humidity,has_position,has_contact,contact_open,can_cover;
     double battery_pct,temperature_c,humidity_pct;
     union {double position_pct;double blu_age_s;}; /* BLU: seconds since the gateway received the sensor, <0 unknown */
-    union {bool has_frequency;bool has_illuminance;};bool can_stop_cover;
-    union {double frequency_hz;double illuminance_lux;};
+    union {bool has_frequency;bool has_illuminance;bool has_trv_target;};bool can_stop_cover;
+    union {double frequency_hz;double illuminance_lux;double trv_target_c;}; /* BLU TRV: gateway-reported target */
     dsr_mobile_cover_state_t cover_state;
     bool has_sample_time;
     uint32_t sample_ms;
@@ -79,6 +79,7 @@ typedef struct {
     void (*run_group)(uint32_t id,bool on);
     void (*set_brightness)(unsigned index,uint8_t brightness);
     void (*set_rgb)(unsigned index,uint8_t r,uint8_t g,uint8_t b);
+    void (*set_trv)(unsigned index,uint8_t half_c); /* BLU TRV target, half degrees */
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);

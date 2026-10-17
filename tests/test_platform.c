@@ -30,18 +30,19 @@ void dsr_lan_resume(void){}
 int64_t esp_timer_get_time(void){return 0;}
 #define CHECK(expr) do { checks++; if (!(expr)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); assert(expr); } } while (0)
 typedef struct { const char *path, *body; int status; bool post, challenge; } step_t;
-static step_t steps[8];
+static step_t steps[24];
 static unsigned count, used;
 static esp_http_client_auth_type_t expected_auth;
 struct test_client { esp_http_client_config_t cfg; bool post; const char *body; };
 static struct test_client client;
+static char posted[256]; /* last POST body, copied: callers pass stack buffers */
 static void fixture(const step_t *data, unsigned length, esp_http_client_auth_type_t auth)
 { memcpy(steps, data, length * sizeof(*data)); count = length; used = 0; expected_auth = auth; }
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg)
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
     bool identity = strcmp(steps[used].path, "/shelly") == 0;
-    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:3000));
+    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:3000));
     CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
     if (identity) CHECK(!cfg->username && !cfg->password);
     else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
@@ -54,7 +55,7 @@ esp_err_t esp_http_client_set_method(esp_http_client_handle_t c, esp_http_client
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t c, const char *key, const char *value)
 { (void)c; CHECK(!strcmp(key, "Content-Type") && !strcmp(value, ap_protocol?ap_content_type:"application/json")); return ESP_OK; }
 esp_err_t esp_http_client_set_post_field(esp_http_client_handle_t c, const char *body, int length)
-{ CHECK(length == (int)strlen(body)); c->body = body; return ESP_OK; }
+{ CHECK(length == (int)strlen(body)); c->body = body; snprintf(posted,sizeof(posted),"%s",body); return ESP_OK; }
 static esp_err_t emit(esp_http_client_handle_t c, esp_http_client_event_id_t id, const char *data, int length)
 {
     esp_http_client_event_t event = {.event_id = id, .user_data = c->cfg.user_data, .data = (void *)data, .data_len = length};
@@ -387,7 +388,7 @@ static void test_registered_guard(void)
 int main(void)
 {
     test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
-    test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();
+    test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
 }

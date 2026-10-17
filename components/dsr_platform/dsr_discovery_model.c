@@ -168,6 +168,26 @@ dsr_result_t dsr_blu_apply_sensor(const cJSON *r,unsigned sensor,uint8_t obj_id,
  }
  return DSR_OK;
 }
+bool dsr_blu_trv_linked(const cJSON *r,unsigned id,unsigned cid)
+{
+ if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)id,(int)id))return false;
+ const cJSON *trv=get(r,"trv");char expected[24];snprintf(expected,sizeof(expected),"bthomedevice:%u",cid);
+ return text(trv,23)&&!strcmp(trv->valuestring,expected);
+}
+dsr_result_t dsr_blu_parse_trv(const cJSON *r,unsigned id,dsr_telemetry_t *out)
+{
+ if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)id,(int)id))return DSR_BAD_RESPONSE;
+ bool has_target,has_current,has_pos;double target,current,pos;
+ if(!ht_number(get(r,"target_C"),-50,100,&has_target,&target)||!ht_number(get(r,"current_C"),-50,100,&has_current,&current)||!ht_number(get(r,"pos"),0,100,&has_pos,&pos))return DSR_BAD_RESPONSE;
+ const cJSON *errors=get(r,"errors");
+ if(errors&&(!cJSON_IsArray(errors)||cJSON_GetArraySize(errors)>8))return DSR_BAD_RESPONSE;
+ const cJSON *e;if(errors)cJSON_ArrayForEach(e,errors)if(!text(e,64))return DSR_BAD_RESPONSE;
+ out->blu.errors|=DSR_BLU_TRV;if(errors&&cJSON_GetArraySize(errors))out->blu.errors|=DSR_BLU_TRV_FAULT;
+ /* TRV has no lux and no humidity: their storage carries the TRV values. */
+ out->has_illuminance=false;out->blu.flags&=(uint8_t)~DSR_BLU_HAS_HUMIDITY;
+ if(has_target&&has_current){out->trv_target_c=(float)target;out->trv_current_c=(float)current;out->blu.trv_pos=has_pos?(uint8_t)(pos+0.5):0;out->blu.errors|=DSR_BLU_TRV_TARGET;}
+ return DSR_OK;
+}
 bool dsr_blu_sensor_shown(uint8_t obj_id)
 {return obj_id==0x21||obj_id==0x1A||obj_id==0x2D||obj_id==0x05||obj_id==0x01||obj_id==0x02||obj_id==0x45||obj_id==0x03||obj_id==0x2E||obj_id==0x3A;}
 const char *dsr_blu_model_name(uint8_t model)

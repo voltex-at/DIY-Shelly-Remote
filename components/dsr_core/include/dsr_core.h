@@ -43,7 +43,21 @@ typedef struct {uint8_t flags,errors,reserved[3];} dsr_ht_status_t;
  * flags: what the gateway reported; humidity in %; button = last BTHome event. */
 enum {DSR_BLU_VALID=1,DSR_BLU_HAS_MOTION=2,DSR_BLU_MOTION=4,DSR_BLU_HAS_OPEN=8,DSR_BLU_OPEN=16,DSR_BLU_HAS_HUMIDITY=32,DSR_BLU_HAS_BUTTON=64,DSR_BLU_HAS_RSSI=128};
 enum {DSR_BLU_ERROR_KEY=1,DSR_BLU_ERROR_DECRYPT=2,DSR_BLU_ERROR_PARSE=4,DSR_BLU_ERROR_UNENCRYPTED=8};
-typedef struct {uint8_t flags,humidity,button,errors;int8_t rssi;} dsr_blu_status_t;
+/* Upper nibble of errors: BLU TRV state (the 32 B telemetry record is fixed).
+ * TRV = BluTrv component for this cid; TARGET = target/current/pos valid;
+ * FAULT = the TRV reports errors (e.g. not calibrated). */
+enum {DSR_BLU_ERROR_MASK=15,DSR_BLU_TRV=16,DSR_BLU_TRV_TARGET=32,DSR_BLU_TRV_FAULT=64,DSR_BLU_TRV_CHECKED=128};
+/* CHECKED: the gateway answered whether this cid is a BluTrv (TRV bit = yes).
+ * It rides in the endpoint's telemetry from poll to poll, so the HTTP layer
+ * stays stateless and asks BluTrv.GetConfig only once per endpoint. */
+typedef struct {uint8_t flags;union {uint8_t humidity,trv_pos;};uint8_t button,errors;int8_t rssi;} dsr_blu_status_t;
+/* Target temperature in half degrees: 4.0..30.0 C (owner decision 2026-10-18;
+ * the Shelly API documents no range). */
+#define DSR_TRV_MIN_HALF 8u
+#define DSR_TRV_MAX_HALF 60u
+enum {DSR_TRV_SET_TARGET=1};
+typedef struct {uint8_t command,half_c;} dsr_trv_intent_t;
+static inline bool dsr_trv_intent_valid(dsr_trv_intent_t i){return i.command==DSR_TRV_SET_TARGET&&i.half_c>=DSR_TRV_MIN_HALF&&i.half_c<=DSR_TRV_MAX_HALF;}
 #define DSR_BLU_FIRST_CID 200u
 typedef enum {DSR_RGB_NONE,DSR_RGB_ON,DSR_RGB_OFF,DSR_RGB_SET_BRIGHTNESS,DSR_RGB_SET_COLOR} dsr_rgb_command_t;
 typedef struct {uint8_t command;union {uint8_t brightness;uint8_t rgb[3];};} dsr_rgb_intent_t;

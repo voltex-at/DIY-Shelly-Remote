@@ -14,22 +14,24 @@ static void test_blu_protocol(void)
   {"/rpc/BTHomeDevice.GetStatus?id=201",blu_device_status,200,false,true},{"/rpc/BTHomeDevice.GetKnownObjects?id=201",blu_known,200,false,true},
   {"/rpc/BTHomeSensor.GetStatus?id=204","{\"id\":204,\"value\":92,\"last_updated_ts\":1767225500.25}",200,false,true},
   {"/rpc/BTHomeSensor.GetStatus?id=205","{\"id\":205,\"value\":317,\"last_updated_ts\":1767225500.25}",200,false,true},
-  {"/rpc/BTHomeSensor.GetStatus?id=206","{\"id\":206,\"value\":true,\"last_updated_ts\":1767225500.25}",200,false,true}};
+  {"/rpc/BTHomeSensor.GetStatus?id=206","{\"id\":206,\"value\":true,\"last_updated_ts\":1767225500.25}",200,false,true},
+  /* First poll per (gateway, cid) asks once whether it is a BLU TRV; an error answer means no. */
+  {"/rpc/BluTrv.GetConfig?id=201","{\"code\":-105,\"message\":\"Argument 'id', value 201 not found!\"}",404,false,true}};
  /* Rotation (obj 63) is known but not shown: no request for bthomesensor:207. */
- fixture(data,7,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_OK&&used==7&&d.online&&!d.has_switch&&!d.has_power&&!d.output);
+ fixture(data,8,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_OK&&used==8&&d.online&&!d.has_switch&&!d.has_power&&!d.output);
  CHECK(!strcmp(d.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a")&&(t.blu.flags&DSR_BLU_VALID)&&(t.blu.flags&DSR_BLU_HAS_MOTION)&&(t.blu.flags&DSR_BLU_MOTION)&&!(t.blu.flags&DSR_BLU_HAS_OPEN));
- CHECK(t.has_blu_battery&&t.blu_battery_pct==92&&t.has_illuminance&&t.illuminance_lux==317&&!t.has_blu_temperature&&(t.blu.flags&DSR_BLU_HAS_RSSI)&&t.blu.rssi==-71&&t.blu_updated_s==1767225500u&&!t.blu.errors);
+ CHECK(t.has_blu_battery&&t.blu_battery_pct==92&&t.has_illuminance&&t.illuminance_lux==317&&!t.has_blu_temperature&&(t.blu.flags&DSR_BLU_HAS_RSSI)&&t.blu.rssi==-71&&t.blu_updated_s==1767225500u&&t.blu.errors==DSR_BLU_TRV_CHECKED); /* asked once: not a TRV */
  /* LAN wizard bind knows only the gateway id; the probe appends the MAC. */
- dsr_connection_t gateway_only=c;strcpy(gateway_only.device.device_id,"shellyplus1pm-aabbccddeeff");fixture(data,7,HTTP_AUTH_TYPE_DIGEST);
- CHECK(dsr_http_probe_telemetry(&gateway_only,&d,&t)==DSR_OK&&!strcmp(d.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a"));
+ dsr_connection_t gateway_only=c;strcpy(gateway_only.device.device_id,"shellyplus1pm-aabbccddeeff");gateway_only.telemetry=t;fixture(data,7,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_probe_telemetry(&gateway_only,&d,&t)==DSR_OK&&used==7&&(t.blu.errors&DSR_BLU_TRV_CHECKED)&& /* the hint rides in the endpoint telemetry */!strcmp(d.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a"));
  /* Another sensor now sits on cid 201, another gateway, or a prefix that only looks alike: mismatch, never its data. */
  data[1].body="{\"id\":201,\"addr\":\"aa:bb:cc:dd:ee:01\",\"name\":null,\"meta\":null}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_IDENTITY_MISMATCH&&used==2&&!d.online);data[1].body=blu_config;
  dsr_connection_t foreign=c;strcpy(foreign.device.device_id,"shellyplus1pm-aabbccddeeff_000000000001");fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&foreign,&d,&t)==DSR_IDENTITY_MISMATCH);
  dsr_connection_t prefix=c;strcpy(prefix.device.device_id,"shellyplus1pm-aabbcc");fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&prefix,&d,&t)==DSR_IDENTITY_MISMATCH);
  /* BLU Gateway Gen3 serves BLU endpoints; as a relay it stays unsupported. */
- step_t gw[7];memcpy(gw,data,sizeof(gw));gw[0].body="{\"gen\":3,\"id\":\"shellyblugwg3-aabbccddeeff\",\"model\":\"S3GW-1DBT001\"}";
- dsr_connection_t via_gateway=c;strcpy(via_gateway.device.device_id,"shellyblugwg3-aabbccddeeff");fixture(gw,7,HTTP_AUTH_TYPE_DIGEST);
- CHECK(dsr_http_probe_telemetry(&via_gateway,&d,&t)==DSR_OK&&used==7&&!strcmp(d.device_id,"shellyblugwg3-aabbccddeeff_3c2ef571d52a"));
+ step_t gw[8];memcpy(gw,data,sizeof(gw));gw[0].body="{\"gen\":3,\"id\":\"shellyblugwg3-aabbccddeeff\",\"model\":\"S3GW-1DBT001\"}";
+ dsr_connection_t via_gateway=c;strcpy(via_gateway.device.device_id,"shellyblugwg3-aabbccddeeff");fixture(gw,8,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_probe_telemetry(&via_gateway,&d,&t)==DSR_OK&&used==8&&!strcmp(d.device_id,"shellyblugwg3-aabbccddeeff_3c2ef571d52a"));
  dsr_connection_t relay=connection();relay.device.generation=DSR_GEN2_PLUS;strcpy(relay.device.device_id,"shellyblugwg3-aabbccddeeff");fixture(gw,1,HTTP_AUTH_TYPE_DIGEST);
  CHECK(dsr_http_probe_telemetry(&relay,&d,&t)!=DSR_OK&&used==1&&!d.online);
  /* Read-only: never a Switch.Set. */
@@ -116,5 +118,70 @@ static void test_blu_gateway_components(void)
  dsr_telemetry_t t={0};j=cJSON_Parse("{\"id\":201,\"last_updated_ts\":1070199072}");CHECK(dsr_blu_apply_sensor(j,201,0x3A,&t)==DSR_OK&&!t.blu.flags);cJSON_Delete(j);
  j=cJSON_Parse("{\"id\":201,\"rssi\":null,\"battery\":null,\"packet_id\":null,\"last_updated_ts\":null,\"key\":false,\"paired\":true,\"rpc\":false,\"rsv\":-1,\"fw_ver\":null}");
  CHECK(dsr_blu_parse_device(j,201,&t)==DSR_OK&&!t.has_blu_battery&&!(t.blu.flags&DSR_BLU_HAS_RSSI)&&!t.blu_updated_s);cJSON_Delete(j);
+ admission_open();
+}
+
+/* BLU TRV through BluTrv (docs: BLU Gateway Gen3; shape seen on the owner's gateway). */
+static void test_blu_trv(void)
+{
+ dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.endpoint_kind=DSR_ENDPOINT_BLU;c.device.channel=0;strcpy(c.device.device_id,"shellyblugwg3-aabbccddeeff_aabbcc00b567");
+ static const char *gw="{\"gen\":3,\"id\":\"shellyblugwg3-aabbccddeeff\",\"model\":\"S3GW-1DBT001\"}";
+ static const char *known="{\"id\":200,\"objects\":[{\"obj_id\":1,\"idx\":0,\"component\":\"bthomesensor:200\"},{\"obj_id\":58,\"idx\":0,\"component\":\"bthomesensor:201\"},{\"obj_id\":69,\"idx\":0,\"component\":\"bthomesensor:202\"},{\"obj_id\":69,\"idx\":1,\"component\":\"bthomesensor:203\"}]}";
+ step_t read[]={{"/rpc/BTHomeDevice.GetStatus?id=200","{\"id\":200,\"rssi\":-51,\"battery\":100,\"packet_id\":189,\"last_updated_ts\":1792272402,\"key\":false,\"paired\":true,\"rpc\":true,\"rsv\":50,\"fw_ver\":\"v1.3.2\"}",200,false,true},
+  {"/rpc/BTHomeDevice.GetKnownObjects?id=200",known,200,false,true},
+  {"/rpc/BTHomeSensor.GetStatus?id=200","{\"id\":200,\"value\":100,\"last_updated_ts\":1792272402}",200,false,true},
+  {"/rpc/BTHomeSensor.GetStatus?id=201","{\"id\":201,\"last_updated_ts\":1070199072}",200,false,true},
+  {"/rpc/BTHomeSensor.GetStatus?id=202","{\"id\":202,\"value\":20.0,\"last_updated_ts\":1792272402}",200,false,true}};
+ step_t ident[]={{"/shelly",gw,200,false,false},{"/rpc/BTHomeDevice.GetConfig?id=200","{\"id\":200,\"addr\":\"aa:bb:cc:00:b5:67\",\"name\":null,\"meta\":null}",200,false,true}};
+ step_t linked={"/rpc/BluTrv.GetConfig?id=200","{\"id\":200,\"addr\":\"aa:bb:cc:00:b5:67\",\"name\":null,\"trv\":\"bthomedevice:200\",\"temp_sensors\":[],\"dw_sensors\":[\"bthomesensor:206\"],\"override_delay\":30,\"meta\":null}",200,false,true};
+ step_t trv_status={"/rpc/BluTrv.GetStatus?id=200","{\"id\":200,\"target_C\":20.0,\"current_C\":21.5,\"pos\":28,\"connected\":true,\"rssi\":-51,\"battery\":100,\"packet_id\":212,\"last_updated_ts\":1792274671,\"key\":false,\"paired\":true,\"rpc\":true,\"rsv\":4,\"fw_ver\":\"v1.3.2\"}",200,false,true};
+ step_t s[24];unsigned n=0;
+ memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=linked;s[n++]=trv_status;
+ dsr_device_t d;dsr_telemetry_t t;fixture(s,n,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_OK&&used==9&&(t.blu.errors&DSR_BLU_TRV)&&(t.blu.errors&DSR_BLU_TRV_TARGET)&&(t.blu.errors&DSR_BLU_TRV_CHECKED)&&!(t.blu.errors&DSR_BLU_TRV_FAULT)&&!(t.blu.errors&DSR_BLU_ERROR_MASK));
+ c.telemetry=t; /* later calls carry what the first one learned */
+ CHECK(t.trv_target_c==20.0f&&t.trv_current_c==21.5f&&t.blu.trv_pos==28&&!t.has_illuminance&&!(t.blu.flags&DSR_BLU_HAS_HUMIDITY)&&t.has_blu_battery);
+ /* Known TRV: no second GetConfig. */
+ n=0;memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=trv_status;
+ fixture(s,n,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_OK&&used==8&&t.trv_current_c==21.5f);
+ /* SetTarget 21.5: identity, read, POST BluTrv.Call (null ack), read back. */
+ step_t after=trv_status;after.body="{\"id\":200,\"target_C\":21.5,\"current_C\":21.5,\"pos\":40,\"errors\":[\"not_calibrated\"]}";
+ n=0;memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=trv_status;
+ s[n++]=(step_t){"/rpc/BluTrv.Call","null",200,true,true};memcpy(s+n,read,sizeof(read));n+=5;s[n++]=after;
+ const char *set215="{\"id\":200,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":21.5}}";cover_payload=set215;
+ dsr_connection_t w=c;posted[0]=0;fixture(s,n,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=43})==DSR_OK&&used==n&&w.device.online);
+ CHECK(!strcmp(posted,"{\"id\":200,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":21.5}}"));
+ CHECK(w.telemetry.trv_target_c==21.5f&&w.telemetry.blu.trv_pos==40&&(w.telemetry.blu.errors&DSR_BLU_TRV_FAULT));
+ /* Lower bound 4.0 C is written with one decimal. */
+ n=0;memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=trv_status;s[n++]=(step_t){"/rpc/BluTrv.Call","null",200,true,true};memcpy(s+n,read,sizeof(read));n+=5;s[n++]=trv_status;
+ cover_payload="{\"id\":200,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":4.0}}";w=c;fixture(s,n,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=8})==DSR_OK&&strstr(posted,"\"target_C\":4.0}"));
+ /* Out of range or unknown command: refused before any request. */
+ w=c;fixture(s,0,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=61})==DSR_INVALID&&used==0);
+ CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=2,.half_c=40})==DSR_INVALID&&used==0);
+ /* An uncertain write is never replayed. */
+ n=0;memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=trv_status;s[n++]=(step_t){"/rpc/BluTrv.Call","{\"code\":-1}",500,true,true};
+ cover_payload=set215;w=c;fixture(s,n,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=43})==DSR_BAD_RESPONSE&&used==n&&!w.device.online);
+ /* Not a TRV: GetConfig error remembered; a TRV command is unsupported after the read. */
+ c.telemetry=(dsr_telemetry_t){0};step_t none={"/rpc/BluTrv.GetConfig?id=200","{\"code\":-105}",404,false,true};
+ n=0;memcpy(s+n,ident,sizeof(ident));n+=2;memcpy(s+n,read,sizeof(read));n+=5;s[n++]=none;
+ w=c;fixture(s,n,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_trv(&w,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=43})==DSR_UNSUPPORTED&&used==n&&!strstr(posted,"200,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":21.5}}x"));
+ cover_payload=NULL;
+ /* Linked to another device: not this channel's TRV. */
+ cJSON *j=cJSON_Parse("{\"id\":200,\"trv\":\"bthomedevice:201\"}");CHECK(!dsr_blu_trv_linked(j,200,200));cJSON_Delete(j);
+ j=cJSON_Parse("{\"id\":200,\"target_C\":\"20\"}");dsr_telemetry_t bad={0};CHECK(dsr_blu_parse_trv(j,200,&bad)==DSR_BAD_RESPONSE);cJSON_Delete(j);
+ j=cJSON_Parse("{\"id\":200,\"target_C\":null,\"current_C\":null,\"pos\":null}");CHECK(dsr_blu_parse_trv(j,200,&bad)==DSR_OK&&(bad.blu.errors&DSR_BLU_TRV)&&!(bad.blu.errors&DSR_BLU_TRV_TARGET));cJSON_Delete(j);
+ /* Fleet: TRV target needs a fresh TRV sample. */
+ dsr_fleet_t f={0};dsr_connection_t fc=c;fc.layout_id=92;fc.device.online=true;CHECK(dsr_fleet_upsert(&f,&fc,100)==DSR_OK);
+ dsr_trv_intent_t i={.command=DSR_TRV_SET_TARGET,.half_c=43};CHECK(dsr_fleet_trv_request(&f,0,i,true,200)==DSR_UNSUPPORTED); /* no TRV proven yet */
+ f.slots[0].connection.telemetry.blu.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET;f.slots[0].connection.telemetry.blu.flags=DSR_BLU_VALID;
+ CHECK(dsr_fleet_trv_request(&f,0,i,true,100+DSR_FLEET_BLU_FRESH_MS+1)==DSR_OFFLINE);CHECK(dsr_fleet_trv_request(&f,0,i,false,200)==DSR_OFFLINE);
+ CHECK(dsr_fleet_trv_request(&f,0,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=7},true,200)==DSR_INVALID);
+ CHECK(dsr_fleet_trv_request(&f,0,i,true,200)==DSR_OK);CHECK(dsr_fleet_trv_request(&f,0,i,true,200)==DSR_BUSY);
+ dsr_job_t job;unsigned at;CHECK(dsr_fleet_next(&f,200,true,&job,&at)&&job.kind==DSR_JOB_TRV&&job.trv.half_c==43);
+ job.id=901;dsr_fleet_started(&f,at,&job);dsr_event_t ev={.id=901,.device=f.slots[0].connection.device,.result=DSR_BAD_RESPONSE};CHECK(dsr_fleet_complete(&f,at,&ev,300)&&f.slots[0].command_error);
+ /* A plain refresh after a TRV request never turns into a TRV write. */
+ f.slots[0].connection.device.online=true;f.slots[0].sample_valid=true;f.slots[0].sample_ms=300;f.slots[0].command_error=false;f.slots[0].blocked=false;
+ CHECK(dsr_fleet_ht_refresh(&f,0,true,300)==DSR_OK);CHECK(dsr_fleet_next(&f,300,true,&job,&at)&&job.kind==DSR_JOB_PROBE);job.id=902;dsr_fleet_started(&f,at,&job); /* releases the queued activity */
  admission_open();
 }

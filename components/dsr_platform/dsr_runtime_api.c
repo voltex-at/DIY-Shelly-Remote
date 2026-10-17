@@ -107,10 +107,13 @@ char *dsr_runtime_json(uint32_t boot_id)
    ok=ok&&cJSON_AddBoolToObject(v,"valid",(b->flags&DSR_BLU_VALID)!=0)
     &&((b->flags&DSR_BLU_HAS_MOTION)?cJSON_AddBoolToObject(v,"motion",(b->flags&DSR_BLU_MOTION)!=0)!=NULL:cJSON_AddNullToObject(v,"motion")!=NULL)
     &&((b->flags&DSR_BLU_HAS_OPEN)?cJSON_AddBoolToObject(v,"open",(b->flags&DSR_BLU_OPEN)!=0)!=NULL:cJSON_AddNullToObject(v,"open")!=NULL)
-    &&nullable(v,"illuminance_lux",t->has_illuminance,t->illuminance_lux)&&nullable(v,"battery_pct",t->has_blu_battery,t->blu_battery_pct)
-    &&nullable(v,"temperature_c",t->has_blu_temperature,t->blu_temperature_c)&&nullable(v,"humidity_pct",(b->flags&DSR_BLU_HAS_HUMIDITY)!=0,b->humidity)
+    &&nullable(v,"illuminance_lux",t->has_illuminance&&!(b->errors&DSR_BLU_TRV),t->illuminance_lux)&&nullable(v,"battery_pct",t->has_blu_battery,t->blu_battery_pct)
+    &&nullable(v,"temperature_c",t->has_blu_temperature,t->blu_temperature_c)&&nullable(v,"humidity_pct",(b->flags&DSR_BLU_HAS_HUMIDITY)&&!(b->errors&DSR_BLU_TRV),b->humidity)
     &&nullable(v,"button",(b->flags&DSR_BLU_HAS_BUTTON)!=0,b->button)&&nullable(v,"rssi",(b->flags&DSR_BLU_HAS_RSSI)!=0,b->rssi)
-    &&nullable(v,"updated_s",t->blu_updated_s!=0,t->blu_updated_s)&&cJSON_AddNumberToObject(v,"errors",b->errors);
+    &&nullable(v,"updated_s",t->blu_updated_s!=0,t->blu_updated_s)&&cJSON_AddNumberToObject(v,"errors",b->errors&DSR_BLU_ERROR_MASK);
+   if(ok&&(b->errors&DSR_BLU_TRV)){bool known=(b->errors&DSR_BLU_TRV_TARGET)!=0;cJSON *trv=cJSON_AddObjectToObject(v,"trv");
+    ok=trv&&nullable(trv,"target_c",known,t->trv_target_c)&&nullable(trv,"current_c",known,t->trv_current_c)&&nullable(trv,"valve_pct",known,b->trv_pos)&&cJSON_AddBoolToObject(trv,"fault",(b->errors&DSR_BLU_TRV_FAULT)!=0);}
+   else if(ok)ok=cJSON_AddNullToObject(v,"trv")!=NULL;
   }
   if(ok&&d->endpoint_kind==DSR_ENDPOINT_HT){const dsr_telemetry_t *t=&r->telemetry;
    ok=cJSON_AddBoolToObject(o,"has_temperature",t->has_temperature)&&nullable(o,"temperature_c",t->has_temperature,t->temperature_c)&&cJSON_AddBoolToObject(o,"has_humidity",t->has_humidity)&&nullable(o,"humidity_pct",t->has_humidity,t->humidity_pct)&&cJSON_AddBoolToObject(o,"has_battery",t->has_battery)&&nullable(o,"battery_pct",t->has_battery,t->battery_pct)&&cJSON_AddNumberToObject(o,"sensor_errors",t->ht.errors)&&cJSON_AddBoolToObject(o,"measurement_time_known",false)&&cJSON_AddBoolToObject(o,"can_refresh",r->can_refresh);

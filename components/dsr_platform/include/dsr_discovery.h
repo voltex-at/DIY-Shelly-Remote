@@ -51,6 +51,11 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,ds
 dsr_result_t dsr_lan_parse_components(const cJSON *page,unsigned offset,uint16_t *blu,dsr_blu_labels_t *labels,unsigned *next,unsigned *total);
 /* Verified product name for a BTHome attrs.model_id, or NULL when unknown. */
 const char *dsr_blu_model_name(uint8_t model);
+/* BluTrv.GetConfig: true only when this BluTrv instance is linked to
+ * bthomedevice:<cid> ("trv" field). */
+bool dsr_blu_trv_linked(const cJSON *config,unsigned id,unsigned cid);
+/* BluTrv.GetStatus into the BLU record: target/current C, valve %, errors. */
+dsr_result_t dsr_blu_parse_trv(const cJSON *status,unsigned id,dsr_telemetry_t *out);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);
 bool dsr_lan_plan_add(dsr_lan_plan_t *plan,const char *host,const char *local,const char *mask);
 

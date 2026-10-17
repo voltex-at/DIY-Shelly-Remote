@@ -1,3 +1,11 @@
+0.7.47-dev: termostat BLU TRV, stabilny odczyt czujników BLU, wbudowane zdjęcia pomieszczeń. Stable: brak.
+
+Zmiany względem 0.7.46-dev:
+- Czujniki BLU: wartości nie znikają co 15 s. Odczyt uznawany za aktualny przez 45 s (bramka jest odpytywana co 15 s, jeden odczyt to kilka zapytań); odczyt w tle nie zasłania wartości.
+- Termostat BLU TRV (przez bramkę): temperatura przy głowicy, cel, zawór, bateria; ustawianie celu 4-30 °C co 0,5 °C przyciskami -/+ i "Ustaw" (BluTrv.Call TRV.SetTarget). Pilot pokazuje to, co raportuje bramka; niepewny zapis nie jest powtarzany. Web Panel pokazuje termostat (bez ustawiania).
+- Pomieszczenia: 8 wbudowanych zdjęć (Salon, Kuchnia, Sypialnia, Łazienka, Przedpokój, Piwnica, Strych, Rozdzielnia) do wyboru w edytorze; własne zdjęcia z Web Panelu działają jak dotąd.
+- Poprawka: zapis z treścią spoza pola żądania nie wyłączał już ponowienia logowania digest (dotyczyło tylko nowej ścieżki TRV; provisioning AP bez zmian).
+
 0.7.46-dev: czujniki BLU w kreatorze pod nazwą z bramki albo modelem. Stable: brak.
 
 Zmiany względem 0.7.45-dev:

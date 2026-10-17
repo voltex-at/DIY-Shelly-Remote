@@ -20,7 +20,7 @@ typedef struct { char username[33], password[65]; } dsr_credentials_t;
 typedef struct {
  union {struct {bool has_voltage,has_current,has_energy;};struct {bool has_temperature,has_humidity,has_battery;};struct {bool has_blu_temperature,has_illuminance,has_blu_battery;};};
  union {dsr_cover_status_t cover;dsr_light_status_t light;dsr_rgb_status_t rgb;dsr_ht_status_t ht;dsr_blu_status_t blu;};
- union {struct {double voltage_v,current_a,energy_wh;};struct {double temperature_c,humidity_pct,battery_pct;};struct {double illuminance_lux,blu_battery_pct;float blu_temperature_c;uint32_t blu_updated_s;};};
+ union {struct {double voltage_v,current_a,energy_wh;};struct {double temperature_c,humidity_pct,battery_pct;};struct {union {double illuminance_lux;struct {float trv_target_c,trv_current_c;};};double blu_battery_pct;float blu_temperature_c;uint32_t blu_updated_s;};};
 } dsr_telemetry_t;
 typedef struct { dsr_device_t device; dsr_credentials_t credentials; dsr_telemetry_t telemetry;uint32_t layout_id;bool legacy_fallback;} dsr_connection_t;
 /* Volatile origin consumes tail padding; never enters installed raw records. */
@@ -73,6 +73,8 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
 dsr_result_t dsr_http_rgb(dsr_connection_t *connection,dsr_rgb_intent_t intent);
 dsr_result_t dsr_http_light(dsr_connection_t *connection,dsr_light_intent_t intent);
+/* BLU TRV: identity check, BluTrv.Call TRV.SetTarget, status read-back. */
+dsr_result_t dsr_http_trv(dsr_connection_t *connection,dsr_trv_intent_t intent);
 /* Sole worker invokes an optional urgent-STOP callback between HTTP legs.
  * The callback is never installed by HTTP fixtures or other transports. */
 void dsr_http_urgent_hook(bool (*hook)(void));
@@ -87,14 +89,14 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
 typedef void (*dsr_http_job_write_hook_t)(void);
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_HISTORY_SERVICE,DSR_JOB_HISTORY_CLOCK,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
     dsr_connection_t connection;
     dsr_settings_t settings;
     /* Different job kinds reuse the two existing public-intent bytes. */
-    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;dsr_light_intent_t light;};
+    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_trv_intent_t trv;};
     union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;dsr_rgb_intent_t rgb;};
 } dsr_job_t;
 _Static_assert(sizeof(dsr_job_t)==560&&offsetof(dsr_job_t,on)==406&&offsetof(dsr_job_t,ap_confirmed)==407&&offsetof(dsr_job_t,ap)==408&&offsetof(dsr_job_t,rgb)==408,"Cover retains the existing job footprint and payload offsets");

@@ -224,12 +224,19 @@ static void object_choice(const char *caption,const char *key,int y)
  cJSON_ArrayForEach(v,a){if(options[0])strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,string(v,"name"),sizeof(options)-strlen(options)-1);if(integer(v,"id")==integer(editing,key))selected=index;index++;}
  dsr_sc_text(body,caption,2,y,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);lv_dropdown_set_options(d,options);lv_dropdown_set_selected(d,selected);lv_obj_add_event_cb(d,object_selected,LV_EVENT_VALUE_CHANGED,(void *)key);
 }
+/* Gallery order: uploaded photos, then built-in room photos, then "none". */
+static const char *gallery_id(unsigned index)
+{
+ unsigned users=0;while(dsr_photo_id(users))users++;
+ if(index<users)return dsr_photo_id(index);
+ const dsr_room_photo_t *builtin=dsr_room_photo(index-users);return builtin?builtin->id:NULL;
+}
 static void choose_photo(lv_event_t *event)
 {
  (void)event;unsigned index=0;const char *id;
- while((id=dsr_photo_id(index))){if(!strcmp(id,string(editing,"photo"))){index++;break;}index++;}
+ while((id=gallery_id(index))){if(!strcmp(id,string(editing,"photo"))){index++;break;}index++;}
  if(!string(editing,"photo")[0])index=0;
- id=dsr_photo_id(index);
+ id=gallery_id(index);
  cJSON_ReplaceItemInObjectCaseSensitive(editing,"photo",cJSON_CreateString(id?id:""));show_entity(editing);
 }
 /* Contextual rooms use the same draft, CAS submission and durable acknowledgement
@@ -278,14 +285,15 @@ static void room_photo(void)
 {
  lv_obj_t *button=dsr_sc_button(body,0,150,284,72,DSR_SC_CARD,12,choose_photo,NULL);
  lv_obj_t *thumb=dsr_sc_panel(button,8,8,64,48,DSR_SC_PANEL,6);lv_obj_set_style_clip_corner(thumb,true,0);
- const void *pixels=dsr_photo_pixels(string(editing,"photo"));
- if(pixels){
-  static lv_image_dsc_t photo;photo=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,.w=DSR_PHOTO_WIDTH,.h=DSR_PHOTO_HEIGHT,.stride=DSR_PHOTO_WIDTH*2},.data_size=DSR_PHOTO_BYTES,.data=pixels};
-  lv_obj_t *image=lv_image_create(thumb);lv_image_set_src(image,&photo);lv_image_set_scale(image,48*256/DSR_PHOTO_HEIGHT);lv_image_set_antialias(image,true);lv_obj_center(image);
+ static lv_image_dsc_t photo;
+ if(dsr_ui_photo_source(string(editing,"photo"),&photo)){
+  uint32_t scale=64u*256u/photo.header.w,vertical=48u*256u/photo.header.h;if(vertical>scale)scale=vertical; /* cover the 64x48 thumb */
+  lv_obj_t *image=lv_image_create(thumb);lv_image_set_src(image,&photo);lv_image_set_scale(image,scale);lv_image_set_antialias(image,true);lv_obj_center(image);
  }else dsr_sc_icon_centered(thumb,DSR_ICON_HOME,32,DSR_SC_MUTED);
- dsr_sc_text(button,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",84,10,188,&dsr_roboto_14,DSR_SC_TEXT);
+ const dsr_room_photo_t *builtin=dsr_room_photo_find(string(editing,"photo"));
+ dsr_sc_text(button,builtin?builtin->label:string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",84,10,188,&dsr_roboto_14,DSR_SC_TEXT);
  /* Upload hint inside the card: no free text that a fixed footer can clip. */
- dsr_sc_text(button,dsr_photo_id(0)?"Nowe zdjęcia dodasz w Web Panelu.":"Brak zdjęć. Dodaj je w Web Panelu.",84,34,188,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(button,"Dotknij, aby zmienić. Własne zdjęcia dodasz w Web Panelu.",84,34,188,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void show_room_form(void)
 {

@@ -59,6 +59,9 @@ async function fixture(cover=false){
   const f=await fixture(5),card=f.cards()[0],actions=card.children[5];ok(actions.children[0].hidden&&actions.children[1].hidden);eq(card.children[1].textContent,'Motion detected');
   ok(card.children[2].textContent.includes('317 lx')&&card.children[2].textContent.includes('92 % battery')&&card.children[2].textContent.includes('-71 dBm')&&!card.children[2].textContent.includes('°C'));ok(card.children[3].textContent.includes('2 s'));eq(card.children[4].textContent,'');
   const d=f.state.devices[0];d.blu={...d.blu,motion:null,open:true,errors:2};await f.refresh();eq(card.children[1].textContent,'Open');ok(card.children[4].textContent.includes('2'));
+  d.blu={...d.blu,valid:true,motion:null,open:null,illuminance_lux:null,errors:0,trv:{target_c:20.5,current_c:21.5,valve_pct:28,fault:true}};await f.refresh();eq(card.children[1].textContent,'BLU TRV thermostat');ok(card.children[2].textContent.includes('21.5 °C')&&card.children[2].textContent.includes('20.5 °C target')&&card.children[2].textContent.includes('28 % valve'));ok(card.children[4].textContent.includes('not calibrated'));
+  d.blu={...d.blu,trv:{target_c:'20',current_c:null,valve_pct:null,fault:false}};await f.refresh();eq(card.children[1].textContent,'Gateway not responding'); /* malformed snapshot rejected */
+  d.blu={...d.blu,trv:null};
   d.blu.valid=false;await f.refresh();eq(card.children[1].textContent,'Gateway has no data yet');eq(card.children[2].textContent,'');
   d.online=false;await f.refresh();eq(card.children[1].textContent,'Gateway not responding');
   d.blu={...d.blu,motion:'yes'};await f.refresh();eq(f.cards().length,f.state.devices.length);eq(f.state.posts.length,0);

@@ -49,4 +49,13 @@ unsigned dsr_sc_language(void);
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
+/* Built-in room photos (owner artwork, flash): 100x100 RGB565, content-addressed
+ * like uploaded photos so the config keeps one 32-hex photo field. */
+#define DSR_ROOM_PHOTO_SIZE 100
+typedef struct {const char *id,*label;const uint8_t *pixels;} dsr_room_photo_t;
+unsigned dsr_room_photo_count(void);
+const dsr_room_photo_t *dsr_room_photo(unsigned index);
+const dsr_room_photo_t *dsr_room_photo_find(const char *id);
+/* Uploaded (320x180, PSRAM) or built-in (100x100, flash) photo as an LVGL source. */
+bool dsr_ui_photo_source(const char *id,lv_image_dsc_t *out);
 #endif

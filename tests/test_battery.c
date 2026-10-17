@@ -92,6 +92,9 @@ void dsr_http_urgent_hook(bool (*hook)(void)){urgent_hook=hook;}
 dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {CHECK(!stop_lock&&!dsr_activity_restart_reserve()&&c->device.endpoint_kind==DSR_ENDPOINT_COVER&&!strcmp(c->credentials.password,"stop-private"));if(intent.command!=DSR_COVER_STOP){move_calls++;return DSR_OK;}stop_calls++;c->device.online=stop_http_result==DSR_OK;c->telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION,.current_pos=17};return stop_http_result;}
 static unsigned light_calls;
+static unsigned trv_calls;
+dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
+{CHECK(c->device.endpoint_kind==DSR_ENDPOINT_BLU&&intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);trv_calls++;c->device.online=true;c->telemetry.blu=(dsr_blu_status_t){.flags=DSR_BLU_VALID,.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET};c->telemetry.trv_target_c=21.5f;return DSR_OK;}
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
 {CHECK(c->device.endpoint_kind==DSR_ENDPOINT_LIGHT&&intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==0);light_calls++;c->device.online=true;c->telemetry.light=(dsr_light_status_t){.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.brightness=0};return DSR_OK;}
 static unsigned rgb_calls;
@@ -231,6 +234,10 @@ int main(void)
  CHECK(dsr_activity_restart_reserve());dsr_job_t history={.kind=DSR_JOB_HISTORY_SERVICE};CHECK(dsr_worker_submit(&history)==DSR_BUSY);dsr_activity_restart_cancel();temporary_ap=true;CHECK(dsr_worker_submit(&history)==DSR_BUSY);temporary_ap=false;
  worker_wifi=true;dsr_job_t light={.id=6060,.kind=DSR_JOB_LIGHT,.connection={.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_LIGHT}},.light={.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=0}};
  CHECK(dsr_worker_submit(&light)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.id==6060&&checked.result==DSR_OK&&checked.device.endpoint_kind==DSR_ENDPOINT_LIGHT&&checked.telemetry.light.brightness==0&&light_calls==1);admission_open();
+ /* BLU TRV target: only for a BLU endpoint with a valid 4..30 C half-degree target. */
+ dsr_job_t trv={.id=6061,.kind=DSR_JOB_TRV,.connection={.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_BLU}},.trv={.command=DSR_TRV_SET_TARGET,.half_c=43}};
+ dsr_job_t bad=trv;bad.trv.half_c=61;CHECK(dsr_worker_submit(&bad)==DSR_INVALID);bad=trv;bad.trv.half_c=7;CHECK(dsr_worker_submit(&bad)==DSR_INVALID);bad=trv;bad.connection.device.endpoint_kind=DSR_ENDPOINT_LIGHT;CHECK(dsr_worker_submit(&bad)==DSR_INVALID);
+ CHECK(dsr_worker_submit(&trv)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.id==6061&&checked.result==DSR_OK&&(checked.telemetry.blu.errors&DSR_BLU_TRV)&&checked.telemetry.trv_target_c==21.5f&&trv_calls==1);admission_open();
  light.connection.device.endpoint_kind=DSR_ENDPOINT_SWITCH;CHECK(dsr_worker_submit(&light)==DSR_INVALID);light.connection.device.endpoint_kind=DSR_ENDPOINT_LIGHT;light.light.brightness=101;CHECK(dsr_worker_submit(&light)==DSR_INVALID);admission_open();
  dsr_job_t ht={.id=6062,.kind=DSR_JOB_SET_OUTPUT,.connection={.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_HT}}};CHECK(dsr_worker_submit(&ht)==DSR_INVALID&&ht_reads==0);ht.kind=DSR_JOB_PROBE;CHECK(dsr_worker_submit(&ht)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.id==6062&&checked.result==DSR_OK&&checked.device.endpoint_kind==DSR_ENDPOINT_HT&&checked.telemetry.has_temperature&&checked.telemetry.temperature_c==-12.5&&ht_reads==1);admission_open();
  dsr_job_t rgb={.id=6061,.kind=DSR_JOB_RGB,.connection={.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_RGB}},.rgb={.command=DSR_RGB_SET_COLOR,.rgb={255,17,0}}};
