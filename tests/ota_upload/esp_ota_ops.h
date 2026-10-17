@@ -1,5 +1,6 @@
 #ifndef TEST_OTA_OPS_H
 #define TEST_OTA_OPS_H
+#define OTA_WITH_SEQUENTIAL_WRITES 0xfffffffe
 #include <stddef.h>
 #include <stdint.h>
 #include "esp_err.h"

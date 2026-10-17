@@ -6,6 +6,9 @@
 #define DSR_OTA_FETCH_URL_MAX 2048u
 #define DSR_OTA_FETCH_IO_TIMEOUT_MS 5000
 #define DSR_OTA_FETCH_BUDGET_US 30000000LL
+/* App image (several MiB + Flash writes): no-progress limit stays
+ * DSR_OTA_FETCH_BUDGET_US; the whole transfer may take up to 10 min. */
+#define DSR_OTA_IMAGE_BUDGET_US 600000000LL
 typedef enum {
  DSR_FETCH_OK,DSR_FETCH_ARGUMENT,DSR_FETCH_NOMEM,DSR_FETCH_URL,
  DSR_FETCH_IO,DSR_FETCH_STATUS,DSR_FETCH_HEADERS,DSR_FETCH_SIZE,

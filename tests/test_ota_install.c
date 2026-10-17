@@ -32,7 +32,7 @@ static void exclusive(void)
 {CHECK(dsr_ota_stage_status()==DSR_OTA_STAGE_HELD&&!dsr_ota_stage_acquire());CHECK(!dsr_activity_restart_reserve());}
 esp_err_t esp_ota_begin(const esp_partition_t *slot,size_t size,esp_ota_handle_t *handle)
 {
- exclusive();CHECK(slot==&parts[next_index]&&next_index!=running_index&&size==image_length&&!sdk_live&&!sdk_begins);
+ exclusive();CHECK(slot==&parts[next_index]&&next_index!=running_index&&size==OTA_WITH_SEQUENTIAL_WRITES&&!sdk_live&&!sdk_begins);
  CHECK(hops[0].closed&&hops[0].cleaned&&hops[initialized-1].offset>=512);sdk_begins++;*handle=37;
  if(sdk_fail_begin)return ESP_FAIL;
  sdk_live=true;return ESP_OK;

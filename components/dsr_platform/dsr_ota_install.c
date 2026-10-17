@@ -64,7 +64,7 @@ static bool sink_write(void *context,const void *bytes,size_t length,bool header
   memcpy(s->prefix+s->prefix_used,bytes,copied);s->prefix_used+=copied;
   if(header_ready){
    if(s->prefix_used!=sizeof(s->prefix)){s->report->sdk_error=ESP_ERR_INVALID_STATE;return false;}
-   s->report->sdk_error=esp_ota_begin(s->slot,s->consent->size,&s->handle);
+   s->report->sdk_error=esp_ota_begin(s->slot,OTA_WITH_SEQUENTIAL_WRITES,&s->handle); /* erase per sector while writing; size/SHA enforced by the verified fetch */
    if(s->report->sdk_error!=ESP_OK)return false;
    s->live=true;
    if(!write_bytes(s,s->prefix,sizeof(s->prefix))||!write_bytes(s,(const unsigned char *)bytes+copied,length-copied))return false;

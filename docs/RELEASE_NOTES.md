@@ -1,3 +1,11 @@
+0.7.43-dev: naprawa instalacji OTA z pilota (kod 12/11: limit czasu pobierania obrazu). Stable: brak.
+
+Zmiany względem 0.7.42-dev:
+- Pobieranie obrazu aplikacji miało ten sam łączny limit 30 s co manifest; 3,3 MB z zapisem Flash nie mieściło się. Teraz: przerwanie po 30 s bez postępu albo po 10 min łącznie.
+- Partycja docelowa jest kasowana sektor po sektorze w trakcie zapisu (zamiast całej z góry w środku pobierania).
+- Podpis, SHA-256 i rozmiar weryfikowane jak dotąd.
+- Uwaga: wersje do 0.7.42 mają ten błąd, więc na 0.7.43 trzeba przejść raz przez USB (0x20000) lub Web Panel.
+
 0.7.42-dev: czujniki Shelly BLU (Motion, Door, Window) odczytywane przez bramkę Shelly w sieci LAN. Stable: brak.
 
 Zmiany względem 0.7.40-dev (dev-v0.7.41 zawiera kod 0.7.40, bez BLU):

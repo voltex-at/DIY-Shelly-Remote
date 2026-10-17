@@ -122,6 +122,11 @@ int main(int argc,char **argv)
  for(unsigned i=0;i<sizeof(chunks)/sizeof(chunks[0]);i++){reset();app_chunk=metadata_chunk=chunks[i];early_complete=true;run(DSR_FETCH_OK,DSR_RELEASE_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);}metadata_chunk=1024;
  reset();chunked(0);chunked(1);chunked(2);run(DSR_FETCH_OK,DSR_RELEASE_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);
  reset();first_delays[0]=first_delays[1]=first_delays[2]=29000000;run(DSR_FETCH_OK,DSR_RELEASE_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);
+ /* App image: progress resets the 30 s stall limit; whole transfer is capped at 10 min. */
+ {int64_t reads=(int64_t)(image_length/1024)+2,step=590000000/reads;if(step>29000000)step=29000000;CHECK(step*reads>30000000);
+  reset();app_chunk=1024;app_delay=step;run(DSR_FETCH_OK,DSR_RELEASE_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);}
+ reset();app_chunk=1;app_delay=29000000;run(DSR_FETCH_TIMEOUT,DSR_RELEASE_OK,DSR_MANIFEST_OK,-1);
+ reset();app_chunk=1024;app_delay=30000000;run(DSR_FETCH_TIMEOUT,DSR_RELEASE_OK,DSR_MANIFEST_OK,-1);
  reset();redirect(1,true,manifest_cdn);content(2,true,manifests[0],manifest_lengths[0]);redirect(3,false,app_cdn);content(4,false,image,image_length);run(DSR_FETCH_OK,DSR_RELEASE_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);
  /* Metadata controls the exact byte count before any trust-anchor lookup. */
  for(int delta=-1;delta<=1;delta+=2){

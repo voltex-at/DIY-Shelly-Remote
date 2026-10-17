@@ -12,7 +12,7 @@ typedef struct {
  unsigned char body[DSR_OTA_MANIFEST_MAX+1];
  esp_http_client_config_t config;
  const dsr_ota_fetch_control_t *control;
- int64_t started;
+ int64_t started,budget,progress;
  uint64_t declared;
  size_t used,headers,count;
  dsr_ota_fetch_result_t result;
@@ -109,7 +109,7 @@ static bool stopped(fetch_t *s)
  if(s->result!=DSR_FETCH_OK)return true;
  if(s->control&&s->control->cancelled&&s->control->cancelled(s->control->context))s->result=DSR_FETCH_CANCELLED;
  int64_t now=esp_timer_get_time();
- if(s->result==DSR_FETCH_OK&&(now<s->started||now-s->started>=DSR_OTA_FETCH_BUDGET_US))s->result=DSR_FETCH_TIMEOUT;
+ if(s->result==DSR_FETCH_OK&&(now<s->started||now-s->started>=s->budget||now<s->progress||now-s->progress>=DSR_OTA_FETCH_BUDGET_US))s->result=DSR_FETCH_TIMEOUT;
  return s->result!=DSR_FETCH_OK;
 }
 static esp_err_t on_event(esp_http_client_event_t *event)
@@ -165,7 +165,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
  if(time(NULL)<(time_t)1735689600)return DSR_FETCH_CLOCK;
  size_t limit=release?16384u:image?out->size:expected_manifest_size?expected_manifest_size:DSR_OTA_MANIFEST_MAX;
  fetch_t *s=calloc(1,sizeof(*s));if(!s)return DSR_FETCH_NOMEM;
- s->control=control;s->started=esp_timer_get_time();strcpy(s->url,url);
+ s->control=control;s->started=s->progress=esp_timer_get_time();s->budget=image?DSR_OTA_IMAGE_BUDGET_US:DSR_OTA_FETCH_BUDGET_US;strcpy(s->url,url);
  for(unsigned hop=0;hop<2;hop++){
   if(stopped(s))break;
   s->used=s->headers=s->count=0;s->declared=0;
@@ -223,7 +223,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
        if(result!=DSR_IMAGE_OK){s->result=DSR_FETCH_IMAGE;break;}
        if(sink&&!sink->write(sink->context,buffer,(size_t)n,dsr_ota_image_header_ready(image))){s->result=DSR_FETCH_IO;break;}
       }
-      s->used+=(size_t)n;
+      s->used+=(size_t)n;if(image)s->progress=esp_timer_get_time();
       if(s->length_seen&&s->used>s->declared){s->result=DSR_FETCH_SIZE;break;}
      }
     }
