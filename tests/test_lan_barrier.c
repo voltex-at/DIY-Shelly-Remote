@@ -35,8 +35,8 @@ char *ip4addr_ntoa_r(const ip4_addr_t *a,char *t,int length){(void)a;(void)lengt
 err_t tcpip_api_call(err_t (*fn)(struct tcpip_api_call_data *),struct tcpip_api_call_data *arg){return fn(arg);}
 char *dsr_workspace_snapshot(void){return NULL;}
 dsr_result_t dsr_http_lan_identity(const char *host,dsr_lan_device_t *out){(void)host;(void)out;CHECK(home);return DSR_OFFLINE;}
-dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *device,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out)
-{CHECK(home&&busy&&suspended&&!strcmp(device->id,"shelly-A")&&!strcmp(credentials->password,"private-existing-A"));http_reads++;*out=(dsr_lan_capabilities_t){.switches=1};http_finished=true;return DSR_OK;}
+dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *device,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out,dsr_blu_labels_t *labels)
+{if(labels)memset(labels,0,sizeof(*labels));CHECK(home&&busy&&suspended&&!strcmp(device->id,"shelly-A")&&!strcmp(credentials->password,"private-existing-A"));http_reads++;*out=(dsr_lan_capabilities_t){.switches=1};http_finished=true;return DSR_OK;}
 static void inspect(void)
 {dsr_credentials_t auth={.username="admin",.password="private-existing-A"};CHECK(dsr_lan_inspect("192.168.1.10","shelly-A",&auth));CHECK(busy&&queued_ready);}
 int main(void)

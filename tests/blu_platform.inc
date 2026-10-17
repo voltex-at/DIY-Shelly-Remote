@@ -81,26 +81,32 @@ static void test_blu_gateway_components(void)
 {
  const char *page0="{\"components\":[{\"key\":\"blutrv:200\",\"status\":{\"id\":200,\"target_C\":20.0},\"config\":{\"id\":200,\"addr\":\"aa:bb:cc:00:00:01\",\"trv\":\"bthomedevice:200\"},\"attrs\":{\"model_id\":8}},"
   "{\"key\":\"bthomedevice:200\",\"status\":{\"id\":200,\"rssi\":-51,\"battery\":100},\"config\":{\"id\":200,\"addr\":\"aa:bb:cc:00:00:01\",\"name\":null},\"attrs\":{\"model_id\":8}},"
-  "{\"key\":\"bthomedevice:201\",\"status\":{\"id\":201,\"rssi\":null,\"battery\":null,\"packet_id\":null,\"last_updated_ts\":null,\"key\":false,\"paired\":true,\"rpc\":false,\"rsv\":-1,\"fw_ver\":null},\"config\":{\"id\":201,\"addr\":\"aa:bb:cc:00:00:02\",\"name\":null},\"attrs\":{\"model_id\":2}},"
+  "{\"key\":\"bthomedevice:201\",\"status\":{\"id\":201,\"rssi\":null,\"battery\":null,\"packet_id\":null,\"last_updated_ts\":null,\"key\":false,\"paired\":true,\"rpc\":false,\"rsv\":-1,\"fw_ver\":null},\"config\":{\"id\":201,\"addr\":\"aa:bb:cc:00:0b:11\",\"name\":\"Okno \u017Cółte w salonie dużym\"},\"attrs\":{\"model_id\":2}},"
   "{\"key\":\"bthomesensor:200\",\"status\":{\"id\":200,\"value\":100}}],\"cfg_rev\":25461,\"offset\":0,\"total\":5}";
  const char *page1="{\"components\":[{\"key\":\"bthomedevice:230\",\"status\":{\"id\":230}}],\"cfg_rev\":25461,\"offset\":4,\"total\":5}";
  uint16_t blu=0;unsigned next=0,total=0;cJSON *j=cJSON_Parse(page0);
- CHECK(dsr_lan_parse_components(j,0,&blu,&next,&total)==DSR_OK&&blu==3&&next==4&&total==5);cJSON_Delete(j);
- j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,4,&blu,&next,&total)==DSR_OK&&blu==3&&next==5);cJSON_Delete(j); /* cid 230: outside 16 channels */
+ dsr_blu_labels_t labels={0};CHECK(dsr_lan_parse_components(j,0,&blu,&labels,&next,&total)==DSR_OK&&blu==3&&next==4&&total==5);cJSON_Delete(j);
+ CHECK(labels.valid==3&&labels.items[0].model==8&&!labels.items[0].name[0]&&labels.items[0].mac_tail[0]==0x00&&labels.items[0].mac_tail[1]==0x01);
+ CHECK(labels.items[1].model==2&&labels.items[1].mac_tail[0]==0x0b&&labels.items[1].mac_tail[1]==0x11&&strlen(labels.items[1].name)<=23&&!strncmp(labels.items[1].name,"Okno ",5));
+ {size_t len=strlen(labels.items[1].name);CHECK(len&&((unsigned char)labels.items[1].name[len-1]&0xC0)!=0xC0);} /* never ends mid-character */
+ CHECK(!strcmp(dsr_blu_model_name(2),"BLU Door/Window")&&!strcmp(dsr_blu_model_name(8),"BLU TRV")&&!dsr_blu_model_name(5));
+ j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,4,&blu,NULL,&next,&total)==DSR_OK&&blu==3&&next==5);cJSON_Delete(j); /* cid 230: outside 16 channels */
  const char *bad[]={"{\"components\":[],\"offset\":0,\"total\":3}","{\"components\":[{\"key\":\"bthomedevice:x\"}],\"offset\":0,\"total\":1}","{\"components\":[{\"key\":1}],\"offset\":0,\"total\":1}","{\"components\":[{\"key\":\"a\"},{\"key\":\"b\"}],\"offset\":0,\"total\":1}"};
- for(unsigned i=0;i<4;i++){uint16_t none=0;j=cJSON_Parse(bad[i]);CHECK(dsr_lan_parse_components(j,0,&none,&next,&total)==DSR_BAD_RESPONSE&&!none);cJSON_Delete(j);}
- j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,0,&blu,&next,&total)==DSR_BAD_RESPONSE);cJSON_Delete(j); /* offset not echoed */
+ for(unsigned i=0;i<4;i++){uint16_t none=0;j=cJSON_Parse(bad[i]);CHECK(dsr_lan_parse_components(j,0,&none,NULL,&next,&total)==DSR_BAD_RESPONSE&&!none);cJSON_Delete(j);}
+ j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,0,&blu,NULL,&next,&total)==DSR_BAD_RESPONSE);cJSON_Delete(j); /* offset not echoed */
  /* Inspection: GetStatus lists no BTHome device, GetComponents pages do. */
  const char *gw_id="{\"name\":null,\"id\":\"shellyblugwg3-aabbccddeeff\",\"mac\":\"AABBCCDDEEFF\",\"model\":\"S3GW-1DBT001\",\"gen\":3,\"fw_id\":\"x\",\"ver\":\"1.7.0\",\"app\":\"BluGatewayG3\",\"auth_en\":true}";
  step_t gw[]={{"/shelly",gw_id,200,false,false},{"/rpc/Shelly.GetStatus","{\"ble\":{},\"blugw\":{},\"sys\":{\"uptime\":5}}",200,false,true},
   {"/rpc/Shelly.GetComponents?dynamic_only=true&offset=0",page0,200,false,true},{"/rpc/Shelly.GetComponents?dynamic_only=true&offset=4",page1,200,false,true}};
  lan_mode=true;dsr_lan_device_t d={0};fixture(gw,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OK);
- dsr_connection_t c=connection();dsr_lan_capabilities_t caps;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==4&&caps.blu==3&&!caps.switches);
+ dsr_connection_t c=connection();dsr_lan_capabilities_t caps;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);dsr_blu_labels_t got;CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,&got)==DSR_OK&&used==4&&caps.blu==3&&!caps.switches&&got.valid==3&&got.items[1].model==2);
+ /* Odd metadata keeps the channel, drops the label. */
+ {const char *odd="{\"components\":[{\"key\":\"bthomedevice:202\",\"config\":{\"id\":202,\"addr\":\"bad\",\"name\":\"a\\u0001b\"},\"attrs\":{\"model_id\":\"x\"}}],\"offset\":0,\"total\":1}";uint16_t b=0;dsr_blu_labels_t l={0};cJSON *o=cJSON_Parse(odd);CHECK(dsr_lan_parse_components(o,0,&b,&l,&next,&total)==DSR_OK&&b==4&&!l.valid&&!l.items[2].name[0]&&!l.items[2].model);cJSON_Delete(o);}
  /* A failing page keeps proven channels and never fails the inspection. */
- gw[3].status=500;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&caps.blu==3);
- gw[2].body="{\"components\":7}";fixture(gw,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==3&&caps.blu==0);
+ gw[3].status=500;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&caps.blu==3);
+ gw[2].body="{\"components\":7}";fixture(gw,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&used==3&&caps.blu==0);
  /* No Bluetooth in the status: no extra requests. */
- gw[1].body="{\"sys\":{\"uptime\":5}}";fixture(gw,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==2&&caps.blu==0);
+ gw[1].body="{\"sys\":{\"uptime\":5}}";fixture(gw,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&used==2&&caps.blu==0);
  lan_mode=false;
  /* BLU TRV GetKnownObjects: two temperatures (idx 0, 1); the first is kept. */
  dsr_blu_object_t objects[8];unsigned n;

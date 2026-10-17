@@ -82,8 +82,13 @@ bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *cr
 {(void)credentials;for(unsigned i=0;i<lan.count;i++)if(!strcmp(lan.devices[i].host,host)&&!strcmp(lan.devices[i].id,id)){lan.selected=lan.devices[i];lan.phase=DSR_LAN_INSPECTING;lan.serial++;return true;}return false;}
 void test_lan_found(const char *identity,const char *host)
 {cJSON *r=cJSON_Parse(identity);dsr_lan_device_t d;if(dsr_lan_parse_identity(r,host,&d)==DSR_OK)dsr_lan_upsert(&lan,&d);cJSON_Delete(r);lan.phase=DSR_LAN_DONE;lan.serial++;}
+static dsr_blu_labels_t lan_labels;
+void dsr_lan_blu_labels(dsr_blu_labels_t *out){*out=lan.phase==DSR_LAN_INSPECTED?lan_labels:(dsr_blu_labels_t){0};}
+/* Gateway page through the real GetComponents parser; call after test_lan_inspected. */
+void test_lan_components(const char *page)
+{cJSON *r=cJSON_Parse(page);unsigned next,total;if(dsr_lan_parse_components(r,0,&lan.capabilities.blu,&lan_labels,&next,&total)!=DSR_OK)lan_labels=(dsr_blu_labels_t){0};cJSON_Delete(r);lan.serial++;}
 void test_lan_inspected(dsr_result_t result,const char *components)
-{cJSON *r=cJSON_Parse(components);if(result==DSR_OK)result=dsr_lan_parse_capabilities(r,lan.selected.generation,&lan.capabilities);cJSON_Delete(r);lan.result=result;lan.phase=result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR;lan.serial++;}
+{memset(&lan_labels,0,sizeof(lan_labels));cJSON *r=cJSON_Parse(components);if(result==DSR_OK)result=dsr_lan_parse_capabilities(r,lan.selected.generation,&lan.capabilities);cJSON_Delete(r);lan.result=result;lan.phase=result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR;lan.serial++;}
 
 /* Explicit host BLE provider; the production NimBLE adapter is never replaced
  * in the board build. Advertisement bytes still pass the real C parser. */

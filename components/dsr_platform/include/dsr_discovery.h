@@ -13,6 +13,12 @@ typedef struct {
 /* blu: bit i = gateway reports BTHomeDevice cid 200+i (Shelly BLU sensor). */
 typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors,ht;uint16_t blu;} dsr_lan_capabilities_t;
 _Static_assert(sizeof(dsr_lan_capabilities_t)==12,"bounded capability record");
+/* What a gateway says about each BLU channel (cid 200+i): the name set on the
+ * gateway (may be empty), attrs.model_id and the last two MAC bytes. Display
+ * only; identity is still proven by the BLU probe at bind time. */
+typedef struct {char name[24];uint8_t model,mac_tail[2];} dsr_blu_label_t;
+typedef struct {uint16_t valid;dsr_blu_label_t items[16];} dsr_blu_labels_t;
+_Static_assert(sizeof(dsr_blu_labels_t)<=448,"bounded BLU label table");
 typedef enum {DSR_LAN_IDLE,DSR_LAN_SCANNING,DSR_LAN_DONE,DSR_LAN_CANCELLED,
               DSR_LAN_NO_WIFI,DSR_LAN_INSPECTING,DSR_LAN_INSPECTED,DSR_LAN_ERROR} dsr_lan_phase_t;
 typedef struct {
@@ -42,14 +48,16 @@ bool dsr_blu_sensor_shown(uint8_t obj_id);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);
 /* One Shelly.GetComponents?dynamic_only=true page: BTHomeDevice cids 200..215
  * become BLU channel bits. Verifies the echoed offset; *next is offset+items. */
-dsr_result_t dsr_lan_parse_components(const cJSON *page,unsigned offset,uint16_t *blu,unsigned *next,unsigned *total);
+dsr_result_t dsr_lan_parse_components(const cJSON *page,unsigned offset,uint16_t *blu,dsr_blu_labels_t *labels,unsigned *next,unsigned *total);
+/* Verified product name for a BTHome attrs.model_id, or NULL when unknown. */
+const char *dsr_blu_model_name(uint8_t model);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);
 bool dsr_lan_plan_add(dsr_lan_plan_t *plan,const char *host,const char *local,const char *mask);
 
 /* Real HTTP requests. Public identity has no credentials; protected status is
  * read only after selection, with Gen1 Basic / Gen2+ Digest from existing code. */
 dsr_result_t dsr_http_lan_identity(const char *host,dsr_lan_device_t *out);
-dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out);
+dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out,dsr_blu_labels_t *labels);
 
 /* Nonblocking UI/API entry points. One separate bounded network task. */
 esp_err_t dsr_lan_init(void);
@@ -60,4 +68,6 @@ dsr_result_t dsr_lan_suspend(void);
 void dsr_lan_resume(void);
 bool dsr_lan_inspect(const char *host,const char *id,const dsr_credentials_t *credentials);
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out);
+/* BLU labels from the last successful inspection (valid==0 otherwise). */
+void dsr_lan_blu_labels(dsr_blu_labels_t *out);
 #endif

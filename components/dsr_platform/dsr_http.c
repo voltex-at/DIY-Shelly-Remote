@@ -116,8 +116,9 @@ dsr_result_t dsr_http_lan_identity(const char *host,dsr_lan_device_t *out)
     if(result==DSR_OK)result=dsr_lan_parse_identity(json,host,out);
     cJSON_Delete(json);return result;
 }
-dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out)
+dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_credentials_t *credentials,dsr_lan_capabilities_t *out,dsr_blu_labels_t *labels)
 {
+    if(labels)memset(labels,0,sizeof(*labels));
     if(!expected||!credentials||!out)return DSR_INVALID;
     dsr_lan_device_t observed;dsr_result_t result=dsr_http_lan_identity(expected->host,&observed);
     if(result!=DSR_OK)return result;
@@ -135,7 +136,7 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
         for(unsigned page=0;page<12;page++){
             dsr_request_t list={0};snprintf(list.path,sizeof(list.path),"/rpc/Shelly.GetComponents?dynamic_only=true&offset=%u",offset);cJSON *body=NULL;
             unsigned next=0,total=0;dsr_result_t listed=fetch_json(&c,&list,false,&body);
-            if(listed==DSR_OK)listed=dsr_lan_parse_components(body,offset,&out->blu,&next,&total);
+            if(listed==DSR_OK)listed=dsr_lan_parse_components(body,offset,&out->blu,labels,&next,&total);
             cJSON_Delete(body);if(listed!=DSR_OK||next>=total)break;offset=next;
         }
     }

@@ -170,20 +170,42 @@ dsr_result_t dsr_blu_apply_sensor(const cJSON *r,unsigned sensor,uint8_t obj_id,
 }
 bool dsr_blu_sensor_shown(uint8_t obj_id)
 {return obj_id==0x21||obj_id==0x1A||obj_id==0x2D||obj_id==0x05||obj_id==0x01||obj_id==0x02||obj_id==0x45||obj_id==0x03||obj_id==0x2E||obj_id==0x3A;}
-dsr_result_t dsr_lan_parse_components(const cJSON *r,unsigned offset,uint16_t *blu,unsigned *next,unsigned *total)
+const char *dsr_blu_model_name(uint8_t model)
+{
+ /* Only ids confirmed on a real gateway (2026-10-17); others stay numeric. */
+ switch(model){case 2:return "BLU Door/Window";case 8:return "BLU TRV";default:return NULL;}
+}
+dsr_result_t dsr_lan_parse_components(const cJSON *r,unsigned offset,uint16_t *blu,dsr_blu_labels_t *labels,unsigned *next,unsigned *total)
 {
  if(!blu||!next||!total||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
  const cJSON *list=get(r,"components"),*at=get(r,"offset"),*all=get(r,"total");
  if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)>100||!integral(at,(int)offset,(int)offset)||!integral(all,0,1000))return DSR_BAD_RESPONSE;
- unsigned n=0;uint16_t found=0;const cJSON *v;
+ unsigned n=0;uint16_t found=0,labelled=0;const cJSON *v;
+ /* Items are written in place (bounded frame); valid bits only after the page checks out. */
  cJSON_ArrayForEach(v,list){
   n++;const cJSON *key=get(v,"key");if(!cJSON_IsObject(v)||!text(key,40))return DSR_BAD_RESPONSE;
   if(!strncmp(key->valuestring,"bthomedevice:",13)){
    char *end;long cid=strtol(key->valuestring+13,&end,10);if(!key->valuestring[13]||*end||cid<0)return DSR_BAD_RESPONSE;
-   if(cid>=(long)DSR_BLU_FIRST_CID&&cid<(long)DSR_BLU_FIRST_CID+16)found|=(uint16_t)(1u<<(cid-(long)DSR_BLU_FIRST_CID));
+   if(cid>=(long)DSR_BLU_FIRST_CID&&cid<(long)DSR_BLU_FIRST_CID+16){
+    unsigned i=(unsigned)(cid-(long)DSR_BLU_FIRST_CID);found|=(uint16_t)(1u<<i);
+    /* Labels are best effort: odd metadata never hides the channel. */
+    const cJSON *config=get(v,"config"),*attrs=get(v,"attrs");char mac[13];dsr_blu_label_t scratch,*l=labels?&labels->items[i]:&scratch;memset(l,0,sizeof(*l));
+    if(cJSON_IsObject(config)&&dsr_blu_parse_address(config,(unsigned)cid,mac)==DSR_OK){
+     for(unsigned b=0;b<2;b++){unsigned hi=(unsigned)(isdigit((unsigned char)mac[8+b*2])?mac[8+b*2]-'0':mac[8+b*2]-'a'+10),lo=(unsigned)(isdigit((unsigned char)mac[9+b*2])?mac[9+b*2]-'0':mac[9+b*2]-'a'+10);l->mac_tail[b]=(uint8_t)(hi<<4|lo);}
+     labelled|=(uint16_t)(1u<<i);
+    }
+    const cJSON *name=cJSON_IsObject(config)?get(config,"name"):NULL;
+    if(cJSON_IsString(name)&&name->valuestring){
+     /* Printable UTF-8 only, cut on a character boundary. */
+     size_t len=0;bool ok=true;for(const unsigned char *c=(const unsigned char *)name->valuestring;*c;c++)if(*c<0x20||*c==0x7f)ok=false;
+     if(ok){const char *t=name->valuestring;while(t[len]&&len<sizeof(l->name)-1)len++;while(len&&t[len]&&((unsigned char)t[len]&0xC0)==0x80)len--;memcpy(l->name,t,len);l->name[len]=0;}
+    }
+    const cJSON *model=cJSON_IsObject(attrs)?get(attrs,"model_id"):NULL;if(integral(model,1,255))l->model=(uint8_t)model->valueint;
+   }
   }
  }
  if(offset+n>(unsigned)all->valueint||(!n&&offset<(unsigned)all->valueint))return DSR_BAD_RESPONSE; /* overrun or no progress */
+ if(labels)labels->valid|=labelled;
  *blu|=found;*next=offset+n;*total=(unsigned)all->valueint;return DSR_OK;
 }
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_lan_capabilities_t *out)

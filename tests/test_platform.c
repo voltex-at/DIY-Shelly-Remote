@@ -244,11 +244,11 @@ static void test_discovery(void)
     for(unsigned i=0;i<sizeof(bad_caps)/sizeof(bad_caps[0]);i++){json=cJSON_Parse(bad_caps[i]);CHECK(dsr_lan_parse_capabilities(json,2,&caps)!=DSR_OK);cJSON_Delete(json);}
     lan_mode=true;step_t data[]={{"/shelly",info2,200,false,false},{"/rpc/Shelly.GetStatus","{\"switch:0\":{\"id\":0,\"output\":false}}",200,false,true}};
     fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OK&&used==1);
-    dsr_connection_t c=connection();fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&caps.switches==1&&used==2);
-    data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_AUTH_REQUIRED);
-    data[1].status=429;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_RATE_LIMITED);
+    dsr_connection_t c=connection();fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&caps.switches==1&&used==2);
+    data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_AUTH_REQUIRED);
+    data[1].status=429;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_RATE_LIMITED);
     data[0].body=NULL;data[0].status=0;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OFFLINE);
-    data[0].body=info1;data[0].status=200;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_IDENTITY_MISMATCH&&used==1);
+    data[0].body=info1;data[0].status=200;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_IDENTITY_MISMATCH&&used==1);
     lan_mode=false;step_t gateway[]={{"/shelly","{\"gen\":3,\"id\":\"shellyblugwg3-aabbccddeeff\",\"model\":\"S3GW-1DBT001\"}",200,false,false}};fixture(gateway,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_UNSUPPORTED&&used==1);
     lan_mode=false;strcpy(c.device.device_id,"WRONG-IDENTITY");data[0].body=gen2;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_probe(&c,&c.device)==DSR_IDENTITY_MISMATCH&&used==1);
 }

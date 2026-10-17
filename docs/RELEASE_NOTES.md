@@ -1,3 +1,10 @@
+0.7.46-dev: czujniki BLU w kreatorze pod nazwą z bramki albo modelem. Stable: brak.
+
+Zmiany względem 0.7.45-dev:
+- Lista kanałów bramki: nazwa czujnika ustawiona na bramce (jeśli jest), inaczej model i końcówka MAC, np. "BLU Door/Window 0b11", "BLU TRV b567". Ta sama etykieta staje się domyślną nazwą urządzenia.
+- Znane modele: BLU Door/Window (model 2), BLU TRV (model 8), potwierdzone na prawdziwej bramce; pozostałe jako "Czujnik BLU" + MAC, dopóki nie potwierdzimy numerów.
+- Nazwy z aplikacji Shelly są w chmurze, nie na bramce; nazwę widoczną dla pilota ustawia się w panelu WWW bramki.
+
 0.7.45-dev: bramka BLU Gateway Gen3 rozpoznaje czujniki, automatyczny restart po aktualizacji. Stable: brak.
 
 Zmiany względem 0.7.44-dev (dev-v0.7.44 = kod 0.7.43):

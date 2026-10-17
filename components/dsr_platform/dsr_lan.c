@@ -19,9 +19,16 @@ typedef struct {bool scan;dsr_lan_device_t device;dsr_credentials_t credentials;
 static QueueHandle_t queue;
 static SemaphoreHandle_t mutex;
 static dsr_lan_snapshot_t state;
+static dsr_blu_labels_t blu_labels;
 static atomic_bool cancelled;
 static bool busy,suspended;
 
+void dsr_lan_blu_labels(dsr_blu_labels_t *out)
+{
+    if(!out)return;
+    if(!mutex){memset(out,0,sizeof(*out));return;}
+    xSemaphoreTake(mutex,portMAX_DELAY);*out=state.phase==DSR_LAN_INSPECTED?blu_labels:(dsr_blu_labels_t){0};xSemaphoreGive(mutex);
+}
 void dsr_lan_snapshot(dsr_lan_snapshot_t *out)
 {
     if(!out)return;
@@ -99,10 +106,10 @@ static void lan_task(void *argument)
         if(xQueueReceive(queue,&job,portMAX_DELAY)!=pdTRUE)continue;
         if(job.scan)scan_network();
         else{
-            dsr_lan_capabilities_t caps={0};dsr_result_t result=dsr_http_lan_inspect(&job.device,&job.credentials,&caps);
+            dsr_lan_capabilities_t caps={0};dsr_blu_labels_t labels;dsr_result_t result=dsr_http_lan_inspect(&job.device,&job.credentials,&caps,&labels);
             memset(&job.credentials,0,sizeof(job.credentials));
             if(atomic_load(&cancelled))finish(DSR_LAN_CANCELLED,DSR_OK);
-            else{xSemaphoreTake(mutex,portMAX_DELAY);state.capabilities=caps;xSemaphoreGive(mutex);finish(result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR,result);}
+            else{xSemaphoreTake(mutex,portMAX_DELAY);state.capabilities=caps;if(result==DSR_OK)blu_labels=labels;xSemaphoreGive(mutex);finish(result==DSR_OK?DSR_LAN_INSPECTED:DSR_LAN_ERROR,result);}
         }
         memset(&job,0,sizeof(job));
     }
@@ -120,7 +127,7 @@ static bool enqueue(const lan_job_t *job)
     xSemaphoreTake(mutex,portMAX_DELAY);
     bool ok=!busy&&!suspended;
     if(ok){atomic_store(&cancelled,false);ok=xQueueSend(queue,job,0)==pdTRUE;
-        if(ok){busy=true;state.phase=job->scan?DSR_LAN_SCANNING:DSR_LAN_INSPECTING;state.result=DSR_OK;state.capabilities=(dsr_lan_capabilities_t){0};state.selected=job->device;state.serial++;}}
+        if(ok){busy=true;state.phase=job->scan?DSR_LAN_SCANNING:DSR_LAN_INSPECTING;state.result=DSR_OK;state.capabilities=(dsr_lan_capabilities_t){0};memset(&blu_labels,0,sizeof(blu_labels));state.selected=job->device;state.serial++;}}
     xSemaphoreGive(mutex);return ok;
 }
 bool dsr_lan_scan(void)

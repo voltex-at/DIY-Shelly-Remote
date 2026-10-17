@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.45-dev
+# Matryca funkcji — 0.7.46-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie

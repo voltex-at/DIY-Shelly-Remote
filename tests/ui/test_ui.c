@@ -40,6 +40,7 @@ void test_pairing_state(bool available,bool paired,bool uncertain);
 unsigned test_pair_code_requests(void);
 void test_lan_found(const char *identity,const char *host);
 void test_lan_inspected(dsr_result_t result,const char *components);
+void test_lan_components(const char *page);
 void test_ble_packet(const uint8_t *bytes,size_t length,unsigned address);
 void test_ble_finish(dsr_ble_phase_t phase);
 void test_ap_temporary(bool value);

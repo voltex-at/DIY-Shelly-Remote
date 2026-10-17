@@ -28,11 +28,20 @@ void dsr_ui_lan_reset(void)
     if(!building){memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;}
 }
 static char auto_name[48];
+static dsr_blu_labels_t blu_labels;
+/* Gateway name, else verified model, else generic; MAC tail tells twins apart. */
+static void blu_label(unsigned i,char *out,size_t size)
+{
+    const dsr_blu_label_t *l=&blu_labels.items[i&15];const char *model=dsr_blu_model_name(l->model);
+    if(!(blu_labels.valid&(1u<<(i&15))))snprintf(out,size,"%s %u",dsr_sc_tr("Czujnik BLU"),(i&15)+1);
+    else if(l->name[0])snprintf(out,size,"%s",l->name);
+    else snprintf(out,size,"%s %02x%02x",model?model:dsr_sc_tr("Czujnik BLU"),l->mac_tail[0],l->mac_tail[1]);
+}
 /* A BLU channel gets a sensor name instead of the gateway's, unless the user typed one. */
 static void channel_changed(lv_event_t *e)
 {
     (void)e;unsigned i=lv_dropdown_get_selected(channel);if(i>=channel_count||strcmp(lv_textarea_get_text(name),auto_name))return;
-    char next[48];if(channels[i]&32)snprintf(next,sizeof(next),"%s %u",dsr_sc_tr("Czujnik BLU"),(unsigned)(channels[i]&15)+1);else snprintf(next,sizeof(next),"%s",selected.name);
+    char next[48];if(channels[i]&32)blu_label(channels[i]&15,next,sizeof(next));else snprintf(next,sizeof(next),"%s",selected.name);
     lv_textarea_set_text(name,next);snprintf(auto_name,sizeof(auto_name),"%s",next);
 }
 static lv_obj_t *screen(const char *title,unsigned step)
@@ -137,7 +146,7 @@ static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie",3);identity(root);
     lv_obj_t *body=form(root);name=field(body,"Nazwa",0,selected.name,false);dsr_sc_text(body,"Pomieszczenie",16,76,288,&dsr_roboto_12,DSR_SC_MUTED);
-    char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));room_ids[0]=0;unsigned count=1;
+    static char options[1024];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));room_ids[0]=0;unsigned count=1;
     char *configuration=dsr_workspace_snapshot();if(configuration){cJSON *r=cJSON_Parse(configuration);free(configuration);const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(r,"rooms")){
         if(count>=9)break;
         const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*label=cJSON_GetObjectItemCaseSensitive(v,"name");if(!cJSON_IsNumber(id)||!cJSON_IsString(label))continue;
@@ -148,7 +157,7 @@ static void show_components(void)
     for(unsigned kind=0;kind<4;kind++)for(unsigned i=0;i<16;i++)if((kind?(selected.generation>=2?(kind==1?capabilities.covers:kind==2?capabilities.lights:capabilities.rgbs):0):capabilities.switches)&(1u<<i)){char text[24];snprintf(text,sizeof(text),"%s%s %u",count?"\n":"",kind==1?"Cover":kind==2?"Light":kind==3?"RGB":"Switch",i);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(i|(kind==1?128:kind==2?64:kind==3?192:0));}
     if(capabilities.ht&&selected.generation==3&&!strcmp(selected.model,DSR_HT_MODEL)&&count<sizeof(channels)){strncat(options,count?"\nH&T 0":"H&T 0",sizeof(options)-strlen(options)-1);channels[count++]=16;}
     /* Shelly BLU sensors known to this gateway (BTHomeDevice cid 200+i). */
-    for(unsigned i=0;i<16&&count<sizeof(channels);i++)if(selected.generation>=2&&(capabilities.blu&(1u<<i))){char text[40];snprintf(text,sizeof(text),"%s%s %u",count?"\n":"",dsr_sc_tr("Czujnik BLU"),i+1);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(32|i);}
+    for(unsigned i=0;i<16&&count<sizeof(channels);i++)if(selected.generation>=2&&(capabilities.blu&(1u<<i))){char label[48],text[52];blu_label(i,label,sizeof(label));snprintf(text,sizeof(text),"%s%s",count?"\n":"",label);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(32|i);}
     channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,164);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     snprintf(auto_name,sizeof(auto_name),"%s",lv_textarea_get_text(name));lv_obj_add_event_cb(channel,channel_changed,LV_EVENT_VALUE_CHANGED,NULL);if(count)channel_changed(NULL);
     notice=dsr_sc_text(root,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);
@@ -164,10 +173,10 @@ void dsr_ui_lan_tick(void)
     }else if(waiting_inspect){
         if(snapshot.phase==DSR_LAN_INSPECTING)return;
         waiting_inspect=false;
-        if(snapshot.phase==DSR_LAN_INSPECTED&&snapshot.selected.generation==selected.generation&&!strcmp(snapshot.selected.id,selected.id)&&!strcmp(snapshot.selected.host,selected.host)){capabilities=snapshot.capabilities;show_components();}
+        if(snapshot.phase==DSR_LAN_INSPECTED&&snapshot.selected.generation==selected.generation&&!strcmp(snapshot.selected.id,selected.id)&&!strcmp(snapshot.selected.host,selected.host)){capabilities=snapshot.capabilities;dsr_lan_blu_labels(&blu_labels);show_components();}
         else{show_credentials();dsr_sc_label_set_text(notice,failure(snapshot.result));}
     }
 }
 
 void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *caps)
-{if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;show_components();}
+{if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&blu_labels,0,sizeof(blu_labels));memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;show_components();}
