@@ -51,6 +51,9 @@ dsr_result_t dsr_network_request_battery(void);
 void dsr_ui_battery_open(lv_event_t *event);
 void dsr_ui_battery_header(lv_obj_t *root);
 void dsr_ui_battery_tick(void);
+/* Firmware default: on. Periodic BAT read and one automatic SNTP clock sync after Wi-Fi connects. */
+void dsr_ui_status_auto(bool enabled);
+void dsr_ui_status_clock_source(int64_t (*source)(void)); /* tests only; NULL restores time() */
 void dsr_ui_battery_hide(void);
 void dsr_ui_display_init(uint8_t brightness,uint16_t seconds);
 void dsr_ui_display_open(lv_event_t *event);

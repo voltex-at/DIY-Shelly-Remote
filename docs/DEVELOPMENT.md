@@ -41,7 +41,7 @@ idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p set-target esp32s3
 idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p build
 ```
 
-`-D DSR_VERSION=x.y.z` overrides `PROJECT_VER` from `CMakeLists.txt`. After a
+`-D DSR_VERSION=x.y.z` overrides `PROJECT_VER` from `CMakeLists.txt`. The header clock uses the POSIX time zone `DSR_TIMEZONE_POSIX` (default `CET-1CEST,M3.5.0,M10.5.0/3`, Europe/Vienna); pass `-DDSR_TIMEZONE_POSIX=\"<TZ string>\"` to change it. After a
 build the `tools/check_*.py` auditors verify stack/BSS budgets, symbols and the
 OTA trust key against the real ELF (see `.github/workflows/ci.yml`). Memory
 limits are not raised to make CI pass.

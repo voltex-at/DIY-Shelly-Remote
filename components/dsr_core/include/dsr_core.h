@@ -102,4 +102,15 @@ typedef struct {
 dsr_result_t dsr_update_metadata_check(const dsr_update_metadata_t *meta,
                                      const char *hardware_id, const char *current,
                                      size_t inactive_slot_size);
+
+/* ESTIMATE ONLY. Maps the BAT-divider voltage onto a typical single-cell
+ * Li-ion open-circuit curve. Under load or while charging the voltage differs,
+ * and the cell type is not verified, so callers must label the result as an
+ * estimate. Returns false (and leaves *percent untouched) outside 2800..4300 mV,
+ * where the reading cannot be a single Li-ion cell. */
+bool dsr_battery_estimate_percent(uint16_t bat_mv, uint8_t *percent);
+
+/* "HH:MM" in the process local time zone (TZ). Returns false and writes "--:--"
+ * when the clock was never set (before 2025-01-01 UTC) or conversion fails. */
+bool dsr_clock_format_hhmm(int64_t utc_seconds, char out[6]);
 #endif

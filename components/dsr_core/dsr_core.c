@@ -1,6 +1,8 @@
+#define _POSIX_C_SOURCE 200809L /* localtime_r (file-local; strict -std=c11 host builds) */
 #include "dsr_core.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
 uint8_t dsr_endpoint_from_kind(const char *kind)
@@ -167,4 +169,36 @@ dsr_result_t dsr_update_metadata_check(const dsr_update_metadata_t *meta,
         if (!ascii_digit(*p) && !(*p >= 'a' && *p <= 'f')) return DSR_INVALID;
     }
     return DSR_OK;
+}
+
+bool dsr_battery_estimate_percent(uint16_t bat_mv, uint8_t *percent)
+{
+    /* Typical single-cell Li-ion open-circuit points (mV -> %), monotonic. */
+    static const uint16_t mv[] = {3300, 3500, 3600, 3700, 3750, 3800, 3850, 3900, 3950, 4000, 4100, 4200};
+    static const uint8_t pct[] = {0, 3, 8, 20, 30, 42, 55, 65, 73, 81, 92, 100};
+    if (!percent || bat_mv < 2800 || bat_mv > 4300) return false;
+    if (bat_mv <= mv[0]) { *percent = 0; return true; }
+    if (bat_mv >= mv[sizeof(mv) / sizeof(*mv) - 1]) { *percent = 100; return true; }
+    for (size_t i = 1; i < sizeof(mv) / sizeof(*mv); i++) {
+        if (bat_mv <= mv[i]) {
+            uint32_t span = (uint32_t)(mv[i] - mv[i - 1]), done = (uint32_t)(bat_mv - mv[i - 1]);
+            uint32_t rise = (uint32_t)(pct[i] - pct[i - 1]);
+            *percent = (uint8_t)(pct[i - 1] + (done * rise + span / 2) / span);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool dsr_clock_format_hhmm(int64_t utc_seconds, char out[6])
+{
+    if (!out) return false;
+    memcpy(out, "--:--", 6);
+    if (utc_seconds < 1735689600) return false; /* 2025-01-01 UTC: unset clock */
+    time_t t = (time_t)utc_seconds;
+    struct tm local;
+    if (!localtime_r(&t, &local) || local.tm_hour < 0 || local.tm_hour > 23 || local.tm_min < 0 || local.tm_min > 59) return false;
+    out[0] = (char)('0' + local.tm_hour / 10); out[1] = (char)('0' + local.tm_hour % 10); out[2] = ':';
+    out[3] = (char)('0' + local.tm_min / 10); out[4] = (char)('0' + local.tm_min % 10); out[5] = 0;
+    return true;
 }
