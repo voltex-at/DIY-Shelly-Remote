@@ -85,7 +85,11 @@ const char *dsr_sc_tr(const char *text)
  {"Uruchom scenę","Run scene","Szene starten"},
  {"Włącz grupę","Turn group on","Gruppe einschalten"},
  {"Wyłącz grupę","Turn group off","Gruppe ausschalten"},
- {"Dodaj wpis w edytorze konfiguracji.","Add an entry in the configuration editor.","Eintrag im Konfigurationseditor hinzufügen."},
+ {"Brak grup. Utwórz grupę w Panelu WWW, w sekcji Grupy (cały dom).","No groups. Create a group in the Web Panel, section Groups (whole home).","Keine Gruppen. Gruppe im Web-Panel anlegen, Bereich Gruppen (ganzes Zuhause)."},
+ {"Brak scen. Utwórz scenę w Panelu WWW, w sekcji Sceny (cały dom).","No scenes. Create a scene in the Web Panel, section Scenes (whole home).","Keine Szenen. Szene im Web-Panel anlegen, Bereich Szenen (ganzes Zuhause)."},
+ {"Otwórz Panel WWW","Open Web Panel","Web-Panel öffnen"},
+ {"Firmware: %s","Firmware: %s","Firmware: %s"},
+ {"Firmware nieodczytany","Firmware not read","Firmware nicht ausgelesen"},
  {"Pokaż bieżące wykonanie","Show current run","Aktuelle Ausführung anzeigen"},
  {"Polecenia wymagają zgodnego powiązania i uprawnień.","Commands require a matching binding and authorization.","Befehle erfordern passende Bindung und Berechtigung."},
  {"Wykonanie","Execution","Ausführung"},
@@ -236,7 +240,10 @@ const char *dsr_sc_tr(const char *text)
  {"Pomiar nieaktualny. Zmierz ponownie.","Measurement is stale. Measure again.","Messung veraltet. Erneut messen."},
  {"Ostatni odczyt: %lu s temu","Last reading: %lu s ago","Letzte Messung: vor %lu s"},
  {"Ładowanie i obecność akumulatora: brak wiarygodnych danych.","Charging and battery presence: no reliable data.","Ladestatus und Akku-Erkennung: keine verlässlichen Daten."},
- {"Procent baterii wymaga potwierdzenia typu ogniwa i pomiaru multimetrem.","Battery percentage needs the cell type and a multimeter check.","Für den Akkustand sind Zelltyp und Multimeterprüfung erforderlich."},
+ {"Szacunek poziomu: ok. %u%%","Estimated level: about %u%%","Geschätzter Stand: ca. %u %%"},
+ {"Szacunek poziomu: brak pomiaru","Estimated level: no measurement","Geschätzter Stand: keine Messung"},
+ {"Szacunek poza zakresem ogniwa Li-ion.","Estimate outside the Li-ion cell range.","Schätzung außerhalb des Li-Ion-Bereichs."},
+ {"Zakłada ogniwo Li-ion; wartość orientacyjna.","Assumes a Li-ion cell; approximate value.","Setzt Li-Ion-Zelle voraus; ungefährer Wert."},
  {"Zmierz napięcie","Measure voltage","Spannung messen"},
  {"Pilot jest zajęty. Spróbuj ponownie.","Remote is busy. Try again.","Fernbedienung beschäftigt. Erneut versuchen."},
  {"Konfiguracja niedostępna","Configuration unavailable","Konfiguration nicht verfügbar"},
@@ -414,9 +421,12 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
   lv_obj_set_width(name,back?184:216);
-  dsr_sc_icon(root,DSR_ICON_WIFI,244,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #ifndef DSR_UI_REVIEW_DEMO
+  /* Status bar: Wi-Fi above the clock, battery icon above its percentage. */
+  dsr_sc_icon(root,DSR_ICON_WIFI,244,3,20,wifi?DSR_SC_BLUE:DSR_SC_OFF);
   dsr_ui_battery_header(root);
+#else
+  dsr_sc_icon(root,DSR_ICON_WIFI,244,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #endif
  }
 }

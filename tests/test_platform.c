@@ -182,6 +182,39 @@ static void test_telemetry(void)
  for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
  data[0].status=401;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
 }
+static void test_device_info(void)
+{
+ dsr_connection_t c=connection();dsr_device_t device;dsr_telemetry_t telemetry;dsr_device_info_t info;
+ const char plain[]="{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\"}";
+ const char status[]="{\"output\":true,\"apower\":4.1,\"voltage\":230.4,\"current\":0.018}";
+ step_t bind[]={{"/shelly",plain,200,false,false},{"/rpc/Switch.GetStatus?id=0",status,200,false,true}};
+ fixture(bind,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&device,&telemetry)==DSR_OK);c.device=device;c.telemetry=telemetry;
+ /* Model and firmware come from the identity response the refresh already fetches: no extra request. */
+ const char good[]="{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\",\"model\":\"S3SW-001P8EU\",\"ver\":\"1.4.4\"}";
+ step_t ok[]={{"/shelly",good,200,false,false},{"/rpc/Switch.GetStatus?id=0",status,200,false,true}};
+ memset(&info,0x5a,sizeof(info));fixture(ok,2,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&used==2&&!strcmp(info.model,"S3SW-001P8EU")&&!strcmp(info.fw,"1.4.4")&&c.device.online);
+ /* Advisory only: absent, wrongly typed, oversized, control-character or non-ASCII values stay empty and never fail the refresh. */
+ const char *odd[]={
+  "{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\"}",
+  "{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\",\"model\":7,\"ver\":false}",
+  "{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\",\"model\":\"\",\"ver\":\"\"}",
+  "{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\",\"model\":\"ABCDEFGHIJKLMNOPQRSTUVWX\",\"ver\":\"1.2.3.4.5.6.7.8.9\"}",
+  "{\"gen\":3,\"id\":\"shelly1pmmini3-AABBCCDDEEFF\",\"model\":\"S3\\nSW\",\"ver\":\"1.4\\u00e94\"}"};
+ for(unsigned i=0;i<sizeof(odd)/sizeof(*odd);i++){
+  step_t row[]={{"/shelly",odd[i],200,false,false},{"/rpc/Switch.GetStatus?id=0",status,200,false,true}};
+  memset(&info,0x5a,sizeof(info));fixture(row,2,HTTP_AUTH_TYPE_DIGEST);
+  CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&!info.model[0]&&!info.fw[0]&&c.device.online);
+ }
+ /* Another device answering on the address is a mismatch and discloses nothing. */
+ const char other[]="{\"gen\":3,\"id\":\"shelly1pmmini3-001122334455\",\"model\":\"S3SW-001P8EU\",\"ver\":\"1.4.4\"}";
+ step_t foreign[]={{"/shelly",other,200,false,false}};memset(&info,0x5a,sizeof(info));fixture(foreign,1,HTTP_AUTH_TYPE_DIGEST);
+ CHECK(dsr_http_refresh_info(&c,&info)==DSR_IDENTITY_MISMATCH&&!info.model[0]&&!info.fw[0]);
+ /* Authentication failure keeps the info empty as well. */
+ step_t locked[]={{"/shelly",good,401,false,false}};memset(&info,0x5a,sizeof(info));fixture(locked,1,HTTP_AUTH_TYPE_NONE);
+ CHECK(dsr_http_refresh_info(&c,&info)==DSR_AUTH_REQUIRED&&!info.model[0]&&!info.fw[0]);
+ CHECK(sizeof(dsr_event_t)==1192); /* info lives in an existing union member */
+}
 static void test_storage(void)
 {
     dsr_settings_t settings; CHECK(dsr_settings_load(&settings) == ESP_OK && settings.brightness == 70 && !settings.ssid[0]);
@@ -385,7 +418,7 @@ static void test_registered_guard(void)
 }
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
+    test_probe(); test_control(); test_telemetry(); test_device_info(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;

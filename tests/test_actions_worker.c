@@ -56,7 +56,7 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 }
 /* Light is unsupported by the action model and must never reach this provider. */
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent){(void)c;(void)intent;abort();}
-dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){gets++;c->device.online=true;}return result;}
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *info){(void)info;CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){gets++;c->device.online=true;}return result;}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
 void dsr_ap_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
 void dsr_ap_prepare(void){}

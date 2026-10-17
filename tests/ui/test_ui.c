@@ -1,6 +1,7 @@
 /* Actual LVGL + actual UI source. Only platform/radio are fixture providers.
  * Screenshots are rendered pixels, not HTML mockups or simulated device data
  * included in firmware. */
+#define _POSIX_C_SOURCE 200809L /* setenv/tzset for the clock test (file-local) */
 #include "dsr_ui.h"
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
@@ -10,6 +11,7 @@
 #include "esp_app_desc.h"
 #include "dsr_system_info.h"
 #include "dsr_actions.h"
+#include "dsr_history.h"
 #include "dsr_restart.h"
 #include "dsr_native_ota.h"
 #include "../../components/dsr_platform/dsr_activity_internal.h"
@@ -18,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static unsigned checks;
 static unsigned screenshots,requests;
@@ -201,6 +204,54 @@ static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *sk
 }
 static void deliver(dsr_result_t result,dsr_wifi_status_t detail)
 {if(dsr_actions_job_owned(submitted.id)){dsr_result_t allowed=dsr_actions_worker_allowed(submitted.id,&submitted.connection);if(allowed!=DSR_OK)result=allowed;}response.id=submitted.id;response.result=result;response.wifi_detail=detail;result_ready=true;tick();if(submitted.kind==DSR_JOB_BIND&&!in_flight)tick();}
+/* Opens the header battery page, completes one read with bat_mv and goes back. */
+static void click_header_battery_read(unsigned bat_mv)
+{
+ dsr_ui_status_auto(false);
+ tap(298,22);click("Zmierz napięcie");
+ response.battery=(dsr_battery_sample_t){.has_raw=true,.has_voltage=true,.raw=1900,.adc_mv=1830,.bat_mv=(uint16_t)bat_mv};
+ deliver(DSR_OK,DSR_WIFI_IDLE);tap(160,444);
+}
+static int64_t unset_clock(void){return 0;}
+static int64_t fixed_clock(void){return 1792239900;} /* 2026-10-17 12:25 UTC = 14:25 CEST */
+/* Header status bar: clock, estimated level, automatic read and clock sync. */
+static void status_bar_regression(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ wifi.connected=false;tick();CHECK(!in_flight);test_workspace_disable();
+ dsr_ui_status_auto(false);
+ dsr_ui_status_clock_source(fixed_clock);
+ setenv("TZ","CET-1CEST,M3.5.0,M10.5.0/3",1);tzset();
+ dsr_ui_open_settings();tick();
+ CHECK(find_label(lv_screen_active(),"14:25"));CHECK(!find_label(lv_screen_active(),"--:--"));screenshot("140-statusbar-clock");
+ dsr_ui_status_clock_source(unset_clock);tick();
+ CHECK(find_label(lv_screen_active(),"--:--"));CHECK(!find_label(lv_screen_active(),"14:25"));
+ CHECK(!dsr_history_clock_pending()); /* auto sync is off: never contacts SNTP by itself */
+ /* Automatic sync: one bounded request while the clock is unset and Wi-Fi is up.
+  * The first automatic BAT read is submitted by the same enable; complete it. */
+ wifi.connected=true;dsr_ui_status_auto(true);tick();
+ CHECK(dsr_history_clock_pending());screenshot("141-statusbar-clock-sync");
+ CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);
+ CHECK(!submitted.connection.device.host[0]&&!submitted.connection.credentials.password[0]);
+ dsr_history_cancel_clock(); /* the SNTP job itself is exercised in the history tests */
+ response.battery=(dsr_battery_sample_t){.has_raw=true,.has_voltage=true,.raw=1900,.adc_mv=1830,.bat_mv=3660};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"~15%"));
+ /* The next automatic read waits AUTO_MS: nothing is submitted in the next ~5 s. */
+ unsigned reads=requests;for(unsigned n=0;n<20;n++)tick();CHECK(requests==reads&&!in_flight);
+ lv_timer_handler();screenshot("142-statusbar-battery-15");
+ dsr_ui_status_clock_source(fixed_clock);tick();CHECK(find_label(lv_screen_active(),"14:25"));
+ /* Low level pulses; unknown and out-of-range show "?" and never a percentage. */
+ click_header_battery_read(3500);CHECK(find_label(lv_screen_active(),"~3%"));lv_tick_inc(700);lv_timer_handler();screenshot("143-statusbar-battery-low");
+ click_header_battery_read(4350);CHECK(find_label(lv_screen_active(),"?"));CHECK(!find_label(lv_screen_active(),"~100%"));screenshot("144-statusbar-battery-out-of-range");
+ click_header_battery_read(4200);CHECK(find_label(lv_screen_active(),"~100%"));lv_tick_inc(600);lv_timer_handler();screenshot("145-statusbar-battery-full");
+ for(unsigned language=1;language<=2;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,false,language);dsr_ui_open_settings();tick();
+  CHECK(find_label(lv_screen_active(),"14:25"));screenshot(language==1?"146-statusbar-english":"147-statusbar-german");
+ }
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);
+ dsr_ui_status_auto(false);dsr_ui_status_clock_source(NULL);
+ CHECK(!in_flight||submitted.kind!=DSR_JOB_HISTORY_CLOCK);
+}
 static void battery_regression(void)
 {
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
@@ -215,9 +266,9 @@ static void battery_regression(void)
  CHECK(find_label(lv_screen_active(),"Odczyt napięcia…"));screenshot("131-battery-reading");
  lv_obj_t *button=lv_obj_get_parent(find_label(lv_screen_active(),"Zmierz napięcie"));CHECK(lv_obj_has_state(button,LV_STATE_DISABLED));
  response.battery=(dsr_battery_sample_t){.has_raw=true,.has_voltage=true,.raw=2001,.adc_mv=2025,.bat_mv=4050};deliver(DSR_OK,DSR_WIFI_IDLE);
- CHECK(find_label(lv_screen_active(),"4.050 V")&&find_label(lv_screen_active(),"4.05V"));CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED));
+ CHECK(find_label(lv_screen_active(),"4.050 V")&&find_label(lv_screen_active(),"~87%"));CHECK(find_label(lv_screen_active(),"Szacunek poziomu: ok. 87%"));CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED));
  screenshot("132-battery-voltage");
- lv_tick_inc(30001);tick();CHECK(find_label(lv_screen_active(),"?"));CHECK(find_label(lv_screen_active(),"Pomiar nieaktualny. Zmierz ponownie."));screenshot("133-battery-stale");
+ lv_tick_inc(60001);tick();CHECK(find_label(lv_screen_active(),"?"));CHECK(!find_label(lv_screen_active(),"~87%"));CHECK(find_label(lv_screen_active(),"Szacunek poziomu: brak pomiaru"));CHECK(find_label(lv_screen_active(),"Pomiar nieaktualny. Zmierz ponownie."));screenshot("133-battery-stale");
  click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){.has_raw=true,.raw=2001,.calibration_error=ESP_ERR_NOT_SUPPORTED};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"Kalibracja ADC niedostępna. Napięcie nieznane."));CHECK(!find_label(lv_screen_active(),"4.050 V"));screenshot("134-battery-uncalibrated");
  click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);
@@ -936,7 +987,7 @@ int main(int argc,char **argv)
     click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==1);CHECK(!strcmp(submitted.connection.device.device_id,"shellyplus2pm-aabbccddeeff"));
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
-    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();revoke_regression();restart_regression();
+    dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();status_bar_regression();display_regression();global_settings_regression();revoke_regression();restart_regression();
     multi_device_regression();device_settings_regression();history_regression();actions_regression();bind_rebind_regression();review_multi_regression();review_deleted_migration_regression();
     ap_regression();native_ota_regression();rpc_regression();onboarding_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);

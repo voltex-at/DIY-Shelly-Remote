@@ -69,6 +69,11 @@ void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation 
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
+/* Advisory device info from the same unauthenticated /shelly identity response the
+ * refresh already fetches (no extra request). Empty strings mean "not read"; it can
+ * never fail or alter a refresh. Gen2+ only: model and firmware version. */
+typedef struct {char model[24];char fw[16];} dsr_device_info_t;
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection,dsr_device_info_t *info);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
 dsr_result_t dsr_http_rgb(dsr_connection_t *connection,dsr_rgb_intent_t intent);
@@ -104,7 +109,7 @@ typedef struct {
     uint32_t layout_id;
     dsr_result_t ap_write_result;
     dsr_telemetry_t telemetry;
-    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;}; dsr_wifi_status_t wifi_detail;
+    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;dsr_device_info_t info;}; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;

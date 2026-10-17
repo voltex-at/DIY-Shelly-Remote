@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.40-dev
+# Matryca funkcji — 0.7.41-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -16,13 +16,15 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Pomieszczenia, pulpity, edytor LCD i Web Panel | tak | tak (układ PL/EN/DE) | ucięty tekst w edytorze (0.7.37), poprawione, brak ponownego testu | — |
 | Rolety (Cover Gen2+) | tak | tak | sterowanie potwierdzone (0.7.37) | — |
 | Light/Dimmer Gen2+, RGBW, H&T Gen3 | tak | tak | brak testu | — |
-| Grupy, sceny, dziennik aktywności | tak | tak | brak testu | — |
+| Grupy, sceny, dziennik aktywności | tak (0.7.41: puste listy z przyciskiem Panelu WWW; tworzenie tylko w Panelu WWW) | tak | brak testu | — |
+| Ustawienia urządzenia: model i wersja firmware Shelly Gen2+ | tak (0.7.41: z odpowiedzi `/shelly`, bez dodatkowych zapytań) | tak (w tym odrzucanie złych wartości) | brak testu; uptime i RSSI niepobierane | — |
 | Historia energii 24 h | tak | tak | brak testu | — |
 | Skan BLE i dodawanie Gen2+ przez BLE | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
 | OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB) | tak | FAIL 0.7.37 (przekierowanie CDN) i 0.7.39 (kod 16/4: I/O po TLS), brak testu 0.7.40 | — |
 | Rollback po nieudanym starcie | tak (SDK) | model | brak testu | — |
-| Napięcie baterii na żądanie | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
+| Bateria: napięcie BAT, szacunek % (Li-ion), animowana ikona w nagłówku | tak (0.7.41: pomiar co 20 s) | tak | brak testu; procent to szacunek, brak sygnału ładowania | — |
+| Godzina w nagłówku (SNTP po połączeniu z Wi-Fi, strefa CET/CEST) | tak (0.7.41) | tak (format, lato/zima, brak czasu) | brak testu | — |
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
 | Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 

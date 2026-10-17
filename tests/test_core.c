@@ -1,7 +1,10 @@
+#define _POSIX_C_SOURCE 200809L /* localtime_r (file-local; strict -std=c11 host builds) */
 #include "dsr_core.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static unsigned checks;
 #define CHECK(expr) do { checks++; assert(expr); } while (0)
@@ -106,9 +109,41 @@ static void test_update_policy(void)
     CHECK(dsr_update_metadata_check(NULL, "test-board-r1", "0.1.0", 4096) == DSR_INVALID);
 }
 
+static void test_status(void)
+{
+    uint8_t pct = 77, previous = 0;
+    /* Negative: outside a single Li-ion cell range, or no output pointer. */
+    CHECK(!dsr_battery_estimate_percent(0, &pct) && pct == 77);
+    CHECK(!dsr_battery_estimate_percent(2799, &pct) && !dsr_battery_estimate_percent(4301, &pct) && pct == 77);
+    CHECK(!dsr_battery_estimate_percent(3700, NULL));
+    CHECK(dsr_battery_estimate_percent(2800, &pct) && pct == 0);
+    CHECK(dsr_battery_estimate_percent(3300, &pct) && pct == 0);
+    CHECK(dsr_battery_estimate_percent(3660, &pct) && pct == 15); /* user-visible 3.660 V */
+    CHECK(dsr_battery_estimate_percent(4200, &pct) && pct == 100);
+    CHECK(dsr_battery_estimate_percent(4300, &pct) && pct == 100);
+    for (unsigned mv = 2800; mv <= 4300; mv++) { /* monotonic and bounded */
+        CHECK(dsr_battery_estimate_percent((uint16_t)mv, &pct) && pct <= 100 && pct >= previous);
+        previous = pct;
+    }
+    char text[6];
+    CHECK(!dsr_clock_format_hhmm(0, text) && !strcmp(text, "--:--"));
+    CHECK(!dsr_clock_format_hhmm(1735689599, text) && !strcmp(text, "--:--"));
+    CHECK(!dsr_clock_format_hhmm(-5, text) && !strcmp(text, "--:--"));
+    CHECK(!dsr_clock_format_hhmm(1792239900, NULL));
+    /* 2026-10-17 12:25:00 UTC is 14:25 in Europe/Vienna (CEST). */
+    setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1); tzset();
+    CHECK(dsr_clock_format_hhmm(1792239900, text) && !strcmp(text, "14:25"));
+    /* 2026-12-17 12:25:00 UTC is 13:25 in winter time (CET). */
+    CHECK(dsr_clock_format_hhmm(1797510300, text) && !strcmp(text, "13:25"));
+    /* Midnight rollover keeps two digits. */
+    CHECK(dsr_clock_format_hhmm(1792274400, text) && !strcmp(text, "00:00"));
+    setenv("TZ", "UTC0", 1); tzset();
+    CHECK(dsr_clock_format_hhmm(1792239900, text) && !strcmp(text, "12:25"));
+}
+
 int main(void)
 {
-    test_addresses(); test_protocol(); test_registry(); test_versions(); test_update_policy();
-    printf("PASS: %u checks (IPv4, Gen1/Gen2+ requests, registry, versions, OTA metadata policy)\n", checks);
+    test_addresses(); test_protocol(); test_registry(); test_versions(); test_update_policy(); test_status();
+    printf("PASS: %u checks (IPv4, Gen1/Gen2+ requests, registry, versions, OTA metadata policy, battery estimate, clock format)\n", checks);
     return 0;
 }

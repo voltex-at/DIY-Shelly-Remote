@@ -247,6 +247,7 @@ static void pair_browser(lv_event_t *event)
  dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",4,112,284,&dsr_roboto_14,DSR_SC_MUTED);
  row(body,"Panel WWW / bezpieczeństwo",214,web_panel);
 }
+void dsr_ui_web_panel_open(lv_event_t *event){web_panel(event);}
 static void web_panel(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Panel WWW / bezpieczeństwo");

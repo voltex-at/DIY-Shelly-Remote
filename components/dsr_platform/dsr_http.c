@@ -143,7 +143,15 @@ static bool identifier(const char *text, bool mac)
 }
 
 static bool light_unique(const cJSON *r);
-static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *out)
+/* Printable ASCII only and bounded: the strings come from the network and are shown on the LCD. */
+static void info_text(const cJSON *item,char *out,size_t size)
+{
+    out[0]=0;
+    if(!cJSON_IsString(item)||!item->valuestring[0]||strlen(item->valuestring)>=size)return;
+    for(const unsigned char *p=(const unsigned char *)item->valuestring;*p;p++)if(*p<0x20||*p>0x7e)return;
+    strcpy(out,item->valuestring);
+}
+static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *out, dsr_device_info_t *info)
 {
     dsr_request_t request = {.path = "/shelly"};
     cJSON *root = NULL;
@@ -187,6 +195,10 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     }
     if (!out->name[0]) snprintf(out->name, sizeof(out->name), "%s", name);
     out->online = false; out->has_switch = false; out->has_power = false;
+    if (info && generation == DSR_GEN2_PLUS) {
+        info_text(cJSON_GetObjectItemCaseSensitive(root, "model"), info->model, sizeof(info->model));
+        info_text(cJSON_GetObjectItemCaseSensitive(root, "ver"), info->fw, sizeof(info->fw));
+    }
     cJSON_Delete(root);
     return DSR_OK;
 }
@@ -353,7 +365,7 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
     dsr_connection_t probed = *connection;
     probed.device.online=probed.device.has_power=false;
     memset(&probed.telemetry,0,sizeof(probed.telemetry));
-    dsr_result_t result = identity(connection, &probed.device);
+    dsr_result_t result = identity(connection, &probed.device, NULL);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id))result=DSR_IDENTITY_MISMATCH;
     if (result == DSR_OK){(void)urgent();result = status(&probed);}
     *out = probed.device;
@@ -363,25 +375,28 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection,dsr_device_t *out)
 {return dsr_http_probe_telemetry(connection,out,NULL);}
 
-static dsr_result_t verify(dsr_connection_t *connection)
+static dsr_result_t verify_info(dsr_connection_t *connection, dsr_device_info_t *info)
 {
     if (!dsr_connection_valid(connection, true)) return DSR_INVALID;
     dsr_result_t permission=allowed();if(permission!=DSR_OK)return permission;
     connection->device.online = false;
     connection->device.has_power=false;memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_device_t observed = {0};
-    dsr_result_t result = identity(connection, &observed);
+    dsr_result_t result = identity(connection, &observed, info);
     if (result != DSR_OK) return result;
     if (strcmp(observed.device_id, connection->device.device_id) ||
-        observed.generation != connection->device.generation) return DSR_IDENTITY_MISMATCH;
+        observed.generation != connection->device.generation) { if (info) memset(info, 0, sizeof(*info)); return DSR_IDENTITY_MISMATCH; }
     return DSR_OK;
 }
+static dsr_result_t verify(dsr_connection_t *connection){return verify_info(connection, NULL);}
 
-dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection, dsr_device_info_t *info)
 {
-    dsr_result_t result = verify(connection);
+    if (info) memset(info, 0, sizeof(*info));
+    dsr_result_t result = verify_info(connection, info);
     (void)urgent();if(result==DSR_OK)result=allowed();return result == DSR_OK ? status(connection) : result;
 }
+dsr_result_t dsr_http_refresh(dsr_connection_t *connection){return dsr_http_refresh_info(connection, NULL);}
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
 {

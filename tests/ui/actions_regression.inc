@@ -38,5 +38,14 @@ static void actions_regression(void)
  dsr_ui_actions_open(0);tap(20,20);lv_refr_now(display);lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<40;i++){dsr_ui_actions_open((uint8_t)(i%3));tap(20,20);}lv_refr_now(display);lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);
  for(unsigned locale=1;locale<=2;locale++){cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(locale==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);CHECK(dsr_sc_language()==locale);lv_obj_t *label=find_label(lv_screen_active(),"Włącz grupę");CHECK(label&&!strcmp(lv_label_get_text(label),locale==1?"Turn group on":"Gruppe einschalten"));screenshot(locale==1?"255-groups-english":"256-groups-german");tap(20,20);}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);wifi.connected=false;tick();
+ /* Empty groups/scenes give a concrete next step and a working Web Panel shortcut (PL/EN/DE). */
+ {cJSON *saved=room_document();cJSON *empty=room_document();cJSON_ReplaceItemInObjectCaseSensitive(empty,"groups",cJSON_CreateArray());cJSON_ReplaceItemInObjectCaseSensitive(empty,"scenes",cJSON_CreateArray());publish_document(empty);
+  dsr_ui_actions_open(0);CHECK(find_label(lv_screen_active(),"Brak grup. Utwórz grupę w Panelu WWW, w sekcji Grupy (cały dom).")&&find_label(lv_screen_active(),"Otwórz Panel WWW"));CHECK(!find_label(lv_screen_active(),"Włącz grupę"));screenshot("258-groups-empty-guided");
+  dsr_ui_actions_open(1);CHECK(find_label(lv_screen_active(),"Brak scen. Utwórz scenę w Panelu WWW, w sekcji Sceny (cały dom).")&&find_label(lv_screen_active(),"Otwórz Panel WWW"));screenshot("259-scenes-empty-guided");
+  click("Otwórz Panel WWW");CHECK(find_label(lv_screen_active(),"Panel WWW / bezpieczeństwo"));
+  tick();tick();CHECK(find_label(lv_screen_active(),"Panel WWW / bezpieczeństwo")&&!find_label(lv_screen_active(),"Otwórz Panel WWW")); /* the actions page no longer redraws over it */
+  for(unsigned locale=1;locale<=2;locale++){cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(locale==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);CHECK(dsr_sc_language()==locale);
+   lv_obj_t *label=find_label(lv_screen_active(),"Otwórz Panel WWW");CHECK(label&&!strcmp(lv_label_get_text(label),locale==1?"Open Web Panel":"Web-Panel öffnen"));screenshot(locale==1?"260-groups-empty-english":"261-groups-empty-german");tap(20,20);}
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(saved,"revision"),dsr_workspace_revision());publish_document(saved);dsr_network_home(NULL);}
  printf("Actions LCD heap %u→%u;40 group/scene/activity cycles, cardRUN/cancel and per-endpoint offline/auth partial results; actual actor with worker/radio/workspace MODEL\n",(unsigned)before.free_size,(unsigned)after.free_size);
 }

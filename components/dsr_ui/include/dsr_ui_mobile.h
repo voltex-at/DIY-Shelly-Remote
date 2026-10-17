@@ -30,6 +30,7 @@ typedef struct {
     uint8_t fields;
     /* Only supplied for the actually bound transport; never inferred from a card. */
     char identity[64];
+    char fw[16]; /* advisory firmware version from the identity response; empty = not read */
     dsr_generation_t generation;
     bool can_refresh,can_position,has_energy;
     uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */
