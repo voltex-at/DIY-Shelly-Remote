@@ -32,6 +32,20 @@ int main(int argc,char **argv)
  if(mode==2){click("Boot legacy");lv_obj_t *power=power_target(lv_screen_active());CHECK(power&&!lv_obj_has_state(power,LV_STATE_DISABLED));lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&job_counts[DSR_JOB_SET_OUTPUT]==1);response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
  CHECK(!in_flight&&!maintenance_ready&&publish_jobs==0);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  if(mode==3){dsr_network_device_settings(30);CHECK(find_label(lv_screen_active(),"Tożsamość niepotwierdzona")&&find_label(lv_screen_active(),"Brak aktywnego połączenia"));CHECK(job_counts[DSR_JOB_SET_OUTPUT]==0&&publish_jobs==0);}
+ /* Recovery from "workspace ACK, crash before private save": adding the same
+  * endpoint again reuses the acknowledged card id (no duplicate) and only then
+  * writes the private record; previously bound B keeps its credentials. */
+ if(mode==1||mode==3){dsr_network_home(NULL);tick();CHECK(find_label(lv_screen_active(),"Brak powiązania"));click("Boot pending C");CHECK(find_label(lv_screen_active(),"Dodaj urządzenie ponownie przyciskiem +")&&!find_label(lv_screen_active(),"Offline • stan niepotwierdzony"));}
+ if(mode==1){
+  wifi.connected=true;unsigned pubs=publish_jobs;dsr_connection_t again=c;again.device.online=again.device.has_switch=true;strcpy(again.credentials.password,"re-added-private");
+  CHECK(dsr_network_bind_verified(&again,0)==DSR_OK);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);
+  response=(dsr_event_t){.device=again.device};deliver(DSR_OK,DSR_WIFI_IDLE);for(unsigned i=0;i<20&&dsr_network_busy();i++)tick();
+  CHECK(!dsr_network_busy()&&publish_jobs==pubs+1&&maintenance.connection.layout_id==30&&!strcmp(maintenance.connection.credentials.password,"re-added-private"));
+  cJSON *saved=room_document(),*d;unsigned hosts=0,ids=0;cJSON_ArrayForEach(d,cJSON_GetObjectItemCaseSensitive(saved,"devices")){if(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"host")->valuestring,c.device.host))hosts++;if(cJSON_GetObjectItemCaseSensitive(d,"id")->valueint==30)ids++;}cJSON_Delete(saved);
+  CHECK(hosts==1&&ids==1&&dsr_network_endpoint_added("shelly-C",DSR_GEN2_PLUS,0)&&dsr_network_endpoint_added("shelly-B",DSR_GEN2_PLUS,0));
+  dsr_network_home(NULL);tick();click("Boot pending C");lv_obj_t *power=power_target(lv_screen_active());CHECK(power&&!lv_obj_has_state(power,LV_STATE_DISABLED));
+  wifi.connected=false;tick();
+ }
  screenshot(mode==0?"244-bind-boot-unpublished-quarantine":mode==1?"245-bind-boot-ACK-without-private":mode==2?"246-bind-boot-legacy-origin":"248-bind-boot-pending-matching-workspace");
  printf("PASS: %u actual LVGL BIND restart checks, mode%u; NVS/workspace/SDK MODEL; no physical restart or writes\n",checks,mode);lv_deinit();return 0;
 }

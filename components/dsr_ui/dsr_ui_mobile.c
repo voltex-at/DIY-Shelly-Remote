@@ -197,6 +197,10 @@ static lv_obj_t *power_button(lv_obj_t *parent,unsigned index,int x,int y,int si
 }
 static dsr_ui_icon_t kind_icon(dsr_mobile_kind_t kind)
 {return (kind==DSR_DEVICE_LIGHT||kind==DSR_DEVICE_RGB)?DSR_ICON_LIGHT:kind==DSR_DEVICE_COVER?DSR_ICON_COVER:kind==DSR_DEVICE_CONTACT||kind==DSR_DEVICE_SENSOR?DSR_ICON_CONTACT:DSR_ICON_PLUG;}
+/* Workspace card without a private binding (e.g. power cut between the
+ * workspace ACK and the binding save, or a legacy display entry). It is not
+ * "offline": adding the same device again reuses this card's id. */
+static bool unbound(const dsr_mobile_device_t *d){return !model.demo&&!d->identity[0];}
 static const char *room_name(const dsr_mobile_device_t *d){return d->room<model.room_count?model.rooms[d->room].name:"Nieprzypisane";}
 static void cover_control(lv_event_t *event)
 {
@@ -224,9 +228,9 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
     int name_width=cover?124:sensor?218:166;
     lv_obj_t *name=dsr_sc_text(card,d->name,68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
-    const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
+    const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
-    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK?state:subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
+    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
     if(cover){
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
      card_control(card,i,DSR_ICON_UP,width-104,44,valid,cover_control,i*2+1);
@@ -413,7 +417,7 @@ static void light_details(lv_obj_t *root)
  const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK;char text[80];
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
  dsr_sc_text(panel,d->endpoint_kind==DSR_ENDPOINT_RGB?"Jasność • RGB RPC":"Jasność • Light RPC",12,12,272,&dsr_roboto_16,DSR_SC_TEXT);
- const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?"Wysyłanie polecenia…":(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_ERROR)!=0:d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":d->output?"Włączone • Online":"Wyłączone • Online";
+ const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?"Wysyłanie polecenia…":(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_ERROR)!=0:d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":d->output?"Włączone • Online":"Wyłączone • Online";
  center(dsr_sc_text(panel,state,8,42,280,&dsr_roboto_12,DSR_SC_MUTED));
  if(readable&&(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_VALID):(d->light.flags&DSR_LIGHT_BRIGHTNESS)))snprintf(text,sizeof(text),"%u%%",brightness(d));else snprintf(text,sizeof(text),"—");
  center(dsr_sc_text(panel,text,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
@@ -506,14 +510,14 @@ static void details(lv_obj_t *root)
     if(d->endpoint_kind==DSR_ENDPOINT_LIGHT){light_details(root);return;}
     lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
     dsr_sc_text(panel,"Główne sterowanie",13,12,270,&dsr_roboto_16,DSR_SC_TEXT);
-    const char *status=d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
+    const char *status=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
     center(dsr_sc_text(panel,status,8,41,280,&dsr_roboto_12,d->error!=DSR_OK?0xffc18c:d->online?DSR_SC_TEXT:DSR_SC_MUTED));
     char power[40];if(d->online&&d->error==DSR_OK&&d->has_power&&!d->busy)snprintf(power,sizeof(power),"%.1f W",d->power_w);else snprintf(power,sizeof(power),"—");
     center(dsr_sc_text(panel,power,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
     center(dsr_sc_text(panel,d->has_power?"Moc chwilowa":"Pomiar mocy niedostępny",8,103,280,&dsr_roboto_12,DSR_SC_MUTED));
     power_button(panel,selected,105,130,86);
     if(actions.refresh){lv_obj_t *button=dsr_sc_button(panel,202,148,82,48,DSR_SC_PANEL,10,refresh,NULL);lv_obj_t *label=dsr_sc_text(button,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT);center(label);if(d->busy||!d->can_refresh)lv_obj_add_state(button,LV_STATE_DISABLED);}
-    center(dsr_sc_text(panel,d->error!=DSR_OK?"Odśwież, aby potwierdzić stan":!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,220,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
+    center(dsr_sc_text(panel,unbound(d)?"Dodaj urządzenie ponownie przyciskiem +":d->error!=DSR_OK?"Odśwież, aby potwierdzić stan":!d->online?"Brak połączenia":d->busy?"Oczekiwanie…":d->output?"Wyłącz":"Włącz",8,220,280,&dsr_roboto_14,d->online?DSR_SC_BLUE:DSR_SC_MUTED));
     sample_age=dsr_sc_text(panel,"",8,242,280,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
     char voltage[32],current[32];
     if(d->online&&d->error==DSR_OK&&d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"—");
@@ -528,7 +532,7 @@ static void device_settings(lv_obj_t *root)
  lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);
  lv_obj_t *identity=dsr_sc_panel(content,0,0,296,154,DSR_SC_CARD,14);
  dsr_sc_icon(identity,DSR_ICON_INFO,12,13,24,DSR_SC_BLUE);dsr_sc_text(identity,"Wybrane urządzenie",48,17,236,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(identity,d->error!=DSR_OK?device_error(d->error):d->online?"Online":"Brak połączenia",12,44,272,&dsr_roboto_14,d->online&&d->error==DSR_OK?DSR_SC_BLUE:DSR_SC_MUTED);
+ dsr_sc_text(identity,unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->online?"Online":"Brak połączenia",12,44,272,&dsr_roboto_14,d->online&&d->error==DSR_OK?DSR_SC_BLUE:DSR_SC_MUTED);
  lv_obj_t *model_name=dsr_sc_text(identity,d->model[0]?d->model:"Model nieodczytany",12,68,272,&dsr_roboto_14,DSR_SC_MUTED);truncate(model_name,20);
  snprintf(text,sizeof(text),dsr_sc_tr("Adres karty: %s • kanał %u"),d->host[0]?d->host:"—",d->channel);dsr_sc_text(identity,text,12,90,272,&dsr_roboto_12,DSR_SC_TEXT);
  const char *family=d->identity[0]?(d->generation==DSR_GEN1?"Gen1":d->generation==DSR_GEN2_PLUS?"Gen2+":"—"):"—";

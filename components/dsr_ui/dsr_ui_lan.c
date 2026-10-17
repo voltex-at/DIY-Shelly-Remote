@@ -33,7 +33,14 @@ static void leave(lv_event_t *event){(void)event;dsr_lan_cancel();dsr_network_de
 static void results_back(lv_event_t *event){(void)event;memset(&credentials,0,sizeof(credentials));show_results();}
 static const char *failure(dsr_result_t result)
 {
-    return result==DSR_CONFLICT?"Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.":result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_AUTH_REQUIRED?"Błąd logowania. Sprawdź dane.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.":result==DSR_RATE_LIMITED?"Limit logowań Shelly. Poczekaj i odśwież.":result==DSR_OFFLINE?"Shelly offline lub brak Wi-Fi":"Nie udało się zweryfikować urządzenia.";
+    return result==DSR_CONFLICT?"Konfiguracja zmieniła się. Wczytaj ją i ponów dodawanie urządzenia.":result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_AUTH_REQUIRED?"Błąd logowania. Sprawdź dane.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia się zmieniła. Wyszukaj ponownie.":result==DSR_RATE_LIMITED?"Limit logowań Shelly. Poczekaj i odśwież.":result==DSR_OFFLINE?"Shelly offline lub brak Wi-Fi":
+        /* Specific causes instead of one generic "verification failed": a
+         * BLU gateway or a full registry is not a verification failure. */
+        result==DSR_UNSUPPORTED?"To urządzenie nie ma obsługiwanego kanału sterowania (np. bramka BLU). Nie dodano.":
+        result==DSR_FULL?"Limit 16 urządzeń. Usuń jedno, aby dodać nowe.":
+        result==DSR_BAD_RESPONSE?"Nieprawidłowa odpowiedź urządzenia. Nie dodano.":
+        result==DSR_IO?"Błąd pamięci pilota. Nie dodano; zapisane dane bez zmian.":
+        result==DSR_INVALID?"Sprawdź adres IP, kanał i długość pól.":"Nie udało się zweryfikować urządzenia.";
 }
 static lv_obj_t *field(lv_obj_t *root,const char *caption,int y,const char *text,bool secret)
 {
