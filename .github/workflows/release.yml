@@ -1,0 +1,81 @@
+name: Signed release
+# Tag vX.Y.Z      -> Stable release (GitHub "latest")
+# Tag dev-vX.Y.Z  -> Dev prerelease
+# The pilot's Firmware Update screen installs only a manifest signed with the
+# owner's key (secret DSR_OTA_SIGNING_KEY) that matches the compiled anchor.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
+permissions:
+  contents: read
+concurrency: release-${{ github.ref }}
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v5.5.4
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      channel: ${{ steps.tag.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=stable" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT";
+          elif [[ "$tag" =~ ^dev-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"; echo "channel=dev" >> "$GITHUB_OUTPUT"; echo "projver=${BASH_REMATCH[1]}-dev" >> "$GITHUB_OUTPUT";
+          else echo "Unsupported tag $tag"; exit 1; fi
+      - name: Build ES3C35P firmware for the tag version
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} set-target esp32s3
+          idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} build
+          python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
+          python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
+          python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
+          python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
+          python3 tools/test_factory.py
+          python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source "$GITHUB_SHA" --tested "$GITHUB_SHA (release ${GITHUB_REF_NAME})"
+          CC=gcc python3 tools/test_idf_spiffs.py --idf-source "$IDF_PATH" --cjson-source "$IDF_PATH/components/json/cJSON" --factory-image build-board/installers/FACTORY-CLEAN-16MB/dsrdata.bin --verification-report build-board/installers/FACTORY-CLEAN-16MB/SPIFFS_MOUNT_PROOF.json --ubsan-only
+          cp docs/INSTALL_FACTORY_PL.md build-board/installers/FACTORY-CLEAN-16MB/
+          python3 tools/check_factory_package.py --package-dir build-board/installers
+          mkdir -p release
+          cp build-board/diy_shelly_remote.bin release/
+          (cd build-board/installers && python3 -c "import shutil;shutil.make_archive('../../release/DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB','zip','FACTORY-CLEAN-16MB')")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-release
+          path: release/
+          if-no-files-found: error
+  sign-and-publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: unsigned-release
+          path: release
+      - name: Sign manifest with the owner's key and verify with the firmware verifier
+        env:
+          DSR_OTA_SIGNING_KEY: ${{ secrets.DSR_OTA_SIGNING_KEY }}
+        run: |
+          test -n "$DSR_OTA_SIGNING_KEY" || { echo "Missing secret DSR_OTA_SIGNING_KEY"; exit 1; }
+          sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography
+          python3 tools/test_ota_signer.py
+          python3 tools/ota_sign_manifest.py --app release/diy_shelly_remote.bin --version ${{ needs.build.outputs.version }} \
+            --channel ${{ needs.build.outputs.channel }} --tag "$GITHUB_REF_NAME" --key-id voltex-ota-2026-1 \
+            --public-hex 23adf99d68e6ce2315a7b0b2b53c5839d9dd15e39ee748a24ec68841861a47fe \
+            --out release/DIY-Shelly-Remote-es3c35p-manifest.json
+          (cd release && sha256sum * > SHA256SUMS.txt)
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags="--verify-tag --title ${GITHUB_REF_NAME} --notes-file docs/RELEASE_NOTES.md"
+          if [ "${{ needs.build.outputs.channel }}" = "dev" ]; then flags="$flags --prerelease"; else flags="$flags --latest"; fi
+          gh release create "$GITHUB_REF_NAME" $flags release/*

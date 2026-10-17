@@ -35,6 +35,17 @@ fragmentu, credentials, escapes, podwójnych segmentów lub dwóch kolejnych kro
 
 ## Zaufanie i ograniczenia
 
+**2026-10-17 — klucz wydawcy zatwierdzony przez właściciela.** Para Ed25519
+`voltex-ota-2026-1` wygenerowana `tools/ota_keygen.py` na wyraźne polecenie
+właściciela; klucz publiczny `23adf99d…861a47fe` wkompilowany w
+`dsr_ota_trust.c`, prywatny przekazany wyłącznie właścicielowi i usunięty
+(`shred`) ze środowiska, w którym powstał. Podpis wydań:
+`tools/ota_sign_manifest.py` (lokalnie) albo `.github/workflows/release.yml`
+z sekretem `DSR_OTA_SIGNING_KEY` (tag `vX.Y.Z` = Stable, `dev-vX.Y.Z` = Dev).
+`tools/test_ota_signer.py` sprawdza signer na prawdziwym weryfikatorze i
+prawdziwym providerze zaufania (z sekretem: akceptacja, manipulacja, kanał,
+downgrade). Poniższy akapit opisuje stan sprzed tej decyzji.
+
 Produkcyjny truststore jest pusty: obecny firmware nigdy nie przyjmie manifestu
 jako zaufanego wydania. Klucz testowy nie jest kompilowany przez IDF. Publiczny
 klucz wydawcy, rotacja/recovery i zatwierdzony podpisany Release wymagają review.
