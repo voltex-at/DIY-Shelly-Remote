@@ -40,6 +40,9 @@ dsr_result_t dsr_blu_parse_device(const cJSON *status,unsigned cid,dsr_telemetry
 dsr_result_t dsr_blu_apply_sensor(const cJSON *status,unsigned sensor,uint8_t obj_id,dsr_telemetry_t *out);
 bool dsr_blu_sensor_shown(uint8_t obj_id);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);
+/* One Shelly.GetComponents?dynamic_only=true page: BTHomeDevice cids 200..215
+ * become BLU channel bits. Verifies the echoed offset; *next is offset+items. */
+dsr_result_t dsr_lan_parse_components(const cJSON *page,unsigned offset,uint16_t *blu,unsigned *next,unsigned *total);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);
 bool dsr_lan_plan_add(dsr_lan_plan_t *plan,const char *host,const char *local,const char *mask);
 

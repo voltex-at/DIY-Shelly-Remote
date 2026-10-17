@@ -1,3 +1,10 @@
+0.7.45-dev: bramka BLU Gateway Gen3 rozpoznaje czujniki, automatyczny restart po aktualizacji. Stable: brak.
+
+Zmiany względem 0.7.44-dev (dev-v0.7.44 = kod 0.7.43):
+- Czujniki BLU na bramce: pilot czyta listę z Shelly.GetComponents (stronami), bo Shelly.GetStatus bramki BLU Gateway Gen3 ich nie podaje. Dotyczy tylko urządzeń Shelly z Bluetooth.
+- BLU TRV z dwiema temperaturami: pokazywana pierwsza (idx 0).
+- Po zainstalowaniu aktualizacji z pilota restart następuje sam po 10 s; "Później" go wstrzymuje, "Uruchom ponownie" od razu.
+
 0.7.43-dev: naprawa instalacji OTA z pilota (kod 12/11: limit czasu pobierania obrazu). Stable: brak.
 
 Zmiany względem 0.7.42-dev:

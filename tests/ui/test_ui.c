@@ -376,6 +376,13 @@ static void native_ota_regression(void)
  tap_row("Zainstaluj");before=requests;tap(238,444);CHECK(requests==before+1&&in_flight&&submitted.kind==DSR_JOB_OTA_INSTALL&&!find_label(lv_screen_active(),"USB podłączone • instaluj"));screenshot("245-native-ota-installing");
  test_native_ota_set(DSR_NATIVE_STAGED,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"Instalacja zakończona. Uruchom pilot ponownie.")&&!find_label(lv_screen_active(),"Zainstaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));screenshot("246-native-ota-staged");
+ /* Auto restart: 10 s countdown; busy retries every 5 s; "Później" stops it. */
+ {unsigned left=0;char text[48];for(unsigned k=1;k<=10&&!left;k++){snprintf(text,sizeof(text),"Automatyczny restart za %u s",k);if(find_label(lv_screen_active(),text))left=k;}
+  CHECK(left>=5&&find_label(lv_screen_active(),"Później"));unsigned auto_before=restart_requests;restart_response=DSR_RESTART_BUSY;
+  lv_tick_inc((left-2)*1000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before&&(find_label(lv_screen_active(),"Automatyczny restart za 2 s")||find_label(lv_screen_active(),"Automatyczny restart za 3 s")));
+  lv_tick_inc(3000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+  lv_tick_inc(5000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);
+  click("Później");CHECK(!find_label(lv_screen_active(),"Później")&&find_label(lv_screen_active(),"Uruchom ponownie"));lv_tick_inc(60000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);screenshot("248-native-ota-postponed");}
  test_native_ota_uncertain();tick();CHECK(find_label(lv_screen_active(),"Nie potwierdzono wyboru startowego firmware. Dalsze zapisy zablokowane do restartu.")&&!find_label(lv_screen_active(),"Anulowano. Nie uruchomiono nowego firmware."));screenshot("247-native-ota-uncertain");
  restart_response=DSR_RESTART_BUSY;unsigned restarts=restart_requests;tap_row("Uruchom ponownie");CHECK(restart_requests==restarts+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
  restart_response=DSR_RESTART_ACCEPTED;tap_row("Uruchom ponownie");CHECK(find_label(lv_screen_active(),"Przyjęto żądanie restartu."));tap_row("Uruchom ponownie");CHECK(restart_requests==restarts+2);

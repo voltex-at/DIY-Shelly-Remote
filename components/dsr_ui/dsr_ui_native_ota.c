@@ -8,11 +8,15 @@ static bool active,building,confirming,restart_accepted;
 static dsr_ota_channel_t selected_channel=DSR_OTA_STABLE;
 static dsr_native_ota_snapshot_t snapshot,shown;
 static uint32_t consent_operation;
-static lv_obj_t *progress_label,*local_notice,*back_button;
+static lv_obj_t *progress_label,*local_notice,*back_button,*countdown_label;
+/* After a verified install: restart by itself unless the user postpones. */
+#define DSR_OTA_AUTO_RESTART_MS 10000u
+#define DSR_OTA_AUTO_RETRY_MS 5000u
+static bool auto_restart_armed;static uint32_t auto_restart_at,armed_operation;
 void dsr_ui_native_ota_hide(void)
 {
  if(active&&!building)dsr_native_ota_cancel();
- active=false;progress_label=local_notice=back_button=NULL;
+ active=false;auto_restart_armed=false;progress_label=local_notice=back_button=countdown_label=NULL;
 }
 static lv_obj_t *screen(void)
 {
@@ -101,6 +105,15 @@ static void restart(lv_event_t *event)
  if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
  else if(local_notice)dsr_sc_label_set_text(local_notice,"Pilot jest zajęty. Spróbuj ponownie.");
 }
+static void countdown(void)
+{
+ if(!countdown_label)return;
+ if(!auto_restart_armed||restart_accepted){lv_label_set_text(countdown_label,"");return;}
+ uint32_t left=auto_restart_at-lv_tick_get();if(left>DSR_OTA_AUTO_RESTART_MS)left=0;
+ dsr_sc_label_set_text_fmt(countdown_label,"Automatyczny restart za %u s",(unsigned)((left+999u)/1000u));
+}
+static void postpone(lv_event_t *event)
+{(void)event;auto_restart_armed=false;show();}
 static void channel_apply(lv_event_t *event)
 {selected_channel=(dsr_ota_channel_t)(uintptr_t)lv_event_get_user_data(event);dsr_native_ota_cancel();confirming=false;show();}
 static void channel_prompt(lv_event_t *event)
@@ -133,7 +146,14 @@ static void show(void)
   lv_obj_t *code=dsr_sc_text(body,"",4,196,284,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_label_set_text_fmt(code,"Kod błędu: %d/%d/%d/%d",(int)snapshot.error,(int)snapshot.fetch_result,snapshot.http_status,(int)snapshot.manifest_result);
  }
- if(snapshot.state==DSR_NATIVE_STAGED||snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,270,296,restart,NULL);return;}
+ if(snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
+  if(!restart_accepted&&armed_operation!=snapshot.operation_id){armed_operation=snapshot.operation_id;auto_restart_armed=true;auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RESTART_MS;}
+  countdown_label=dsr_sc_text(body,"",4,166,284,&dsr_roboto_14,DSR_SC_TEXT);countdown();
+  dsr_ui_primary(dsr_ui_button(body,"Uruchom ponownie",0,206,296,restart,NULL));
+  if(auto_restart_armed)dsr_ui_button(body,"Później",0,262,296,postpone,NULL);
+  return;
+ }
+ if(snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,270,296,restart,NULL);return;}
  int y=234;
  if(snapshot.state==DSR_NATIVE_AVAILABLE){
   raw(body,snapshot.version,186);char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);raw(body,size,214);
@@ -154,5 +174,12 @@ void dsr_ui_native_ota_tick(void)
  if(!active)return;
  dsr_native_ota_snapshot(&snapshot);
  if(snapshot.state!=shown.state||snapshot.error!=shown.error||snapshot.operation_id!=shown.operation_id){show();return;}
+ if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
+  if((int32_t)(lv_tick_get()-auto_restart_at)>=0){
+   restart(NULL);
+   if(!restart_accepted)auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RETRY_MS; /* busy: retry, still cancellable */
+   else{auto_restart_armed=false;if(countdown_label)lv_label_set_text(countdown_label,"");}
+  }else countdown();
+ }
  if(!confirming)progress();
 }

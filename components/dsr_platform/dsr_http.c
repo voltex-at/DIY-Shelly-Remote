@@ -125,8 +125,21 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
     dsr_connection_t c={.credentials=*credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",expected->host);
     c.device.generation=expected->generation==1?DSR_GEN1:DSR_GEN2_PLUS;
     dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/Shelly.GetStatus");cJSON *json=NULL;
-    result=fetch_json(&c,&request,false,&json);memset(&c,0,sizeof(c));
+    result=fetch_json(&c,&request,false,&json);
     if(result==DSR_OK)result=dsr_lan_parse_capabilities(json,expected->generation,out);
+    /* BTHome devices are dynamic components; a gateway's Shelly.GetStatus may
+     * omit them. Only Bluetooth-capable devices are asked; a failed page keeps
+     * what earlier pages proved and never fails the inspection. */
+    if(result==DSR_OK&&expected->generation>=2&&(cJSON_GetObjectItemCaseSensitive(json,"ble")||cJSON_GetObjectItemCaseSensitive(json,"blugw"))){
+        unsigned offset=0;
+        for(unsigned page=0;page<12;page++){
+            dsr_request_t list={0};snprintf(list.path,sizeof(list.path),"/rpc/Shelly.GetComponents?dynamic_only=true&offset=%u",offset);cJSON *body=NULL;
+            unsigned next=0,total=0;dsr_result_t listed=fetch_json(&c,&list,false,&body);
+            if(listed==DSR_OK)listed=dsr_lan_parse_components(body,offset,&out->blu,&next,&total);
+            cJSON_Delete(body);if(listed!=DSR_OK||next>=total)break;offset=next;
+        }
+    }
+    memset(&c,0,sizeof(c));
     if(result==DSR_OK&&out->rgbs&&strcmp(observed.model,DSR_RGB_MODEL))result=DSR_UNSUPPORTED;
     if(result==DSR_OK&&out->ht&&(observed.generation!=3||strcmp(observed.model,DSR_HT_MODEL)))out->ht=false;
     cJSON_Delete(json);return result;

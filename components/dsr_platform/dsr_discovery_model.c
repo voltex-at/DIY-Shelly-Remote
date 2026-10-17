@@ -118,7 +118,9 @@ dsr_result_t dsr_blu_parse_known(const cJSON *r,unsigned cid,dsr_blu_object_t *o
   if(!text(component,24)||strncmp(component->valuestring,"bthomesensor:",13))return DSR_BAD_RESPONSE;
   char *end;long id=strtol(component->valuestring+13,&end,10);
   if(!component->valuestring[13]||*end||id<0||id>65535)return DSR_BAD_RESPONSE;
-  if(*count<capacity)objects[(*count)++]=(dsr_blu_object_t){.sensor=(uint16_t)id,.obj_id=(uint8_t)get(v,"obj_id")->valueint};
+  uint8_t obj=(uint8_t)get(v,"obj_id")->valueint;bool seen=false;for(unsigned i=0;i<*count;i++)seen|=objects[i].obj_id==obj;
+  if(seen)continue; /* e.g. BLU TRV reports two temperatures: keep the first (idx 0) */
+  if(*count<capacity)objects[(*count)++]=(dsr_blu_object_t){.sensor=(uint16_t)id,.obj_id=obj};
  }
  return DSR_OK;
 }
@@ -168,6 +170,22 @@ dsr_result_t dsr_blu_apply_sensor(const cJSON *r,unsigned sensor,uint8_t obj_id,
 }
 bool dsr_blu_sensor_shown(uint8_t obj_id)
 {return obj_id==0x21||obj_id==0x1A||obj_id==0x2D||obj_id==0x05||obj_id==0x01||obj_id==0x02||obj_id==0x45||obj_id==0x03||obj_id==0x2E||obj_id==0x3A;}
+dsr_result_t dsr_lan_parse_components(const cJSON *r,unsigned offset,uint16_t *blu,unsigned *next,unsigned *total)
+{
+ if(!blu||!next||!total||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
+ const cJSON *list=get(r,"components"),*at=get(r,"offset"),*all=get(r,"total");
+ if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)>100||!integral(at,(int)offset,(int)offset)||!integral(all,0,1000))return DSR_BAD_RESPONSE;
+ unsigned n=0;uint16_t found=0;const cJSON *v;
+ cJSON_ArrayForEach(v,list){
+  n++;const cJSON *key=get(v,"key");if(!cJSON_IsObject(v)||!text(key,40))return DSR_BAD_RESPONSE;
+  if(!strncmp(key->valuestring,"bthomedevice:",13)){
+   char *end;long cid=strtol(key->valuestring+13,&end,10);if(!key->valuestring[13]||*end||cid<0)return DSR_BAD_RESPONSE;
+   if(cid>=(long)DSR_BLU_FIRST_CID&&cid<(long)DSR_BLU_FIRST_CID+16)found|=(uint16_t)(1u<<(cid-(long)DSR_BLU_FIRST_CID));
+  }
+ }
+ if(offset+n>(unsigned)all->valueint||(!n&&offset<(unsigned)all->valueint))return DSR_BAD_RESPONSE; /* overrun or no progress */
+ *blu|=found;*next=offset+n;*total=(unsigned)all->valueint;return DSR_OK;
+}
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_lan_capabilities_t *out)
 {
     if(!out||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;

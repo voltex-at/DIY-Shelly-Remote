@@ -73,3 +73,42 @@ static void test_blu_registry_fleet(void)
  CHECK(f.slots[0].next_poll==300+30000);admission_open();
  c.layout_id=0;CHECK(dsr_connection_remove(&c)==ESP_OK);
 }
+
+/* Shape observed on a real BLU Gateway Gen3 (2026-10-17, MACs replaced):
+ * BTHome devices only in Shelly.GetComponents, paged (total 11, 9 per page),
+ * a BLU TRV with two temperatures and a paired sensor with all-null status. */
+static void test_blu_gateway_components(void)
+{
+ const char *page0="{\"components\":[{\"key\":\"blutrv:200\",\"status\":{\"id\":200,\"target_C\":20.0},\"config\":{\"id\":200,\"addr\":\"aa:bb:cc:00:00:01\",\"trv\":\"bthomedevice:200\"},\"attrs\":{\"model_id\":8}},"
+  "{\"key\":\"bthomedevice:200\",\"status\":{\"id\":200,\"rssi\":-51,\"battery\":100},\"config\":{\"id\":200,\"addr\":\"aa:bb:cc:00:00:01\",\"name\":null},\"attrs\":{\"model_id\":8}},"
+  "{\"key\":\"bthomedevice:201\",\"status\":{\"id\":201,\"rssi\":null,\"battery\":null,\"packet_id\":null,\"last_updated_ts\":null,\"key\":false,\"paired\":true,\"rpc\":false,\"rsv\":-1,\"fw_ver\":null},\"config\":{\"id\":201,\"addr\":\"aa:bb:cc:00:00:02\",\"name\":null},\"attrs\":{\"model_id\":2}},"
+  "{\"key\":\"bthomesensor:200\",\"status\":{\"id\":200,\"value\":100}}],\"cfg_rev\":25461,\"offset\":0,\"total\":5}";
+ const char *page1="{\"components\":[{\"key\":\"bthomedevice:230\",\"status\":{\"id\":230}}],\"cfg_rev\":25461,\"offset\":4,\"total\":5}";
+ uint16_t blu=0;unsigned next=0,total=0;cJSON *j=cJSON_Parse(page0);
+ CHECK(dsr_lan_parse_components(j,0,&blu,&next,&total)==DSR_OK&&blu==3&&next==4&&total==5);cJSON_Delete(j);
+ j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,4,&blu,&next,&total)==DSR_OK&&blu==3&&next==5);cJSON_Delete(j); /* cid 230: outside 16 channels */
+ const char *bad[]={"{\"components\":[],\"offset\":0,\"total\":3}","{\"components\":[{\"key\":\"bthomedevice:x\"}],\"offset\":0,\"total\":1}","{\"components\":[{\"key\":1}],\"offset\":0,\"total\":1}","{\"components\":[{\"key\":\"a\"},{\"key\":\"b\"}],\"offset\":0,\"total\":1}"};
+ for(unsigned i=0;i<4;i++){uint16_t none=0;j=cJSON_Parse(bad[i]);CHECK(dsr_lan_parse_components(j,0,&none,&next,&total)==DSR_BAD_RESPONSE&&!none);cJSON_Delete(j);}
+ j=cJSON_Parse(page1);CHECK(dsr_lan_parse_components(j,0,&blu,&next,&total)==DSR_BAD_RESPONSE);cJSON_Delete(j); /* offset not echoed */
+ /* Inspection: GetStatus lists no BTHome device, GetComponents pages do. */
+ const char *gw_id="{\"name\":null,\"id\":\"shellyblugwg3-aabbccddeeff\",\"mac\":\"AABBCCDDEEFF\",\"model\":\"S3GW-1DBT001\",\"gen\":3,\"fw_id\":\"x\",\"ver\":\"1.7.0\",\"app\":\"BluGatewayG3\",\"auth_en\":true}";
+ step_t gw[]={{"/shelly",gw_id,200,false,false},{"/rpc/Shelly.GetStatus","{\"ble\":{},\"blugw\":{},\"sys\":{\"uptime\":5}}",200,false,true},
+  {"/rpc/Shelly.GetComponents?dynamic_only=true&offset=0",page0,200,false,true},{"/rpc/Shelly.GetComponents?dynamic_only=true&offset=4",page1,200,false,true}};
+ lan_mode=true;dsr_lan_device_t d={0};fixture(gw,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OK);
+ dsr_connection_t c=connection();dsr_lan_capabilities_t caps;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==4&&caps.blu==3&&!caps.switches);
+ /* A failing page keeps proven channels and never fails the inspection. */
+ gw[3].status=500;fixture(gw,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&caps.blu==3);
+ gw[2].body="{\"components\":7}";fixture(gw,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==3&&caps.blu==0);
+ /* No Bluetooth in the status: no extra requests. */
+ gw[1].body="{\"sys\":{\"uptime\":5}}";fixture(gw,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps)==DSR_OK&&used==2&&caps.blu==0);
+ lan_mode=false;
+ /* BLU TRV GetKnownObjects: two temperatures (idx 0, 1); the first is kept. */
+ dsr_blu_object_t objects[8];unsigned n;
+ j=cJSON_Parse("{\"id\":200,\"objects\":[{\"obj_id\":1,\"idx\":0,\"component\":\"bthomesensor:200\"},{\"obj_id\":58,\"idx\":0,\"component\":\"bthomesensor:201\"},{\"obj_id\":69,\"idx\":0,\"component\":\"bthomesensor:202\"},{\"obj_id\":69,\"idx\":1,\"component\":\"bthomesensor:203\"}]}");
+ CHECK(dsr_blu_parse_known(j,200,objects,8,&n)==DSR_OK&&n==3&&objects[2].sensor==202&&objects[2].obj_id==69);cJSON_Delete(j);
+ /* Button with no value yet, sensor never heard: no data, no error. */
+ dsr_telemetry_t t={0};j=cJSON_Parse("{\"id\":201,\"last_updated_ts\":1070199072}");CHECK(dsr_blu_apply_sensor(j,201,0x3A,&t)==DSR_OK&&!t.blu.flags);cJSON_Delete(j);
+ j=cJSON_Parse("{\"id\":201,\"rssi\":null,\"battery\":null,\"packet_id\":null,\"last_updated_ts\":null,\"key\":false,\"paired\":true,\"rpc\":false,\"rsv\":-1,\"fw_ver\":null}");
+ CHECK(dsr_blu_parse_device(j,201,&t)==DSR_OK&&!t.has_blu_battery&&!(t.blu.flags&DSR_BLU_HAS_RSSI)&&!t.blu_updated_s);cJSON_Delete(j);
+ admission_open();
+}
