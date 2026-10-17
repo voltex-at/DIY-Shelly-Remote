@@ -19,7 +19,14 @@ void test_panel_ready(bool ready){https_ready=ready;dsr_config_health_panel(read
 bool dsr_panel_ready(void){return https_ready;}
 void test_workspace_defer(bool enabled){defer_save=enabled;}
 void test_workspace_finish(bool success){if(success){free(stored);stored=pending;}else free(pending);pending=NULL;}
-void test_workspace_enable(void){stored=dsr_config_default();}
+/* Existing owner workspace saved in Polish (most screenshots and labels are PL).
+ * A fresh install defaults to English: tests/test_config.c and test_style_ui.c. */
+void test_workspace_enable(void)
+{
+ stored=dsr_config_default();char *language=stored?strstr(stored,"\"language\":\"en\""):NULL;
+ if(language)memcpy(language+12,"pl",2);
+}
+void test_workspace_enable_fresh(void){stored=dsr_config_default();}
 void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;defer_save=false;}
 static unsigned raw_fault;
 void test_workspace_raw_fault(unsigned fault){raw_fault=fault;}

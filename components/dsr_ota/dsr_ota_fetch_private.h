@@ -1,14 +1,16 @@
 #ifndef DSR_OTA_FETCH_PRIVATE_H
 #define DSR_OTA_FETCH_PRIVATE_H
 #include "dsr_ota_fetch.h"
+#define DSR_OTA_DEV_PAGES 5u
 /* Internal transport only. Caller supplies 16385-byte heap storage. No parser,
  * candidate trust, app requests or installation. No public arbitrary URL API. */
 dsr_ota_fetch_result_t dsr_ota_fetch_metadata_body(const char *url,
  const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length);
-/* Native discovery only: exact own-repo latest (STABLE) or bounded list
- * ?per_page=5 (DEV). Old explicit-tag metadata semantics remain unchanged.
- * http_status is diagnostic only; it never authenticates release metadata. */
-dsr_ota_fetch_result_t dsr_ota_fetch_discovery_body(dsr_ota_channel_t channel,
+/* Native discovery only: exact own-repo latest (STABLE, page 1 only) or one
+ * release per page ?per_page=1&page=1..DSR_OTA_DEV_PAGES (DEV). Old explicit-tag
+ * metadata semantics remain unchanged. http_status is diagnostic only; it
+ * never authenticates release metadata. */
+dsr_ota_fetch_result_t dsr_ota_fetch_discovery_page(dsr_ota_channel_t channel,unsigned page,
  const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length,int *http_status);
 bool dsr_ota_fetch_policy_valid(const dsr_ota_policy_t *policy);
 /* Internal length-bound entry to the SAME genuine manifest/app chain. A size

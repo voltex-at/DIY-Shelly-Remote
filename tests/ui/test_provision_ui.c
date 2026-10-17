@@ -11,8 +11,14 @@ int main(int argc,char **argv)
  const dsr_storage_observer_t *o=dsr_ui_storage_observer();CHECK(o&&o->begin&&o->end);
  provision_progress_value=0;o->begin(false,992,0);
  CHECK(provision_gate&&provision_task_starts==1&&provision_backlight==1&&provision_holds==1&&dsr_ui_provision_visible());
+ /* First boot: no workspace and no saved language yet -> English. */
+ CHECK(find_label(lv_screen_active(),"Preparing storage")&&find_label(lv_screen_active(),"0 / 992 blocks • 0%")&&find_label(lv_screen_active(),"Do not disconnect power. Usually takes 1–2 minutes."));
+ CHECK(dsr_ui_provision_layout_ok());screenshot("290-format-start-en");
+ /* The same screen in Polish (dsr_sc_tr follows the active language). */
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);o->end(ESP_OK);dsr_ui_provision_release();advance(500);
+ provision_quiesces=provision_holds=provision_task_starts=provision_backlight=0;provision_progress_value=0;o->begin(false,992,0);
+ CHECK(provision_gate&&provision_task_starts==1&&provision_backlight==1&&provision_holds==1);
  CHECK(find_label(lv_screen_active(),"Przygotowanie pamięci")&&find_label(lv_screen_active(),"0 / 992 bloków • 0%")&&find_label(lv_screen_active(),"Nie odłączaj zasilania. Zwykle trwa 1–2 minuty."));
- CHECK(dsr_ui_provision_layout_ok());screenshot("290-format-start-pl");
  provision_progress_value=496;advance(20000);CHECK(find_label(lv_screen_active(),"496 / 992 bloków • 50%")&&find_label(lv_screen_active(),"Czas: 0:20"));
  provision_progress_value=300;advance(500);CHECK(find_label(lv_screen_active(),"496 / 992 bloków • 50%")); /* never moves backwards */
  provision_progress_value=5000;advance(500);CHECK(find_label(lv_screen_active(),"496 / 992 bloków • 50%")); /* out-of-range read ignored */

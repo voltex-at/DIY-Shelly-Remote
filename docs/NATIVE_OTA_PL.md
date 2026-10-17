@@ -71,11 +71,20 @@ gotowość CHECK to point-in-time, INSTALL powtarza wszystkie bramki.
 
 ## Zaufanie, rollback i dowody
 
-**Produkcja nadal ma EMPTY truststore.** Nie dodano klucza testowego, podpisu
-właściciela ani Stable Release. Bez zatwierdzonego autentycznego anchor klient
-odmawia przed APP/Flash. Fixture key istnieje wyłącznie w host suite i nie
-trafia do firmware. Zatwierdzenie klucza/publikacja wydania wymaga osobnej decyzji
-właściciela; kod nie wymusza tej decyzji teraz.
+**Produkcja ma jeden zatwierdzony klucz wydawcy** `voltex-ota-2026-1`
+(Ed25519, publiczny `23adf99d…861a47fe`, `components/dsr_ota/dsr_ota_trust.c`,
+przypięty w BIN przez `tools/check_ota_binary.py`). Klucz prywatny jest tylko u
+właściciela i w sekrecie `DSR_OTA_SIGNING_KEY`; podpisuje wyłącznie
+`release.yml`. Manifest z innym kluczem klient odrzuca przed APP/Flash. Fixture
+key istnieje tylko w testach hostowych. Stable wymaga osobnej zgody właściciela.
+
+Katalog: Stable = `/releases/latest` (bez wydania Stable GitHub zwraca 404, LCD
+podpowiada kanał Dev). Dev = do pięciu stron `?per_page=1&page=N`, pierwsze
+nie-draft prerelease; każda strona mieści się w limicie 16 KiB niezależnie od
+liczby wydań. Pobrania assetów przekierowują na `release-assets` lub
+`objects.githubusercontent.com`; host nie jest kotwicą zaufania (SHA-256 i rozmiar
+są w podpisanym manifeście). Nieudane sprawdzenie pokazuje na LCD
+`Kod błędu: error/fetch/HTTP/manifest` i jedną linię `W native_ota` w logu USB.
 
 Istniejące delayed health confirmation po UI/HTTPS/touch gotowości pozostaje.
 Rollback nowego SDK/bootloadera i zachowanie NVS/workspace/zdjęć wymagają osobnego
@@ -84,7 +93,7 @@ Nie flashowano ani nie restartowano urządzenia w tym etapie.
 
 Host suite: genuine fetch/signature/SHA/image z modelami HTTP/partition/SDK,
 header splits1..512, OOM/cancel/transport cleanup/zmieniona zgoda/SDK faults,
-success i UNCERTAIN w świeżych procesach, EMPTY zeroAPP/begin/write/end/boot,
+success i UNCERTAIN w świeżych procesach, nieznany klucz: zero APP/begin/write/end/boot,
 pthread shared reservation/restart race. Niezależny actual actor lifecycle,
 120s/stale id/channel/power/one-shot/late cancel, actual SNTP gate i strict
 discovery parser/fetch. Rzeczywisty LVGL obejmuje PL/EN/DE, literal notes,

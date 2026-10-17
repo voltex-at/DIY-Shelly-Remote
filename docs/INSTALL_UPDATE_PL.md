@@ -9,10 +9,11 @@ Aktualizacja app-only wymaga niezmienionej tablicy partycji i poprawnie
 zamontowanego dotychczasowego magazynu. Nie naprawia częściowo sformatowanego
 lub uszkodzonego SPIFFS. Najpierw zachowuje się kopię i rozstrzyga stan danych.
 
-OTA wybiera nieaktywny slot przez SDK i wymaga zgodnego podpisanego manifestu
-oraz zatwierdzonego klucza wydawcy. Obecny produkcyjny truststore jest EMPTY:
-sam CI BIN nie jest podpisanym wydaniem, więc aplikacja słusznie odmówi OTA.
-Paczka nie dodaje klucza, podpisu, Stable ani obejścia weryfikacji.
+OTA z pilota wybiera nieaktywny slot przez SDK i wymaga manifestu podpisanego
+zatwierdzonym kluczem wydawcy `voltex-ota-2026-1` (jedyny klucz w firmware).
+Podpisany jest wyłącznie zestaw z GitHub Release (workflow `release.yml`).
+BIN z artefaktu CI nie ma podpisanego manifestu: służy do OTA z Web Panelu
+(z potwierdzeniem na LCD i sumą SHA-256) albo do USB app-only.
 
 Ewentualny zatwierdzony test USB zapisuje samą aplikację do aktywnego slotu
 potwierdzonego aktualnym logiem: ota_0 0x20000 albo ota_1 0x620000, oba po

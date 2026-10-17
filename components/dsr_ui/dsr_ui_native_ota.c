@@ -43,7 +43,9 @@ static const char *status_text(void)
   case DSR_NATIVE_ERROR_OFFLINE:return "Połącz pilot z domowym Wi-Fi.";
   case DSR_NATIVE_ERROR_BUSY:return "Pilot jest zajęty. Spróbuj ponownie.";
   case DSR_NATIVE_ERROR_CLOCK:return "Nie ustawiono czasu. Sprawdź dostęp do internetu i spróbuj ponownie.";
-  case DSR_NATIVE_ERROR_NO_RELEASE:return "Brak wydania w wybranym kanale.";
+  case DSR_NATIVE_ERROR_NO_RELEASE:return snapshot.channel==DSR_OTA_STABLE?"Brak wydania Stable. Wersje testowe: Zmień kanał, potem Dev.":"Brak wydania w wybranym kanale.";
+  case DSR_NATIVE_ERROR_RATE_LIMIT:return "GitHub chwilowo ogranicza zapytania. Spróbuj ponownie za godzinę.";
+  case DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD:return "Nie pobrano manifestu wydania. Sprawdź internet i spróbuj ponownie.";
   case DSR_NATIVE_ERROR_MANIFEST:
    if(snapshot.manifest_result==DSR_MANIFEST_UNTRUSTED_KEY)return "Brak zatwierdzonego klucza wydawcy. Instalacja zablokowana.";
    if(snapshot.manifest_result==DSR_MANIFEST_BAD_SIGNATURE)return "Nieprawidłowy podpis wydania. Instalacja zablokowana.";
@@ -125,6 +127,11 @@ static void show(void)
  if(running){
   progress_label=dsr_sc_text(body,"",4,226,284,&dsr_roboto_14,DSR_SC_MUTED);progress();
   dsr_ui_button(body,"Anuluj",0,280,296,cancelled_action,NULL);return;
+ }
+ if(snapshot.state==DSR_NATIVE_FAILED){
+  /* error/fetch/HTTP/manifest: what the owner reports from a failed check. */
+  lv_obj_t *code=dsr_sc_text(body,"",4,196,284,&dsr_roboto_12,DSR_SC_MUTED);
+  dsr_sc_label_set_text_fmt(code,"Kod błędu: %d/%d/%d/%d",(int)snapshot.error,(int)snapshot.fetch_result,snapshot.http_status,(int)snapshot.manifest_result);
  }
  if(snapshot.state==DSR_NATIVE_STAGED||snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,270,296,restart,NULL);return;}
  int y=234;

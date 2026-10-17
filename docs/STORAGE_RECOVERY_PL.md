@@ -104,8 +104,8 @@ CI przygotowuje teraz dwa wyraźnie oddzielne artefakty:
   i granice. Zawiera też osobne segmenty/offsety. Ten wariant usuwa dane i jest
   przeznaczony wyłącznie do osobno zatwierdzonego czystego testu.
 - **UPDATE-APP-ONLY:** tylko aplikacja do właściwego slotu, bez erase/DSR obrazu,
-  bootloadera/partycji/otadata. Produkcyjny OTA truststore nadal EMPTY; CI BIN
-  nie jest zatwierdzonym podpisanym wydaniem.
+  bootloadera/partycji/otadata. BIN z CI nie ma podpisanego manifestu; podpisane
+  wydania (klucz `voltex-ota-2026-1`) powstają tylko w `release.yml`.
 
 Pełna tablica/MD5,16MiB boundary, każdy segment i każda przerwaFF, CRC32/SHA256,
 app checksum/hash/chip9 oraz montowanie dokładnie tego obrazu na oryginalnym

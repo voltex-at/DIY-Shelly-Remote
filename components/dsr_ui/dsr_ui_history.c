@@ -114,7 +114,7 @@ static void energy(lv_obj_t *root)
  lv_obj_t *list=dsr_sc_panel(root,12,111,296,282,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
  for(unsigned i=0;dsr_network_energy_at(i,&d);i++){
   lv_obj_t *row=dsr_sc_button(list,0,(int)i*82,280,74,DSR_SC_CARD,10,open_row,(void *)(uintptr_t)d.id);
-  dsr_sc_text(row,d.name,10,9,260,&dsr_roboto_14,DSR_SC_TEXT);
+  dsr_sc_text(row,dsr_sc_name(d.name),10,9,260,&dsr_roboto_14,DSR_SC_TEXT);
   if(d.online&&(!d.has_sample_time||lv_tick_get()-d.sample_ms>15000))snprintf(text,sizeof(text),"%s",dsr_sc_tr("Odczyt starszy niż 15 s"));
   else if(d.online&&d.has_energy)snprintf(text,sizeof(text),"%.6g Wh • %s",d.energy_wh,dsr_sc_tr("licznik Shelly"));
   else snprintf(text,sizeof(text),"%s",dsr_sc_tr(d.online?"Brak obsługiwanych pomiarów":"Offline / odczyty niedostępne"));

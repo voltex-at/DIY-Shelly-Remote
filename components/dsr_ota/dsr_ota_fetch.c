@@ -36,10 +36,15 @@ static bool initial_url(const char *url)
 }
 static bool asset_url(const char *url)
 {
- static const char prefix[]="https://release-assets.githubusercontent.com/";
- size_t n=bounded_length(url,DSR_OTA_FETCH_URL_MAX);
- if(n>DSR_OTA_FETCH_URL_MAX||n<=sizeof(prefix)-1||strncmp(url,prefix,sizeof(prefix)-1))return false;
- const char *p=url+sizeof(prefix)-1,*path=p;
+ /* GitHub serves release assets from either CDN host (observed 2026-10-17:
+  * objects.githubusercontent.com). The host is not a trust anchor: the
+  * signed manifest pins size and SHA-256 of every byte that is installed. */
+ static const char *const prefixes[]={"https://release-assets.githubusercontent.com/","https://objects.githubusercontent.com/"};
+ size_t n=bounded_length(url,DSR_OTA_FETCH_URL_MAX),prefix=0;
+ if(n>DSR_OTA_FETCH_URL_MAX)return false;
+ for(unsigned i=0;i<2&&!prefix;i++){size_t k=strlen(prefixes[i]);if(n>k&&!strncmp(url,prefixes[i],k))prefix=k;}
+ if(!prefix)return false;
+ const char *p=url+prefix,*path=p;
  for(;*p&&*p!='?';p++){
   if(!alnum(*p)&&*p!='-'&&*p!='_'&&*p!='.'&&*p!='/')return false;
   if((*p=='.'&&p[1]=='.')||(*p=='/'&&(p==path||p[1]=='/')))return false;
@@ -71,7 +76,22 @@ static bool metadata_url(const char *url)
  return true;
 }
 static const char stable_discovery[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases/latest";
-static const char dev_discovery[]="https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=5";
+/* DEV walks one release per page so each response stays far below the
+ * 16 KiB body limit however many releases and assets the repository has. */
+static const char *const dev_discovery[DSR_OTA_DEV_PAGES]={
+ "https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=1&page=1",
+ "https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=1&page=2",
+ "https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=1&page=3",
+ "https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=1&page=4",
+ "https://api.github.com/repos/voltex-at/DIY-Shelly-Remote/releases?per_page=1&page=5"};
+_Static_assert(DSR_OTA_DEV_PAGES==5,"one URL per DEV page");
+static bool discovery_url(const char *url)
+{
+ if(!url)return false;
+ if(!strcmp(url,stable_discovery))return true;
+ for(unsigned i=0;i<DSR_OTA_DEV_PAGES;i++)if(!strcmp(url,dev_discovery[i]))return true;
+ return false;
+}
 bool dsr_ota_fetch_policy_valid(const dsr_ota_policy_t *policy)
 {
  return policy&&policy->current_version&&bounded_length(policy->current_version,31)<=31
@@ -141,7 +161,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
  if(!image)memset(out,0,sizeof(*out));
  if(!dsr_ota_fetch_policy_valid(policy)||expected_manifest_size>DSR_OTA_MANIFEST_MAX)return DSR_FETCH_ARGUMENT;
  }
- if(release?(discovery?(!url||(strcmp(url,stable_discovery)&&strcmp(url,dev_discovery))):!metadata_url(url)):!initial_url(url))return DSR_FETCH_URL;
+ if(release?(discovery?!discovery_url(url):!metadata_url(url)):!initial_url(url))return DSR_FETCH_URL;
  if(time(NULL)<(time_t)1735689600)return DSR_FETCH_CLOCK;
  size_t limit=release?16384u:image?out->size:expected_manifest_size?expected_manifest_size:DSR_OTA_MANIFEST_MAX;
  fetch_t *s=calloc(1,sizeof(*s));if(!s)return DSR_FETCH_NOMEM;
@@ -247,13 +267,14 @@ dsr_ota_fetch_result_t dsr_ota_fetch_metadata_body(const char *url,
  if(!body||!length)return DSR_FETCH_ARGUMENT;
  return fetch(url,NULL,control,NULL,NULL,NULL,NULL,body,length,0,NULL,false,NULL);
 }
-dsr_ota_fetch_result_t dsr_ota_fetch_discovery_body(dsr_ota_channel_t channel,
+dsr_ota_fetch_result_t dsr_ota_fetch_discovery_page(dsr_ota_channel_t channel,unsigned page,
  const dsr_ota_fetch_control_t *control,unsigned char *body,size_t *length,int *http_status)
 {
  if(length)*length=0;
  if(http_status)*http_status=0;
  if(!body||!length||(channel!=DSR_OTA_STABLE&&channel!=DSR_OTA_DEV))return DSR_FETCH_ARGUMENT;
- return fetch(channel==DSR_OTA_STABLE?stable_discovery:dev_discovery,NULL,control,
+ if(page<1||page>(channel==DSR_OTA_STABLE?1u:DSR_OTA_DEV_PAGES))return DSR_FETCH_ARGUMENT;
+ return fetch(channel==DSR_OTA_STABLE?stable_discovery:dev_discovery[page-1],NULL,control,
   NULL,NULL,NULL,NULL,body,length,0,NULL,true,http_status);
 }
 

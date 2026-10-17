@@ -162,7 +162,7 @@ char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
 
 char *dsr_config_default(void)
 {
- const char *value="{\"schema\":2,\"revision\":1,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"groups\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
+ const char *value="{\"schema\":2,\"revision\":1,\"language\":\"en\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"groups\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
  char *copy=malloc(strlen(value)+1);if(copy)memcpy(copy,value,strlen(value)+1);return copy;
 }
 uint32_t dsr_config_revision(const char *json)

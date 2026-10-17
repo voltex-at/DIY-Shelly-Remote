@@ -122,6 +122,11 @@ int main(int argc,char **argv)
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn);fail_headers=2;run(initial,DSR_FETCH_IO,DSR_MANIFEST_INVALID);
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn);fail_close=2;run(initial,DSR_FETCH_IO,DSR_MANIFEST_INVALID);
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn);fail_cleanup=2;run(initial,DSR_FETCH_IO,DSR_MANIFEST_INVALID);
+ /* GitHub also redirects to objects.githubusercontent.com (observed on dev-v0.7.38). */
+ static const char objects_cdn[]="https://objects.githubusercontent.com/github-production-release-asset-2e65be/1419964327/276c096a?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=ab12";
+ reset();hops[0].status=302;hops[0].count=0;add(0,"Location",objects_cdn);run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==2);
+ const char *bad_objects[]={"http://objects.githubusercontent.com/path","https://objects.githubusercontent.com.evil/path","https://objects-githubusercontent.com/path","https://objects.githubusercontent.co/path","https://user@objects.githubusercontent.com/path","https://objects.githubusercontent.com:443/path","https://objects.githubusercontent.com/","https://objects.githubusercontent.com/a/../b","https://evil.com/objects.githubusercontent.com/path"};
+ for(unsigned i=0;i<sizeof(bad_objects)/sizeof(bad_objects[0]);i++){reset();hops[0].status=302;hops[0].count=0;add(0,"Location",bad_objects[i]);run(initial,-1,DSR_MANIFEST_INVALID);CHECK(initialized==1);}
  const char *bad_redirects[]={"http://release-assets.githubusercontent.com/path","https://release-assets.githubusercontent.com.evil/path","https://user@release-assets.githubusercontent.com/path","https://release-assets.githubusercontent.com:443/path","https://release-assets.githubusercontent.com/path#fragment","https://release-assets.githubusercontent.com/path?bad=%0d","https://release-assets.githubusercontent.com/path?bad=%00","https://release-assets.githubusercontent.com/path?bad=%7f","https://release-assets.githubusercontent.com/path?bad=%q0","https://release-assets.githubusercontent.com/path?bad=%","/relative/path","https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/v1/x"};
  for(unsigned i=0;i<sizeof(bad_redirects)/sizeof(bad_redirects[0]);i++){reset();hops[0].status=302;hops[0].count=0;add(0,"Location",bad_redirects[i]);run(initial,-1,DSR_MANIFEST_INVALID);CHECK(initialized==1);}
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn);hops[1].status=302;hops[1].count=0;add(1,"Location",cdn);run(initial,DSR_FETCH_REDIRECT,DSR_MANIFEST_INVALID);CHECK(initialized==2);
@@ -203,7 +208,7 @@ int main(int argc,char **argv)
 #ifdef DSR_FETCH_HOST_TEST_TRUST
  "HOST ONLY"
 #else
- "PRODUCTION EMPTY"
+ "PRODUCTION (fixture key not trusted)"
 #endif
  );return 0;
 }

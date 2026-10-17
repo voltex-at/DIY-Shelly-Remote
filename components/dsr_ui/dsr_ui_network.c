@@ -137,7 +137,7 @@ static void render(void)
    if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
    dsr_mobile_device_t *d=&mobile_model.devices[mobile_model.device_count++];const dsr_device_t *c=&fleet.slots[i].connection.device;
    snprintf(d->name,sizeof(d->name),"%s",c->name);snprintf(d->host,sizeof(d->host),"%s",c->host);d->id=fleet.slots[i].connection.layout_id;
-   snprintf(d->model,sizeof(d->model),"Shelly • kanał %u",c->channel);d->channel=c->channel;d->room=DSR_UI_NO_ROOM;d->kind=c->endpoint_kind==DSR_ENDPOINT_HT?DSR_DEVICE_SENSOR:c->endpoint_kind==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:c->endpoint_kind==DSR_ENDPOINT_RGB?DSR_DEVICE_RGB:c->endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY;
+   snprintf(d->model,sizeof(d->model),dsr_sc_tr("Shelly • kanał %u"),c->channel);d->channel=c->channel;d->room=DSR_UI_NO_ROOM;d->kind=c->endpoint_kind==DSR_ENDPOINT_HT?DSR_DEVICE_SENSOR:c->endpoint_kind==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:c->endpoint_kind==DSR_ENDPOINT_RGB?DSR_DEVICE_RGB:c->endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY;
   }
  }
  for(unsigned i=0;i<mobile_model.device_count;i++){

@@ -83,7 +83,7 @@ for line in stacks[0].read_text().splitlines():
     frames[function] = size
 public = {"dsr_ota_fetch_manifest", "dsr_ota_fetch_app", "dsr_ota_fetch_metadata_body",
           "dsr_ota_fetch_app_sized", "dsr_ota_fetch_policy_valid",
-          "dsr_ota_fetch_discovery_body", "dsr_ota_fetch_stream_app"}
+          "dsr_ota_fetch_discovery_page", "dsr_ota_fetch_stream_app"}
 require(public <= set(frames), f"Public fetch stack reports missing: {sorted(public - set(frames))}")
 require(any(name == "fetch" or name.startswith("fetch.") for name in frames),
         "Private shared transport stack report missing")

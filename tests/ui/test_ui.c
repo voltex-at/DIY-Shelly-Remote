@@ -26,6 +26,7 @@ void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t err
 void test_native_ota_uncertain(void);
 void test_native_ota_notes(const char *text);
 unsigned test_native_ota_cancels(void);
+void test_native_ota_detail(dsr_ota_channel_t channel,dsr_ota_fetch_result_t fetch,int http);
 void test_workspace_enable(void);
 void test_workspace_disable(void);
 void test_workspace_defer(bool enabled);
@@ -347,6 +348,17 @@ static void native_ota_regression(void)
  test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_MANIFEST,DSR_MANIFEST_UNTRUSTED_KEY);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"System"));dsr_ui_native_ota_open(NULL);
  CHECK(find_label(lv_screen_active(),"Brak zatwierdzonego klucza wydawcy. Instalacja zablokowana.")&&!find_label(lv_screen_active(),"Zainstaluj"));screenshot("240-native-ota-untrusted-pl");
+ /* 0.7.37 field report: Stable has no release (HTTP 404), GitHub rate limit,
+  * manifest download (CDN redirect) - each with its own text and code line. */
+ test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_NO_RELEASE,DSR_MANIFEST_INVALID);test_native_ota_detail(DSR_OTA_STABLE,DSR_FETCH_STATUS,404);dsr_ui_native_ota_open(NULL);
+ CHECK(find_label(lv_screen_active(),"Brak wydania Stable. Wersje testowe: Zmień kanał, potem Dev.")&&find_label(lv_screen_active(),"Kod błędu: 4/5/404/1"));screenshot("241-native-ota-no-stable-pl");
+ test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_RATE_LIMIT,DSR_MANIFEST_INVALID);test_native_ota_detail(DSR_OTA_DEV,DSR_FETCH_STATUS,403);dsr_ui_native_ota_open(NULL);
+ CHECK(find_label(lv_screen_active(),"GitHub chwilowo ogranicza zapytania. Spróbuj ponownie za godzinę."));
+ test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD,DSR_MANIFEST_INVALID);test_native_ota_detail(DSR_OTA_DEV,DSR_FETCH_REDIRECT,200);
+ dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_ui_native_ota_open(NULL);
+ CHECK(find_label(lv_screen_active(),"Could not download the release manifest. Check the internet and try again.")&&find_label(lv_screen_active(),"Error code: 16/9/200/1"));screenshot("242-native-ota-manifest-download-en");
+ dsr_sc_appearance(DSR_SC_BLUE,false,0);test_native_ota_detail(DSR_OTA_STABLE,DSR_FETCH_ARGUMENT,0);
+ test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_MANIFEST,DSR_MANIFEST_UNTRUSTED_KEY);dsr_ui_native_ota_open(NULL);
  tap_row("Sprawdź aktualizacje");CHECK(in_flight&&submitted.kind==DSR_JOB_OTA_CHECK);
  test_native_ota_set(DSR_NATIVE_AVAILABLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
  lv_obj_t *notes=find_label(lv_screen_active(),"<b>plain untrusted</b>\n#ff0000 literal#");CHECK(notes&&!lv_label_get_recolor(notes));

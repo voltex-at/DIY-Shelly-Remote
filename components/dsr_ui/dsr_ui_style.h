@@ -37,6 +37,8 @@ enum {DSR_SC_STYLE_GRAPHITE,DSR_SC_STYLE_MIDNIGHT,DSR_SC_STYLE_LIGHT};
 /* style: graphite / midnight / light ("Jasny"); a bool midnight still maps 0/1. */
 void dsr_sc_appearance(uint32_t accent,unsigned style,unsigned language);
 unsigned dsr_sc_style(void);
+const char *dsr_sc_user(const char *text);
+const char *dsr_sc_name(const char *name);
 const char *dsr_sc_tr(const char *text);
 void dsr_sc_label_set_text(lv_obj_t *label,const char *text);
 void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...);

@@ -202,8 +202,9 @@ static void plain_notes(const cJSON *body,char out[DSR_OTA_NATIVE_NOTES_MAX+1])
  out[used]=0;
 }
 dsr_ota_release_result_t dsr_ota_discovery_parse(const void *input,size_t length,
- dsr_ota_channel_t channel,dsr_ota_discovery_t *out)
+ dsr_ota_channel_t channel,dsr_ota_discovery_t *out,unsigned *entries)
 {
+ if(entries)*entries=0;
  if(!out)return DSR_RELEASE_ARGUMENT;
  memset(out,0,sizeof(*out));
  if(!input||!length||length>DSR_OTA_RELEASE_MAX||(channel!=DSR_OTA_STABLE&&channel!=DSR_OTA_DEV))return DSR_RELEASE_ARGUMENT;
@@ -217,6 +218,7 @@ dsr_ota_release_result_t dsr_ota_discovery_parse(const void *input,size_t length
  if(channel==DSR_OTA_STABLE){if(!cJSON_IsObject(root))goto done;selected=root;}
  else{
   if(!cJSON_IsArray(root)||cJSON_GetArraySize(root)>5)goto done;
+  if(entries)*entries=(unsigned)cJSON_GetArraySize(root);
   const cJSON *entry;
   cJSON_ArrayForEach(entry,root){
    if(!cJSON_IsObject(entry)||!cJSON_IsBool(field(entry,"draft"))||!cJSON_IsBool(field(entry,"prerelease")))goto done;

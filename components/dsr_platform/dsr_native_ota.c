@@ -2,6 +2,7 @@
 #include "dsr_boot.h"
 #include "dsr_ota_stage.h"
 #include "esp_app_desc.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -21,6 +22,7 @@ typedef struct {
  bool queued,running,power;
 } actor_t;
 static actor_t actor;
+static const char *TAG="native_ota";
 static SemaphoreHandle_t mutex;
 static atomic_bool cancellation;
 _Static_assert(sizeof(actor_t)<=2304,"bounded native updater state, no job/event growth");
@@ -97,6 +99,7 @@ static dsr_native_ota_error_t fetch_error(dsr_ota_fetch_result_t result,int stat
  if(result==DSR_FETCH_CLOCK)return DSR_NATIVE_ERROR_CLOCK;
  if(result==DSR_FETCH_NOMEM)return DSR_NATIVE_ERROR_MEMORY;
  if(status==404)return DSR_NATIVE_ERROR_NO_RELEASE;
+ if(status==403||status==429)return DSR_NATIVE_ERROR_RATE_LIMIT;
  return DSR_NATIVE_ERROR_CATALOGUE;
 }
 void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event)
@@ -126,7 +129,7 @@ void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event)
   fetch=dsr_ota_discovery_fetch(policy.selected_channel,&control,&actor.discovery,&release,&http_status);
   if(fetch!=DSR_FETCH_OK){error=fetch==DSR_FETCH_RELEASE&&release==DSR_RELEASE_NOT_FOUND?DSR_NATIVE_ERROR_NO_RELEASE:fetch_error(fetch,http_status);goto finish;}
   fetch=dsr_ota_fetch_manifest(actor.discovery.candidate.manifest_url,&policy,&control,&actor.verified,&manifest);
-  if(fetch!=DSR_FETCH_OK){error=DSR_NATIVE_ERROR_MANIFEST;goto finish;}
+  if(fetch!=DSR_FETCH_OK){error=fetch==DSR_FETCH_MANIFEST?DSR_NATIVE_ERROR_MANIFEST:fetch==DSR_FETCH_NOMEM?DSR_NATIVE_ERROR_MEMORY:DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD;goto finish;}
   success=true;
  }else{
   dsr_ota_install_control_t install_control={cancelled,progress,NULL};
@@ -146,5 +149,9 @@ finish:
   actor.view.state=DSR_NATIVE_AVAILABLE;actor.available_at=esp_timer_get_time();actor.view.total=actor.verified.size;
   memcpy(actor.view.version,actor.verified.version,sizeof(actor.view.version));memcpy(actor.view.notes,actor.discovery.notes,sizeof(actor.view.notes));event->result=DSR_OK;
  }else {forget_candidate();actor.view.state=DSR_NATIVE_FAILED;actor.view.error=error;event->result=DSR_IO;}
+ dsr_native_ota_state_t state=actor.view.state;dsr_ota_channel_t channel=actor.view.channel;
  unlock();
+ /* One line per failed operation for the USB log: stage and raw results. */
+ if(state==DSR_NATIVE_FAILED)ESP_LOGW(TAG,"%s %s failed: error=%d fetch=%d http=%d manifest=%d install=%d",
+  job->kind==DSR_JOB_OTA_CHECK?"check":"install",channel==DSR_OTA_DEV?"dev":"stable",(int)error,(int)fetch,http_status,(int)manifest,(int)installed);
 }

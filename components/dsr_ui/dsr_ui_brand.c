@@ -46,7 +46,7 @@ bool dsr_ui_splash_visible(void){return splash!=NULL;}
 void dsr_ui_splash_begin(void)
 {
  /* The workspace (true style) is not mounted yet: use the NVS hint. */
- dsr_sc_appearance(DSR_SC_BLUE,dsr_style_hint_get(),0);
+ dsr_sc_appearance(DSR_SC_BLUE,dsr_style_hint_get(),1); /* EN: language not known yet */
  dsr_ui_splash_show();
  dsr_boot_provisioning_ui(true);
  splash_task=dsr_board_start_ui_task(dsr_boot_ui_gate)==ESP_OK;

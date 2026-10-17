@@ -44,12 +44,9 @@ właściciela; klucz publiczny `23adf99d…861a47fe` wkompilowany w
 z sekretem `DSR_OTA_SIGNING_KEY` (tag `vX.Y.Z` = Stable, `dev-vX.Y.Z` = Dev).
 `tools/test_ota_signer.py` sprawdza signer na prawdziwym weryfikatorze i
 prawdziwym providerze zaufania (z sekretem: akceptacja, manipulacja, kanał,
-downgrade). Poniższy akapit opisuje stan sprzed tej decyzji.
-
-Produkcyjny truststore jest pusty: obecny firmware nigdy nie przyjmie manifestu
-jako zaufanego wydania. Klucz testowy nie jest kompilowany przez IDF. Publiczny
-klucz wydawcy, rotacja/recovery i zatwierdzony podpisany Release wymagają review.
-Pustego store nie zastępować kluczem RFC/testowym.
+downgrade). Firmware ufa wyłącznie kluczowi `voltex-ota-2026-1`; klucze
+RFC/testowe nie są kompilowane przez IDF. Rotacja klucza wymaga nowego firmware
+(zainstalowanego jeszcze starym kluczem) i osobnej decyzji właściciela.
 
 Monocypher 4.0.3: pin/licencja/checksum w components/dsr_crypto/README.md,
 oryginalne bajty BSD-2-Clause OR CC0, opcjonalny moduł SHA-512 Ed25519.
@@ -67,7 +64,7 @@ do instalacji bez pozostałych bramek.
 ## Weryfikacja i dalsze bramki
 
 RFC KAT i mutacje podpisu: 2315 kontroli. Niezależny Python cryptography signer:
-117 przypadków, 1494 kontrole host trust i 1329 pustego produkcyjnego truststore,
+117 przypadków, 1494 kontrole host trust i 1329 z produkcyjnym truststore (klucz fixture odrzucony),
 w tym po 32 allocation failures. Hash checker kontroluje oryginalny vendor.
 Target CI wymaga parsera/Ed25519/SHA-512 w ELF, bez signer/keygen i testowego
 klucza w BIN. Nie jest to fizyczny test czasu/stosu lub instalacji ESP32-S3.

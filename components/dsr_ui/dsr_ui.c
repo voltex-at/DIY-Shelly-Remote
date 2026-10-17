@@ -63,7 +63,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_t *caption = lv_label_create(obj);
     lv_obj_set_style_text_font(caption, &dsr_roboto_16, 0);
     lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
-    dsr_sc_label_set_text(caption, dsr_sc_tr(text));
+    lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
     return obj;
 }

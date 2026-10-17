@@ -231,6 +231,7 @@ int main(int argc,char **argv)
  const uint32_t letters[]={0x105,0x119,0x142,0x144,0x15b,0x17a,0x17c,0xf3,0xe4,0xf6,0xfc,0xdf,0xf00c};
  for(unsigned i=0;i<sizeof(letters)/sizeof(letters[0]);i++){lv_font_glyph_dsc_t glyph;CHECK(lv_font_get_glyph_dsc(&dsr_roboto_14,&glyph,letters[i],0));}
  const dsr_mobile_actions_t actions={.set_output=set_output,.open_settings=open_settings,.add_device=add_device,.edit_dashboard=edit_dashboard,.select_dashboard=noop,.set_cover=set_cover,.stop_cover=stop_cover,.edit_device=edit_device};dsr_mobile_bind(&actions);
+ dsr_sc_appearance(DSR_SC_BLUE,false,0); /* review frames are the PL owner workspace; boot default is EN */
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
  navigation_and_chips();

@@ -68,7 +68,7 @@ static void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
  char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);char error[96];
  if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);dsr_sc_text(list,"Konfiguracja niedostępna",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);return;}
  const cJSON *v,*all=cJSON_GetObjectItemCaseSensitive(r,page?"scenes":"groups");unsigned i=0;
- cJSON_ArrayForEach(v,all){const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*name=cJSON_GetObjectItemCaseSensitive(v,"name"),*members=cJSON_GetObjectItemCaseSensitive(v,page?"actions":"members");int y=(int)i++*100;dsr_sc_text(list,name->valuestring,6,y+4,270,&dsr_roboto_16,DSR_SC_TEXT);
+ cJSON_ArrayForEach(v,all){const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*name=cJSON_GetObjectItemCaseSensitive(v,"name"),*members=cJSON_GetObjectItemCaseSensitive(v,page?"actions":"members");int y=(int)i++*100;dsr_sc_text(list,dsr_sc_name(name->valuestring),6,y+4,270,&dsr_roboto_16,DSR_SC_TEXT);
   lv_obj_t *first=button(list,page?"Uruchom scenę":"Włącz grupę",0,y+36,page?280:136,run,((uintptr_t)id->valueint<<2)|(page?1:2));if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(first,LV_STATE_DISABLED);
   if(!page){lv_obj_t *off=button(list,"Wyłącz grupę",144,y+36,136,run,(uintptr_t)id->valueint<<2);if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(off,LV_STATE_DISABLED);}
  }

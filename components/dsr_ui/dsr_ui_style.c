@@ -10,10 +10,10 @@ void dsr_ui_battery_header(lv_obj_t *root);
 
 static uint32_t accent=DSR_SC_BLUE;
 static unsigned style;
-static unsigned language;
+static unsigned language=1; /* EN until the workspace (saved language) is loaded */
 unsigned dsr_sc_language(void){return language;}
 unsigned dsr_sc_style(void){return style;}
-void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<3?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:0;}
+void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<3?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
 /* "Jasny": every neutral token of the dark design maps to a light twin.
  * Data colors (accent, RGB swatches, warnings) pass through unchanged. */
 static uint32_t light(uint32_t c)
@@ -48,8 +48,16 @@ lv_color_t dsr_sc_color(uint32_t c)
  if(style==DSR_SC_STYLE_LIGHT)c=light(c);
  return lv_color_hex(c);
 }
+/* User content (names of rooms, devices, scenes, dashboards) is shown as typed:
+ * the next dsr_sc_tr of exactly this pointer returns it untranslated. */
+static const char *user_text;
+const char *dsr_sc_user(const char *text){user_text=text;return text;}
+/* Names the firmware itself created (defaults) stay localized. */
+const char *dsr_sc_name(const char *name)
+{return name&&strcmp(name,"Mój pulpit")&&strcmp(name,"Mój dom")?dsr_sc_user(name):name;}
 const char *dsr_sc_tr(const char *text)
 {
+ if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
  {"Stan: włączone","State: on","Status: ein"},
  {"Stan: wyłączone","State: off","Status: aus"},
@@ -92,6 +100,10 @@ const char *dsr_sc_tr(const char *text)
  {"Połącz pilot z domowym Wi-Fi.","Connect the remote to home Wi-Fi.","Fernbedienung mit dem Heim-WLAN verbinden."},
  {"Nie ustawiono czasu. Sprawdź dostęp do internetu i spróbuj ponownie.","Time is not set. Check internet access and retry.","Uhrzeit nicht gesetzt. Internetzugang prüfen und erneut versuchen."},
  {"Brak wydania w wybranym kanale.","No release in the selected channel.","Keine Version im gewählten Kanal."},
+ {"Brak wydania Stable. Wersje testowe: Zmień kanał, potem Dev.","No Stable release yet. Test versions: Change channel, then Dev.","Noch keine Stable-Version. Testversionen: Kanal ändern, dann Dev."},
+ {"GitHub chwilowo ogranicza zapytania. Spróbuj ponownie za godzinę.","GitHub is limiting requests for now. Try again in an hour.","GitHub begrenzt gerade Anfragen. In einer Stunde erneut versuchen."},
+ {"Nie pobrano manifestu wydania. Sprawdź internet i spróbuj ponownie.","Could not download the release manifest. Check the internet and try again.","Release-Manifest nicht geladen. Internet prüfen und erneut versuchen."},
+ {"Kod błędu: %d/%d/%d/%d","Error code: %d/%d/%d/%d","Fehlercode: %d/%d/%d/%d"},
  {"Brak zatwierdzonego klucza wydawcy. Instalacja zablokowana.","No approved publisher key. Installation is blocked.","Kein freigegebener Herausgeberschlüssel. Installation gesperrt."},
  {"Nieprawidłowy podpis wydania. Instalacja zablokowana.","Invalid release signature. Installation is blocked.","Ungültige Versionssignatur. Installation gesperrt."},
  {"Brak zgodnej nowszej wersji z poprawnym manifestem.","No compatible newer version with a valid manifest.","Keine kompatible neuere Version mit gültigem Manifest."},
@@ -424,8 +436,9 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
 }
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color)
 {
- lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(text),&dsr_roboto_12,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ text=dsr_sc_tr(text);
+ lv_point_t size;lv_text_get_size(&size,text,&dsr_roboto_12,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
  int width=size.x+14;if(width>max_width)width=max_width;
  lv_obj_t *chip=dsr_sc_panel(parent,x,y,width,20,0x292d30,6);
- lv_obj_t *label=dsr_sc_text(chip,text,7,3,width-14,&dsr_roboto_12,color);lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
+ lv_obj_t *label=dsr_sc_text(chip,dsr_sc_user(text),7,3,width-14,&dsr_roboto_12,color);lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
 }

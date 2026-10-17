@@ -140,7 +140,7 @@ static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event
 static void tabs(lv_obj_t *root)
 {
     dsr_sc_panel(root,0,87,320,1,DSR_SC_BLUE,0);
-    if(page==DSR_MOBILE_HOME){tab(root,"Aktywność",0,110,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)17);tab(root,model.dashboard_name[0]?model.dashboard_name:"Mój pulpit",114,162,true,NULL,NULL);return;}
+    if(page==DSR_MOBILE_HOME){tab(root,"Aktywność",0,110,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)17);tab(root,model.dashboard_name[0]?dsr_sc_name(model.dashboard_name):"Mój pulpit",114,162,true,NULL,NULL);return;}
     if(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS){
         bool settings=page==DSR_MOBILE_DEVICE_SETTINGS;
         bool editable=!cover_preview&&!model.demo&&selected<model.device_count&&model.devices[selected].id;
@@ -227,10 +227,10 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     lv_obj_t *thumb=dsr_sc_panel(card,8,9,50,50,d->online&&d->output?0x244357:0x29343b,LV_RADIUS_CIRCLE);
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
     int name_width=cover?124:sensor?218:166;
-    lv_obj_t *name=dsr_sc_text(card,d->name,68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
+    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
     const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
-    char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
-    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:subtitle,68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
+    char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",d->room<model.room_count?room_name(d):dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
+    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
     if(cover){
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
      card_control(card,i,DSR_ICON_UP,width-104,44,valid,cover_control,i*2+1);
@@ -267,7 +267,7 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int heig
         lv_image_set_scale(image,scale);lv_image_set_antialias(image,true);lv_obj_center(image);
     }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-52)/2,24,52,52,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),30,0xe8edf2);}
     lv_obj_t *tag=dsr_sc_panel(card,0,0,78,22,0x25292b,7);lv_obj_set_style_bg_opa(tag,220,0);dsr_sc_icon(tag,room_icon(i),4,3,16,DSR_SC_TEXT);dsr_sc_text(tag,"Pokój",24,4,50,&dsr_roboto_11,DSR_SC_TEXT);
-    lv_obj_t *name=dsr_sc_text(card,model.rooms[i].name,6,height-56,width-12,&dsr_roboto_16,DSR_SC_TEXT);center(name);truncate(name,21);
+    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(model.rooms[i].name),6,height-56,width-12,&dsr_roboto_16,DSR_SC_TEXT);center(name);truncate(name,21);
     double power=0;unsigned count=0;bool complete=true;
     for(unsigned d=0;d<model.device_count;d++)if(model.devices[d].room==i){count++;complete&=model.devices[d].online&&model.devices[d].has_power;power+=model.devices[d].power_w;}
     lv_obj_t *badge=dsr_sc_panel(card,(width-82)/2,height-32,82,26,0x262a2d,10);
@@ -286,14 +286,14 @@ static void scene_card(unsigned index,int y,int height)
 {
  dsr_mobile_scene_t *scene=&model.scenes[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,0x414548,12,navigate,(void *)(uintptr_t)19);
  lv_obj_t *icon=dsr_sc_panel(card,8,17,50,50,0x29343b,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(icon,DSR_ICON_SCENES,32,DSR_SC_TEXT);
- lv_obj_t *name=dsr_sc_text(card,scene->name,68,10,164,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
+ lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(scene->name),68,10,164,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
  char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Scena • %u działań"),scene->actions);dsr_sc_text(card,text,68,36,210,&dsr_roboto_12,DSR_SC_MUTED);
  card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
  lv_obj_t *run=dsr_sc_button(card,68,height-36,164,30,DSR_SC_PANEL,8,scene_run,(void *)(uintptr_t)index);dsr_sc_text(run,"Uruchom scenę",4,7,156,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_scene||!scene->actions)lv_obj_add_state(run,LV_STATE_DISABLED);
 }
 static void group_card(unsigned index,int y,int height)
 {
- dsr_mobile_group_t *group=&model.groups[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,DSR_SC_CARD,12,navigate,(void *)18);dsr_sc_text(card,group->name,12,10,230,&dsr_roboto_16,DSR_SC_TEXT);card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
+ dsr_mobile_group_t *group=&model.groups[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,DSR_SC_CARD,12,navigate,(void *)18);dsr_sc_text(card,dsr_sc_name(group->name),12,10,230,&dsr_roboto_16,DSR_SC_TEXT);card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
  lv_obj_t *on=dsr_sc_button(card,12,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2+1)),*off=dsr_sc_button(card,152,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2));dsr_sc_text(on,"Włącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);dsr_sc_text(off,"Wyłącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_group||!group->members){lv_obj_add_state(on,LV_STATE_DISABLED);lv_obj_add_state(off,LV_STATE_DISABLED);}
 }
 static void empty(const char *heading,const char *text)
@@ -323,7 +323,7 @@ static void cover_header(lv_obj_t *root,const char *title)
 {
  lv_obj_t *back=dsr_sc_button(root,0,0,44,44,DSR_SC_BG,8,navigate,(void *)(uintptr_t)98);
  dsr_sc_icon_centered(back,DSR_ICON_BACK,24,DSR_SC_TEXT);
- lv_obj_t *name=dsr_sc_text(root,title,50,11,216,&dsr_roboto_18,DSR_SC_TEXT);truncate(name,24);
+ lv_obj_t *name=dsr_sc_text(root,dsr_sc_name(title),50,11,216,&dsr_roboto_18,DSR_SC_TEXT);truncate(name,24);
  lv_obj_t *edit=icon_button(root,DSR_ICON_EDIT,272,0,44,DSR_SC_BG,edit_device,NULL);
  if(model.demo||!model.devices[selected].id||!actions.edit_device)lv_obj_add_state(edit,LV_STATE_DISABLED);
 }
@@ -561,15 +561,16 @@ static void render(void)
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
     dsr_sc_background(root);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
+    static const char fallback_title[]="Mój dom";
     const char *title=(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS)&&selected<model.device_count?model.devices[selected].name:
-        page==DSR_MOBILE_ROOM&&selected<model.room_count?model.rooms[selected].name:model.home_name[0]?model.home_name:"Mój dom";
+        page==DSR_MOBILE_ROOM&&selected<model.room_count?model.rooms[selected].name:model.home_name[0]?model.home_name:fallback_title;
     if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)cover_header(root,title);
-    else header(root,title,page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||page==DSR_MOBILE_ROOM);
+    else header(root,title==fallback_title?title:dsr_sc_name(title),page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||page==DSR_MOBILE_ROOM);
     tabs(root);
     if(page==DSR_MOBILE_DEVICE_SETTINGS){device_settings(root);if(content)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);}
     else if(page==DSR_MOBILE_DETAILS)details(root);
     else {
-        toolbar(root,page==DSR_MOBILE_HOME?(model.dashboard_name[0]?model.dashboard_name:"Mój pulpit"):page==DSR_MOBILE_ROOMS?"Pomieszczenia":"Urządzenia");
+        toolbar(root,page==DSR_MOBILE_HOME?(model.dashboard_name[0]?dsr_sc_name(model.dashboard_name):"Mój pulpit"):page==DSR_MOBILE_ROOMS?"Pomieszczenia":"Urządzenia");
         content=dsr_sc_panel(root,12,146,296,270,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
         lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);

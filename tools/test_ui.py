@@ -112,18 +112,9 @@ if not args.review:
     subprocess.run([str(rgb_binary),str(screens)],check=True,cwd=build)
 
 if not args.review:
-    ht_object=compile_source(ROOT / "tests/ui/test_ht_ui.c")
-    ht_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[ht_object]
-    ht_binary=build / "test_ht_ui"
-    subprocess.run([cc,*flags,*map(str,ht_objects),"-lm","-l:libcjson.so.1","-o",str(ht_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(ht_binary),str(screens)],check=True,cwd=build)
-    provision_object=compile_source(ROOT / "tests/ui/test_provision_ui.c")
-    provision_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[provision_object]
-    provision_binary=build / "test_provision_ui"
-    subprocess.run([cc,*flags,*map(str,provision_objects),"-lm","-l:libcjson.so.1","-o",str(provision_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(provision_binary),str(screens)],check=True,cwd=build)
-    style_object=compile_source(ROOT / "tests/ui/test_style_ui.c")
-    style_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[style_object]
-    style_binary=build / "test_style_ui"
-    subprocess.run([cc,*flags,*map(str,style_objects),"-lm","-l:libcjson.so.1","-o",str(style_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(style_binary),str(screens)],check=True,cwd=build)
+    # Each of these includes test_ui.c and replaces only its main().
+    for name in ["test_ht_ui","test_provision_ui","test_style_ui","test_editor_layout_ui"]:
+        extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
+        binary=build / name
+        subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
+        subprocess.run([str(binary),str(screens)],check=True,cwd=build)

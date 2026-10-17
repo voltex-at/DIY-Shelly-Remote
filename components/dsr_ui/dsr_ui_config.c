@@ -276,14 +276,16 @@ static void room_delete(lv_event_t *event)
 }
 static void room_photo(void)
 {
- lv_obj_t *button=dsr_sc_button(body,0,160,284,64,DSR_SC_CARD,12,choose_photo,NULL);
+ lv_obj_t *button=dsr_sc_button(body,0,150,284,72,DSR_SC_CARD,12,choose_photo,NULL);
  lv_obj_t *thumb=dsr_sc_panel(button,8,8,64,48,DSR_SC_PANEL,6);lv_obj_set_style_clip_corner(thumb,true,0);
  const void *pixels=dsr_photo_pixels(string(editing,"photo"));
  if(pixels){
   static lv_image_dsc_t photo;photo=(lv_image_dsc_t){.header={.magic=LV_IMAGE_HEADER_MAGIC,.cf=LV_COLOR_FORMAT_RGB565,.w=DSR_PHOTO_WIDTH,.h=DSR_PHOTO_HEIGHT,.stride=DSR_PHOTO_WIDTH*2},.data_size=DSR_PHOTO_BYTES,.data=pixels};
   lv_obj_t *image=lv_image_create(thumb);lv_image_set_src(image,&photo);lv_image_set_scale(image,48*256/DSR_PHOTO_HEIGHT);lv_image_set_antialias(image,true);lv_obj_center(image);
  }else dsr_sc_icon_centered(thumb,DSR_ICON_HOME,32,DSR_SC_MUTED);
- dsr_sc_text(button,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",84,15,188,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_text(button,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",84,10,188,&dsr_roboto_14,DSR_SC_TEXT);
+ /* Upload hint inside the card: no free text that a fixed footer can clip. */
+ dsr_sc_text(button,dsr_photo_id(0)?"Nowe zdjęcia dodasz w Web Panelu.":"Brak zdjęć. Dodaj je w Web Panelu.",84,34,188,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void show_room_form(void)
 {
@@ -295,10 +297,11 @@ static void show_room_form(void)
   dsr_sc_icon(body,DSR_ICON_HOME,118,18,52,DSR_SC_MUTED);
   dsr_sc_text(body,deleted_saved?"Zapisano • zsynchronizowano":"Zapisz, aby trwale usunąć pomieszczenie. Wstecz pozwala odrzucić zmianę.",6,94,284,&dsr_roboto_16,DSR_SC_TEXT);
  }else{
-  add_field("Nazwa","name",0,false);add_choice("Ikona",&icon_choice,80);
+  /* Name 0-65, icon 74-139, photo card 150-222, Delete 232-280: everything
+   * fits the 280 px body above the fixed footer without scrolling. */
+  add_field("Nazwa","name",0,false);add_choice("Ikona",&icon_choice,74);
   room_photo();
   if(!room_new)dsr_ui_button(body,"Usuń pomieszczenie",0,232,284,room_delete,NULL);
-  dsr_sc_text(body,dsr_photo_id(0)?"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.":"Brak zdjęć w pamięci. Dodaj zdjęcia w Web Panelu.",2,room_new?236:292,280,&dsr_roboto_12,DSR_SC_MUTED);
  }
  if(deleted_saved)dsr_ui_button(root,"Wstecz",12,420,296,room_back,NULL);else actions(root,room_back);
 }
@@ -462,7 +465,7 @@ static void show_collection(lv_event_t *event)
  if(event&&lv_event_get_user_data(event))snprintf(collection_name,sizeof(collection_name),"%s",(const char *)lv_event_get_user_data(event));
  editing=NULL;lv_obj_t *root=screen("Edycja • wspólna konfiguracja");const cJSON *a=item(draft,collection_name);int y=0;const cJSON *v;
  view_save_target=SAVE_MENU;
- cJSON_ArrayForEach(v,a){dsr_ui_button(body,string(v,"name"),0,y,284,edit_event,(void *)v);y+=58;}dsr_ui_button(body,"+ Dodaj wpis",0,y,284,add_entity,NULL);actions(root,menu_event);
+ cJSON_ArrayForEach(v,a){dsr_ui_button(body,dsr_sc_name(string(v,"name")),0,y,284,edit_event,(void *)v);y+=58;}dsr_ui_button(body,"+ Dodaj wpis",0,y,284,add_entity,NULL);actions(root,menu_event);
 }
 static const choice_t language_choice={"language","pl\nen\nde",false},theme_choice={"theme","graphite\nmidnight\nlight",false};
 static const uint32_t colors[]={DSR_SC_BLUE,0x34cbb5,0x8c9dff,0xe4a858};
@@ -544,7 +547,7 @@ void dsr_ui_select_dashboard(void)
  draft_revision=(uint32_t)integer(draft,"revision");editor_active=true;own_save=false;dashboard_picker=true;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;
  lv_obj_t *root=screen("Wybierz pulpit");int y=0;const cJSON *d;
  view_save_target=SAVE_HOME;
- cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,string(d,"name"),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
+ cJSON_ArrayForEach(d,item(draft,"dashboards")){lv_obj_t *b=dsr_ui_button(body,dsr_sc_name(string(d,"name")),0,y,284,pick_dashboard,(void *)(uintptr_t)integer(d,"id"));if(integer(d,"id")==integer(draft,"active_dashboard"))dsr_ui_primary(b);y+=56;}
  dsr_ui_button(root,"Wstecz",12,420,296,return_home,NULL);
 }
 static void migration_tick(void);

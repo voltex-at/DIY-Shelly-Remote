@@ -1,25 +1,39 @@
 name: Signed release
-# Tag vX.Y.Z      -> Stable release (GitHub "latest")
+# Tag vX.Y.Z      -> Stable release (GitHub "latest"), needs owner approval
 # Tag dev-vX.Y.Z  -> Dev prerelease
-# The pilot's Firmware Update screen installs only a manifest signed with the
-# owner's key (secret DSR_OTA_SIGNING_KEY) that matches the compiled anchor.
-# Start it either by pushing the tag, or in the GitHub UI: Releases -> Draft a
-# new release -> new tag (pre-release for dev-v...) -> Publish. The job then
-# attaches the signed assets to that release.
+# Start: push the tag, or in the GitHub UI: Releases -> Draft a new release ->
+# new tag on a commit whose "Firmware checks" passed 5/5 -> Publish (tick
+# "Set as a pre-release" for dev-v...). Exactly one run per tag (tag push only).
+#
+# gate:    tag == built commit, CI 5/5 for that commit, Stable approval
+#          environment; a release opened in the UI is hidden until complete.
+# build:   one reproducible build (CONFIG_APP_REPRODUCIBLE_BUILD).
+# publish: signed manifest; assets are uploaded once, never replaced; digests
+#          are read back before the release becomes visible.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
-  release:
-    types: [published]
 permissions:
   contents: read
 env:
-  RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+  RELEASE_TAG: ${{ github.ref_name }}
 concurrency:
-  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact commit, CI 5/5, Stable approval; hide an incomplete UI release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
   build:
+    needs: gate
     runs-on: ubuntu-24.04
     container: espressif/idf:v5.5.4
     outputs:
@@ -51,16 +65,26 @@ jobs:
           python3 tools/check_factory_package.py --package-dir build-board/installers
           mkdir -p release
           cp build-board/diy_shelly_remote.bin release/
-          (cd build-board/installers && python3 -c "import shutil;shutil.make_archive('../../release/DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB','zip','FACTORY-CLEAN-16MB')")
+          python3 - <<'PY'
+          # Deterministic ZIP: sorted entries, fixed timestamps and modes.
+          import zipfile
+          from pathlib import Path
+          root=Path('build-board/installers/FACTORY-CLEAN-16MB')
+          with zipfile.ZipFile('release/DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for path in sorted(p for p in root.rglob('*') if p.is_file()):
+                  info=zipfile.ZipInfo(str(path.relative_to(root)),date_time=(2026,1,1,0,0,0))
+                  info.external_attr=0o644<<16;info.compress_type=zipfile.ZIP_DEFLATED
+                  z.writestr(info,path.read_bytes())
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-release
           path: release/
           if-no-files-found: error
   sign-and-publish:
-    needs: build
+    needs: [gate, build]
     runs-on: ubuntu-24.04
-    environment: release
+    environment: ${{ needs.build.outputs.channel == 'stable' && 'stable-release' || 'release' }}
     permissions:
       contents: write
     steps:
@@ -81,14 +105,7 @@ jobs:
             --public-hex 23adf99d68e6ce2315a7b0b2b53c5839d9dd15e39ee748a24ec68841861a47fe \
             --out release/DIY-Shelly-Remote-es3c35p-manifest.json
           (cd release && sha256sum * > SHA256SUMS.txt)
-      - name: Publish GitHub Release (or attach to the one created in the UI)
+      - name: Publish once (no replacement of existing assets), read back digests, then make visible
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release/* --clobber
-          else
-            flags="--verify-tag --title ${RELEASE_TAG} --notes-file docs/RELEASE_NOTES.md"
-            if [ "${{ needs.build.outputs.channel }}" = "dev" ]; then flags="$flags --prerelease"; else flags="$flags --latest"; fi
-            gh release create "$RELEASE_TAG" $flags release/*
-          fi
+        run: python3 tools/release_tool.py publish --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA" --dir release --notes docs/RELEASE_NOTES.md
