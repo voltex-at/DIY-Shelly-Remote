@@ -28,7 +28,7 @@ bool dsr_connection_valid(const dsr_connection_t *c, bool bound)
         !memchr(c->device.device_id, 0, sizeof(c->device.device_id)) ||
         !memchr(c->credentials.username, 0, sizeof(c->credentials.username)) ||
         !memchr(c->credentials.password, 0, sizeof(c->credentials.password)) ||
-        !dsr_ipv4_valid(c->device.host) || c->device.channel > DSR_MAX_CHANNEL || c->device.endpoint_kind>DSR_ENDPOINT_HT ||
+        !dsr_ipv4_valid(c->device.host) || c->device.channel > DSR_MAX_CHANNEL || c->device.endpoint_kind>DSR_ENDPOINT_BLU ||
         ((c->device.endpoint_kind==DSR_ENDPOINT_RGB||c->device.endpoint_kind==DSR_ENDPOINT_HT)&&c->device.channel!=0) ||
         (c->device.endpoint_kind!=DSR_ENDPOINT_SWITCH&&c->device.generation!=DSR_GEN2_PLUS)) return false;
     return !bound || (c->device.device_id[0] &&
@@ -78,7 +78,7 @@ static esp_err_t registry_read_origin(connection_registry_v6_t *registry,bool *l
         size_t length=sizeof(*registry);error=nvs_get_blob(handle,"registry",registry,&length);nvs_close(handle);
         if(error!=ESP_ERR_NVS_NOT_FOUND){
             if(error!=ESP_OK)return error;
-            if(length!=sizeof(*registry)||registry->count>DSR_MAX_DEVICES||(registry->schema!=2&&registry->schema!=3&&registry->schema!=4&&registry->schema!=5&&registry->schema!=6))return ESP_ERR_INVALID_SIZE;
+            if(length!=sizeof(*registry)||registry->count>DSR_MAX_DEVICES||(registry->schema!=2&&registry->schema!=3&&registry->schema!=4&&registry->schema!=5&&registry->schema!=6&&registry->schema!=7))return ESP_ERR_INVALID_SIZE;
             if(registry->schema==2){
                 for(uint32_t i=0;i<registry->count;i++){
                     legacy_device_v1_t old;memcpy(&old,&registry->items[i].device,sizeof(old));
@@ -87,7 +87,7 @@ static esp_err_t registry_read_origin(connection_registry_v6_t *registry,bool *l
                 /* Frozen v2 padding has no transport authority. */
             }
             for(uint32_t i=0;i<registry->count;i++){
-                if((registry->schema==3&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_COVER)||(registry->schema==4&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_LIGHT)||(registry->schema==5&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_RGB))return ESP_ERR_INVALID_SIZE;
+                if((registry->schema==3&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_COVER)||(registry->schema==4&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_LIGHT)||(registry->schema==5&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_RGB)||(registry->schema==6&&registry->items[i].device.endpoint_kind>DSR_ENDPOINT_HT))return ESP_ERR_INVALID_SIZE;
                 dsr_connection_t candidate={.device=registry->items[i].device,.credentials=registry->items[i].credentials};
                 if(!dsr_connection_valid(&candidate,true)||registry->items[i].layout_id>1000000)return ESP_ERR_INVALID_SIZE;
                 for(uint32_t j=0;j<i;j++)if(same_endpoint(&registry->items[i].device,&registry->items[j].device)||(registry->items[i].layout_id&&registry->items[i].layout_id==registry->items[j].layout_id))return ESP_ERR_INVALID_SIZE;
@@ -117,8 +117,11 @@ esp_err_t dsr_connections_load(dsr_connection_t *out,size_t capacity,size_t *cou
     }
     memset(registry,0,sizeof(*registry));free(registry);return error;
 }
-static esp_err_t registry_write(const connection_registry_v6_t *registry)
+/* Schema 7 only when a BLU endpoint exists: without one the record stays
+ * readable by 0.7.3x firmware after an OTA rollback. */
+static esp_err_t registry_write(connection_registry_v6_t *registry)
 {
+ registry->schema=6;for(uint32_t i=0;i<registry->count;i++)if(registry->items[i].device.endpoint_kind==DSR_ENDPOINT_BLU)registry->schema=7;
  nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READWRITE,&handle);
  if(error!=ESP_OK)return error;
  error=nvs_set_blob(handle,"registry",registry,sizeof(*registry));if(error==ESP_OK)error=nvs_commit(handle);nvs_close(handle);

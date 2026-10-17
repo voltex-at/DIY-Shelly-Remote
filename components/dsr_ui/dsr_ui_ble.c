@@ -62,7 +62,7 @@ static void choose(lv_event_t *event)
  else if(d->kind!=DSR_BLE_OTHER||d->has_flags)dsr_sc_chip(root,rpc_state(d),16,261,288,(d->has_flags&&!(d->flags&DSR_BLE_FLAG_RPC))?0xffc18c:DSR_SC_TEXT);
  if(d->has_flags&&(d->flags&(DSR_BLE_FLAG_AUTH|DSR_BLE_FLAG_PAIRING))){char extra[80];snprintf(extra,sizeof(extra),"%s%s%s",(d->flags&DSR_BLE_FLAG_AUTH)?dsr_sc_tr("Hasło włączone"):"",(d->flags&DSR_BLE_FLAG_AUTH)&&(d->flags&DSR_BLE_FLAG_PAIRING)?" • ":"",(d->flags&DSR_BLE_FLAG_PAIRING)?dsr_sc_tr("Tryb parowania"):"");dsr_sc_chip(root,extra,16+212,233,76,DSR_SC_MUTED);}
  notice=dsr_sc_text(root,"",16,294,288,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(root,d->kind==DSR_BLE_SHELLY_RPC?"Otwarty setup Gen2+: sprawdź urządzenie, a następnie osobno potwierdź przekazanie Wi-Fi.":(d->kind==DSR_BLE_SHELLY_BLU||(d->evidence&DSR_BLE_BTHOME))?"Skan nie dodaje do Wi-Fi. BLU i BTHome nie są obsługiwane przez kreator Wi-Fi.":"Nie potwierdzono modelu ani RPC. Ta reklama nie umożliwia dodania do Wi-Fi.",16,331,288,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(root,d->kind==DSR_BLE_SHELLY_RPC?"Otwarty setup Gen2+: sprawdź urządzenie, a następnie osobno potwierdź przekazanie Wi-Fi.":(d->kind==DSR_BLE_SHELLY_BLU||(d->evidence&DSR_BLE_BTHOME))?"Czujnik BLU dodasz przez bramkę Shelly, która go już odbiera: Dodaj urządzenie, Skanuj sieć Wi-Fi, wybierz bramkę.":"Nie potwierdzono modelu ani RPC. Ta reklama nie umożliwia dodania do Wi-Fi.",16,331,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Wstecz",back,d->kind==DSR_BLE_SHELLY_RPC?"Dodaj przez BLE":NULL,d->kind==DSR_BLE_SHELLY_RPC?provision:NULL);
 }
 static void show_results(void)

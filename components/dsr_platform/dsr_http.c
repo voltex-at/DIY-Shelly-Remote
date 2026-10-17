@@ -152,7 +152,7 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     /* BLU Gateway Gen3 has no Switch component. Never route its manual bind
      * through a relay endpoint or disclose saved relay credentials to it. */
     const cJSON *model=cJSON_GetObjectItemCaseSensitive(root,"model");
-    if(cJSON_IsString(model)&&!strcmp(model->valuestring,"S3GW-1DBT001")){cJSON_Delete(root);return DSR_UNSUPPORTED;}
+    if(cJSON_IsString(model)&&!strcmp(model->valuestring,"S3GW-1DBT001")&&connection->device.endpoint_kind!=DSR_ENDPOINT_BLU){cJSON_Delete(root);return DSR_UNSUPPORTED;}
     if(connection->device.endpoint_kind==DSR_ENDPOINT_RGB){
         const cJSON *profile=cJSON_GetObjectItemCaseSensitive(root,"profile");
         const cJSON *rgb_gen=cJSON_GetObjectItemCaseSensitive(root,"gen");
@@ -188,6 +188,18 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     if (!out->name[0]) snprintf(out->name, sizeof(out->name), "%s", name);
     out->online = false; out->has_switch = false; out->has_power = false;
     cJSON_Delete(root);
+    if(out->endpoint_kind==DSR_ENDPOINT_BLU){
+        /* Endpoint identity = gateway id + BLU MAC: a cid reassigned by the
+         * gateway to another sensor is an identity mismatch, not new data. */
+        if(generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
+        unsigned cid=DSR_BLU_FIRST_CID+out->channel;dsr_request_t blu={0};cJSON *config=NULL;char mac[13];
+        snprintf(blu.path,sizeof(blu.path),"/rpc/BTHomeDevice.GetConfig?id=%u",cid);
+        dsr_result_t r=fetch_json(connection,&blu,false,&config);
+        if(r==DSR_OK)r=dsr_blu_parse_address(config,cid,mac);
+        if(r==DSR_OK&&strlen(out->device_id)+1+12>=sizeof(out->device_id))r=DSR_BAD_RESPONSE;
+        if(r==DSR_OK){strcat(out->device_id,"_");strcat(out->device_id,mac);}
+        cJSON_Delete(config);if(r!=DSR_OK)return r;
+    }
     return DSR_OK;
 }
 
@@ -294,6 +306,27 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_request_t request;
     dsr_result_t result;
+    if(device->endpoint_kind==DSR_ENDPOINT_BLU){
+        if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
+        unsigned cid=DSR_BLU_FIRST_CID+device->channel;cJSON *root=NULL;
+        memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetStatus?id=%u",cid);
+        result=fetch_json(connection,&request,false,&root);
+        if(result==DSR_OK){result=dsr_blu_parse_device(root,cid,&connection->telemetry);}
+        cJSON_Delete(root);root=NULL;
+        dsr_blu_object_t objects[DSR_BLU_MAX_OBJECTS];unsigned count=0;
+        if(result==DSR_OK){snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetKnownObjects?id=%u",cid);result=fetch_json(connection,&request,false,&root);
+            if(result==DSR_OK){result=dsr_blu_parse_known(root,cid,objects,DSR_BLU_MAX_OBJECTS,&count);}
+            cJSON_Delete(root);root=NULL;}
+        for(unsigned i=0;result==DSR_OK&&i<count;i++){
+            if(!dsr_blu_sensor_shown(objects[i].obj_id))continue;
+            snprintf(request.path,sizeof(request.path),"/rpc/BTHomeSensor.GetStatus?id=%u",(unsigned)objects[i].sensor);
+            result=fetch_json(connection,&request,false,&root);
+            if(result==DSR_OK){result=dsr_blu_apply_sensor(root,objects[i].sensor,objects[i].obj_id,&connection->telemetry);}
+            cJSON_Delete(root);root=NULL;
+        }
+        if(result!=DSR_OK)memset(&connection->telemetry,0,sizeof(connection->telemetry));
+        device->has_switch=device->has_power=device->output=false;device->power_w=0;device->online=result==DSR_OK;return result;
+    }
     if(device->endpoint_kind==DSR_ENDPOINT_HT){
         if(device->generation!=DSR_GEN2_PLUS||device->channel!=0)return DSR_UNSUPPORTED;
         memset(&request,0,sizeof(request));strcpy(request.path,"/rpc/Shelly.GetStatus");cJSON *root=NULL;
@@ -354,7 +387,13 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
     probed.device.online=probed.device.has_power=false;
     memset(&probed.telemetry,0,sizeof(probed.telemetry));
     dsr_result_t result = identity(connection, &probed.device);
-    if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id))result=DSR_IDENTITY_MISMATCH;
+    if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id)){
+        /* BLU bind from the LAN wizard knows only the gateway id; the probe
+         * appends the sensor MAC. Any other difference is a mismatch. */
+        size_t n=strlen(connection->device.device_id);
+        bool gateway_only=connection->device.endpoint_kind==DSR_ENDPOINT_BLU&&!strchr(connection->device.device_id,'_')&&!strncmp(connection->device.device_id,probed.device.device_id,n)&&probed.device.device_id[n]=='_';
+        if(!gateway_only)result=DSR_IDENTITY_MISMATCH;
+    }
     if (result == DSR_OK){(void)urgent();result = status(&probed);}
     *out = probed.device;
     if(telemetry)*telemetry=probed.telemetry;
@@ -385,7 +424,7 @@ dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
 {
-    if(connection&&connection->device.endpoint_kind==DSR_ENDPOINT_HT)return DSR_UNSUPPORTED;
+    if(connection&&DSR_ENDPOINT_IS_SENSOR(connection->device.endpoint_kind))return DSR_UNSUPPORTED;
     dsr_result_t result = verify(connection);
     if (result != DSR_OK) return result;
     if (connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->device.has_switch) return DSR_UNSUPPORTED;

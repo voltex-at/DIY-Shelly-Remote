@@ -51,7 +51,7 @@ static void test_rgb_registry_scheduler(void)
  memset(sizes,0,sizeof(sizes));memset(schemas,0,sizeof(schemas));dsr_connection_t c=rgb_connection();c.layout_id=44;
  CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==6);unsigned writes=write_opens;dsr_connection_t loaded[16];size_t count;
  CHECK(dsr_connections_load(loaded,16,&count)==ESP_OK&&count==1&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_RGB&&!loaded[0].device.online&&write_opens==writes);
- for(unsigned version=3;version<=7;version++)if(version!=5&&version!=6){((uint32_t*)blobs[2])[0]=version;CHECK(dsr_connections_load(loaded,16,&count)!=ESP_OK&&!count&&dsr_connection_save(&c)!=ESP_OK&&write_opens==writes);}
+ for(unsigned version=3;version<=8;version++)if(version!=5&&version!=6&&version!=7){((uint32_t*)blobs[2])[0]=version;CHECK(dsr_connections_load(loaded,16,&count)!=ESP_OK&&!count&&dsr_connection_save(&c)!=ESP_OK&&write_opens==writes);}
  ((uint32_t*)blobs[2])[0]=5;c.layout_id=0;CHECK(dsr_connection_remove(&c)==ESP_OK&&dsr_connection_save(&c)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&count)==ESP_OK&&count==1&&!loaded[0].legacy_fallback&&!loaded[0].layout_id);
  dsr_fleet_t f={0};CHECK(dsr_fleet_upsert(&f,&loaded[0],0)==DSR_OK&&!f.slots[0].layout_enabled&&dsr_fleet_rgb_request(&f,0,(dsr_rgb_intent_t){.command=DSR_RGB_ON},true,0)==DSR_IDENTITY_MISMATCH);
  c.layout_id=44;c.device.online=true;c.telemetry.rgb=(dsr_rgb_status_t){.r=12,.g=34,.b=56,.brightness=38,.flags=DSR_RGB_VALID};CHECK(dsr_fleet_upsert(&f,&c,1)==DSR_OK);

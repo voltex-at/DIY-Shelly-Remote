@@ -179,6 +179,7 @@ static void network_task(void *arg)
              * SET result includes mandatory GetStatus readback; it is not a
              * claim that a timed-out write did or did not reach the relay. */
             if(event.device.endpoint_kind==DSR_ENDPOINT_COVER)ESP_LOGI("dsr_network","Cover readback result=%d state=%u position_available=%u position=%u",(int)event.result,(unsigned)event.telemetry.cover.state,(unsigned)((event.telemetry.cover.flags&DSR_COVER_POSITION)!=0),(unsigned)event.telemetry.cover.current_pos);
+            else if(event.device.endpoint_kind==DSR_ENDPOINT_BLU)ESP_LOGI("dsr_network","BLU via gateway result=%d online=%u flags=0x%02x errors=0x%02x battery_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.blu.flags,(unsigned)event.telemetry.blu.errors,(unsigned)event.telemetry.has_blu_battery);
             else if(event.device.endpoint_kind==DSR_ENDPOINT_HT)ESP_LOGI("dsr_network","H&T GetStatus result=%d online=%u temperature_available=%u humidity_available=%u battery_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_temperature,(unsigned)event.telemetry.has_humidity,(unsigned)event.telemetry.has_battery);
             else if(job.kind==DSR_JOB_SET_OUTPUT)ESP_LOGI("dsr_network","Switch.Set/readback result=%d requested=%u confirmed=%u output=%u",(int)event.result,(unsigned)job.on,(unsigned)(event.result==DSR_OK&&event.device.online),(unsigned)event.device.output);
             else ESP_LOGI("dsr_network","Switch.GetStatus result=%d online=%u voltage_available=%u current_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_voltage,(unsigned)event.telemetry.has_current);
@@ -219,7 +220,7 @@ fail:
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
     if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_RGB) return DSR_INVALID;
-    if(job->kind==DSR_JOB_SET_OUTPUT&&job->connection.device.endpoint_kind==DSR_ENDPOINT_HT)return DSR_INVALID;
+    if(job->kind==DSR_JOB_SET_OUTPUT&&DSR_ENDPOINT_IS_SENSOR(job->connection.device.endpoint_kind))return DSR_INVALID;
     if(job->kind==DSR_JOB_RGB&&(!dsr_rgb_intent_valid(job->rgb)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_RGB))return DSR_INVALID;
     if(job->kind==DSR_JOB_LIGHT&&(!dsr_light_intent_valid(job->light)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_LIGHT))return DSR_INVALID;
     if(job->kind==DSR_JOB_COVER&&(!dsr_cover_intent_valid(job->cover)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_COVER||job->cover.command==DSR_COVER_STOP))return DSR_INVALID;

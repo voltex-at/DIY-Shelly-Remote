@@ -21,9 +21,10 @@ typedef struct {
     double power_w,voltage_v,current_a;
     uint32_t id;
     bool has_battery,has_temperature,has_humidity,has_position,has_contact,contact_open,can_cover;
-    double battery_pct,temperature_c,humidity_pct,position_pct;
-    bool has_frequency,can_stop_cover;
-    double frequency_hz;
+    double battery_pct,temperature_c,humidity_pct;
+    union {double position_pct;double blu_age_s;}; /* BLU: seconds since the gateway received the sensor, <0 unknown */
+    union {bool has_frequency;bool has_illuminance;};bool can_stop_cover;
+    union {double frequency_hz;double illuminance_lux;};
     dsr_mobile_cover_state_t cover_state;
     bool has_sample_time;
     uint32_t sample_ms;
@@ -34,7 +35,7 @@ typedef struct {
     bool can_refresh,can_position,has_energy;
     uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */
     union {bool can_light;bool can_rgb;};
-    union {dsr_light_status_t light;dsr_rgb_status_t rgb;dsr_ht_status_t ht;}; /* Existing alignment padding: model size is unchanged. */
+    union {dsr_light_status_t light;dsr_rgb_status_t rgb;dsr_ht_status_t ht;dsr_blu_status_t blu;}; /* Existing alignment padding: model size is unchanged. */
     double energy_wh;
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;

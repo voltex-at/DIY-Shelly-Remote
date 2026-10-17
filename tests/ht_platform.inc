@@ -28,7 +28,7 @@ static void test_ht_registry_fleet(void)
 {
  memset(sizes,0,sizeof(sizes));memset(schemas,0,sizeof(schemas));dsr_connection_t c=ht_connection();c.layout_id=78;CHECK(dsr_connection_save(&c)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==6);unsigned writes=write_opens;dsr_connection_t loaded[16];size_t n;
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_HT&&!loaded[0].device.online&&writes==write_opens);
- for(unsigned version=3;version<=7;version++)if(version!=6){((uint32_t*)blobs[2])[0]=version;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&c)!=ESP_OK&&writes==write_opens);}
+ for(unsigned version=3;version<=8;version++)if(version!=6&&version!=7){((uint32_t*)blobs[2])[0]=version;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&c)!=ESP_OK&&writes==write_opens);}
  ((uint32_t*)blobs[2])[0]=6;
  c.layout_id=0;CHECK(dsr_connection_remove(&c)==ESP_OK&&dsr_connection_save(&c)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!loaded[0].legacy_fallback);dsr_fleet_t f={0};CHECK(dsr_fleet_upsert(&f,&loaded[0],10)==DSR_OK&&dsr_fleet_ht_refresh(&f,0,true,10)==DSR_IDENTITY_MISMATCH);
  c.layout_id=78;c.device.online=true;c.telemetry=(dsr_telemetry_t){.has_temperature=true,.temperature_c=-12.5,.has_humidity=true,.humidity_pct=0,.ht={.flags=DSR_HT_VALID}};CHECK(dsr_fleet_upsert(&f,&c,100)==DSR_OK&&f.slots[0].next_poll==60100);CHECK(dsr_fleet_request(&f,0,true,true,100)==DSR_UNSUPPORTED);

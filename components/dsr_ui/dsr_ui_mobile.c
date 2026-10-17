@@ -42,7 +42,7 @@ static void update_sample_age(void)
 {
  if(!active||!sample_age||selected>=model.device_count)return;
  const dsr_mobile_device_t *d=&model.devices[selected];char text[72];
- if(d->has_sample_time)snprintf(text,sizeof(text),dsr_sc_tr(d->endpoint_kind==DSR_ENDPOINT_HT?"Odpowiedź odebrana %u s temu":"Odczyt potwierdzony %u s temu"),(unsigned)((lv_tick_get()-d->sample_ms)/1000));
+ if(d->has_sample_time)snprintf(text,sizeof(text),dsr_sc_tr(DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind)?"Odpowiedź odebrana %u s temu":"Odczyt potwierdzony %u s temu"),(unsigned)((lv_tick_get()-d->sample_ms)/1000));
  else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Brak potwierdzonego odczytu"));
  lv_label_set_text(sample_age,text);
 }
@@ -228,7 +228,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
     int name_width=cover?124:sensor?218:166;
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
-    const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&(fields&64)?(d->contact_open?"Otwarte":"Zamknięte"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
+    const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",d->room<model.room_count?room_name(d):dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
     lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
     if(cover){
@@ -238,12 +238,13 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     }else if(!sensor)card_control(card,i,DSR_ICON_POWER,width-58,48,d->online&&!d->busy&&d->can_switch,control,i);
     if(!fields)return;
     char values[128]={0},part[40];
-    if((!d->online||d->error!=DSR_OK)&&d->endpoint_kind!=DSR_ENDPOINT_HT)snprintf(values,sizeof(values),"%s",dsr_sc_tr("Odczyty niedostępne"));
+    if((!d->online||d->error!=DSR_OK)&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind))snprintf(values,sizeof(values),"%s",dsr_sc_tr("Odczyty niedostępne"));
     else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"%s   %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else snprintf(values,sizeof(values),"%s   —",dsr_sc_tr("Pozycja"));}
     else if(sensor){
       if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
       if((fields&8)&&d->has_temperature){snprintf(part,sizeof(part),"  %.1f °C",d->temperature_c);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if((fields&16)&&d->has_humidity){snprintf(part,sizeof(part),"  %.0f%% RH",d->humidity_pct);strncat(values,part,sizeof(values)-strlen(values)-1);}
+      if(d->endpoint_kind==DSR_ENDPOINT_BLU&&d->has_illuminance){snprintf(part,sizeof(part),"  %.0f lx",d->illuminance_lux);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if(!values[0])snprintf(values,sizeof(values),"Brak dodatkowych pomiarów");
     }else{
       if(fields&1){if(d->has_power)snprintf(values,sizeof(values),"%.1f W",d->power_w);else snprintf(values,sizeof(values),"— W");}
@@ -498,6 +499,37 @@ static void ht_details(lv_obj_t *root)
  lv_obj_t *button=dsr_sc_button(root,12,344,296,48,DSR_SC_CARD,10,refresh,NULL);center(dsr_sc_text(button,"Odśwież status",8,15,280,&dsr_roboto_14,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(button,LV_STATE_DISABLED);
  dsr_sc_text(root,"Czas pomiaru nieznany. Czujnik usypia także na USB. Wybudź przyciskiem, jeśli nie odpowiada.",16,396,288,&dsr_roboto_11,DSR_SC_MUTED);
 }
+/* Shelly BLU read through a gateway: state, measurements, age of the last
+ * BLE packet the gateway received. Read-only; refresh re-reads the gateway. */
+static void blu_details(lv_obj_t *root)
+{
+ const dsr_mobile_device_t *d=&model.devices[selected];char text[96];const dsr_blu_status_t *b=&d->blu;
+ lv_obj_t *panel=dsr_sc_panel(root,12,89,296,246,DSR_SC_CARD,10);
+ dsr_sc_text(panel,"Shelly BLU • przez bramkę",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
+ const char *state=d->busy?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
+ dsr_sc_text(panel,state,12,40,272,&dsr_roboto_12,DSR_SC_MUTED);
+ bool live=d->online;
+ const char *main_text=!live?"—":(b->flags&DSR_BLU_HAS_OPEN)?((b->flags&DSR_BLU_OPEN)?"Otwarte":"Zamknięte"):(b->flags&DSR_BLU_HAS_MOTION)?((b->flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):NULL;
+ if(main_text)center(dsr_sc_text(panel,main_text,8,69,280,&dsr_roboto_28,DSR_SC_TEXT));
+ else{if(d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"—");center(dsr_sc_text(panel,text,8,69,280,&dsr_roboto_28,DSR_SC_TEXT));}
+ text[0]=0;
+ if(live&&d->has_illuminance)snprintf(text,sizeof(text),"%.0f lx",d->illuminance_lux);
+ if(live&&main_text&&d->has_temperature)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.1f °C",text[0]?" • ":"",d->temperature_c);
+ if(live&&d->has_humidity)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f%% RH",text[0]?" • ":"",d->humidity_pct);
+ if(live&&(b->flags&DSR_BLU_HAS_BUTTON))snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%s %u",text[0]?" • ":"",dsr_sc_tr("Przycisk"),(unsigned)b->button);
+ center(dsr_sc_text(panel,text[0]?text:"—",8,112,280,&dsr_roboto_16,DSR_SC_TEXT));
+ if(live&&d->has_battery)snprintf(text,sizeof(text),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);else snprintf(text,sizeof(text),"%s —",dsr_sc_tr("Bateria"));
+ if(live&&(b->flags&DSR_BLU_HAS_RSSI))snprintf(text+strlen(text),sizeof(text)-strlen(text)," • %d dBm",(int)b->rssi);
+ center(dsr_sc_text(panel,text,8,144,280,&dsr_roboto_14,DSR_SC_TEXT));
+ if(live&&d->blu_age_s>=0){unsigned age=(unsigned)d->blu_age_s;
+  if(age<120)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),age);else if(age<7200)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u min temu"),age/60);else snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u h temu"),age/3600);}
+ else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Czas ostatniego sygnału nieznany"));
+ center(dsr_sc_text(panel,dsr_sc_user(text),8,172,280,&dsr_roboto_12,DSR_SC_MUTED));
+ if(live&&b->errors)center(dsr_sc_text(panel,(b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome",8,194,280,&dsr_roboto_12,0xffc18c));
+ sample_age=dsr_sc_text(panel,"",8,229,280,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
+ lv_obj_t *button=dsr_sc_button(root,12,344,296,48,DSR_SC_CARD,10,refresh,NULL);center(dsr_sc_text(button,"Odśwież status",8,15,280,&dsr_roboto_14,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(button,LV_STATE_DISABLED);
+ dsr_sc_text(root,"Dane z bramki Shelly. Pilot nie łączy się z czujnikiem i niczym w nim nie steruje.",16,396,288,&dsr_roboto_11,DSR_SC_MUTED);
+}
 static void details(lv_obj_t *root)
 {
     if(selected>=model.device_count)return;
@@ -506,6 +538,7 @@ static void details(lv_obj_t *root)
         cover_details(root);return;
     }
     if(d->endpoint_kind==DSR_ENDPOINT_HT){ht_details(root);return;}
+    if(d->endpoint_kind==DSR_ENDPOINT_BLU){blu_details(root);return;}
     if(d->endpoint_kind==DSR_ENDPOINT_RGB){if(rgb_color_view)rgb_details(root);else light_details(root);return;}
     if(d->endpoint_kind==DSR_ENDPOINT_LIGHT){light_details(root);return;}
     lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
@@ -541,6 +574,7 @@ static void device_settings(lv_obj_t *root)
  lv_obj_t *readings=dsr_sc_panel(content,0,164,296,78,DSR_SC_PANEL,12);
  dsr_sc_text(readings,"Dostępne pomiary",12,11,272,&dsr_roboto_14,DSR_SC_TEXT);
  text[0]=0;bool valid=d->online&&d->error==DSR_OK;
+ if(d->endpoint_kind==DSR_ENDPOINT_BLU){if(d->has_contact)snprintf(text,sizeof(text),"%s",dsr_sc_tr(d->contact_open?"Otwarte":"Zamknięte"));else if(d->blu.flags&DSR_BLU_HAS_MOTION)snprintf(text,sizeof(text),"%s",dsr_sc_tr((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"));if(d->has_illuminance)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f lx",text[0]?" • ":"",d->illuminance_lux);if(d->has_battery)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f%%",text[0]?" • ":"",d->battery_pct);valid=false;}
  if(d->endpoint_kind==DSR_ENDPOINT_HT){if(d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);if(d->has_humidity)snprintf(text+strlen(text),sizeof(text)-strlen(text)," • %.1f%% RH",d->humidity_pct);if(d->has_battery)snprintf(text+strlen(text),sizeof(text)-strlen(text)," • %.1f%%",d->battery_pct);valid=false;}
  if(valid&&d->has_power&&isfinite(d->power_w))snprintf(text,sizeof(text),"%.1f W",d->power_w);
  if(valid&&d->has_voltage&&isfinite(d->voltage_v))snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.1f V",text[0]?" • ":"",d->voltage_v);

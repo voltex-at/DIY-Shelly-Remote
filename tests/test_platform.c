@@ -362,6 +362,7 @@ static void test_ap_protocol(void)
 #include "light_platform.inc"
 #include "rgb_platform.inc"
 #include "ht_platform.inc"
+#include "blu_platform.inc"
 static unsigned guard_calls,guard_block,write_attempts;
 static void test_write_attempt(void){write_attempts++;}
 static dsr_result_t test_guard(void){return ++guard_calls>=guard_block?DSR_BUSY:DSR_OK;}
@@ -386,7 +387,7 @@ static void test_registered_guard(void)
 int main(void)
 {
     test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
-    test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();
+    test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
 }

@@ -17,7 +17,9 @@ typedef enum {
 } dsr_result_t;
 
 typedef enum { DSR_GEN1 = 1, DSR_GEN2_PLUS = 2 } dsr_generation_t;
-typedef enum { DSR_ENDPOINT_SWITCH=0, DSR_ENDPOINT_COVER=1, DSR_ENDPOINT_LIGHT=2, DSR_ENDPOINT_RGB=3, DSR_ENDPOINT_HT=4 } dsr_endpoint_kind_t;
+typedef enum { DSR_ENDPOINT_SWITCH=0, DSR_ENDPOINT_COVER=1, DSR_ENDPOINT_LIGHT=2, DSR_ENDPOINT_RGB=3, DSR_ENDPOINT_HT=4, DSR_ENDPOINT_BLU=5 } dsr_endpoint_kind_t;
+/* Read-only sensor endpoints: refreshed, never commanded. */
+#define DSR_ENDPOINT_IS_SENSOR(kind) ((kind)==DSR_ENDPOINT_HT||(kind)==DSR_ENDPOINT_BLU)
 typedef enum {DSR_COVER_STATE_UNKNOWN,DSR_COVER_STATE_OPEN,DSR_COVER_STATE_CLOSED,DSR_COVER_STATE_OPENING,DSR_COVER_STATE_CLOSING,DSR_COVER_STATE_STOPPED,DSR_COVER_STATE_CALIBRATING} dsr_cover_state_t;
 enum {DSR_COVER_VALID=1,DSR_COVER_POSITION=2,DSR_COVER_TARGET=4,DSR_COVER_POSITION_CONTROL=8};
 typedef struct {uint8_t state,current_pos,target_pos,flags,errors;} dsr_cover_status_t;
@@ -37,6 +39,12 @@ typedef struct {uint8_t r,g,b,brightness,flags;} dsr_rgb_status_t;
 enum {DSR_HT_VALID=1,DSR_HT_EXTERNAL_KNOWN=2,DSR_HT_EXTERNAL_PRESENT=4};
 enum {DSR_HT_TEMPERATURE_ERROR=1,DSR_HT_HUMIDITY_ERROR=2,DSR_HT_POWER_ERROR=4};
 typedef struct {uint8_t flags,errors,reserved[3];} dsr_ht_status_t;
+/* Shelly BLU sensor read through a Gen2+ gateway (BTHomeDevice cid 200+channel).
+ * flags: what the gateway reported; humidity in %; button = last BTHome event. */
+enum {DSR_BLU_VALID=1,DSR_BLU_HAS_MOTION=2,DSR_BLU_MOTION=4,DSR_BLU_HAS_OPEN=8,DSR_BLU_OPEN=16,DSR_BLU_HAS_HUMIDITY=32,DSR_BLU_HAS_BUTTON=64,DSR_BLU_HAS_RSSI=128};
+enum {DSR_BLU_ERROR_KEY=1,DSR_BLU_ERROR_DECRYPT=2,DSR_BLU_ERROR_PARSE=4,DSR_BLU_ERROR_UNENCRYPTED=8};
+typedef struct {uint8_t flags,humidity,button,errors;int8_t rssi;} dsr_blu_status_t;
+#define DSR_BLU_FIRST_CID 200u
 typedef enum {DSR_RGB_NONE,DSR_RGB_ON,DSR_RGB_OFF,DSR_RGB_SET_BRIGHTNESS,DSR_RGB_SET_COLOR} dsr_rgb_command_t;
 typedef struct {uint8_t command;union {uint8_t brightness;uint8_t rgb[3];};} dsr_rgb_intent_t;
 bool dsr_rgb_intent_valid(dsr_rgb_intent_t intent);

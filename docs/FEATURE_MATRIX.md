@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.40-dev
+# Matryca funkcji — 0.7.41-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -16,6 +16,7 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Pomieszczenia, pulpity, edytor LCD i Web Panel | tak | tak (układ PL/EN/DE) | ucięty tekst w edytorze (0.7.37), poprawione, brak ponownego testu | — |
 | Rolety (Cover Gen2+) | tak | tak | sterowanie potwierdzone (0.7.37) | — |
 | Light/Dimmer Gen2+, RGBW, H&T Gen3 | tak | tak | brak testu | — |
+| Shelly BLU Motion/Door/Window przez bramkę Shelly (LAN, tylko odczyt) | tak (0.7.41) | tak (HTTP model, LCD, Web Panel) | brak testu | — |
 | Grupy, sceny, dziennik aktywności | tak | tak | brak testu | — |
 | Historia energii 24 h | tak | tak | brak testu | — |
 | Skan BLE i dodawanie Gen2+ przez BLE | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |

@@ -43,7 +43,12 @@ static void test_cover_persistence(void)
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&!loaded[0].legacy_fallback&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH&&loaded[0].layout_id==42&&((uint32_t*)blobs[2])[0]==2);
  dsr_connection_t cover=loaded[0];cover.device.endpoint_kind=DSR_ENDPOINT_COVER;cover.layout_id=43;CHECK(dsr_connection_save(&cover)==ESP_OK&&sizes[2]==4104&&((uint32_t*)blobs[2])[0]==6);
  CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH&&loaded[1].device.endpoint_kind==DSR_ENDPOINT_COVER&&loaded[0].layout_id==42&&loaded[1].layout_id==43);
- unsigned before=write_opens;((uint32_t*)blobs[2])[0]=7;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&cover)!=ESP_OK&&write_opens==before);((uint32_t*)blobs[2])[0]=3;
+ unsigned before=write_opens;((uint32_t*)blobs[2])[0]=8;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n&&dsr_connection_save(&cover)!=ESP_OK&&write_opens==before);((uint32_t*)blobs[2])[0]=6;
+ /* BLU (kind5): schema 7 only while a BLU entry exists; schema 6 cannot hold kind5. */
+ dsr_connection_t blu=loaded[0];blu.device.endpoint_kind=DSR_ENDPOINT_BLU;blu.device.channel=3;strcpy(blu.device.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a");blu.layout_id=44;
+ CHECK(dsr_connection_save(&blu)==ESP_OK&&((uint32_t*)blobs[2])[0]==7&&dsr_connections_load(loaded,16,&n)==ESP_OK&&n==3&&loaded[2].device.endpoint_kind==DSR_ENDPOINT_BLU&&loaded[2].device.channel==3);
+ ((uint32_t*)blobs[2])[0]=6;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);((uint32_t*)blobs[2])[0]=7;
+ CHECK(dsr_connection_remove(&blu)==ESP_OK&&((uint32_t*)blobs[2])[0]==6&&dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2);((uint32_t*)blobs[2])[0]=3;
  CHECK(dsr_connection_remove(&cover)==ESP_OK&&dsr_connections_load(loaded,16,&n)==ESP_OK&&n==1&&loaded[0].device.endpoint_kind==DSR_ENDPOINT_SWITCH);CHECK(!memcmp(blobs[1],legacy,256));admission_open();
 }
 static void test_cover_scheduler(void)

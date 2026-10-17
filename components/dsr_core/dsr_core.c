@@ -6,9 +6,9 @@ static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
 uint8_t dsr_endpoint_from_kind(const char *kind)
 {return kind&&!strcmp(kind,"cover")?DSR_ENDPOINT_COVER:kind&&!strcmp(kind,"light")?DSR_ENDPOINT_LIGHT:kind&&!strcmp(kind,"sensor")?DSR_ENDPOINT_HT:DSR_ENDPOINT_SWITCH;}
 const char *dsr_endpoint_kind_name(uint8_t kind)
-{return kind==DSR_ENDPOINT_COVER?"cover":(kind==DSR_ENDPOINT_LIGHT||kind==DSR_ENDPOINT_RGB)?"light":kind==DSR_ENDPOINT_HT?"sensor":"relay";}
+{return kind==DSR_ENDPOINT_COVER?"cover":(kind==DSR_ENDPOINT_LIGHT||kind==DSR_ENDPOINT_RGB)?"light":(kind==DSR_ENDPOINT_HT||kind==DSR_ENDPOINT_BLU)?"sensor":"relay";}
 bool dsr_endpoint_layout_matches(uint8_t kind,const char *display)
-{return kind==DSR_ENDPOINT_RGB?display&&!strcmp(display,"light"):kind==dsr_endpoint_from_kind(display);}
+{return kind==DSR_ENDPOINT_RGB?display&&!strcmp(display,"light"):kind==DSR_ENDPOINT_BLU?display&&(!strcmp(display,"sensor")||!strcmp(display,"contact")):kind==dsr_endpoint_from_kind(display);}
 bool dsr_rgb_intent_valid(dsr_rgb_intent_t i)
 {return i.command>=DSR_RGB_ON&&i.command<=DSR_RGB_SET_COLOR&&(i.command==DSR_RGB_SET_COLOR||(i.rgb[1]==0&&i.rgb[2]==0&&(i.command==DSR_RGB_SET_BRIGHTNESS?i.brightness<=100:i.brightness==0)));}
 bool dsr_rgb_can_set(const dsr_rgb_status_t *s,dsr_rgb_intent_t i)
@@ -102,7 +102,7 @@ dsr_result_t dsr_registry_upsert(dsr_registry_t *registry, const dsr_device_t *d
     if (!registry || !device || registry->count > DSR_MAX_DEVICES ||
         !memchr(device->host, '\0', sizeof(device->host)) ||
         !memchr(device->name, '\0', sizeof(device->name)) ||
-        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL || device->endpoint_kind>DSR_ENDPOINT_HT ||
+        !dsr_ipv4_valid(device->host) || device->channel > DSR_MAX_CHANNEL || device->endpoint_kind>DSR_ENDPOINT_BLU ||
         ((device->endpoint_kind==DSR_ENDPOINT_RGB||device->endpoint_kind==DSR_ENDPOINT_HT)&&device->channel!=0) ||
         (device->endpoint_kind!=DSR_ENDPOINT_SWITCH&&device->generation!=DSR_GEN2_PLUS) ||
         (device->generation != DSR_GEN1 && device->generation != DSR_GEN2_PLUS)) return DSR_INVALID;

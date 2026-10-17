@@ -10,8 +10,9 @@ typedef struct {
     uint8_t generation;
     bool auth_required;
 } dsr_lan_device_t;
-typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors,ht;} dsr_lan_capabilities_t;
-_Static_assert(sizeof(dsr_lan_capabilities_t)==10,"HT capability uses existing padding");
+/* blu: bit i = gateway reports BTHomeDevice cid 200+i (Shelly BLU sensor). */
+typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors,ht;uint16_t blu;} dsr_lan_capabilities_t;
+_Static_assert(sizeof(dsr_lan_capabilities_t)==12,"bounded capability record");
 typedef enum {DSR_LAN_IDLE,DSR_LAN_SCANNING,DSR_LAN_DONE,DSR_LAN_CANCELLED,
               DSR_LAN_NO_WIFI,DSR_LAN_INSPECTING,DSR_LAN_INSPECTED,DSR_LAN_ERROR} dsr_lan_phase_t;
 typedef struct {
@@ -30,6 +31,14 @@ dsr_result_t dsr_shelly_parse_identity(const cJSON *json,dsr_lan_device_t *out);
 dsr_result_t dsr_lan_parse_identity(const cJSON *json,const char *host,dsr_lan_device_t *out);
 /* Valid HT bundle requires all three actual ID0 components; measurements may be null/missing. */
 dsr_result_t dsr_ht_parse(const cJSON *json,dsr_telemetry_t *out);
+/* Shelly BLU read through a Gen2+ gateway. cid = 200 + endpoint channel. */
+typedef struct {uint16_t sensor;uint8_t obj_id;} dsr_blu_object_t;
+#define DSR_BLU_MAX_OBJECTS 8u
+dsr_result_t dsr_blu_parse_address(const cJSON *config,unsigned cid,char mac[13]);
+dsr_result_t dsr_blu_parse_known(const cJSON *known,unsigned cid,dsr_blu_object_t *objects,unsigned capacity,unsigned *count);
+dsr_result_t dsr_blu_parse_device(const cJSON *status,unsigned cid,dsr_telemetry_t *out);
+dsr_result_t dsr_blu_apply_sensor(const cJSON *status,unsigned sensor,uint8_t obj_id,dsr_telemetry_t *out);
+bool dsr_blu_sensor_shown(uint8_t obj_id);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);
 dsr_result_t dsr_lan_upsert(dsr_lan_snapshot_t *scan,const dsr_lan_device_t *device);
 bool dsr_lan_plan_add(dsr_lan_plan_t *plan,const char *host,const char *local,const char *mask);

@@ -201,9 +201,9 @@ size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capac
 }
 static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_intent_t intent,dsr_rgb_intent_t rgb,uint32_t *operation_id)
 {
- if(!mutex||!device||!operation_id||device->endpoint_kind>DSR_ENDPOINT_HT)return DSR_INVALID;
+ if(!mutex||!device||!operation_id||device->endpoint_kind>DSR_ENDPOINT_BLU)return DSR_INVALID;
  dsr_light_intent_t light={.command=intent.command,.brightness=intent.position};
- bool is_light=device->endpoint_kind==DSR_ENDPOINT_LIGHT,is_rgb=device->endpoint_kind==DSR_ENDPOINT_RGB,sensor=device->endpoint_kind==DSR_ENDPOINT_HT;
+ bool is_light=device->endpoint_kind==DSR_ENDPOINT_LIGHT,is_rgb=device->endpoint_kind==DSR_ENDPOINT_RGB,sensor=DSR_ENDPOINT_IS_SENSOR(device->endpoint_kind);
  if(is_rgb&&!dsr_rgb_intent_valid(rgb))return DSR_INVALID;
  if(is_light&&!dsr_light_intent_valid(light))return DSR_INVALID;
  bool cover=device->endpoint_kind==DSR_ENDPOINT_COVER,stop=cover&&intent.command==DSR_COVER_STOP;
@@ -232,7 +232,7 @@ dsr_result_t dsr_workspace_light_request(const dsr_device_t *device,dsr_light_in
 dsr_result_t dsr_workspace_rgb_request(const dsr_device_t *device,dsr_rgb_intent_t intent,uint32_t *operation_id)
 {if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_RGB)return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){0},intent,operation_id);}
 dsr_result_t dsr_workspace_ht_refresh(const dsr_device_t *device,uint32_t *operation_id)
-{if(!device)return DSR_INVALID;if(device->endpoint_kind!=DSR_ENDPOINT_HT)return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){0},(dsr_rgb_intent_t){0},operation_id);}
+{if(!device)return DSR_INVALID;if(!DSR_ENDPOINT_IS_SENSOR(device->endpoint_kind))return DSR_UNSUPPORTED;return intent_request(device,false,(dsr_cover_intent_t){0},(dsr_rgb_intent_t){0},operation_id);}
 bool dsr_workspace_take_output(dsr_output_request_t *request)
 {
  if(!mutex||!request)return false;

@@ -83,9 +83,9 @@ bool dsr_ht_refresh_parse(const char *json,dsr_device_t *device)
  cJSON *r=cJSON_ParseWithOpts(json,NULL,true);bool valid=cJSON_IsObject(r);unsigned count=0;
  for(const cJSON *v=r?r->child:NULL;v;v=v->next){count++;if(!v->string||(strcmp(v->string,"device_id")&&strcmp(v->string,"generation")&&strcmp(v->string,"endpoint_kind")&&strcmp(v->string,"channel")))valid=false;for(const cJSON *b=v->next;b;b=b->next)if(b->string&&v->string&&!strcmp(v->string,b->string))valid=false;}
  const cJSON *id=cJSON_GetObjectItemCaseSensitive(r,"device_id"),*gen=cJSON_GetObjectItemCaseSensitive(r,"generation"),*kind=cJSON_GetObjectItemCaseSensitive(r,"endpoint_kind"),*channel=cJSON_GetObjectItemCaseSensitive(r,"channel");
- valid=valid&&count==4&&cJSON_IsString(id)&&id->valuestring[0]&&strlen(id->valuestring)<sizeof(device->device_id)&&cJSON_IsNumber(gen)&&gen->valuedouble==DSR_GEN2_PLUS&&cJSON_IsNumber(kind)&&kind->valuedouble==DSR_ENDPOINT_HT&&cJSON_IsNumber(channel)&&channel->valuedouble==0;
+ valid=valid&&count==4&&cJSON_IsString(id)&&id->valuestring[0]&&strlen(id->valuestring)<sizeof(device->device_id)&&cJSON_IsNumber(gen)&&gen->valuedouble==DSR_GEN2_PLUS&&cJSON_IsNumber(kind)&&(kind->valuedouble==DSR_ENDPOINT_HT||kind->valuedouble==DSR_ENDPOINT_BLU)&&cJSON_IsNumber(channel)&&channel->valuedouble==channel->valueint&&channel->valueint>=0&&channel->valueint<=(kind->valuedouble==DSR_ENDPOINT_HT?0:DSR_MAX_CHANNEL);
  if(valid)for(const unsigned char *p=(const unsigned char *)id->valuestring;*p;p++)if(!(isalnum(*p)||*p=='-'||*p=='_'))valid=false;
- if(valid){memset(device,0,sizeof(*device));strcpy(device->device_id,id->valuestring);device->generation=DSR_GEN2_PLUS;device->endpoint_kind=DSR_ENDPOINT_HT;}
+ if(valid){uint8_t k=(uint8_t)kind->valueint,ch=(uint8_t)channel->valueint;memset(device,0,sizeof(*device));strcpy(device->device_id,id->valuestring);device->generation=DSR_GEN2_PLUS;device->endpoint_kind=k;device->channel=ch;}
  cJSON_Delete(r);return valid;
 }
 static bool nullable(cJSON *o,const char *key,bool has,double value)
@@ -99,10 +99,20 @@ char *dsr_runtime_json(uint32_t boot_id)
  bool attached=false;
  if(ok){attached=cJSON_AddItemToObject(root,"devices",array);ok=attached;}
  for(size_t i=0;i<count&&ok;i++){
-  const dsr_runtime_device_t *r=&devices[i];const dsr_device_t *d=&r->device;bool sensor=d->endpoint_kind==DSR_ENDPOINT_HT;cJSON *o=cJSON_CreateObject();
+  const dsr_runtime_device_t *r=&devices[i];const dsr_device_t *d=&r->device;bool sensor=DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind);cJSON *o=cJSON_CreateObject();
   if(!o){ok=false;break;}cJSON_AddItemToArray(array,o);
   ok=cJSON_AddStringToObject(o,"device_id",d->device_id)&&cJSON_AddNumberToObject(o,"generation",d->generation)&&cJSON_AddNumberToObject(o,"endpoint_kind",d->endpoint_kind)&&cJSON_AddNumberToObject(o,"channel",d->channel)&&cJSON_AddStringToObject(o,"host",d->host)&&cJSON_AddStringToObject(o,"name",d->name)&&cJSON_AddBoolToObject(o,"online",d->online)&&(sensor?cJSON_AddNullToObject(o,"output"):cJSON_AddBoolToObject(o,"output",d->output))&&cJSON_AddBoolToObject(o,"has_switch",!sensor&&d->has_switch)&&cJSON_AddBoolToObject(o,"has_power",!sensor&&d->has_power)&&nullable(o,"power_w",!sensor,d->power_w)&&cJSON_AddBoolToObject(o,"has_voltage",!sensor&&r->telemetry.has_voltage)&&nullable(o,"voltage_v",!sensor,r->telemetry.voltage_v)&&cJSON_AddBoolToObject(o,"has_current",!sensor&&r->telemetry.has_current)&&nullable(o,"current_a",!sensor,r->telemetry.current_a)&&cJSON_AddBoolToObject(o,"has_energy",!sensor&&r->telemetry.has_energy)&&nullable(o,"energy_wh",!sensor,r->telemetry.energy_wh)&&cJSON_AddBoolToObject(o,"pending",r->pending)&&cJSON_AddNumberToObject(o,"error",r->error)&&cJSON_AddBoolToObject(o,"has_sample_time",r->has_sample_time)&&cJSON_AddNumberToObject(o,"sample_age_ms",r->sample_age_ms)&&cJSON_AddNumberToObject(o,"operation_id",r->operation_id);
-  if(ok&&sensor){const dsr_telemetry_t *t=&r->telemetry;
+  if(ok&&d->endpoint_kind==DSR_ENDPOINT_BLU){const dsr_telemetry_t *t=&r->telemetry;const dsr_blu_status_t *b=&t->blu;
+   cJSON *v=cJSON_AddObjectToObject(o,"blu");ok=v!=NULL;
+   ok=ok&&cJSON_AddBoolToObject(v,"valid",(b->flags&DSR_BLU_VALID)!=0)
+    &&((b->flags&DSR_BLU_HAS_MOTION)?cJSON_AddBoolToObject(v,"motion",(b->flags&DSR_BLU_MOTION)!=0)!=NULL:cJSON_AddNullToObject(v,"motion")!=NULL)
+    &&((b->flags&DSR_BLU_HAS_OPEN)?cJSON_AddBoolToObject(v,"open",(b->flags&DSR_BLU_OPEN)!=0)!=NULL:cJSON_AddNullToObject(v,"open")!=NULL)
+    &&nullable(v,"illuminance_lux",t->has_illuminance,t->illuminance_lux)&&nullable(v,"battery_pct",t->has_blu_battery,t->blu_battery_pct)
+    &&nullable(v,"temperature_c",t->has_blu_temperature,t->blu_temperature_c)&&nullable(v,"humidity_pct",(b->flags&DSR_BLU_HAS_HUMIDITY)!=0,b->humidity)
+    &&nullable(v,"button",(b->flags&DSR_BLU_HAS_BUTTON)!=0,b->button)&&nullable(v,"rssi",(b->flags&DSR_BLU_HAS_RSSI)!=0,b->rssi)
+    &&nullable(v,"updated_s",t->blu_updated_s!=0,t->blu_updated_s)&&cJSON_AddNumberToObject(v,"errors",b->errors);
+  }
+  if(ok&&d->endpoint_kind==DSR_ENDPOINT_HT){const dsr_telemetry_t *t=&r->telemetry;
    ok=cJSON_AddBoolToObject(o,"has_temperature",t->has_temperature)&&nullable(o,"temperature_c",t->has_temperature,t->temperature_c)&&cJSON_AddBoolToObject(o,"has_humidity",t->has_humidity)&&nullable(o,"humidity_pct",t->has_humidity,t->humidity_pct)&&cJSON_AddBoolToObject(o,"has_battery",t->has_battery)&&nullable(o,"battery_pct",t->has_battery,t->battery_pct)&&cJSON_AddNumberToObject(o,"sensor_errors",t->ht.errors)&&cJSON_AddBoolToObject(o,"measurement_time_known",false)&&cJSON_AddBoolToObject(o,"can_refresh",r->can_refresh);
    if(ok)ok=(t->ht.flags&DSR_HT_EXTERNAL_KNOWN)?cJSON_AddBoolToObject(o,"external_present",(t->ht.flags&DSR_HT_EXTERNAL_PRESENT)!=0)!=NULL:cJSON_AddNullToObject(o,"external_present")!=NULL;
   }

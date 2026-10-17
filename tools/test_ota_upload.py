@@ -36,7 +36,7 @@ for name,expected in auth_blocks.items():
         block=block.replace(runtime,b'')
         # The typed BIND extension validates a public family discriminator;
         # unchanged origin/boot/pairing gates above still own every route.
-        typed=b'  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER&&endpoint_kind->valuedouble!=DSR_ENDPOINT_LIGHT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_RGB&&endpoint_kind->valuedouble!=DSR_ENDPOINT_HT))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)connection.device.generation=DSR_GEN2_PLUS;}}\n'
+        typed=b'  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER&&endpoint_kind->valuedouble!=DSR_ENDPOINT_LIGHT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_RGB&&endpoint_kind->valuedouble!=DSR_ENDPOINT_HT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_BLU))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)connection.device.generation=DSR_GEN2_PLUS;}}\n'
         assert block.count(typed)==1,'Unexpected typed BIND validation change'
         block=block.replace(typed,b'')
         ap=b' if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);\n'

@@ -43,6 +43,15 @@
   yes:['tak','yes','ja'],no:['nie','no','nein'],
   sensorError:['Błędy pomiarów: {code}','Measurement errors: {code}','Messfehler: {code}'],
   coverError:['Błąd rolety: {code}','Cover error: {code}','Rollladenfehler: {code}'],
+  batteryShort:['baterii','battery','Batterie'],
+  bluSensor:['Czujnik BLU • przez bramkę','BLU sensor • via gateway','BLU-Sensor • über Gateway'],
+  bluMissing:['Bramka nie odpowiada','Gateway not responding','Gateway antwortet nicht'],
+  bluNoData:['Bramka nie zna jeszcze danych','Gateway has no data yet','Gateway hat noch keine Daten'],
+  motion:['Ruch wykryty','Motion detected','Bewegung erkannt'],noMotion:['Brak ruchu','No motion','Keine Bewegung'],
+  openState:['Otwarte','Open','Offen'],closedState:['Zamknięte','Closed','Geschlossen'],
+  bluPacket:['Ostatni pakiet BLU: {time}','Last BLU packet: {time}','Letztes BLU-Paket: {time}'],
+  bluError:['Błąd odczytu BLU (klucz/szyfrowanie): {code}','BLU read error (key/encryption): {code}','BLU-Lesefehler (Schlüssel/Verschlüsselung): {code}'],
+  bluNote:['Tylko odczyt. Bramka Shelly odbiera pakiety BLU; pilot odpytuje ją co 15 s.','Read only. The Shelly gateway receives BLU packets; the remote polls it every 15 s.','Nur lesen. Das Shelly-Gateway empfängt BLU-Pakete; die Fernbedienung fragt es alle 15 s ab.'],
  };
  let section=null,holder=null,status=null,fetching=false,fetchSerial=0,expiryTimer=null,boot=null;
  const cards=new Map(),local=new Map(),stops=new Map();
@@ -55,7 +64,9 @@
  const key=d=>JSON.stringify([d.device_id,d.generation,kind(d),d.channel]);
  const current=()=>section?.isConnected&&page==='devices'&&!document.querySelector('#workspace').hidden;
  function sensorValid(d){return d.channel===0&&d.output===null&&d.has_switch===false&&d.has_power===false&&typeof d.can_refresh==='boolean'&&typeof d.has_sample_time==='boolean'&&d.measurement_time_known===false&&['temperature','humidity','battery'].every((n,i)=>typeof d['has_'+n]==='boolean'&&(d['has_'+n]?Number.isFinite(d[['temperature_c','humidity_pct','battery_pct'][i]]):d[['temperature_c','humidity_pct','battery_pct'][i]]===null))&&(d.external_present===null||typeof d.external_present==='boolean')&&Number.isInteger(d.sensor_errors)&&d.sensor_errors>=0&&d.sensor_errors<=7;}
- function valid(d){return d&&[0,1,2,3,4].includes(kind(d))&&typeof d.device_id==='string'&&d.device_id.length>0&&d.device_id.length<64&&Number.isInteger(d.generation)&&[1,2].includes(d.generation)&&Number.isInteger(d.channel)&&d.channel>=0&&d.channel<16&&typeof d.name==='string'&&typeof d.host==='string'&&typeof d.online==='boolean'&&(kind(d)===4?d.output===null:typeof d.output==='boolean')&&typeof d.has_switch==='boolean'&&typeof d.pending==='boolean'&&Number.isInteger(d.operation_id)&&d.operation_id>=0&&d.operation_id<=0xffffffff&&Number.isInteger(d.error)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms>=0&&(kind(d)===0||(d.generation===2&&(kind(d)===4?sensorValid(d):kind(d)===3?d.channel===0&&typeof d.has_rgb==='boolean'&&Array.isArray(d.rgb)&&d.rgb.length===3&&d.rgb.every(v=>Number.isInteger(v)&&v>=0&&v<=255)&&Number.isInteger(d.brightness)&&d.brightness>=0&&d.brightness<=100&&typeof d.can_rgb==='boolean'&&typeof d.transitioning==='boolean'&&typeof d.rgb_error==='boolean':kind(d)===2?typeof d.has_brightness==='boolean'&&Number.isInteger(d.brightness)&&d.brightness>=0&&d.brightness<=100&&typeof d.can_light==='boolean'&&typeof d.transitioning==='boolean'&&typeof d.has_brightness_target==='boolean'&&Number.isInteger(d.brightness_target)&&d.brightness_target>=0&&d.brightness_target<=100&&Number.isInteger(d.light_errors)&&d.light_errors>=0&&d.light_errors<=255&&Number.isInteger(d.light_conditions)&&d.light_conditions>=0&&d.light_conditions<=255:typeof d.has_position==='boolean'&&Number.isInteger(d.position)&&d.position>=0&&d.position<=100&&Number.isInteger(d.cover_state)&&d.cover_state>=0&&d.cover_state<=6&&typeof d.can_move==='boolean'&&typeof d.can_position==='boolean'&&typeof d.can_stop==='boolean'&&typeof d.stop_pending==='boolean'&&Number.isInteger(d.cover_errors)&&d.cover_errors>=0&&d.cover_errors<=255)));}
+ const nullBool=v=>v===null||typeof v==='boolean',nullNumber=v=>v===null||Number.isFinite(v);
+ function bluValid(d){const b=d.blu;return d.output===null&&d.has_switch===false&&d.has_power===false&&!!b&&typeof b==='object'&&typeof b.valid==='boolean'&&nullBool(b.motion)&&nullBool(b.open)&&['illuminance_lux','battery_pct','temperature_c','humidity_pct','button','rssi','updated_s'].every(n=>nullNumber(b[n]))&&Number.isInteger(b.errors)&&b.errors>=0&&b.errors<=15;}
+ function valid(d){return d&&[0,1,2,3,4,5].includes(kind(d))&&typeof d.device_id==='string'&&d.device_id.length>0&&d.device_id.length<64&&Number.isInteger(d.generation)&&[1,2].includes(d.generation)&&Number.isInteger(d.channel)&&d.channel>=0&&d.channel<16&&typeof d.name==='string'&&typeof d.host==='string'&&typeof d.online==='boolean'&&(kind(d)>=4?d.output===null:typeof d.output==='boolean')&&typeof d.has_switch==='boolean'&&typeof d.pending==='boolean'&&Number.isInteger(d.operation_id)&&d.operation_id>=0&&d.operation_id<=0xffffffff&&Number.isInteger(d.error)&&Number.isFinite(d.sample_age_ms)&&d.sample_age_ms>=0&&(kind(d)===0||(d.generation===2&&(kind(d)===4?sensorValid(d):kind(d)===5?bluValid(d):kind(d)===3?d.channel===0&&typeof d.has_rgb==='boolean'&&Array.isArray(d.rgb)&&d.rgb.length===3&&d.rgb.every(v=>Number.isInteger(v)&&v>=0&&v<=255)&&Number.isInteger(d.brightness)&&d.brightness>=0&&d.brightness<=100&&typeof d.can_rgb==='boolean'&&typeof d.transitioning==='boolean'&&typeof d.rgb_error==='boolean':kind(d)===2?typeof d.has_brightness==='boolean'&&Number.isInteger(d.brightness)&&d.brightness>=0&&d.brightness<=100&&typeof d.can_light==='boolean'&&typeof d.transitioning==='boolean'&&typeof d.has_brightness_target==='boolean'&&Number.isInteger(d.brightness_target)&&d.brightness_target>=0&&d.brightness_target<=100&&Number.isInteger(d.light_errors)&&d.light_errors>=0&&d.light_errors<=255&&Number.isInteger(d.light_conditions)&&d.light_conditions>=0&&d.light_conditions<=255:typeof d.has_position==='boolean'&&Number.isInteger(d.position)&&d.position>=0&&d.position<=100&&Number.isInteger(d.cover_state)&&d.cover_state>=0&&d.cover_state<=6&&typeof d.can_move==='boolean'&&typeof d.can_position==='boolean'&&typeof d.can_stop==='boolean'&&typeof d.stop_pending==='boolean'&&Number.isInteger(d.cover_errors)&&d.cover_errors>=0&&d.cover_errors<=255)));}
  const colorHex=d=>'#'+d.rgb.map(v=>v.toString(16).padStart(2,'0')).join('');
  const canRgb=d=>d.has_rgb&&d.can_rgb&&!d.rgb_error&&!d.transitioning;
  const canLight=d=>d.can_light&&d.has_brightness&&!d.light_errors&&!d.light_conditions;
@@ -67,6 +78,14 @@
   card.name.textContent=d.name;card.identity.textContent=d.device_id;
   card.address.textContent=text('channel',d);
   const stop=stops.get(key(d)),waiting=d.pending||!!l?.waiting||!!stop?.waiting,sensor=kind(d)===4,cover=kind(d)===1,light=kind(d)===2,rgb=kind(d)===3;
+  if(kind(d)===5){
+   const b=d.blu,known=d.online&&b.valid,unit=(v,u,digits=1)=>`${v.toLocaleString(document.documentElement.lang,{maximumFractionDigits:digits})} ${u}`;
+   card.state.textContent=text(!d.online?'bluMissing':!b.valid?'bluNoData':b.motion!==null?(b.motion?'motion':'noMotion'):b.open!==null?(b.open?'openState':'closedState'):'bluSensor');
+   card.measure.textContent=known?[[b.illuminance_lux,'lx',0],[b.temperature_c,'°C'],[b.humidity_pct,'% RH',0],[b.battery_pct,'% '+text('batteryShort'),0],[b.rssi,'dBm',0]].filter(([v])=>v!==null).map(([v,u,digits])=>unit(v,u,digits)).join(' · '):'';
+   card.age.textContent=known&&b.updated_s?text('bluPacket',{time:new Date(b.updated_s*1000).toLocaleString(document.documentElement.lang)}):d.has_sample_time?text('responseAge',{seconds:Math.floor(age(card)/1000)}):text('unknown');
+   card.error.textContent=d.error?text('error',{code:d.error}):b.errors?text('bluError',{code:b.errors}):'';
+   card.on.hidden=card.off.hidden=true;card.note.textContent=text('bluNote');return;
+  }
   if(kind(d)===4){
    card.state.textContent=text(waiting?'pending':d.online?'sensor':'sensorMissing');
    card.age.textContent=d.has_sample_time?text('responseAge',{seconds:Math.floor(age(card)/1000)}):text('unknown');
@@ -107,7 +126,7 @@
   const root=node('article','runtime-card'),head=node('div','runtime-heading'),name=node('h3'),identity=node('p','muted'),address=node('p','muted'),state=node('p'),measure=node('p'),age=node('p','muted'),error=node('p','runtime-error'),actions=node('div','actions'),on=node('button'),off=node('button');
   on.type=off.type='button';error.setAttribute('role','status');head.append(name,identity,address);actions.append(on,off);root.append(head,state,measure,age,error,actions);
   const card={root,name,identity,address,state,measure,age,error,on,off,data:d,received:performance.now(),rangeCanceled:true};
-  if(kind(d)===4){card.note=node('p','muted');root.append(card.note);}
+  if(kind(d)>=4){card.note=node('p','muted');root.append(card.note);}
   if([1,2,3].includes(kind(d))){const light=kind(d)===2,rgb=kind(d)===3;if(!light&&!rgb){card.stop=node('button');card.stop.type='button';actions.append(card.stop);card.stop.addEventListener('click',()=>command(card,false,{command:'stop'}));}card.range=node('input');card.range.type='range';card.range.min='0';card.range.max='100';card.range.step='1';card.preview=node('p','muted');actions.append(card.range);root.append(card.preview);
    card.range.addEventListener('input',()=>{if(card.range.disabled)return;card.rangeCanceled=false;card.dragging=true;paint(card);});
    card.range.addEventListener('change',()=>{const position=Number(card.range.value),gesture=card.dragging&&!card.rangeCanceled;card.dragging=false;card.rangeCanceled=true;if(!gesture){paint(card);return;}return command(card,false,(light||rgb)?{command:'brightness',brightness:position}:{command:'position',position});});

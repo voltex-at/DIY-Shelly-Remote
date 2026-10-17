@@ -104,7 +104,19 @@ static void ht_parser(void)
  for(unsigned n=1;n<=total;n++){fail_at=n;attempts=0;json=dsr_runtime_json(129);CHECK(!json);CHECK(live==0);}fail_at=0;
  snapshots[0].telemetry=(dsr_telemetry_t){.ht={.flags=DSR_HT_VALID}};json=dsr_runtime_json(129);CHECK(json&&strstr(json,"\"temperature_c\":null")&&strstr(json,"\"humidity_pct\":null")&&strstr(json,"\"battery_pct\":null")&&strstr(json,"\"external_present\":null"));cJSON_free(json);CHECK(!live);
 }
+static void blu_parser(void)
+{
+ const char *good="{\"device_id\":\"shellyplus1pm-aabbccddeeff_3c2ef571d52a\",\"generation\":2,\"endpoint_kind\":5,\"channel\":15}";dsr_device_t d;
+ CHECK(dsr_ht_refresh_parse(good,&d)&&d.endpoint_kind==DSR_ENDPOINT_BLU&&d.channel==15&&!d.host[0]);
+ const char *bad[]={"{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":5,\"channel\":16}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":6,\"channel\":0}","{\"device_id\":\"a\",\"generation\":1,\"endpoint_kind\":5,\"channel\":0}","{\"device_id\":\"a:b\",\"generation\":2,\"endpoint_kind\":5,\"channel\":0}","{\"device_id\":\"a\",\"generation\":2,\"endpoint_kind\":5,\"channel\":0.5}"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){CHECK(!dsr_ht_refresh_parse(bad[i],&d)&&live==0);}
+ CHECK(dsr_ht_refresh_parse(good,&d));snapshot_count=1;
+ snapshots[0]=(dsr_runtime_device_t){.device=d,.can_refresh=true,.has_sample_time=true,.sample_age_ms=1000,.telemetry={.has_illuminance=true,.illuminance_lux=317,.has_blu_battery=true,.blu_battery_pct=92,.blu_updated_s=1767225500u,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_MOTION|DSR_BLU_MOTION|DSR_BLU_HAS_RSSI,.rssi=-71}}};
+ attempts=0;char *json=dsr_runtime_json(130);CHECK(json&&strstr(json,"\"endpoint_kind\":5")&&strstr(json,"\"output\":null")&&strstr(json,"\"motion\":true")&&strstr(json,"\"open\":null")&&strstr(json,"\"illuminance_lux\":317")&&strstr(json,"\"battery_pct\":92")&&strstr(json,"\"temperature_c\":null")&&strstr(json,"\"rssi\":-71")&&strstr(json,"\"updated_s\":1767225500")&&strstr(json,"\"errors\":0")&&!strstr(json,"external_present")&&!strstr(json,"credentials"));unsigned total=attempts;cJSON_free(json);CHECK(live==0);
+ for(unsigned n=1;n<=total;n++){fail_at=n;attempts=0;json=dsr_runtime_json(130);CHECK(!json);CHECK(live==0);}fail_at=0;
+ snapshots[0].telemetry=(dsr_telemetry_t){.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN,.errors=DSR_BLU_ERROR_DECRYPT}};json=dsr_runtime_json(130);CHECK(json&&strstr(json,"\"open\":false")&&strstr(json,"\"motion\":null")&&strstr(json,"\"errors\":2")&&strstr(json,"\"updated_s\":null"));cJSON_free(json);CHECK(!live);
+}
 int main(void)
 {
- cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();light_parser();rgb_parser();ht_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
+ cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();light_parser();rgb_parser();ht_parser();blu_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
 }

@@ -89,6 +89,85 @@ dsr_result_t dsr_ht_parse(const cJSON *r,dsr_telemetry_t *out)
  if(pe){sample.ht.errors|=DSR_HT_POWER_ERROR;sample.has_battery=false;sample.battery_pct=0;sample.ht.flags&=(uint8_t)~(DSR_HT_EXTERNAL_KNOWN|DSR_HT_EXTERNAL_PRESENT);}
  *out=sample;return DSR_OK;
 }
+/* ---- Shelly BLU through a Gen2+ gateway (BTHome components) ----
+ * BTHomeDevice cid 200..215 maps to endpoint channel 0..15. Values are what the
+ * gateway decoded; the remote never sees the BLE frames or encryption keys. */
+dsr_result_t dsr_blu_parse_address(const cJSON *config,unsigned cid,char mac[13])
+{
+ mac[0]=0;
+ if(!cJSON_IsObject(config)||!ht_unique(config)||!integral(get(config,"id"),(int)cid,(int)cid))return DSR_BAD_RESPONSE;
+ const cJSON *addr=get(config,"addr");if(!text(addr,18)||strlen(addr->valuestring)!=17)return DSR_BAD_RESPONSE;
+ const char *a=addr->valuestring;char out[13];unsigned n=0;bool nonzero=false;
+ for(unsigned i=0;i<17;i++){
+  if(i%3==2){if(a[i]!=':')return DSR_BAD_RESPONSE;continue;}
+  if(!isxdigit((unsigned char)a[i]))return DSR_BAD_RESPONSE;
+  out[n++]=(char)tolower((unsigned char)a[i]);nonzero|=a[i]!='0';
+ }
+ out[n]=0;if(!nonzero)return DSR_BAD_RESPONSE;
+ memcpy(mac,out,sizeof(out));return DSR_OK;
+}
+dsr_result_t dsr_blu_parse_known(const cJSON *r,unsigned cid,dsr_blu_object_t *objects,unsigned capacity,unsigned *count)
+{
+ *count=0;
+ if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)cid,(int)cid))return DSR_BAD_RESPONSE;
+ const cJSON *list=get(r,"objects");if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)>32)return DSR_BAD_RESPONSE;
+ const cJSON *v;cJSON_ArrayForEach(v,list){
+  if(!cJSON_IsObject(v)||!integral(get(v,"obj_id"),0,255)||!integral(get(v,"idx"),0,255))return DSR_BAD_RESPONSE;
+  const cJSON *component=get(v,"component");
+  if(!component||cJSON_IsNull(component))continue; /* known to the gateway, no sensor component */
+  if(!text(component,24)||strncmp(component->valuestring,"bthomesensor:",13))return DSR_BAD_RESPONSE;
+  char *end;long id=strtol(component->valuestring+13,&end,10);
+  if(!component->valuestring[13]||*end||id<0||id>65535)return DSR_BAD_RESPONSE;
+  if(*count<capacity)objects[(*count)++]=(dsr_blu_object_t){.sensor=(uint16_t)id,.obj_id=(uint8_t)get(v,"obj_id")->valueint};
+ }
+ return DSR_OK;
+}
+dsr_result_t dsr_blu_parse_device(const cJSON *r,unsigned cid,dsr_telemetry_t *out)
+{
+ memset(out,0,sizeof(*out));
+ if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)cid,(int)cid))return DSR_BAD_RESPONSE;
+ bool has;double value;
+ if(!ht_number(get(r,"battery"),0,100,&out->has_blu_battery,&out->blu_battery_pct))return DSR_BAD_RESPONSE;
+ if(!ht_number(get(r,"rssi"),-127,20,&has,&value))return DSR_BAD_RESPONSE;
+ if(has){out->blu.rssi=(int8_t)value;out->blu.flags|=DSR_BLU_HAS_RSSI;}
+ /* Documented as last_update_ts; devices answer last_updated_ts. */
+ const cJSON *ts=get(r,"last_updated_ts");if(!ts)ts=get(r,"last_update_ts");
+ if(!ht_number(ts,0,4294967295.0,&has,&value))return DSR_BAD_RESPONSE;
+ if(has)out->blu_updated_s=(uint32_t)value;
+ const cJSON *errors=get(r,"errors");
+ if(errors){
+  if(!cJSON_IsArray(errors)||cJSON_GetArraySize(errors)>8)return DSR_BAD_RESPONSE;
+  const char *known[]={"key_missing_or_bad","decrypt_failed","parse_failed","unencrypted_data"};
+  const cJSON *e;cJSON_ArrayForEach(e,errors){if(!text(e,64))return DSR_BAD_RESPONSE;for(unsigned i=0;i<4;i++)if(!strcmp(e->valuestring,known[i]))out->blu.errors|=(uint8_t)(1u<<i);}
+ }
+ out->blu.flags|=DSR_BLU_VALID;return DSR_OK;
+}
+dsr_result_t dsr_blu_apply_sensor(const cJSON *r,unsigned sensor,uint8_t obj_id,dsr_telemetry_t *out)
+{
+ if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)sensor,(int)sensor))return DSR_BAD_RESPONSE;
+ const cJSON *v=get(r,"value");if(!v||cJSON_IsNull(v))return DSR_OK; /* nothing received yet */
+ bool has;double value;
+ switch(obj_id){
+ case 0x21: /* motion */
+  if(!cJSON_IsBool(v)){return DSR_BAD_RESPONSE;}out->blu.flags|=DSR_BLU_HAS_MOTION|(cJSON_IsTrue(v)?DSR_BLU_MOTION:0);break;
+ case 0x1A: case 0x2D: /* door, window: true = open */
+  if(!cJSON_IsBool(v)){return DSR_BAD_RESPONSE;}out->blu.flags|=DSR_BLU_HAS_OPEN|(cJSON_IsTrue(v)?DSR_BLU_OPEN:0);break;
+ case 0x05: /* illuminance, lux */
+  if(!ht_number(v,0,200000,&has,&value)){return DSR_BAD_RESPONSE;}out->has_illuminance=has;out->illuminance_lux=value;break;
+ case 0x01: /* battery, % (BTHomeDevice battery may be absent) */
+  if(!ht_number(v,0,100,&has,&value)){return DSR_BAD_RESPONSE;}if(has){out->has_blu_battery=true;out->blu_battery_pct=value;}break;
+ case 0x02: case 0x45: /* temperature, C */
+  if(!ht_number(v,-60,120,&has,&value)){return DSR_BAD_RESPONSE;}out->has_blu_temperature=has;out->blu_temperature_c=(float)value;break;
+ case 0x03: case 0x2E: /* humidity, % */
+  if(!ht_number(v,0,100,&has,&value)){return DSR_BAD_RESPONSE;}if(has){out->blu.flags|=DSR_BLU_HAS_HUMIDITY;out->blu.humidity=(uint8_t)(value+0.5);}break;
+ case 0x3A: /* button event code */
+  if(!ht_number(v,0,255,&has,&value)){return DSR_BAD_RESPONSE;}if(has){out->blu.flags|=DSR_BLU_HAS_BUTTON;out->blu.button=(uint8_t)value;}break;
+ default:break; /* rotation, packet id, ...: not shown */
+ }
+ return DSR_OK;
+}
+bool dsr_blu_sensor_shown(uint8_t obj_id)
+{return obj_id==0x21||obj_id==0x1A||obj_id==0x2D||obj_id==0x05||obj_id==0x01||obj_id==0x02||obj_id==0x45||obj_id==0x03||obj_id==0x2E||obj_id==0x3A;}
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_lan_capabilities_t *out)
 {
     if(!out||!cJSON_IsObject(r)||!unique_keys(r))return DSR_BAD_RESPONSE;
@@ -113,6 +192,9 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
                     caps.rgbs|=1;
                 }else if(cover){if(!text(get(v,"state"),32))return DSR_BAD_RESPONSE;caps.covers|=(uint16_t)(1u<<index);}
                 else{if(!cJSON_IsBool(get(v,"output"))||(light&&!integral(get(v,"brightness"),0,100)))return DSR_BAD_RESPONSE;*(sw?&caps.switches:&caps.lights)|=(uint16_t)(1u<<index);}
+            }else if(!strncmp(v->string,"bthomedevice:",13)){char *end;long cid=strtol(v->string+13,&end,10);
+                if(!v->string[13]||*end||!cJSON_IsObject(v)||!integral(get(v,"id"),(int)cid,(int)cid))return DSR_BAD_RESPONSE;
+                if(cid>=(long)DSR_BLU_FIRST_CID&&cid<(long)DSR_BLU_FIRST_CID+16)caps.blu|=(uint16_t)(1u<<(cid-(long)DSR_BLU_FIRST_CID));
             }else if(!strncmp(v->string,"temperature:",12)||!strncmp(v->string,"humidity:",9)||!strncmp(v->string,"devicepower:",12))caps.sensors=cJSON_IsObject(v)||caps.sensors;
         }
     }else return DSR_UNSUPPORTED;

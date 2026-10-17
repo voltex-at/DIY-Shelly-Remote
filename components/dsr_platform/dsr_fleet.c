@@ -18,7 +18,7 @@ dsr_result_t dsr_fleet_upsert(dsr_fleet_t *f,const dsr_connection_t *c,uint32_t 
   memcpy(other->connection.device.host,c->device.host,sizeof(c->device.host));other->connection.credentials=c->credentials;
  }
  dsr_fleet_slot_t *s=&f->slots[at];uint32_t command_id=s->command_id;discard(s);memset(s,0,sizeof(*s));s->command_id=command_id;s->connection=*c;s->layout_enabled=c->layout_id!=0||c->legacy_fallback;
- s->sample_valid=c->device.online;s->sample_ms=now;s->next_poll=now+(c->device.endpoint_kind==DSR_ENDPOINT_HT&&c->device.online?60000:5000);return DSR_OK;
+ s->sample_valid=c->device.online;s->sample_ms=now;s->next_poll=now+(c->device.endpoint_kind==DSR_ENDPOINT_HT&&c->device.online?60000:c->device.endpoint_kind==DSR_ENDPOINT_BLU&&c->device.online?15000:5000);return DSR_OK;
 }
 dsr_result_t dsr_fleet_request(dsr_fleet_t *f,unsigned index,bool on,bool wifi,uint32_t now)
 {
@@ -76,7 +76,7 @@ dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *f,unsigned index,dsr_rgb_intent_
 dsr_result_t dsr_fleet_ht_refresh(dsr_fleet_t *f,unsigned index,bool wifi,uint32_t now)
 {
  (void)now;if(!f||index>=f->count)return DSR_INVALID;
- dsr_fleet_slot_t *s=&f->slots[index];if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_HT)return DSR_UNSUPPORTED;
+ dsr_fleet_slot_t *s=&f->slots[index];if(!DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind))return DSR_UNSUPPORTED;
  if(s->queued||s->in_flight)return DSR_BUSY;
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi)return DSR_OFFLINE;
@@ -91,7 +91,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
  int at=-1;
  for(size_t i=0;i<f->count;i++){
   dsr_fleet_slot_t *s=&f->slots[i];if(!s->queued||s->in_flight)continue;
-  bool sensor=s->connection.device.endpoint_kind==DSR_ENDPOINT_HT;
+  bool sensor=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind);
   if(!s->layout_enabled||(!sensor&&(now-s->sample_ms>15000||!s->connection.device.online))||!dsr_endpoint_equal(&s->connection.device,&s->intent_identity)||strcmp(s->connection.device.host,s->intent_identity.host)||s->blocked){
    s->result=s->blocked?s->result:(!s->connection.device.online||now-s->sample_ms>15000)?DSR_OFFLINE:DSR_IDENTITY_MISMATCH;s->command_error=true;discard(s);continue;
   }
@@ -102,14 +102,14 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
   if(s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0)return false;
- dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_JOB_LIGHT:s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB?DSR_JOB_RGB:s->connection.device.endpoint_kind==DSR_ENDPOINT_HT?DSR_JOB_PROBE:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
+ dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_JOB_LIGHT:s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB?DSR_JOB_RGB:DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)?DSR_JOB_PROBE:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
  if(s->queued){if(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER)job->cover=s->cover;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT)job->light=s->light;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB)job->rgb=s->rgb;else job->on=s->on;}
  *index=(unsigned)at;return true;
 }
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
- if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||(job->kind==DSR_JOB_PROBE&&s->connection.device.endpoint_kind==DSR_ENDPOINT_HT))discard(s);
+ if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||(job->kind==DSR_JOB_PROBE&&DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)))discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
 }
 bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,uint32_t now)
@@ -121,14 +121,16 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(!dsr_endpoint_equal(&s->connection.device,&event->device)||strcmp(s->connection.device.host,event->device.host))result=DSR_IDENTITY_MISMATCH;
  if(result==DSR_OK){s->connection.device=event->device;s->connection.telemetry=event->telemetry;s->failures=0;if(event->device.online){s->sample_valid=true;s->sample_ms=now;}}
  else {s->connection.device.online=false;s->connection.device.has_power=false;
-  bool retained=s->connection.device.endpoint_kind==DSR_ENDPOINT_HT&&(result==DSR_OFFLINE||result==DSR_IO||result==DSR_RATE_LIMITED||result==DSR_BAD_RESPONSE||result==DSR_UNSUPPORTED);
-  if(!retained){memset(&s->connection.telemetry,0,sizeof(s->connection.telemetry));if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT)s->sample_valid=false;}
+  bool retained=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)&&(result==DSR_OFFLINE||result==DSR_IO||result==DSR_RATE_LIMITED||result==DSR_BAD_RESPONSE||result==DSR_UNSUPPORTED);
+  if(!retained){memset(&s->connection.telemetry,0,sizeof(s->connection.telemetry));if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind))s->sample_valid=false;}
   if(s->failures<4)s->failures++;
  }
- if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
+ if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
  s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED;
  uint32_t delay=s->failures?(5000u<<s->failures):5000u;
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
+ /* BLU values come from an always-on gateway: poll often, back off on errors. */
+ if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}
  return true;

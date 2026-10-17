@@ -113,7 +113,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_provision_ui","test_style_ui","test_editor_layout_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
