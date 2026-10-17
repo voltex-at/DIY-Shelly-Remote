@@ -1,3 +1,11 @@
+0.7.48-dev: termostat BLU TRV w stylu Shelly Smart Control. Stable: brak.
+
+Zmiany względem 0.7.47-dev (wzór: zrzuty aplikacji Shelly od właściciela):
+- Ekran termostatu: rząd wartości (temperatura, cel, zawór, bateria), łuk 4-30 °C od niebieskiego do czerwonego z gałką na celu, aktualna temperatura i duży cel w środku, okrągłe -/+.
+- -/+ wysyłają cel 1,2 s po ostatnim dotknięciu (bez przycisku "Ustaw"); odczyt co 15 s jak w aplikacji (bez przycisku odświeżania).
+- Lista urządzeń: wiersz TRV z pastylką "- cel +" po prawej.
+- Poprawka: przy TRV offline lista mogła pokazać cel jako "lx".
+
 0.7.47-dev: termostat BLU TRV, stabilny odczyt czujników BLU, wbudowane zdjęcia pomieszczeń. Stable: brak.
 
 Zmiany względem 0.7.46-dev:

@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.47-dev
+# Matryca funkcji — 0.7.48-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -16,7 +16,7 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Pomieszczenia, pulpity, edytor LCD i Web Panel | tak | tak (układ PL/EN/DE) | ucięty tekst w edytorze (0.7.37), poprawione, brak ponownego testu | — |
 | Rolety (Cover Gen2+) | tak | tak | sterowanie potwierdzone (0.7.37) | — |
 | Light/Dimmer Gen2+, RGBW, H&T Gen3 | tak | tak | brak testu | — |
-| Termostat BLU TRV przez bramkę (odczyt, cel 4-30 °C) | tak (0.7.47) | tak (HTTP model, kolejka, LCD, Web Panel odczyt) | brak testu | — |
+| Termostat BLU TRV przez bramkę (odczyt, cel 4-30 °C, łuk i pastylka jak w Shelly) | tak (0.7.47; 0.7.48 wygląd) | tak (HTTP model, kolejka, LCD, Web Panel odczyt) | brak testu | — |
 | Wbudowane zdjęcia pomieszczeń (8) | tak (0.7.47) | tak (LCD) | brak testu | — |
 | Shelly BLU Motion/Door/Window przez bramkę Shelly (LAN, tylko odczyt) | tak (0.7.42; 0.7.45: lista z GetComponents) | tak (HTTP model, LCD, Web Panel) | 0.7.44: BLU Gateway Gen3 bez kanałów (GetStatus bez BTHome), poprawione w 0.7.45, brak testu | — |
 | Grupy, sceny, dziennik aktywności | tak | tak | brak testu | — |

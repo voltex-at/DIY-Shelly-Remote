@@ -48,24 +48,32 @@ int main(int argc,char **argv)
  if(in_flight){blu_response(false,true);tick();}
  click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);blu_response(false,false);tick();CHECK(find_label(lv_screen_active(),"Bramka nie odpowiada")&&!find_label(lv_screen_active(),"Brak ruchu")&&!find_label(lv_screen_active(),"317 lx")&&find_label(lv_screen_active(),"Bateria —"));screenshot("362-blu-gateway-offline");
 
- /* BLU TRV: the same gateway channel reports a BluTrv; thermostat screen, local target, explicit "Ustaw". */
+ /* BLU TRV (owner reference: Shelly Smart Control): value chips, 4..30 C dial, -/+ send 1.2 s after the last tap. */
  click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(20.0f,28,DSR_OK);tick();
- CHECK(find_label(lv_screen_active(),"Termostat BLU TRV")&&find_label(lv_screen_active(),"21.5 °C")&&find_label(lv_screen_active(),"20.0 °C")&&find_label(lv_screen_active(),"Cel na termostacie: 20.0 °C")&&find_label(lv_screen_active(),"Zawór 28% • Bateria 100% • -51 dBm"));
- CHECK(!find_label(lv_screen_active(),"Przycisk 0")&&!find_label(lv_screen_active(),"317 lx"));screenshot("366-trv-thermostat");
+ CHECK(find_label(lv_screen_active(),"21.5 °C")&&find_label(lv_screen_active(),"cel 20.0 °C")&&find_label(lv_screen_active(),"zawór 28%")&&find_label(lv_screen_active(),"100%")&&find_label(lv_screen_active(),"AKTUALNA\nTEMPERATURA")&&find_label(lv_screen_active(),"20.0 °C"));
+ CHECK(find_label(lv_screen_active(),"4 °C")&&find_label(lv_screen_active(),"30 °C")&&!find_label(lv_screen_active(),"Przycisk 0")&&!find_label(lv_screen_active(),"317 lx"));screenshot("366-trv-thermostat");
  dsr_mobile_device_t trv_typed;CHECK(dsr_network_history_device(id,&trv_typed)&&trv_typed.has_trv_target&&trv_typed.trv_target_c==20.0&&trv_typed.has_temperature&&trv_typed.temperature_c==21.5); /* has_illuminance shares has_trv_target: the screen check above proves no lux */
- unsigned trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"20.5 °C")&&find_label(lv_screen_active(),"Cel na termostacie: 20.0 °C")&&requests==trv_before&&!in_flight); /* local only */
- click("Ustaw 20.5 °C");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.command==DSR_TRV_SET_TARGET&&submitted.trv.half_c==41&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_BLU);
- trv_response(20.5f,40,DSR_OK);tick();CHECK(find_label(lv_screen_active(),"Cel na termostacie: 20.5 °C")&&find_label(lv_screen_active(),"Zawór 40% • Bateria 100% • -51 dBm"));screenshot("367-trv-target-set");
+ unsigned trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"20.5 °C")&&find_label(lv_screen_active(),"cel 20.0 °C")&&find_label(lv_screen_active(),"Wysyłanie do termostatu przez bramkę…")&&requests==trv_before&&!in_flight);
+ click("+");CHECK(find_label(lv_screen_active(),"21.0 °C"));lv_tick_inc(1000);lv_timer_handler();CHECK(!in_flight&&requests==trv_before); /* still within 1.2 s of the last tap */
+ lv_tick_inc(300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.command==DSR_TRV_SET_TARGET&&submitted.trv.half_c==42&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_BLU);
+ trv_response(21.0f,40,DSR_OK);tick();CHECK(find_label(lv_screen_active(),"cel 21.0 °C")&&find_label(lv_screen_active(),"zawór 40%")&&find_label(lv_screen_active(),"21.0 °C"));screenshot("367-trv-target-set");
  for(unsigned i=0;i<40;i++){click("-");}
- CHECK(find_label(lv_screen_active(),"4.0 °C")&&find_label(lv_screen_active(),"Ustaw 4.0 °C"));
+ CHECK(find_label(lv_screen_active(),"4.0 °C"));
  for(unsigned i=0;i<60;i++){click("+");}
- CHECK(find_label(lv_screen_active(),"30.0 °C")&&find_label(lv_screen_active(),"Ustaw 30.0 °C"));
- click("Ustaw 30.0 °C");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==60);trv_response(20.5f,40,DSR_BAD_RESPONSE);tick();
- CHECK(!in_flight&&find_label(lv_screen_active(),"Termostat BLU TRV"));
- /* Offline TRV: no target can be sent. */
- click("Odśwież");tick();if(in_flight){trv_response(20.5f,40,DSR_OFFLINE);tick();}trv_before=requests;click("Ustaw 30.0 °C");tick();CHECK(requests==trv_before&&!in_flight);
+ CHECK(find_label(lv_screen_active(),"30.0 °C"));lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==60);trv_response(21.0f,40,DSR_BAD_RESPONSE);tick();
+ CHECK(!in_flight&&find_label(lv_screen_active(),"AKTUALNA\nTEMPERATURA"));
+ /* Room list: TRV row has the Shelly pill (-, target, +) and sends the same way. Polls are automatic (no refresh button, as in the app). */
+ lv_tick_inc(31000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.0f,40,DSR_OK);tick(); /* after a failed write the poll backs off to 30 s */
+ dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.0")&&find_label(lv_screen_active(),"°C"));screenshot("368-trv-list-pill");
+ trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"21.5")&&!in_flight);lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==43);trv_response(21.5f,40,DSR_OK);tick();
+ /* Offline TRV: -/+ do nothing. */
+ lv_tick_inc(16000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.5f,40,DSR_OFFLINE);tick();
+ CHECK(!find_label(lv_screen_active(),"21 lx")&&!find_label(lv_screen_active(),"22 lx")); /* offline TRV: target never shown as lux */
+ trv_before=requests;click("+");lv_tick_inc(1300);lv_timer_handler();tick();CHECK(requests==trv_before&&!in_flight);
+ lv_tick_inc(31000);tick();if(in_flight&&submitted.kind==DSR_JOB_PROBE){blu_response(false,true);tick();}
+ dsr_network_device_control(id);tick();
  /* Back to a motion sensor on this channel for the EN screen check. */
- click("Odśwież");tick();if(in_flight){blu_response(false,true);tick();}CHECK(find_label(lv_screen_active(),"Shelly BLU • przez bramkę"));
+ click("Odśwież status");tick();if(in_flight){blu_response(false,true);tick();}CHECK(find_label(lv_screen_active(),"Shelly BLU • przez bramkę"));
  doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString("en"));publish_document(doc);tick();CHECK(find_label(lv_screen_active(),"Shelly BLU • via gateway"));click("Refresh status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);blu_response(false,true);tick();CHECK(find_label(lv_screen_active(),"No motion"));screenshot("363-blu-details-en");
  lv_mem_monitor_t m1,m2;for(unsigned i=0;i<2;i++){dsr_network_device_control(id);dsr_network_home(NULL);}lv_mem_monitor(&m1);for(unsigned i=0;i<40;i++){dsr_network_device_control(id);dsr_network_home(NULL);}lv_mem_monitor(&m2);CHECK(m1.free_size==m2.free_size);
  /* BLU Gateway Gen3: channels from GetComponents, labelled by gateway name or model + MAC tail. */

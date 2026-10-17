@@ -38,6 +38,9 @@ static bool light_drag;
 static uint32_t light_drag_id;
 static lv_obj_t *light_slider,*light_preview_label;
 static void render(void);
+static bool unbound(const dsr_mobile_device_t *d);
+static bool trv_device(const dsr_mobile_device_t *d);static bool trv_known(const dsr_mobile_device_t *d);static bool trv_can(const dsr_mobile_device_t *d);
+static uint8_t trv_shown(const dsr_mobile_device_t *d);static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid);
 static void update_sample_age(void)
 {
  if(!active||!sample_age||selected>=model.device_count)return;
@@ -226,15 +229,22 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     lv_obj_set_style_bg_grad_color(card,dsr_sc_color(0x3c4246),0);lv_obj_set_style_bg_grad_dir(card,LV_GRAD_DIR_VER,0);
     lv_obj_t *thumb=dsr_sc_panel(card,8,9,50,50,d->online&&d->output?0x244357:0x29343b,LV_RADIUS_CIRCLE);
     dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
-    int name_width=cover?124:sensor?218:166;
+    int name_width=cover?124:trv_device(d)?98:sensor?218:166;
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
     const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy&&!(sensor&&d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",d->room<model.room_count?room_name(d):dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
     lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
+    if(trv_device(d))lv_obj_set_width(status,98);
     if(cover){
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
      card_control(card,i,DSR_ICON_UP,width-104,44,valid,cover_control,i*2+1);
      card_control(card,i,DSR_ICON_DOWN,width-54,44,valid,cover_control,i*2);
+    }else if(trv_device(d)){
+     /* Shelly-style pill: -  20.0 °C  + */
+     lv_obj_t *pill=dsr_sc_panel(card,width-126,8,118,48,0x1d3f73,24);edge(pill,DSR_SC_BLUE,2);bool valid=trv_can(d);
+     trv_round(pill,i,4,4,36,false,valid);trv_round(pill,i,74,4,36,true,valid);
+     char t[16];if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(t,sizeof(t),"%u.%u",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(t,sizeof(t),"—");
+     center(dsr_sc_text(pill,t,40,4,34,&dsr_roboto_14,DSR_SC_TEXT));center(dsr_sc_text(pill,"°C",40,24,34,&dsr_roboto_11,DSR_SC_TEXT));
     }else if(!sensor)card_control(card,i,DSR_ICON_POWER,width-58,48,d->online&&!d->busy&&d->can_switch,control,i);
     if(!fields)return;
     char values[128]={0},part[40];
@@ -244,7 +254,8 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
       if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
       if((fields&8)&&d->has_temperature){snprintf(part,sizeof(part),"  %.1f °C",d->temperature_c);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if((fields&16)&&d->has_humidity){snprintf(part,sizeof(part),"  %.0f%% RH",d->humidity_pct);strncat(values,part,sizeof(values)-strlen(values)-1);}
-      if(d->endpoint_kind==DSR_ENDPOINT_BLU&&d->has_illuminance){snprintf(part,sizeof(part),"  %.0f lx",d->illuminance_lux);strncat(values,part,sizeof(values)-strlen(values)-1);}
+      if(trv_device(d)&&trv_known(d)){snprintf(part,sizeof(part),dsr_sc_tr("  cel %.1f °C  zawór %u%%"),d->trv_target_c,(unsigned)d->blu.trv_pos);strncat(values,part,sizeof(values)-strlen(values)-1);}
+      else if(d->endpoint_kind==DSR_ENDPOINT_BLU&&!trv_device(d)&&d->has_illuminance){ /* TRV target shares the lux storage */snprintf(part,sizeof(part),"  %.0f lx",d->illuminance_lux);strncat(values,part,sizeof(values)-strlen(values)-1);}
       if(!values[0])snprintf(values,sizeof(values),"Brak dodatkowych pomiarów");
     }else{
       if(fields&1){if(d->has_power)snprintf(values,sizeof(values),"%.1f W",d->power_w);else snprintf(values,sizeof(values),"— W");}
@@ -506,51 +517,97 @@ static void ht_details(lv_obj_t *root)
 }
 /* Shelly BLU read through a gateway: state, measurements, age of the last
  * BLE packet the gateway received. Read-only; refresh re-reads the gateway. */
-/* BLU TRV: the remote edits a local target and sends it on "Ustaw"; the big
- * numbers are always what the gateway last reported, never the request. */
-static uint32_t trv_for;static uint8_t trv_half;
+/* BLU TRV, Shelly Smart Control style: -/+ change a local target per device
+ * and it is sent 1.2 s after the last tap (one BLE write per adjustment).
+ * Big values elsewhere are what the gateway reports, never the request. */
+#define TRV_SEND_DELAY_MS 1200u
+static struct {uint32_t id,due;uint8_t half;bool dirty;} trv_local[16];
+static lv_timer_t *trv_timer;
+static bool trv_device(const dsr_mobile_device_t *d){return d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.errors&DSR_BLU_TRV);}
+static bool trv_known(const dsr_mobile_device_t *d){return d->online&&d->has_trv_target;}
+static uint8_t trv_reported(const dsr_mobile_device_t *d){return trv_known(d)?(uint8_t)(d->trv_target_c*2.0+0.5):40u;}
+static int trv_slot(uint32_t id){for(unsigned i=0;i<16;i++)if(trv_local[i].dirty&&trv_local[i].id==id)return (int)i;return -1;}
+/* What the dial and the pill show: the unsent local target, else the gateway's. */
+static uint8_t trv_shown(const dsr_mobile_device_t *d){int at=trv_slot(d->id);return at>=0?trv_local[at].half:trv_reported(d);}
+static bool trv_can(const dsr_mobile_device_t *d){return trv_known(d)&&!d->busy&&!unbound(d)&&(model.demo||actions.set_trv);}
+static void trv_send(lv_timer_t *timer)
+{
+ (void)timer;uint32_t now=lv_tick_get();
+ for(unsigned i=0;i<16;i++){
+  if(!trv_local[i].dirty||(int32_t)(now-trv_local[i].due)<0)continue;
+  trv_local[i].dirty=false;unsigned index=0;while(index<model.device_count&&model.devices[index].id!=trv_local[i].id)index++;
+  if(index>=model.device_count)continue;
+  dsr_mobile_device_t *d=&model.devices[index];
+  if(model.demo){d->trv_target_c=trv_local[i].half/2.0;d->has_trv_target=true;render();}
+  else if(trv_can(d)&&trv_local[i].half!=trv_reported(d))actions.set_trv(index,trv_local[i].half);
+  else render();
+ }
+}
 static void trv_step(lv_event_t *event)
 {
- int step=(int)(intptr_t)lv_event_get_user_data(event);int next=(int)trv_half+step;
+ uintptr_t value=(uintptr_t)lv_event_get_user_data(event);unsigned index=(unsigned)(value/2);int step=value%2?1:-1;
+ if(index>=model.device_count||!trv_can(&model.devices[index]))return;
+ const dsr_mobile_device_t *d=&model.devices[index];int at=trv_slot(d->id);
+ if(at<0){for(unsigned i=0;i<16&&at<0;i++)if(!trv_local[i].dirty)at=(int)i;if(at<0)return;trv_local[at].id=d->id;trv_local[at].half=trv_reported(d);}
+ int next=(int)trv_local[at].half+step;
  if(next<(int)DSR_TRV_MIN_HALF)next=(int)DSR_TRV_MIN_HALF;
  if(next>(int)DSR_TRV_MAX_HALF)next=(int)DSR_TRV_MAX_HALF;
- trv_half=(uint8_t)next;dsr_mobile_show(DSR_MOBILE_DETAILS,selected);
+ trv_local[at].half=(uint8_t)next;trv_local[at].dirty=true;trv_local[at].due=lv_tick_get()+TRV_SEND_DELAY_MS;
+ if(!trv_timer)trv_timer=lv_timer_create(trv_send,100,NULL);
+ render();
 }
-static void trv_apply(lv_event_t *event)
-{(void)event;if(!model.demo&&selected<model.device_count&&actions.set_trv)actions.set_trv(selected,trv_half);}
+static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid)
+{
+ lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,0xe8ecef,LV_RADIUS_CIRCLE,trv_step,(void *)(uintptr_t)(index*2+(plus?1:0)));
+ lv_obj_t *t=dsr_sc_text(b,plus?"+":"-",0,(size-26)/2,size,&dsr_roboto_22,plus?0xe5322d:DSR_SC_BLUE);center(t);
+ if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,dsr_sc_color(0x555b60),LV_STATE_DISABLED);}
+}
+static int chip_width(lv_obj_t *chip){lv_obj_update_layout(chip);return lv_obj_get_width(chip);}
+static void half_text(char *out,size_t size,uint8_t half){snprintf(out,size,"%u.%u °C",(unsigned)half/2u,(unsigned)(half%2u)*5u);}
+/* Arc 4..30 C over 270 degrees (LVGL: 0 = 3 o'clock, clockwise), blue to white to red. */
+static uint32_t trv_color(unsigned i,unsigned n)
+{
+ static const uint8_t from[3][3]={{0x2f,0x6b,0xff},{0xee,0xee,0xf2},{0xe5,0x32,0x2d}};
+ double t=(double)i/(double)(n-1)*2.0;unsigned k=t>=1.0?1u:0u;double f=t-k;uint32_t c=0;
+ for(unsigned ch=0;ch<3;ch++)c=c<<8|(uint32_t)(from[k][ch]+(from[k+1][ch]-from[k][ch])*f+0.5);
+ return c;
+}
 static void trv_details(lv_obj_t *root)
 {
- const dsr_mobile_device_t *d=&model.devices[selected];char text[96];const dsr_blu_status_t *b=&d->blu;bool live=d->online;
- bool known=live&&d->has_trv_target;
- if(trv_for!=d->id){trv_for=d->id;trv_half=known?(uint8_t)(d->trv_target_c*2.0+0.5):40u;}
- if(trv_half<DSR_TRV_MIN_HALF)trv_half=DSR_TRV_MIN_HALF;
- if(trv_half>DSR_TRV_MAX_HALF)trv_half=DSR_TRV_MAX_HALF;
- lv_obj_t *panel=dsr_sc_panel(root,12,89,296,246,DSR_SC_CARD,10);
- dsr_sc_text(panel,"Termostat BLU TRV",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
- const char *state=d->busy&&d->command_pending&&!live?"Odczyt stanu…":!live&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):"Odczyt z bramki odebrany";
- dsr_sc_text(panel,state,12,36,272,&dsr_roboto_12,DSR_SC_MUTED);
- if(known)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"—");
- center(dsr_sc_text(panel,text,8,58,280,&dsr_roboto_28,DSR_SC_TEXT));
- center(dsr_sc_text(panel,"Temperatura przy głowicy",8,94,280,&dsr_roboto_12,DSR_SC_MUTED));
- bool can=known&&!d->busy&&actions.set_trv&&!model.demo;
- lv_obj_t *minus=dsr_sc_button(panel,12,118,64,48,DSR_SC_BG,10,trv_step,(void *)(intptr_t)-1);center(dsr_sc_text(minus,"-",4,10,56,&dsr_roboto_22,DSR_SC_TEXT));
- lv_obj_t *plus=dsr_sc_button(panel,220,118,64,48,DSR_SC_BG,10,trv_step,(void *)(intptr_t)1);center(dsr_sc_text(plus,"+",4,10,56,&dsr_roboto_22,DSR_SC_TEXT));
- if(!can){lv_obj_add_state(minus,LV_STATE_DISABLED);lv_obj_add_state(plus,LV_STATE_DISABLED);}
- snprintf(text,sizeof(text),"%u.%u °C",(unsigned)trv_half/2u,(unsigned)(trv_half%2u)*5u);center(dsr_sc_text(panel,dsr_sc_user(text),80,122,136,&dsr_roboto_22,DSR_SC_TEXT));
- if(known)snprintf(text,sizeof(text),dsr_sc_tr("Cel na termostacie: %.1f °C"),d->trv_target_c);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Cel na termostacie: —"));
- center(dsr_sc_text(panel,dsr_sc_user(text),80,148,136,&dsr_roboto_11,DSR_SC_MUTED));
- text[0]=0;if(known)snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Zawór"),(unsigned)b->trv_pos);
- if(live&&d->has_battery)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%s %.0f%%",text[0]?" • ":"",dsr_sc_tr("Bateria"),d->battery_pct);
- if(live&&(b->flags&DSR_BLU_HAS_RSSI))snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%d dBm",text[0]?" • ":"",(int)b->rssi);
- center(dsr_sc_text(panel,dsr_sc_user(text[0]?text:"—"),8,180,280,&dsr_roboto_14,DSR_SC_TEXT));
- if(live&&(b->errors&DSR_BLU_TRV_FAULT))center(dsr_sc_text(panel,"Termostat zgłasza błąd (np. brak kalibracji)",8,204,280,&dsr_roboto_12,0xffc18c));
- sample_age=dsr_sc_text(panel,"",8,226,280,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
- lv_obj_t *read=dsr_sc_button(root,12,344,120,48,DSR_SC_CARD,10,refresh,NULL);center(dsr_sc_text(read,"Odśwież",4,15,112,&dsr_roboto_14,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
- lv_obj_t *apply=dsr_sc_button(root,140,344,168,48,DSR_SC_BLUE,10,trv_apply,NULL);
- snprintf(text,sizeof(text),dsr_sc_tr("Ustaw %u.%u °C"),(unsigned)trv_half/2u,(unsigned)(trv_half%2u)*5u);center(dsr_sc_text(apply,dsr_sc_user(text),4,15,160,&dsr_roboto_14,DSR_SC_TEXT));
- bool same=known&&(unsigned)(d->trv_target_c*2.0+0.5)==trv_half; /* nothing to send */
- if(!can||same)lv_obj_add_state(apply,LV_STATE_DISABLED);
- dsr_sc_text(root,d->busy&&d->command_pending&&live?"Wysyłanie do termostatu przez bramkę… (do kilkunastu sekund)":"Pilot wysyła nastawę do bramki Shelly, a ta do termostatu przez Bluetooth.",16,396,288,&dsr_roboto_11,DSR_SC_MUTED);
+ dsr_mobile_device_t *d=&model.devices[selected];char text[96];const dsr_blu_status_t *b=&d->blu;bool live=d->online,known=trv_known(d),can=trv_can(d);
+ uint8_t half=trv_shown(d);
+ /* Value row, as in the app: room, target, valve, battery. */
+ int x=12;char chip[32];
+ if(known)snprintf(chip,sizeof(chip),"%.1f °C",d->temperature_c);else snprintf(chip,sizeof(chip),"— °C");x+=chip_width(dsr_sc_chip(root,chip,x,93,80,DSR_SC_TEXT))+6;
+ if(known)snprintf(chip,sizeof(chip),dsr_sc_tr("cel %.1f °C"),d->trv_target_c);else snprintf(chip,sizeof(chip),"%s",dsr_sc_tr("cel — °C"));x+=chip_width(dsr_sc_chip(root,chip,x,93,96,DSR_SC_TEXT))+6;
+ if(known)snprintf(chip,sizeof(chip),dsr_sc_tr("zawór %u%%"),(unsigned)b->trv_pos);else snprintf(chip,sizeof(chip),"%s",dsr_sc_tr("zawór —"));x+=chip_width(dsr_sc_chip(root,chip,x,93,80,DSR_SC_TEXT))+6;
+ if(live&&d->has_battery)snprintf(chip,sizeof(chip),"%.0f%%",d->battery_pct);else snprintf(chip,sizeof(chip),"—%%");
+ lv_obj_t *battery=dsr_sc_panel(root,x,93,320-12-x,20,0x292d30,6);dsr_sc_icon(battery,DSR_ICON_BATTERY,5,2,16,DSR_SC_TEXT);dsr_sc_text(battery,chip,24,3,320-12-x-26,&dsr_roboto_12,DSR_SC_TEXT);
+ const int cx=160,cy=232,r=88,n=18;
+ for(int i=0;i<n;i++){
+  lv_obj_t *seg=lv_arc_create(root);lv_obj_remove_flag(seg,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(seg,2*r,2*r);lv_obj_set_pos(seg,cx-r,cy-r);
+  int start=135+270*i/n,end=135+270*(i+1)/n+1;lv_arc_set_bg_angles(seg,(lv_value_precise_t)(start%360),(lv_value_precise_t)(end%360));
+  lv_obj_set_style_arc_width(seg,12,LV_PART_MAIN);lv_obj_set_style_arc_color(seg,dsr_sc_color(live?trv_color((unsigned)i,(unsigned)n):0x4a5056),LV_PART_MAIN);
+  lv_obj_set_style_arc_rounded(seg,i==0||i==n-1,LV_PART_MAIN);lv_obj_set_style_arc_opa(seg,LV_OPA_TRANSP,LV_PART_INDICATOR);lv_obj_set_style_bg_opa(seg,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_set_style_pad_all(seg,0,LV_PART_KNOB);
+ }
+ if(known){
+  double angle=(135.0+270.0*(half-DSR_TRV_MIN_HALF)/(double)(DSR_TRV_MAX_HALF-DSR_TRV_MIN_HALF))*3.14159265358979/180.0;
+  int kx=cx+(int)lround((r-6)*cos(angle)),ky=cy+(int)lround((r-6)*sin(angle));
+  lv_obj_t *knob=dsr_sc_panel(root,kx-13,ky-13,26,26,0xe8ecef,LV_RADIUS_CIRCLE);edge(knob,0x1b1f22,2);
+ }
+ if(known)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"— °C");
+ center(dsr_sc_text(root,text,cx-60,160,120,&dsr_roboto_16,DSR_SC_TEXT));
+ center(dsr_sc_text(root,"AKTUALNA\nTEMPERATURA",cx-60,182,120,&dsr_roboto_11,DSR_SC_MUTED));
+ if(known)half_text(text,sizeof(text),half);else snprintf(text,sizeof(text),"— °C");
+ center(dsr_sc_text(root,dsr_sc_user(text),cx-80,212,160,&dsr_roboto_28,DSR_SC_TEXT));
+ trv_round(root,selected,cx-54,258,48,false,can);trv_round(root,selected,cx+6,258,48,true,can);
+ dsr_sc_text(root,"4 °C",cx-r-8,296,40,&dsr_roboto_12,DSR_SC_TEXT);dsr_sc_text(root,"30 °C",cx+r-30,296,44,&dsr_roboto_12,DSR_SC_TEXT);
+ bool sending=trv_slot(d->id)>=0||(d->busy&&d->command_pending&&live);
+ const char *state=!live&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):sending?"Wysyłanie do termostatu przez bramkę…":"Odczyt z bramki odebrany";
+ center(dsr_sc_text(root,state,12,326,296,&dsr_roboto_12,d->error!=DSR_OK||!live?0xffc18c:DSR_SC_MUTED));
+ if(live&&(b->errors&DSR_BLU_TRV_FAULT))center(dsr_sc_text(root,"Termostat zgłasza błąd (np. brak kalibracji)",12,346,296,&dsr_roboto_12,0xffc18c));
+ sample_age=dsr_sc_text(root,"",12,366,296,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();
+ dsr_sc_text(root,"Pilot wysyła nastawę do bramki Shelly, a ta do termostatu przez Bluetooth.",16,396,288,&dsr_roboto_11,DSR_SC_MUTED);
 }
 static void blu_details(lv_obj_t *root)
 {
