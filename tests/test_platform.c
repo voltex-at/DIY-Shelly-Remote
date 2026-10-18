@@ -5,6 +5,7 @@
 #include "../components/dsr_platform/dsr_ap_private.h"
 #include "../components/dsr_platform/dsr_activity_internal.h"
 #include "dsr_discovery.h"
+#include "dsr_device_settings.h"
 #include "cJSON.h"
 #include "esp_http_client.h"
 #include "nvs.h"
@@ -43,7 +44,7 @@ esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cf
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
     bool identity = strcmp(steps[used].path, "/shelly") == 0;
-    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/Sys.GetConfig")?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:3000));
+    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/Sys.GetConfig")?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:!strcmp(steps[used].path,"/rpc")?4000:3000));
     CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
     if (identity) CHECK(!cfg->username && !cfg->password);
     else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
@@ -434,9 +435,21 @@ static void test_registered_guard(void)
  step_t legacy[]={{"/shelly",gen1,200,false,false},{"/relay/0?turn=on","{\"ison\":true}",200,false,false},{"/relay/0","{\"ison\":true}",200,false,false}};
  write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);fixture(legacy,3,HTTP_AUTH_TYPE_BASIC);CHECK(dsr_http_set_output(&c,true)==DSR_OK&&used==3&&write_attempts==1);CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);
 }
+static void test_device_settings_http(void)
+{
+ dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
+ lan_mode=true;cover_payload="{\"id\":1,\"method\":\"Switch.SetConfig\",\"params\":{\"id\":0,\"config\":{\"auto_off_delay\":120}}}";
+ cJSON *params=cJSON_Parse("{\"id\":0,\"config\":{\"auto_off_delay\":120}}"),*response=NULL;bool attempted=false;
+ step_t data[]={{"/shelly","{\"gen\":2,\"id\":\"shellyplus1-AABBCCDDEEFF\",\"mac\":\"AABBCCDDEEFF\",\"model\":\"SNSW-001X16EU\",\"auth_en\":true}",200,false,false},{"/rpc","{\"id\":1,\"result\":{\"restart_required\":false}}",200,true,true}};
+ fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_OK&&attempted&&used==2);CHECK(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(response,"restart_required")));cJSON_Delete(response);
+ data[1].body="{\"id\":2,\"result\":{}}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_BAD_RESPONSE&&attempted&&!response);
+ data[1].body="{\"id\":1,\"error\":{\"code\":-103}}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_BAD_RESPONSE&&!response);
+ data[0].body="{\"gen\":3,\"id\":\"shelly-other-112233445566\",\"mac\":\"112233445566\",\"model\":\"SNSW-001P16EU\",\"auth_en\":true}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_IDENTITY_MISMATCH&&!attempted&&used==1);
+ cJSON_Delete(params);cover_payload=NULL;lan_mode=false;
+}
 int main(void)
 {
-    test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
+    test_device_settings_http();test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;

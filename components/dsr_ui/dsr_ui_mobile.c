@@ -691,6 +691,8 @@ static void details(lv_obj_t *root)
     if(d->online&&d->error==DSR_OK&&d->has_current)snprintf(current,sizeof(current),"%.3f A",d->current_a);else snprintf(current,sizeof(current),"—");
     metric(root,"Napięcie",voltage,12);metric(root,"Natężenie",current,164);
 }
+static void open_device_settings(lv_event_t *event)
+{(void)event;if(selected<model.device_count&&actions.device_settings)actions.device_settings(model.devices[selected].id);}
 static void device_settings(lv_obj_t *root)
 {
  if(selected>=model.device_count)return;
@@ -721,7 +723,11 @@ static void device_settings(lv_obj_t *root)
  lv_obj_t *edit=dsr_sc_button(root,166,354,142,48,DSR_SC_CARD,12,edit_device,NULL);center(dsr_sc_text(edit,"Edytuj kartę",4,16,134,&dsr_roboto_14,DSR_SC_TEXT));
  if(model.demo||!d->id||!actions.edit_device)lv_obj_add_state(edit,LV_STATE_DISABLED);
  dsr_sc_text(root,"Ustawienia karty • lokalnie",12,410,296,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(content,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",4,274,288,&dsr_roboto_12,DSR_SC_MUTED);
+ if(actions.device_settings&&!model.demo&&d->id&&d->generation==DSR_GEN2_PLUS){
+  lv_obj_t *b=dsr_sc_button(content,0,274,296,50,DSR_SC_CARD,12,open_device_settings,NULL);
+  center(dsr_sc_text(b,"Ustawienia Shelly",8,16,280,&dsr_roboto_14,DSR_SC_TEXT));
+ }
+ dsr_sc_text(content,"Nazwa i pokój karty dotyczą pilota. Ustawienia Shelly są zapisywane w urządzeniu.",4,338,288,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void render(void)
 {

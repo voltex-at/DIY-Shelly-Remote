@@ -198,3 +198,9 @@ void dsr_ui_lan_tick(void)
 
 void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *caps)
 {if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&blu_labels,0,sizeof(blu_labels));memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;show_components();}
+void dsr_ui_lan_adopt_blu(const dsr_lan_device_t *device,const dsr_credentials_t *auth,unsigned cid,const char *label)
+{
+ if(!device||!auth||cid<200||cid>=216)return;
+ selected=*device;credentials=*auth;capabilities=(dsr_lan_capabilities_t){.blu=(uint16_t)(1u<<(cid-200))};memset(&blu_labels,0,sizeof(blu_labels));waiting_scan=waiting_inspect=false;show_components();
+ if(name&&label&&label[0])lv_textarea_set_text(name,label);
+}

@@ -14,6 +14,14 @@
 #include <string.h>
 
 static QueueHandle_t jobs, events;
+bool dsr_device_settings_admitted(const dsr_job_t *job);
+void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event);
+#ifndef ESP_PLATFORM
+/* Legacy host suites omit the editor component. Fail closed unless a suite
+ * links the genuine actor (its strong definitions override these defaults). */
+__attribute__((weak)) bool dsr_device_settings_admitted(const dsr_job_t *job){(void)job;return false;}
+__attribute__((weak)) void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event){(void)job;event->result=DSR_UNSUPPORTED;}
+#endif
 static SemaphoreHandle_t available;
 #ifdef DSR_BOARD_ES3C35P
 static const dsr_connection_t *actor_connection;
@@ -105,7 +113,9 @@ static void network_task(void *arg)
         (void)run_stop();
         if (xQueueReceive(jobs, &job, pdMS_TO_TICKS(50)) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
-        if(job.kind==DSR_JOB_PAIRING_REVOKE){
+        if(job.kind==DSR_JOB_DEVICE_SETTINGS){
+            dsr_device_settings_execute(&job,&event);
+        } else if(job.kind==DSR_JOB_PAIRING_REVOKE){
 #ifdef DSR_BOARD_ES3C35P
             event.result=dsr_panel_pairing_revoke()==ESP_OK?DSR_OK:DSR_IO;
 #else
@@ -216,7 +226,8 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_TRV) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_DEVICE_SETTINGS) return DSR_INVALID;
+    if(job->kind==DSR_JOB_DEVICE_SETTINGS&&!dsr_device_settings_admitted(job))return DSR_INVALID;
     if(job->kind==DSR_JOB_SET_OUTPUT&&DSR_ENDPOINT_IS_SENSOR(job->connection.device.endpoint_kind))return DSR_INVALID;
     if(job->kind==DSR_JOB_RGB&&(!dsr_rgb_intent_valid(job->rgb)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_RGB))return DSR_INVALID;
     if(job->kind==DSR_JOB_LIGHT&&(!dsr_light_intent_valid(job->light)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_LIGHT))return DSR_INVALID;
@@ -243,7 +254,7 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {
         if (!dsr_wifi_settings_valid(&job->settings)) return DSR_INVALID;
-    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && job->kind!=DSR_JOB_PAIRING_REVOKE && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND)) return DSR_INVALID;
+    } else if (job->kind != DSR_JOB_WIFI_SCAN && job->kind!=DSR_JOB_BATTERY_READ && job->kind!=DSR_JOB_PAIRING_REVOKE && !dsr_connection_valid(&job->connection, job->kind != DSR_JOB_BIND&&job->kind!=DSR_JOB_DEVICE_SETTINGS)) return DSR_INVALID;
     if (xSemaphoreTake(available, 0) != pdTRUE) return DSR_BUSY;
     if (!dsr_activity_begin()) { xSemaphoreGive(available); return DSR_BUSY; }
     if (job->kind == DSR_JOB_WIFI_CONNECT||job->kind==DSR_JOB_AP_INSPECT) dsr_wifi_prepare_connect();

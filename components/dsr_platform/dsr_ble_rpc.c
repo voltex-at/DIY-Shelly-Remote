@@ -3,9 +3,8 @@
 #include "dsr_ble_shared.h"
 #include "dsr_activity.h"
 #include "sdkconfig.h"
-#if (defined(CONFIG_BT_NIMBLE_SECURITY_ENABLE) && CONFIG_BT_NIMBLE_SECURITY_ENABLE) || (defined(CONFIG_BT_NIMBLE_NVS_PERSIST) && CONFIG_BT_NIMBLE_NVS_PERSIST)
-#error "This B1 supports only the open setup window, without SMP or bond persistence"
-#endif
+/* The shared host supports BLU security. This open-setup RPC client still
+ * refuses SMP events; its consent and setup policy are unchanged. */
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "freertos/FreeRTOS.h"

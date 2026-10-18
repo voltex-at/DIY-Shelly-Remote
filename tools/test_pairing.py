@@ -33,6 +33,11 @@ auth_hashes={'local_request':'77af2b1f465d425091ef1097e93853d24a341a626624604dad
 for name,expected in auth_hashes.items():
     block=function(panel,name)
     if name=='api':
+        privacy='(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
+        assert block.count(privacy)==1 and block.index(privacy)>block.index('if(!authorized(r))'), 'Settings preview privacy must remain behind authorization'
+        # New credential/PIN screens additionally suppress preview. Normalize
+        # precisely this stricter predicate; preserve the frozen auth/route hash.
+        block=block.replace(privacy,'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())')
         actions=' if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);\n'
         assert block.count(actions)==1 and block.index(actions)>block.index('if(!authorized(r))'),'Actions must remain behind unchanged authorization'
         block=block.replace(actions,'')

@@ -4,7 +4,7 @@ import argparse,hashlib,json,os,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--source-root',type=Path,default=ROOT);p.add_argument('--fleet-source',type=Path);a=p.parse_args();source=a.source_root.resolve()
-parts=['components/dsr_core/dsr_core.c','components/dsr_platform/dsr_http.c','components/dsr_platform/dsr_ap.c','components/dsr_platform/dsr_ap_model.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_config/dsr_config.c','components/dsr_platform/dsr_connection.c','components/dsr_platform/dsr_fleet.c','components/dsr_platform/dsr_settings.c','components/dsr_platform/dsr_wifi_policy.c','components/dsr_platform/dsr_activity.c']
+parts=['components/dsr_core/dsr_core.c','components/dsr_platform/dsr_http.c','components/dsr_platform/dsr_device_settings_model.c','components/dsr_platform/dsr_ap.c','components/dsr_platform/dsr_ap_model.c','components/dsr_platform/dsr_discovery_model.c','components/dsr_config/dsr_config.c','components/dsr_platform/dsr_connection.c','components/dsr_platform/dsr_fleet.c','components/dsr_platform/dsr_settings.c','components/dsr_platform/dsr_wifi_policy.c','components/dsr_platform/dsr_activity.c']
 files=[source/s for s in parts]
 if a.fleet_source:files[parts.index('components/dsr_platform/dsr_fleet.c')]=a.fleet_source.resolve()
 tracked=files+[source/'components/dsr_core/include/dsr_core.h',source/'components/dsr_platform/include/dsr_platform.h',source/'tests/test_platform.c']

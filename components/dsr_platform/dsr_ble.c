@@ -1,5 +1,8 @@
 #include "dsr_ble.h"
 #include "dsr_ble_shared.h"
+#ifdef ESP_PLATFORM
+#include "dsr_blu.h"
+#endif
 #include "dsr_activity.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -50,6 +53,9 @@ static bool prepare_host(void)
  if(!initialized){
   if(nimble_port_init()!=ESP_OK){memory_log("init_failed");return false;}
   initialized=true;atomic_store(&host_on,true);ble_hs_cfg.reset_cb=reset;ble_hs_cfg.sync_cb=sync_host;
+  #ifdef ESP_PLATFORM
+  dsr_blu_host_setup();
+#endif
   nimble_port_freertos_init(host_task);
  }
  uint32_t waiting=now_ms();

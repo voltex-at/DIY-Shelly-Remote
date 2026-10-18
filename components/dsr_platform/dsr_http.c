@@ -3,6 +3,7 @@
 #include "cJSON.h"
 #include "dsr_discovery.h"
 #include "dsr_config.h"
+#include "dsr_device_settings.h"
 #include "esp_http_client.h"
 #include "esp_timer.h"
 #include <ctype.h>
@@ -66,7 +67,7 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         .auth_type = !authenticated ? HTTP_AUTH_TYPE_NONE :
             (connection->device.generation == DSR_GEN1 ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_DIGEST),
         /* AP provisioning never resends its secret-bearing body; device commands may answer a digest challenge. */
-        .max_authorization_retries = payload&&!control_write?-1:1,
+        .max_authorization_retries = payload&&!control_write&&strcmp(request->path,"/rpc")?-1:1,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) { free(response.text); return DSR_IO; }
@@ -77,6 +78,8 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         if (error == ESP_OK) error = esp_http_client_set_post_field(client, payload?payload:request->body, (int)strlen(payload?payload:request->body));
     }
     if (error == ESP_OK) {
+        dsr_result_t admission=control_write&&!strcmp(request->path,"/rpc")?allowed():DSR_OK;
+        if(admission!=DSR_OK){esp_http_client_cleanup(client);wipe(response.text,RESPONSE_LIMIT+1);free(response.text);return admission;}
         if(control_write&&write_hook)write_hook();
         error = esp_http_client_perform(client);
     }
@@ -710,4 +713,37 @@ dsr_result_t dsr_http_ap_verify_lan(const dsr_ap_identity_t *expected,const char
 {
  if(!expected||!dsr_ap_identity_matches(expected->ssid,expected))return DSR_INVALID;
  return dsr_http_lan_verify_station(expected,host,home);
+}
+
+dsr_result_t dsr_http_settings_identity(const dsr_connection_t *c)
+{
+ if(!c||c->device.generation!=DSR_GEN2_PLUS||!dsr_ipv4_valid(c->device.host)||!c->device.device_id[0])return DSR_INVALID;
+ dsr_lan_device_t found;dsr_result_t r=dsr_http_lan_identity(c->device.host,&found);if(r!=DSR_OK)return r;
+ if(found.generation<2||found.generation>4)return DSR_UNSUPPORTED;
+ const char *suffix=c->device.endpoint_kind==DSR_ENDPOINT_BLU?strrchr(c->device.device_id,'_'):NULL;
+ size_t n=suffix?(size_t)(suffix-c->device.device_id):strlen(c->device.device_id);
+ return strlen(found.id)==n&&!memcmp(found.id,c->device.device_id,n)?DSR_OK:DSR_IDENTITY_MISMATCH;
+}
+dsr_result_t dsr_http_settings_rpc(const dsr_connection_t *c,const char *method,const cJSON *params,cJSON **out,bool mutating,bool *attempted)
+{
+ if(out)*out=NULL;
+ if(attempted)*attempted=false;
+ if(!out||!c||!method||strlen(method)>63||!strchr(method,'.'))return DSR_INVALID;
+ for(const char *p=method;*p;p++)if(!isalnum((unsigned char)*p)&&*p!='.')return DSR_INVALID;
+ dsr_result_t r=dsr_http_settings_identity(c);if(r!=DSR_OK)return r;
+ cJSON *frame=cJSON_CreateObject();if(!frame)return DSR_IO;
+ bool ok=cJSON_AddNumberToObject(frame,"id",1)&&cJSON_AddStringToObject(frame,"method",method);
+ if(params){cJSON *copy=cJSON_Duplicate(params,true);if(!copy||!cJSON_AddItemToObject(frame,"params",copy)){cJSON_Delete(copy);ok=false;}}
+ char *payload=ok?cJSON_PrintUnformatted(frame):NULL;dsr_setting_json_delete(frame);if(!payload)return DSR_IO;
+ if(strlen(payload)>2048){wipe(payload,strlen(payload));free(payload);return DSR_INVALID;}
+ dsr_request_t request={.post=true,.path="/rpc"};cJSON *response=NULL;
+ if(mutating&&attempted)*attempted=true; /* Conservative: never replay after entering transport. */
+ r=fetch_json_payload(c,&request,false,&response,4000,payload,"application/json",mutating);
+ wipe(payload,strlen(payload));free(payload);
+ if(r==DSR_OK){
+  const cJSON *id=cJSON_GetObjectItemCaseSensitive(response,"id"),*result=cJSON_GetObjectItemCaseSensitive(response,"result");
+  if(!light_unique(response)||!cJSON_IsNumber(id)||id->valuedouble!=1||!result||(!cJSON_IsObject(result)&&!cJSON_IsNull(result)&&!cJSON_IsArray(result)))r=DSR_BAD_RESPONSE;
+  else {*out=cJSON_Duplicate(result,true);if(!*out)r=DSR_IO;}
+ }
+ cJSON_Delete(response);return r;
 }

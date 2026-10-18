@@ -83,6 +83,7 @@ typedef struct {
     void (*set_brightness)(unsigned index,uint8_t brightness);
     void (*set_rgb)(unsigned index,uint8_t r,uint8_t g,uint8_t b);
     void (*set_trv)(unsigned index,uint8_t half_c); /* BLU TRV target, half degrees */
+    void (*device_settings)(uint32_t id);
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);
