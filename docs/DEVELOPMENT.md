@@ -6,7 +6,7 @@
 | --- | --- |
 | `main/` | `app_main.c`: boot order (board → splash → storage → workspace → UI → network) |
 | `components/dsr_board` | ES3C35P display/touch/backlight, LVGL owner task (`dsr_ui_task.c`) |
-| `components/dsr_platform` | Storage/SPIFFS, NVS registry, worker, HTTP/Shelly, Wi-Fi/AP, BLE, panel (HTTPS + `web/`), history, actions, native OTA actor |
+| `components/dsr_platform` | Storage/SPIFFS, NVS registry, worker, HTTP/Shelly, Wi-Fi/AP, BLE, panel (HTTPS + `web/`), actions, SNTP clock, native OTA actor |
 | `components/dsr_ui` | LVGL screens (`dsr_ui_*.c`), style/brand, fonts, icons |
 | `components/dsr_ota` | Manifest (Ed25519), trust store, image stream, fetch/release chain, installer |
 | `components/dsr_config` | Shared configuration document (cJSON), store, photo names |

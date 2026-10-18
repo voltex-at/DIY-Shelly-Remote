@@ -3,7 +3,6 @@
 #include "test_ui.c"
 #undef main
 unsigned test_light_requests(void);
-unsigned test_history_last_kind(void);
 static void light_response(bool on,uint8_t brightness,uint8_t conditions)
 {
  response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.light={.brightness=brightness,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.conditions=conditions}}};response.device.online=true;response.device.output=on;response.device.has_switch=false;deliver(DSR_OK,DSR_WIFI_IDLE);
@@ -23,8 +22,8 @@ int main(int argc,char **argv)
  test_lan_found("{\"gen\":3,\"id\":\"shellydimmerg3-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"S3DM-0A101WWL\",\"name\":\"Światło testowe\",\"auth_en\":false}","192.168.1.80");dsr_ui_ble_rpc_tick();CHECK(in_flight&&submitted.kind==DSR_JOB_LAN_STA_VERIFY&&!publish_jobs);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);
  test_lan_inspected(DSR_OK,"{\"light:0\":{\"id\":0,\"output\":true,\"brightness\":38}}");dsr_ui_ble_rpc_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie")&&!dsr_ui_ble_rpc_active());click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT);light_response(true,38,0);
  cJSON *r=room_document(),*entry=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(entry&&!strcmp(cJSON_GetObjectItemCaseSensitive(entry,"kind")->valuestring,"light"));uint32_t id=(uint32_t)cJSON_GetObjectItemCaseSensitive(entry,"id")->valueint;cJSON_Delete(r);CHECK(id&&dsr_network_layout_reserved(id));
- dsr_mobile_device_t typed;CHECK(dsr_network_history_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_LIGHT&&typed.can_light);
- dsr_ui_history_open(id);CHECK(test_history_last_kind()==DSR_ENDPOINT_LIGHT&&find_label(lv_screen_active(),"Zużycie"));screenshot("265-light-history-unsupported");dsr_network_device_control(id);CHECK(find_label(lv_screen_active(),"38%")&&!find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("260-light-confirmed-readback");
+ dsr_mobile_device_t typed;CHECK(dsr_network_typed_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_LIGHT&&typed.can_light);
+ dsr_ui_usage_open(id);CHECK(find_label(lv_screen_active(),"Zużycie"));screenshot("265-light-history-unsupported");dsr_network_device_control(id);CHECK(find_label(lv_screen_active(),"38%")&&!find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("260-light-confirmed-readback");
  lv_obj_t *slider=find_type(lv_screen_active(),&lv_slider_class);CHECK(slider&&!lv_obj_has_state(slider,LV_STATE_DISABLED));lv_area_t bounds;lv_obj_get_coords(slider,&bounds);int y=(bounds.y1+bounds.y2)/2;
  unsigned before=requests,intents=test_light_requests();point(130,y,true);point(200,y,true);CHECK(requests==before&&test_light_requests()==intents&&find_label(lv_screen_active(),"38%"));int selected=lv_slider_get_value(slider);CHECK(selected>=0&&selected<=100&&selected!=38);screenshot("261-light-preview-no-POST");
  /* Poll and locale changes preserve the native widget and its visible value. */

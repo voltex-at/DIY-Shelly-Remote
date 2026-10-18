@@ -1,3 +1,16 @@
+0.7.51-dev: uproszczenie aplikacji i dokończenie oprawy graficznej. Stable: brak.
+
+Zmiany względem 0.7.50-dev (decyzje właściciela 2026-10-18):
+- Usunięte: historia energii 24 h (zapis w tle do SPIFFS, zadania workera, API `/api/v1/history`, wykres w Web Panelu), strona Energia i ekran Aktywność na LCD. Zapis historii współdzielił jedyny wątek z odpytywaniem Shelly i zatrzymywał pamięć Flash przy zapisie. Istniejące pliki historii w SPIFFS nie są kasowane (wymaga osobnej zgody). Numery zadań 17/18 zostają zarezerwowane.
+- Zostaje: zegar mocy "Zużycie" na stronie urządzenia (bieżący odczyt, licznik kWh z Shelly).
+- Dolny pasek: zamiast Energia - diagnostyka baterii. Grupy i sceny tylko w zakładce Pomieszczenia. Dziennik aktywności pozostaje w Web Panelu.
+- Pasek stanu: godzina obok Wi-Fi i baterii (czas środkowoeuropejski CET/CEST, SNTP pool.ntp.org uruchamiany automatycznie po połączeniu Wi-Fi; bez czasu pole jest puste).
+- Pasek przewijania po prawej na wszystkich długich listach i formularzach.
+- Ikony urządzeń do wyboru jak w aplikacji Shelly (Auto + 20, m.in. gniazdko, wentylator, termostat, TV, bojler, brama, lampy). Pole `icon` zapisywane w konfiguracji tylko przy wyborze innym niż Auto - po wyborze ikony powrót do 0.7.50 lub starszej odrzuci konfigurację, dopóki ikona nie wróci na Auto.
+- Dodawanie przez Wi-Fi: karta urządzenia pokazuje nazwę z Shelly lub linię produktu, SKU, generację, IP, MAC lub znalezione kanały i wymóg hasła; lista wyników pokazuje nazwę z Shelly.
+- Czytelność: najmniejsza czcionka 11 px zastąpiona 12 px, wartości w kapsułach i podpisy pól 14 px.
+- Ikony Material Symbols renderowane przez Chromium (cairosvg niedostępny w środowisku budowania).
+
 0.7.50-dev: szybsze działanie interfejsu i stabilność dużych pulpitów. Stable: brak.
 
 Zmiany względem 0.7.49-dev (bez zmian wyglądu, bootloadera, partycji i trybu Flash):

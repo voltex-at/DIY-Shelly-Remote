@@ -1,6 +1,10 @@
+/* localtime_r/setenv for the status bar clock */
+#define _POSIX_C_SOURCE 200809L
 #include "dsr_ui_style.h"
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
 #include <stdarg.h>
 #include <stdio.h>
 #ifndef DSR_UI_REVIEW_DEMO
@@ -360,7 +364,7 @@ void dsr_sc_background(lv_obj_t *root)
  * lv_style_t; only position and size stay per object. Entries are never freed
  * (objects may reference them); when the table is full the old local path is
  * used, so the look never depends on the cache. */
-enum{SHARED_PANEL,SHARED_TEXT,SHARED_PRESSED,SHARED_DISABLED,SHARED_OUTLINE,SHARED_GLOW};
+enum{SHARED_PANEL,SHARED_TEXT,SHARED_PRESSED,SHARED_DISABLED,SHARED_OUTLINE,SHARED_GLOW,SHARED_SCROLLBAR};
 typedef struct{lv_style_t style;uint32_t a;uintptr_t b;uint8_t kind;bool used;} shared_style_t;
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
@@ -380,6 +384,7 @@ static lv_style_t *shared(uint8_t kind,uint32_t a,uintptr_t b)
    case SHARED_PRESSED:lv_style_set_bg_color(t,lv_color_hex(a));break;
    case SHARED_DISABLED:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_opa(t,LV_OPA_COVER);break;
    case SHARED_OUTLINE:lv_style_set_border_width(t,1);lv_style_set_border_color(t,lv_color_hex(a));break;
+   case SHARED_SCROLLBAR:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_bg_opa(t,LV_OPA_70);lv_style_set_width(t,4);lv_style_set_radius(t,2);lv_style_set_pad_right(t,1);lv_style_set_pad_ver(t,4);break;
    default:lv_style_set_shadow_width(t,14);lv_style_set_shadow_spread(t,1);lv_style_set_shadow_color(t,lv_color_hex(a));lv_style_set_shadow_opa(t,LV_OPA_70);break;
   }
   return t;
@@ -424,12 +429,12 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
 
 /* Apache-2.0 Material Symbols Rounded, pre-filtered to coverage masks.
  * No SVG parser, web font, or integer-grid line approximation at runtime. */
-extern const lv_image_dsc_t dsr_symbol_atlas[24];
+extern const lv_image_dsc_t dsr_symbol_atlas[DSR_ICON_COUNT];
 static void icon_draw(lv_event_t *event)
 {
     lv_obj_t *obj=lv_event_get_target(event);
     unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
-    if(kind>=24)return;
+    if(kind>=DSR_ICON_COUNT)return;
     lv_area_t area;lv_obj_get_coords(obj,&area);
     int size=lv_obj_get_width(obj);
     lv_draw_image_dsc_t draw;lv_draw_image_dsc_init(&draw);
@@ -451,15 +456,33 @@ lv_obj_t *dsr_sc_icon_centered(lv_obj_t *p,dsr_ui_icon_t kind,int size,uint32_t 
 {
     lv_obj_t *o=dsr_sc_icon(p,kind,0,0,size,color);lv_obj_center(o);return o;
 }
+const dsr_ui_icon_t dsr_sc_device_icons[DSR_SC_DEVICE_ICONS]={
+ DSR_ICON_LIGHT,DSR_ICON_FLOOR_LAMP,DSR_ICON_WALL_LAMP,DSR_ICON_PLUG,DSR_ICON_OUTLET,DSR_ICON_COVER,DSR_ICON_GARAGE,
+ DSR_ICON_DOOR,DSR_ICON_CONTACT,DSR_ICON_FAN,DSR_ICON_THERMOSTAT,DSR_ICON_BOILER,DSR_ICON_AC,DSR_ICON_TV,
+ DSR_ICON_SPEAKER,DSR_ICON_ROUTER,DSR_ICON_KETTLE,DSR_ICON_COFFEE,DSR_ICON_LAUNDRY,DSR_ICON_EV};
 void dsr_sc_icon_color(lv_obj_t *o,uint32_t color){lv_obj_set_style_line_color(o,lv_color_hex(color),0);lv_obj_invalidate(o);}
 
+/* Status bar clock (0.7.51): local Central European time (CET/CEST, the
+ * owner's zone) once SNTP has set a plausible UTC; hidden until then. */
+static lv_obj_t *clock_label;
+static void clock_deleted(lv_event_t *event){if(lv_event_get_target(event)==clock_label)clock_label=NULL;}
+void dsr_sc_clock_tick(void)
+{
+ if(!clock_label)return;
+ static bool zone;if(!zone){setenv("TZ","CET-1CEST,M3.5.0,M10.5.0/3",1);tzset();zone=true;}
+ time_t now=time(NULL);char text[8]="";struct tm local;
+ if(now>=(time_t)1735689600&&localtime_r(&now,&local))snprintf(text,sizeof(text),"%02d:%02d",local.tm_hour,local.tm_min);
+ if(strcmp(lv_label_get_text(clock_label),text))lv_label_set_text(clock_label,text);
+}
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
  if(back){lv_obj_t *b=dsr_sc_button(root,0,0,44,44,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,DSR_SC_TEXT);}
  lv_obj_t *name=dsr_sc_text(root,title,back?44:12,9,back?204:232,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
-  lv_obj_set_width(name,back?184:216);
+  lv_obj_set_width(name,back?160:192);
+  clock_label=dsr_sc_text(root,"",204,14,38,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
+  lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();
   dsr_sc_icon(root,DSR_ICON_WIFI,244,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #ifndef DSR_UI_REVIEW_DEMO
   dsr_ui_battery_header(root);
@@ -472,7 +495,7 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
  lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
- const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_ENERGY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
+ const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_BATTERY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
   if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
@@ -489,6 +512,14 @@ lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_widt
  lv_obj_t *label=dsr_sc_text(chip,dsr_sc_user(text),7,3,width-14,&dsr_roboto_12,color);lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
 }
 
+/* Owner 2026-10-18: a slim bar on the right shows the position on long pages.
+ * remove_style_all() also removed LVGL's scrollbar look, so lists had none. */
+void dsr_sc_scrollbar(lv_obj_t *o)
+{
+ lv_obj_set_scrollbar_mode(o,LV_SCROLLBAR_MODE_AUTO);
+ lv_style_t *t=shared(SHARED_SCROLLBAR,hex(dsr_sc_color(0x8a9096)),0);
+ if(t)lv_obj_add_style(o,t,LV_PART_SCROLLBAR);
+}
 void dsr_sc_glow(lv_obj_t *o,bool on)
 {
  /* Off costs nothing: default shadow width is 0. */
@@ -510,18 +541,19 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
 }
 int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
 {
- /* One pill + one recoloured label (separators inline): two objects per row. */
+ /* One pill + one recoloured label (separators inline): two objects per row.
+  * 14 px since 0.7.51 (owner: larger, more readable values). */
  int widths[6],total=0;if(count>6)count=6;
- for(unsigned i=0;i<count;i++){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(texts[i]),&dsr_roboto_12,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);widths[i]=size.x+16;total+=widths[i];}
+ for(unsigned i=0;i<count;i++){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(texts[i]),&dsr_roboto_14,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);widths[i]=size.x+16;total+=widths[i];}
  /* Values that do not fit are left out (never squeezed to "..."); the first
   * one is kept and truncated so the row always says something. */
  while(count>1&&total>max_width)total-=widths[--count];
  if(total>max_width){widths[0]=max_width;total=max_width;}
  char line[200];line[0]=0;
  for(unsigned i=0;i<count;i++){if(i)strncat(line,"  #5a6066 |#  ",sizeof(line)-strlen(line)-1);strncat(line,dsr_sc_tr(texts[i]),sizeof(line)-strlen(line)-1);}
- lv_obj_t *pill=dsr_sc_panel(parent,x,y,total,22,0x23272a,11);
- lv_obj_t *label=dsr_sc_text(pill,"",8,4,total-12,&dsr_roboto_12,color);lv_label_set_recolor(label,true);lv_label_set_text(label,line);
- lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+ lv_obj_t *pill=dsr_sc_panel(parent,x,y,total,24,0x23272a,12);
+ lv_obj_t *label=dsr_sc_text(pill,"",8,4,total-12,&dsr_roboto_14,color);lv_label_set_recolor(label,true);lv_label_set_text(label,line);
+ lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
  return total;
 }
 void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int r,int width,int start,int span,const uint32_t *stops,unsigned n_stops,unsigned n,bool enabled)

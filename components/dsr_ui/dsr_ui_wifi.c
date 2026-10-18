@@ -123,7 +123,7 @@ static void show_networks(void)
     lv_obj_t *list = lv_obj_create(root); lv_obj_set_pos(list, 12, 115); lv_obj_set_size(list, 296, 287);
     lv_obj_set_style_pad_all(list, 0, 0); lv_obj_set_style_border_width(list, 0, 0);
     lv_obj_set_style_bg_color(list, dsr_sc_color(DSR_SC_BG), 0);
-    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER); dsr_sc_scrollbar(list);
     if (!networks.count) dsr_ui_label(list, "No networks found.\nTap Refresh to scan again.\nOnly 2.4 GHz Wi-Fi is supported.", 8, 40, 272);
     for (unsigned i = 0; i < networks.count; i++) {
         dsr_wifi_ap_t *ap = &networks.items[i];

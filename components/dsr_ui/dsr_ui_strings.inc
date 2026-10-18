@@ -1,4 +1,5 @@
 /* PL / EN / DE. English legacy keys are accepted during the UI migration. */
+{" • hasło"," • password"," • Passwort"},
 {"Dodaj przez Wi-Fi AP","Add via Wi-Fi AP","Über WLAN-AP hinzufügen"},
 {"Fabryczne urządzenie Shelly","Factory Shelly device","Shelly im Werkszustand"},
 {"Najpierw wyszukamy AP i sprawdzimy lokalne API. Dane domowej sieci wyślesz dopiero po osobnym potwierdzeniu na ekranie.","First find the AP and check its local API. Your home Wi-Fi details are sent only after a separate confirmation on this screen.","Zuerst AP suchen und lokale API prüfen. Die Zugangsdaten Ihres Heimnetzes werden erst nach einer weiteren Bestätigung gesendet."},
@@ -167,6 +168,7 @@
 {"Edytuj kartę","Edit card","Karte bearbeiten"},
 {"Edytuj kartę urządzenia","Edit device card","Gerätekarte bearbeiten"},
 {"Ustawienia karty • lokalnie","Card settings • local","Karteneinstellungen • lokal"},
+{"Nazwa, pokój i ikona dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.","Name, room and icon apply to this remote. Shelly settings require support for the model's API.","Name, Raum und Symbol gelten für diese Fernbedienung. Shelly-Einstellungen erfordern die API des Modells."},
 {"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.","Name and room apply to this remote. Shelly settings require support for the model's API.","Name und Raum gelten für diese Fernbedienung. Shelly-Einstellungen erfordern die API des Modells."},
 {"Historia pomiarów nie jest jeszcze dostępna.","Reading history is not available yet.","Messwerthistorie ist noch nicht verfügbar."},
 {"Podaj nazwę urządzenia.","Enter a device name.","Gib einen Gerätenamen ein."},

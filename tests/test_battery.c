@@ -106,9 +106,6 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;a
 static void pairing_stop(void)
 {CHECK(!stop_lock&&dsr_worker_stop_request(&stop_target,6200)==DSR_OK);}
 static void admission_open(void){CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
-static unsigned history_services,history_clocks;
-void dsr_history_service(void){CHECK(worker_context&&!dsr_activity_restart_reserve());history_services++;}
-void dsr_history_clock_execute(void){CHECK(worker_context&&!dsr_activity_restart_reserve());history_clocks++;}
 int main(void)
 {
  CHECK(dsr_battery_read(NULL)==ESP_ERR_INVALID_ARG);
@@ -225,13 +222,11 @@ int main(void)
  dsr_job_t sta={.id=198,.kind=DSR_JOB_LAN_STA_VERIFY,.settings={.ssid="Home",.password="private-home-psk",.wifi_security=DSR_WIFI_WPA2},.ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.generation=2}};strcpy(sta.connection.device.host,"192.168.1.10");
  CHECK(dsr_worker_submit(&sta)==DSR_OK);if(!setjmp(stop))worker(NULL);dsr_event_t verified;CHECK(dsr_worker_receive(&verified)&&verified.id==198&&verified.result==DSR_OK&&ap_executed==6&&ap_prepared==2&&wifi_prepared==1);admission_open();
  sta.ap_identity.auth_required=true;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);sta.ap_identity.auth_required=false;sta.ap_identity.mac[0]=0;CHECK(dsr_worker_submit(&sta)==DSR_INVALID);
- /* History has no payload growth, binding, HTTP or radio handoff. The sole
-  * worker's existing lease remains held through event acknowledgement. */
- for(unsigned kind=DSR_JOB_HISTORY_SERVICE;kind<=DSR_JOB_HISTORY_CLOCK;kind++){
-  dsr_job_t job={.id=300+kind,.kind=kind};CHECK(dsr_worker_submit(&job)==DSR_OK);CHECK(!dsr_activity_restart_reserve());worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=false;CHECK(!dsr_activity_restart_reserve());dsr_event_t event;CHECK(dsr_worker_receive(&event)&&event.id==job.id&&event.result==DSR_OK);admission_open();
+ /* Energy history was removed in 0.7.51: its two job numbers stay reserved
+  * and are refused before anything is queued or leased. */
+ for(unsigned kind=DSR_JOB_RESERVED_17;kind<=DSR_JOB_RESERVED_18;kind++){
+  dsr_job_t job={.id=300+kind,.kind=kind};CHECK(dsr_worker_submit(&job)==DSR_INVALID);dsr_event_t none;CHECK(!dsr_worker_receive(&none));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  }
- CHECK(history_services==1&&history_clocks==1);
- CHECK(dsr_activity_restart_reserve());dsr_job_t history={.kind=DSR_JOB_HISTORY_SERVICE};CHECK(dsr_worker_submit(&history)==DSR_BUSY);dsr_activity_restart_cancel();temporary_ap=true;CHECK(dsr_worker_submit(&history)==DSR_BUSY);temporary_ap=false;
  worker_wifi=true;dsr_job_t light={.id=6060,.kind=DSR_JOB_LIGHT,.connection={.device={.host="192.168.1.20",.device_id="maintenance",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_LIGHT}},.light={.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=0}};
  CHECK(dsr_worker_submit(&light)==DSR_OK);if(!setjmp(stop))worker(NULL);CHECK(dsr_worker_receive(&checked)&&checked.id==6060&&checked.result==DSR_OK&&checked.device.endpoint_kind==DSR_ENDPOINT_LIGHT&&checked.telemetry.light.brightness==0&&light_calls==1);admission_open();
  /* BLU TRV target: only for a BLU endpoint with a valid 4..30 C half-degree target. */

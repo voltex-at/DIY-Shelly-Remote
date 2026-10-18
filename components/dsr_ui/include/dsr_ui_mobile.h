@@ -14,7 +14,8 @@ typedef enum {DSR_COVER_UNKNOWN,DSR_COVER_OPENING,DSR_COVER_CLOSING,DSR_COVER_ST
 typedef struct {
     char name[48],model[40],host[16];
     uint8_t channel;
-    uint8_t room;dsr_mobile_kind_t kind;
+    uint8_t room,icon; /* icon: 0 = by type, 1..DSR_CONFIG_DEVICE_ICONS = chosen (0.7.51, existing padding) */
+    dsr_mobile_kind_t kind;
     bool online,output,busy,can_switch,has_power,has_voltage,has_current;
     bool command_pending;
     dsr_result_t error;
@@ -72,8 +73,8 @@ typedef struct {
     void (*set_position)(unsigned index,uint8_t position);
     void (*add_room)(void);
     void (*edit_room)(uint32_t id);
-    void (*open_charts)(uint32_t id);
-    void (*open_energy)(void);
+    void (*open_usage)(uint32_t id);
+    void (*open_battery)(void);
     void (*open_actions)(uint8_t kind);
     void (*run_scene)(uint32_t id);
     void (*run_group)(uint32_t id,bool on);

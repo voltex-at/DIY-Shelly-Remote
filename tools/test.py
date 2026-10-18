@@ -62,7 +62,7 @@ RUNNERS = [
     ('test_ap_handoff.py', 'all'), ('test_pairing.py', 'all'), ('../tests/test_storage_recovery.py', None),
     ('test_factory.py', None), ('test_ap_target.py', None), ('test_fleet_target.py', None), ('test_ht_core_review.py', None),
     ('test_target_auditors.py', None), ('test_actions_schema.py', 'all'), ('test_actions_workspace.py', 'all'), ('test_actions_runtime.py', 'all'),
-    ('test_native_ota_target.py', None), ('test_ble_target.py', None), ('test_ble_rpc.py', 'all'), ('test_history.py', 'all'),
+    ('test_native_ota_target.py', None), ('test_ble_target.py', None), ('test_ble_rpc.py', 'all'),
     ('verify_crypto_vendor.py', None), ('test_release_tool.py', None), ('check_docs.py', None), ('gen_room_photos.py', None), ('test_ota.py', 'all'), ('test_ota_signer.py', 'asan'), ('test_ota_image.py', 'all'),
     ('test_ota_upload.py', 'all'), ('test_ota_fetch.py', 'all'), ('test_ota_download.py', 'all'), ('test_ota_install.py', 'all'),
     ('test_ota_release.py', 'all'), ('test_ota_discovery.py', 'all'), ('test_ota_release_fetch.py', 'all'),

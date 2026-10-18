@@ -124,7 +124,7 @@
   if(Number.isFinite(delay))expiryTimer=setTimeout(expire,Math.max(1,delay));
  }
  function translate(){if(!current())return;section.querySelector('h2').textContent=text('title');if(status.dataset.message)status.textContent=text(status.dataset.message);for(const card of cards.values())paint(card);}
- function fail(){window.dsrHistorySnapshot?.(null);if(!current())return;status.dataset.message='unavailable';status.textContent=text('unavailable');for(const card of cards.values()){card.data={...card.data,online:false,can_stop:false,can_refresh:false};paint(card);}}
+ function fail(){if(!current())return;status.dataset.message='unavailable';status.textContent=text('unavailable');for(const card of cards.values()){card.data={...card.data,online:false,can_stop:false,can_refresh:false};paint(card);}}
  function create(d){
   const root=node('article','runtime-card'),head=node('div','runtime-heading'),name=node('h3'),identity=node('p','muted'),address=node('p','muted'),state=node('p'),measure=node('p'),age=node('p','muted'),error=node('p','runtime-error'),actions=node('div','actions'),on=node('button'),off=node('button');
   on.type=off.type='button';error.setAttribute('role','status');head.append(name,identity,address);actions.append(on,off);root.append(head,state,measure,age,error,actions);
@@ -156,7 +156,7 @@
   }
   for(const [k,c]of cards)if(!keep.has(k)){c.root.remove();cards.delete(k);local.delete(k);stops.delete(k);}
   status.dataset.message=snapshot.devices.length?'':'empty';status.textContent=snapshot.devices.length?'':text('empty');
-  window.dsrHistorySnapshot?.(snapshot,started);expire();
+  expire();
  }
  async function refresh(){
   if(!current()||fetching)return;fetching=true;const serial=++fetchSerial,started=performance.now();

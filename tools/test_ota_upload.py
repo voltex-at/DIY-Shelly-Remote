@@ -42,9 +42,8 @@ for name,expected in auth_blocks.items():
         ap=b' if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);\n'
         assert block.count(ap)==1 and block.index(ap)>block.index(b'if(!authorized(r))'),'AP handoff must remain behind authorization'
         block=block.replace(ap,b'')
-        history=b' if(!strncmp(r->uri,"/api/v1/history/",16))return history_api(r);\n'
-        assert block.count(history)==1 and block.index(history)>block.index(b'if(!authorized(r))'),'History must remain behind authorization'
-        block=block.replace(history,b'')
+        # Energy history (and its route) was removed in 0.7.51.
+        assert b'/api/v1/history/' not in block,'Removed history route must not return'
         actions=b' if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);\n'
         assert block.count(actions)==1 and block.index(actions)>block.index(b'if(!authorized(r))'),'Actions must remain behind authorization'
         block=block.replace(actions,b'')

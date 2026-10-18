@@ -97,8 +97,13 @@ static void device_settings_regression(void)
  tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);tap(20,20);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM&&find_label(lv_screen_active(),"Settings test room"));dsr_network_device_settings(a);
  /* Existing transactional-open diagnostics handle storage/OOM without a draft. */
  for(unsigned fault=1;fault<=4;fault++){test_workspace_fault(fault);tap(236,376);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna")&&!find_label(lv_screen_active(),"Zapisz"));test_workspace_fault(0);dsr_network_device_settings(a);}
- lv_obj_update_layout(lv_screen_active());lv_refr_now(display);lv_mem_monitor_t x,y;tap(236,376);click("Wstecz");lv_refr_now(display);lv_mem_monitor(&x);
- for(unsigned i=0;i<40;i++){tap(236,376);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&y);CHECK(x.free_size==y.free_size);
+ lv_obj_update_layout(lv_screen_active());lv_refr_now(display);lv_mem_monitor_t x,y;
+ /* Warm-up: shared LVGL styles (0.7.50) are created once on first use. */
+ for(unsigned i=0;i<4;i++){tap(236,376);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&x);
+ /* No growth over 40 edit/back cycles. A transient allocation (timer-driven,
+  * freed on a later tick) may coincide with the first sample, so the bound is
+  * one-sided: any leak still lowers free memory and fails. */
+ for(unsigned i=0;i<40;i++){tap(236,376);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&y);CHECK(y.free_size>=x.free_size);
  printf("Device Settings heap before=%u after=%u; model=%zu B;40 edit/back; targeted read and durable ACK; SDK/workspace MODEL\n",(unsigned)x.free_size,(unsigned)y.free_size,sizeof(dsr_mobile_model_t));
  /* Restore unchanged A/B fixture for the existing removal/migration corpus. */
  wifi.connected=false;tick();cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);tick();dsr_network_home(NULL);

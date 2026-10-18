@@ -29,14 +29,16 @@ static void actions_regression(void)
  /* Scene card RUN is separate from its editor. Cancellation of an admitted
   * queue retains ownership until the exact completion; no SET replay. */
  dsr_network_home(NULL);CHECK(find_label(lv_screen_active(),"Night fixture")&&find_label(lv_screen_active(),"Uruchom scenę"));sets=job_counts[DSR_JOB_SET_OUTPUT];click("Uruchom scenę");dsr_actions_snapshot(&status);CHECK(status.object_id==92&&status.kind==1);if(status.active)click("Anuluj pozostałe kroki");if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OK,DSR_WIFI_IDLE);}tick();CHECK(!dsr_actions_active()&&job_counts[DSR_JOB_SET_OUTPUT]<=sets+1);
- dsr_ui_actions_open(2);CHECK(find_label(lv_screen_active(),"Wyczyść dziennik RAM"));screenshot("254-activity-utc-lcd");click("Wyczyść dziennik RAM");dsr_action_log_page_t *log=calloc(1,sizeof(*log));CHECK(log&&dsr_actions_log(0,0,32,log)&&!log->count);free(log);CHECK(find_label(lv_screen_active(),"Brak aktywności w tym uruchomieniu"));
+ /* LCD "Aktywność" removed (owner, 0.7.51): kind 2 now shows groups, no log page. */
+ dsr_ui_actions_open(2);CHECK(find_label(lv_screen_active(),"Grupy")&&find_label(lv_screen_active(),"Sceny")&&!find_label(lv_screen_active(),"Aktywność")&&!find_label(lv_screen_active(),"Wyczyść dziennik RAM"));screenshot("254-groups-scenes-only");
+ dsr_actions_log_clear();dsr_action_log_page_t *log=calloc(1,sizeof(*log));CHECK(log&&dsr_actions_log(0,0,32,log)&&!log->count);free(log);
  /* A transport-only Cover observation never renders confirmed Switch OFF. */
  dsr_connection_t observed={.layout_id=b,.device={.generation=2,.endpoint_kind=DSR_ENDPOINT_COVER,.device_id="shelly-cover-observation",.host="192.0.2.43",.online=true}};
  CHECK(dsr_actions_publish_begin(dsr_workspace_revision(),true));dsr_actions_publish_at(&observed,true,false,DSR_OK,true);dsr_actions_publish_end();dsr_actions_log_clear();observed.device.online=false;
- CHECK(dsr_actions_publish_begin(dsr_workspace_revision(),true));dsr_actions_publish_at(&observed,true,false,DSR_OK,false);dsr_actions_publish_end();dsr_ui_actions_open(2);
- CHECK(find_label(lv_screen_active(),"Zmiana stanu • Brak odpowiedzi"));CHECK(!find_label(lv_screen_active(),"Wyłącz • Potwierdzono"));screenshot("257-cover-availability-activity");tick();
+ CHECK(dsr_actions_publish_begin(dsr_workspace_revision(),true));dsr_actions_publish_at(&observed,true,false,DSR_OK,false);dsr_actions_publish_end();
+ log=calloc(1,sizeof(*log));CHECK(log&&dsr_actions_log(0,0,32,log)&&log->count==1&&log->entries[0].kind==2&&log->entries[0].command!=DSR_ACTION_OFF&&log->entries[0].result!=DSR_OK);free(log);tick();
  dsr_ui_actions_open(0);tap(20,20);lv_refr_now(display);lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<40;i++){dsr_ui_actions_open((uint8_t)(i%3));tap(20,20);}lv_refr_now(display);lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);
  for(unsigned locale=1;locale<=2;locale++){cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(locale==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);CHECK(dsr_sc_language()==locale);lv_obj_t *label=find_label(lv_screen_active(),"Włącz grupę");CHECK(label&&!strcmp(lv_label_get_text(label),locale==1?"Turn group on":"Gruppe einschalten"));screenshot(locale==1?"255-groups-english":"256-groups-german");tap(20,20);}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);wifi.connected=false;tick();
- printf("Actions LCD heap %u→%u;40 group/scene/activity cycles, cardRUN/cancel and per-endpoint offline/auth partial results; actual actor with worker/radio/workspace MODEL\n",(unsigned)before.free_size,(unsigned)after.free_size);
+ printf("Actions LCD heap %u→%u;40 group/scene cycles, cardRUN/cancel and per-endpoint offline/auth partial results; actual actor with worker/radio/workspace MODEL\n",(unsigned)before.free_size,(unsigned)after.free_size);
 }

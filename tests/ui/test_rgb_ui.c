@@ -3,7 +3,6 @@
 #include "test_ui.c"
 #undef main
 unsigned test_rgb_requests(void);
-unsigned test_history_last_kind(void);
 static void rgb_response(bool on,uint8_t brightness,uint8_t r,uint8_t g,uint8_t b,uint8_t flags)
 {response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.rgb={.r=r,.g=g,.b=b,.brightness=brightness,.flags=DSR_RGB_VALID|flags}}};response.device.online=true;response.device.output=on;response.device.has_switch=false;deliver(DSR_OK,DSR_WIFI_IDLE);}
 static void point(int x,int y,bool down)
@@ -24,8 +23,8 @@ int main(int argc,char **argv)
  test_lan_found("{\"gen\":2,\"id\":\"shellyplusrgbwpm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNDC-0D4P10WW\",\"name\":\"RGB testowe\",\"auth_en\":false,\"profile\":\"rgb\"}","192.168.1.80");dsr_ui_ble_rpc_tick();CHECK(in_flight&&submitted.kind==DSR_JOB_LAN_STA_VERIFY&&!publish_jobs);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);
  test_lan_inspected(DSR_OK,"{\"rgb:0\":{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[12,34,56]}}");dsr_ui_ble_rpc_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_RGB);rgb_response(true,38,12,34,56,0);
  doc=room_document();uint32_t id=0;for(cJSON *v=cJSON_GetObjectItemCaseSensitive(doc,"devices")->child;v;v=v->next)if(!strcmp(cJSON_GetObjectItemCaseSensitive(v,"name")->valuestring,"RGB testowe")){id=(uint32_t)cJSON_GetObjectItemCaseSensitive(v,"id")->valueint;CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(v,"kind")->valuestring,"light"));}cJSON_Delete(doc);CHECK(id&&id!=77&&dsr_network_layout_reserved(id));
- dsr_mobile_device_t typed;CHECK(dsr_network_history_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_RGB&&typed.kind==DSR_DEVICE_RGB&&typed.can_rgb);CHECK(dsr_network_history_device(77,&typed)&&!typed.identity[0]&&!typed.can_switch);
- dsr_ui_history_open(id);CHECK(test_history_last_kind()==DSR_ENDPOINT_RGB&&find_label(lv_screen_active(),"Zużycie"));dsr_network_device_control(id);CHECK(find_label(lv_screen_active(),"38%"));screenshot("270-rgb-brightness-readback");
+ dsr_mobile_device_t typed;CHECK(dsr_network_typed_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_RGB&&typed.kind==DSR_DEVICE_RGB&&typed.can_rgb);CHECK(dsr_network_typed_device(77,&typed)&&!typed.identity[0]&&!typed.can_switch);
+ dsr_ui_usage_open(id);CHECK(find_label(lv_screen_active(),"Zużycie"));dsr_network_device_control(id);CHECK(find_label(lv_screen_active(),"38%"));screenshot("270-rgb-brightness-readback");
  unsigned before=requests,intents=test_rgb_requests();click("Kolor RGB");CHECK(requests==before&&find_label(lv_screen_active(),"Kolor • RGB RPC"));lv_obj_t *red=find_type(lv_screen_active(),&lv_slider_class);CHECK(red&&!lv_obj_has_state(red,LV_STATE_DISABLED));lv_area_t bounds;lv_obj_get_coords(red,&bounds);int y=(bounds.y1+bounds.y2)/2;point(130,y,true);point(210,y,true);point(210,y,false);int value=lv_slider_get_value(red);CHECK(value!=12&&value>=0&&value<=255&&requests==before&&test_rgb_requests()==intents);screenshot("271-rgb-color-preview-no-POST");
  tick();CHECK(find_type(lv_screen_active(),&lv_slider_class)==red&&lv_slider_get_value(red)==value);doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString("de"));publish_document(doc);tick();CHECK(find_type(lv_screen_active(),&lv_slider_class)==red&&lv_slider_get_value(red)==value&&requests==before);
  /* Locale preserves the visible draft and one explicit Apply sends it. */

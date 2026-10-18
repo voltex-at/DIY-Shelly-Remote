@@ -4,7 +4,7 @@
 
 static dsr_battery_sample_t sample;
 static dsr_result_t result=DSR_IO;
-static bool attempted,pending,active,rejected;
+static bool attempted,pending,active,rejected,from_home;
 static uint32_t measured;
 static lv_obj_t *header_value,*value,*status,*age,*measure;
 static void header_deleted(lv_event_t *event)
@@ -12,7 +12,7 @@ static void header_deleted(lv_event_t *event)
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
 void dsr_ui_battery_hide(void){active=false;value=status=age=measure=NULL;}
-static void back(lv_event_t *event){(void)event;dsr_ui_open_settings();}
+static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
  (void)event;if(pending)return;
@@ -46,9 +46,13 @@ void dsr_ui_battery_result(const dsr_event_t *event)
  if(active&&measure)lv_obj_remove_state(measure,LV_STATE_DISABLED);
  dsr_ui_battery_tick();
 }
-void dsr_ui_battery_open(lv_event_t *event)
+static void show(void);
+void dsr_ui_battery_open(lv_event_t *event){(void)event;from_home=false;show();}
+/* Bottom bar entry (former "Energia", 0.7.51): back returns to the dashboard. */
+void dsr_ui_battery_show(void){from_home=true;show();}
+static void show(void)
 {
- (void)event;lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
+ lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
  dsr_sc_text(root,"Napięcie wejścia BAT",14,94,292,&dsr_roboto_14,DSR_SC_MUTED);
  value=dsr_sc_text(root,"— V",14,124,292,&dsr_roboto_28,DSR_SC_TEXT);
  status=dsr_sc_text(root,"Pomiar na żądanie",14,174,292,&dsr_roboto_14,DSR_SC_TEXT);
@@ -66,7 +70,7 @@ void dsr_ui_battery_header(lv_obj_t *root)
  lv_obj_t *outline=dsr_sc_panel(button,0,12,38,19,DSR_SC_BG,3);
  lv_obj_set_style_border_width(outline,1,0);lv_obj_set_style_border_color(outline,dsr_sc_color(DSR_SC_MUTED),0);
  dsr_sc_panel(button,38,18,3,7,DSR_SC_MUTED,1);
- header_value=dsr_sc_text(button,"?",2,16,34,&dsr_roboto_11,DSR_SC_TEXT);
+ header_value=dsr_sc_text(button,"?",2,16,34,&dsr_roboto_12,DSR_SC_TEXT);
  lv_obj_set_style_text_align(header_value,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);dsr_ui_battery_tick();
 }

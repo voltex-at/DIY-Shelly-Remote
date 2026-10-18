@@ -71,8 +71,6 @@ esp_err_t dsr_connection_save(const dsr_connection_t *c){(void)c;abort();}
 esp_err_t dsr_native_ota_init(void){return ESP_OK;}
 bool dsr_native_ota_admitted(uint32_t id,dsr_job_kind_t kind){(void)id;(void)kind;return false;}
 void dsr_native_ota_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
-void dsr_history_service(void){abort();}
-void dsr_history_clock_execute(void){abort();}
 esp_err_t dsr_battery_read(dsr_battery_sample_t *s){(void)s;abort();}
 static void execute(void){if(!setjmp(idle))worker(NULL);CHECK(!guard&&!write_hook);}
 static void begin(unsigned scene,unsigned nonce)

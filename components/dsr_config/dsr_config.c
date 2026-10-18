@@ -100,7 +100,7 @@ static bool validate_v2(const cJSON *r,char error[96])
  }
  cJSON_ArrayForEach(v,get(r,"devices")){
   const cJSON *host=get(v,"host");
-  if(!keys(v,"|id||name||host||channel||kind||room|")||!text(v,"host",15,true)||(host->valuestring[0]&&!dsr_ipv4_valid(host->valuestring))||!number(v,"channel",0,15)||
+  if(!keys(v,"|id||name||host||channel||kind||room||icon|")||(get(v,"icon")&&!number(v,"icon",0,DSR_CONFIG_DEVICE_ICONS))||!text(v,"host",15,true)||(host->valuestring[0]&&!dsr_ipv4_valid(host->valuestring))||!number(v,"channel",0,15)||
    !choice(v,"kind","|light||relay||plug||cover||contact||sensor|")||!reference(r,"rooms",get(v,"room"),true))return fail(error,"Invalid device address/type/room");
  }
  cJSON_ArrayForEach(v,get(r,"scenes")){

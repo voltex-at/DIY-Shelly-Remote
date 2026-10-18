@@ -1,7 +1,6 @@
 #include "dsr_workspace.h"
 #include "dsr_runtime_api.h"
 #include "dsr_actions.h"
-#include "dsr_history.h"
 #include "dsr_panel_permission.h"
 #include "dsr_panel_pairing.h"
 #include "dsr_ota_upload.h"
@@ -40,8 +39,6 @@ extern const unsigned char panel_js_start[] asm("_binary_panel_js_start");
 extern const unsigned char panel_js_end[] asm("_binary_panel_js_end");
 extern const unsigned char runtime_js_start[] asm("_binary_runtime_js_start");
 extern const unsigned char runtime_js_end[] asm("_binary_runtime_js_end");
-extern const unsigned char history_js_start[] asm("_binary_history_js_start");
-extern const unsigned char history_js_end[] asm("_binary_history_js_end");
 extern const unsigned char actions_js_start[] asm("_binary_actions_js_start");
 extern const unsigned char actions_js_end[] asm("_binary_actions_js_end");
 extern const unsigned char panel_css_start[] asm("_binary_panel_css_start");
@@ -266,8 +263,6 @@ static esp_err_t runtime_api(httpd_req_t *r)
  }
  return json(r,"404 Not Found","{\"error\":\"Unknown runtime endpoint\"}");
 }
-/* History queries copy bounded PSRAM data. Only the existing worker touches
- * history files or waits for explicit clock synchronization. */
 /* Authenticated handlers submit bounded definitions, never credentials or
  * device locators. The sole LCD/worker actor owns all physical commands. */
 static esp_err_t actions_api(httpd_req_t *r)
@@ -278,23 +273,6 @@ static esp_err_t actions_api(httpd_req_t *r)
  if(!strcmp(r->uri,"/api/v1/actions/cancel")&&r->method==HTTP_POST){char *data=body(r,256);uint32_t boot=0,run=0;bool valid=data&&dsr_actions_cancel_parse(data,&boot,&run);free(data);if(!valid)return json(r,"400 Bad Request","{}");bool ok=dsr_actions_cancel(boot,run);return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"cancelled\":true}":"{}");}
  if(!strcmp(r->uri,"/api/v1/actions/log/query")&&r->method==HTTP_POST){char *data=body(r,256);uint32_t epoch;unsigned offset,limit;bool valid=data&&dsr_actions_log_parse(data,&epoch,&offset,&limit);free(data);if(!valid)return json(r,"400 Bad Request","{}");char *out=dsr_actions_log_json(epoch,offset,limit);if(!out)return json(r,"409 Conflict","{}");esp_err_t e=json(r,"200 OK",out);free(out);return e;}
  if(!strcmp(r->uri,"/api/v1/actions/log/clear")&&r->method==HTTP_POST){if(r->content_len)return json(r,"400 Bad Request","{}");dsr_actions_log_clear();return json(r,"200 OK","{\"cleared\":true}");}
- return json(r,"405 Method Not Allowed","{}");
-}
-static esp_err_t history_api(httpd_req_t *r)
-{
- if(!strcmp(r->uri,"/api/v1/history/query")&&r->method==HTTP_POST){
-  char *data=body(r,256);dsr_history_key_t key;unsigned hours;
-  bool valid=dsr_history_parse(data,&key,&hours);free(data);
-  if(!valid)return json(r,"400 Bad Request","{\"error\":\"Invalid history identity or range\"}");
-  char *out=dsr_history_json(&key,hours);if(!out)return json(r,"404 Not Found","{\"error\":\"History endpoint unavailable\"}");
-  esp_err_t result=json(r,"200 OK",out);free(out);return result;
- }
- if(r->method==HTTP_POST&&(!strcmp(r->uri,"/api/v1/history/clock")||!strcmp(r->uri,"/api/v1/history/clock/cancel"))){
-  if(r->content_len)return json(r,"400 Bad Request","{}");
-  bool cancel=!strcmp(r->uri,"/api/v1/history/clock/cancel");
-  if(cancel){dsr_history_cancel_clock();return json(r,"202 Accepted","{\"cancelling\":true}");}
-  bool ok=dsr_history_request_clock();return json(r,ok?"202 Accepted":"409 Conflict",ok?"{\"queued\":true}":"{\"error\":\"Clock request unavailable\"}");
- }
  return json(r,"405 Method Not Allowed","{}");
 }
 /* HTTP only queues an LCD opening. The two physical confirmations, radio
@@ -321,7 +299,6 @@ static esp_err_t api(httpd_req_t *r)
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
  if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);
  if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb")||!strcmp(r->uri,"/api/v1/devices/refresh"))return runtime_api(r);
- if(!strncmp(r->uri,"/api/v1/history/",16))return history_api(r);
  if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);
  if(!strncmp(r->uri,"/api/v1/ble",11))return ble_api(r);
  if(!strncmp(r->uri,"/api/v1/discovery",17))return lan_api(r);
@@ -371,7 +348,7 @@ static esp_err_t asset(httpd_req_t *r)
  else if(!strcmp(r->uri,"/panel.js")){start=panel_js_start;end=panel_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/runtime.js")){start=runtime_js_start;end=runtime_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/actions.js")){start=actions_js_start;end=actions_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
- else if(!strcmp(r->uri,"/history.js")){start=history_js_start;end=history_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
+
  else if(!strcmp(r->uri,"/panel.css")){start=panel_css_start;end=panel_css_end;httpd_resp_set_type(r,"text/css; charset=utf-8");}
  else return json(r,"404 Not Found","{}");
  httpd_resp_set_hdr(r,"Content-Security-Policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");

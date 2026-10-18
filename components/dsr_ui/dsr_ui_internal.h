@@ -49,6 +49,7 @@ dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t 
 void dsr_network_wifi_settings(dsr_settings_t *out);
 dsr_result_t dsr_network_request_battery(void);
 void dsr_ui_battery_open(lv_event_t *event);
+void dsr_ui_battery_show(void); /* bottom bar: back returns home */
 void dsr_ui_battery_header(lv_obj_t *root);
 void dsr_ui_battery_tick(void);
 void dsr_ui_battery_hide(void);
@@ -68,12 +69,10 @@ void dsr_network_rooms(void);
 void dsr_network_room_context(uint32_t id);
 void dsr_network_device_settings(uint32_t id);
 void dsr_network_device_control(uint32_t id);
-bool dsr_network_history_device(uint32_t id,dsr_mobile_device_t *out);
-bool dsr_network_energy_at(unsigned index,dsr_mobile_device_t *out);
-void dsr_ui_history_open(uint32_t id);
-void dsr_ui_energy_open(void);
-void dsr_ui_history_hide(void);
-void dsr_ui_history_tick(void);
+bool dsr_network_typed_device(uint32_t id,dsr_mobile_device_t *out);
+void dsr_ui_usage_open(uint32_t id);
+void dsr_ui_usage_hide(void);
+void dsr_ui_usage_tick(void);
 void dsr_ui_actions_open(uint8_t kind);
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on);
 void dsr_ui_actions_tick(void);

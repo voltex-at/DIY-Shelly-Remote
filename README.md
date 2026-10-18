@@ -4,7 +4,7 @@ Unofficial open-source touchscreen remote for Shelly devices on the
 **LCDWiki ES3C35P N16R8** (ESP32-S3, 320×480). Fully local: Wi-Fi LAN and
 Bluetooth LE, no cloud, no CDN. Not affiliated with or endorsed by Shelly.
 
-Development version: `0.7.50-dev` (branch `work/p0-spiffs-ota-brand`, draft PR #65).
+Development version: `0.7.51-dev` (branch `work/p0-spiffs-ota-brand`, draft PR #65).
 There is no Stable release yet; `main` holds an older baseline.
 
 ## Status
@@ -17,7 +17,7 @@ There is no Stable release yet; `main` holds an older baseline.
 | SPIFFS first format with LCD progress | yes | yes | format passed (0.7.37); resume after reset pending |
 | BLE scan and Gen2+ onboarding over BLE | yes | yes | pending |
 | Covers | yes | yes | control confirmed (0.7.37) |
-| Light/Dimmer, RGBW, H&T, groups/scenes, energy history | yes | yes | pending |
+| Light/Dimmer, RGBW, H&T, groups/scenes (energy history removed in 0.7.51) | yes | yes | pending |
 | Shelly BLU Motion/Door/Window, read through a Shelly gateway on LAN | yes (0.7.42) | yes | pending |
 | OTA from the device: catalogue, manifest, signature, version policy | yes | yes | confirmed by owner (0.7.40); full install and rollback pending |
 

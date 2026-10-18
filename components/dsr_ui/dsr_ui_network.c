@@ -1,8 +1,10 @@
 #include "dsr_ui_internal.h"
+#ifdef ESP_PLATFORM
+#include "dsr_clock.h"
+#endif
 #include "dsr_native_ota.h"
 #include "dsr_platform.h"
 #include "dsr_ui_mobile.h"
-#include "dsr_history.h"
 #include "dsr_actions.h"
 #include "dsr_workspace.h"
 #include "dsr_board.h"
@@ -65,7 +67,7 @@ void dsr_network_reset_view(void)
     dsr_ui_onboarding_reset();
     dsr_ui_settings_hide();
     dsr_ui_battery_hide();dsr_ui_display_hide();
-    dsr_ui_history_hide();
+    dsr_ui_usage_hide();
     dsr_ui_actions_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
@@ -110,7 +112,6 @@ static void publish_actions(uint32_t now)
 static void publish_runtime(uint32_t now)
 {
  publish_actions(now);
- for(size_t i=0;i<fleet.count;i++)dsr_history_binding(&fleet.slots[i].connection,fleet.slots[i].layout_enabled);
  size_t visible=0;for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].connection.layout_id||fleet.slots[i].connection.legacy_fallback)visible++;
  if(!dsr_workspace_runtime_publish_begin(visible))return;
  size_t out=0;for(size_t i=0;i<fleet.count;i++){
@@ -206,13 +207,6 @@ static bool dispatch(uint32_t now,bool allow_poll)
  job.id=++serial;dsr_result_t result=dsr_worker_submit(&job);
  if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;active_slot=index;manual_command=job.kind==DSR_JOB_SET_OUTPUT?(job.on?DSR_ACTION_ON:DSR_ACTION_OFF):job.kind==DSR_JOB_COVER?(job.cover.command==DSR_COVER_OPEN?DSR_ACTION_OPEN:job.cover.command==DSR_COVER_CLOSE?DSR_ACTION_CLOSE:0):0;dsr_fleet_started(&fleet,index,&job);render();}
  memset(&job,0,sizeof(job));return true;
-}
-static bool dispatch_history(uint32_t now)
-{
- if(busy||finishing_bind||dsr_worker_stop_pending())return false;
- bool clock=dsr_history_clock_pending();if(!clock&&!dsr_history_service_due(now))return false;
- dsr_job_t job={.id=++serial,.kind=clock?DSR_JOB_HISTORY_CLOCK:DSR_JOB_HISTORY_SERVICE};
- bool ok=dsr_worker_submit(&job)==DSR_OK;if(ok){busy=true;operation=job.kind;outstanding=job.id;}return ok;
 }
 static bool dispatch_actions(uint32_t now)
 {
@@ -330,10 +324,8 @@ void dsr_network_device_settings(uint32_t id)
 }
 void dsr_network_device_control(uint32_t id)
 {dsr_network_home(NULL);dsr_mobile_return_device(id);}
-bool dsr_network_energy_at(unsigned index,dsr_mobile_device_t *out)
-{if(!out||index>=mobile_model.device_count)return false;*out=mobile_model.devices[index];return true;}
-bool dsr_network_history_device(uint32_t id,dsr_mobile_device_t *out)
-{for(unsigned i=0;i<mobile_model.device_count;i++)if(id&&mobile_model.devices[i].id==id)return dsr_network_energy_at(i,out);return false;}
+bool dsr_network_typed_device(uint32_t id,dsr_mobile_device_t *out)
+{for(unsigned i=0;i<mobile_model.device_count;i++)if(out&&id&&mobile_model.devices[i].id==id){*out=mobile_model.devices[i];return true;}return false;}
 
 static void mobile_light_send(unsigned index,dsr_light_intent_t intent)
 {
@@ -650,7 +642,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
    if(operation==DSR_JOB_WIFI_CONNECT&&event.result==DSR_OK){settings=wifi_candidate;storage_error=false;dsr_fleet_wifi(&fleet,false,now);}
    dsr_wifi_ui_result(&event,operation);
   }else if(operation==DSR_JOB_UNBIND){
-   if(event.result==DSR_OK){dsr_history_forget(&fleet.slots[active_slot].connection.device);memset(&fleet.slots[active_slot].connection.credentials,0,sizeof(dsr_credentials_t));memmove(&fleet.slots[active_slot],&fleet.slots[active_slot+1],(fleet.count-active_slot-1)*sizeof(fleet.slots[0]));memset(&fleet.slots[--fleet.count],0,sizeof(fleet.slots[0]));}
+   if(event.result==DSR_OK){memset(&fleet.slots[active_slot].connection.credentials,0,sizeof(dsr_credentials_t));memmove(&fleet.slots[active_slot],&fleet.slots[active_slot+1],(fleet.count-active_slot-1)*sizeof(fleet.slots[0]));memset(&fleet.slots[--fleet.count],0,sizeof(fleet.slots[0]));}
   }else if(operation==DSR_JOB_LAYOUT_PUBLISH){
    if(finishing_bind){
     cJSON *r=layout_snapshot();bool exists=false;bool valid=r&&layout_find(r,&pending,&exists)==pending.layout_id;cJSON_Delete(r);
@@ -667,14 +659,11 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
     else {bind_stage=DSR_BIND_WORKSPACE;queue_verified_migrations();finishing_bind=true;}
    }
    if(bind_transport_result!=DSR_OK)finish_bind(bind_transport_result);
-  }else if(operation==DSR_JOB_HISTORY_SERVICE||operation==DSR_JOB_HISTORY_CLOCK){
-   /* History/SNTP events are not endpoint samples. */
   }else {
    bool same=dsr_endpoint_equal(&fleet.slots[active_slot].connection.device,&event.device)&&!strcmp(fleet.slots[active_slot].connection.device.host,event.device.host);
    bool accepted=dsr_fleet_complete(&fleet,active_slot,&event,now);
    /* A Wi-Fi drop during the request cannot publish a late ONLINE sample. */
    if(!dsr_wifi_connected())dsr_fleet_wifi(&fleet,false,now);
-   if(accepted&&event.result==DSR_OK&&fleet.slots[active_slot].layout_enabled&&fleet.slots[active_slot].connection.device.online)dsr_history_record(&fleet.slots[active_slot].connection,event.id);
    if(actor_event)dsr_actions_complete(event.id,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
    else if(manual_command&&(operation==DSR_JOB_SET_OUTPUT||operation==DSR_JOB_COVER))dsr_actions_observe(fleet.slots[active_slot].connection.layout_id,manual_command,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
   }
@@ -686,7 +675,11 @@ static void poll(lv_timer_t *timer)
  (void)timer;if(!dsr_activity_begin())return;uint32_t now=lv_tick_get();
  consume_worker_event(now);
  bool wifi=dsr_wifi_connected();if(wifi!=wifi_previous){wifi_previous=wifi;dsr_fleet_wifi(&fleet,wifi,now);render();}
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_history_tick();dsr_ui_actions_tick();
+ dsr_sc_clock_tick();
+#ifdef ESP_PLATFORM
+ if(dsr_wifi_connected())(void)dsr_clock_start(); /* idempotent; background SNTP for the status bar clock */
+#endif
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_usage_tick();dsr_ui_actions_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
  bool ap_available=view==VIEW_HOME&&!dsr_ui_ble_rpc_active()&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
  dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);
@@ -724,7 +717,6 @@ static void poll(lv_timer_t *timer)
  if(finishing_bind||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_wifi_ui_active()||dsr_network_ota_busy())dsr_actions_mode_block();
  bool attempted=dispatch_actions(now);if(!attempted)attempted=dispatch(now,false);
  if(!busy)reconcile_layout(true);
- if(dispatch_history(handoff_now))attempted=true;
  if(!attempted)(void)dispatch(now,!dsr_wifi_ui_active()&&!dsr_ui_lan_active()&&!dsr_ui_ap_active());
  /* Freshness can expire while the sole transport is still waiting. Update
   * the LCD once at that transition, rather than rebuilding it every tick. */
@@ -745,8 +737,7 @@ void dsr_network_start_view(void)
 void dsr_network_init(void)
 {
     (void)dsr_actions_init();
-    (void)dsr_history_init(); /* Optional PSRAM only; files load on sole worker. */
-    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_charts=dsr_ui_history_open,.open_energy=dsr_ui_energy_open,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv};
+    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

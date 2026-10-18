@@ -9,6 +9,9 @@
 #define DSR_CONFIG_MAX_JSON 24576
 #define DSR_CONFIG_MAX_DASHBOARDS 4
 #define DSR_CONFIG_MAX_TILES 24
+/* Optional device "icon" (0.7.51): 0 = by type, 1..20 = LCD icon gallery.
+ * Written only when non-zero, so unchanged configs stay valid for 0.7.50. */
+#define DSR_CONFIG_DEVICE_ICONS 20
 /* Configuration contains no passwords and no fabricated telemetry. */
 char *dsr_config_default(void);
 bool dsr_config_validate(const cJSON *root, char error[96]);

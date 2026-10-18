@@ -757,7 +757,8 @@ static void multi_device_regression(void)
 #include "review_multi_regression.inc"
 #include "bind_publication_regression.inc"
 #include "device_settings_regression.inc"
-#include "history_regression.inc"
+#include "usage_regression.inc"
+#include "icons_regression.inc"
 #include "actions_regression.inc"
 static const dsr_ap_identity_t ap_identity={.id="shellyplus1-112233445566",.mac="112233445566",.model="SNSW-001X16EU",.ssid="ShellyPlus1-112233445566",.generation=2};
 static void ap_pick(void)
@@ -808,7 +809,9 @@ static void ap_regression(void)
  test_ap_temporary(false);response=(dsr_event_t){.ap_write_result=DSR_OFFLINE};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(find_label(lv_screen_active(),"Sprawdź w domowej sieci"));
  test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-112233445566\",\"mac\":\"112233445566\",\"model\":\"SNSW-001X16EU\",\"auth_en\":false}","192.168.1.77");next_submit_result=DSR_BUSY;tick();CHECK(!in_flight&&requests==before);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_AP_VERIFY&&requests==before+1&&!strcmp(submitted.connection.device.host,"192.168.1.77"));
  response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!find_label(lv_screen_active(),"Nazwa i pomieszczenie"));test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");tick();
- CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie")&&!dsr_ui_ap_active()&&!dsr_ap_sensitive());CHECK(requests==before+1);screenshot("223-ap-verified-lan-bind-form");wifi.connected=false;dsr_network_home(NULL);tick();
+ CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie")&&!dsr_ui_ap_active()&&!dsr_ap_sensitive());CHECK(requests==before+1);screenshot("223-ap-verified-lan-bind-form");
+ /* 0.7.51: the device card tells SKU, product line, address and the channels found. */
+ CHECK(find_label(lv_screen_active(),"Shelly Plus")&&find_label(lv_screen_active(),"SNSW-001X16EU • Gen 2")&&find_label(lv_screen_active(),"192.168.1.77 • Switch: 1"));wifi.connected=false;dsr_network_home(NULL);tick();
  for(unsigned language=1;language<=2;language++){
   dsr_sc_appearance(DSR_SC_BLUE,false,language);ap_pick();screenshot(language==1?"224-ap-connect-consent-en":"226-ap-connect-consent-de");ap_disclose();screenshot(language==1?"225-ap-disclose-en":"227-ap-disclose-de");
   lv_obj_t *label=find_label(lv_screen_active(),"Przekaż nazwę i hasło zapisanej domowej sieci temu urządzeniu. Otwarty AP i HTTP nie zapewniają kryptograficznego uwierzytelnienia.");CHECK(label);bounds(label,324);ap_cancel_finish();
@@ -947,7 +950,7 @@ int main(int argc,char **argv)
     response.device=submitted.connection.device;response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
     configuration=dsr_workspace_snapshot();CHECK(configuration);CHECK(dsr_mobile_configure(&model,configuration));free(configuration);CHECK(model.device_count>=1&&model.devices[model.device_count-1].room==0&&model.devices[model.device_count-1].channel==1);
     dsr_ui_lan_reset();storage_error_regression();rooms_regression();test_workspace_disable();battery_regression();display_regression();global_settings_regression();revoke_regression();restart_regression();
-    multi_device_regression();device_settings_regression();history_regression();actions_regression();bind_rebind_regression();review_multi_regression();review_deleted_migration_regression();
+    multi_device_regression();device_settings_regression();icons_regression();usage_regression();actions_regression();bind_rebind_regression();review_multi_regression();review_deleted_migration_regression();
     ap_regression();native_ota_regression();rpc_regression();onboarding_regression();
     printf("PASS: %u real LVGL UI checks; %u screenshots; keyboard, LAN, BLE, contextual rooms, stable IDs, references, CAS/save regression; 60 navigation + 40 room edit cycles\n",checks,screenshots);
     lv_deinit();return 0;

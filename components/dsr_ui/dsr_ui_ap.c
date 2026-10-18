@@ -86,7 +86,7 @@ static void choose(lv_event_t *event)
 }
 static void show_results(void)
 {
- phase=AP_PICK;lv_obj_t *root=screen("Fabryczne AP Shelly");lv_obj_t *list=dsr_sc_panel(root,12,88,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
+ phase=AP_PICK;lv_obj_t *root=screen("Fabryczne AP Shelly");lv_obj_t *list=dsr_sc_panel(root,12,88,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  unsigned count=0;
  for(unsigned i=0;i<scan.count;i++)if(dsr_ap_candidate(scan.items[i].ssid)){
   char detail[48];snprintf(detail,sizeof(detail),"RSSI %d dBm",scan.items[i].rssi);

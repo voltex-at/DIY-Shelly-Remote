@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.50-dev
+# Matryca funkcji — 0.7.51-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -19,13 +19,15 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Termostat BLU TRV przez bramkę (odczyt, cel 4-30 °C, łuk i pastylka jak w Shelly) | tak (0.7.47; 0.7.48 wygląd) | tak (HTTP model, kolejka, LCD, Web Panel odczyt) | brak testu | — |
 | Wbudowane zdjęcia pomieszczeń (8) | tak (0.7.47) | tak (LCD) | brak testu | — |
 | Shelly BLU Motion/Door/Window przez bramkę Shelly (LAN, tylko odczyt) | tak (0.7.42; 0.7.45: lista z GetComponents) | tak (HTTP model, LCD, Web Panel) | 0.7.44: BLU Gateway Gen3 bez kanałów (GetStatus bez BTHome), poprawione w 0.7.45, brak testu | — |
-| Grupy, sceny, dziennik aktywności | tak | tak | brak testu | — |
-| Historia energii 24 h | tak | tak | brak testu | — |
+| Grupy i sceny (LCD: zakładka Pomieszczenia; dziennik aktywności tylko Web Panel) | tak (0.7.51: bez ekranu Aktywność na LCD) | tak | brak testu | — |
+| Zużycie: zegar mocy na stronie urządzenia | tak (0.7.49) | tak | brak testu | — |
+| Historia energii 24 h, strona Energia, wykres WWW | usunięte w 0.7.51 (decyzja właściciela 2026-10-18; pliki w SPIFFS nietknięte) | — | — | — |
+| Ikony urządzeń do wyboru (20), zegar w pasku stanu, pasek przewijania | tak (0.7.51) | tak (LCD, schemat) | brak testu | — |
 | Skan BLE i dodawanie Gen2+ przez BLE | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
 | OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB; 0.7.43: limit pobierania obrazu, kasowanie sekwencyjne) | tak | instalacja 0.7.43 → 0.7.44 z pilota potwierdzona (2026-10-17); rollback bez testu | — |
 | Rollback po nieudanym starcie | tak (SDK) | model | brak testu | — |
-| Napięcie baterii na żądanie | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
+| Napięcie baterii na żądanie (dolny pasek: diagnostyka baterii zamiast Energia) | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
 | Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 

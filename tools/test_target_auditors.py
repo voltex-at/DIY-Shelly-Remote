@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic rejection tests of the actions/history target auditors; no target evidence."""
+"""Synthetic rejection tests of the actions target auditor; no target evidence."""
 import json
 import os
 import subprocess
@@ -18,16 +18,6 @@ AUDITORS = {
                 'dsr_worker': ['dsr_worker_submit', 'dsr_worker_stop_request', 'dsr_worker_action_stop_request'],
                 'dsr_ui_network': ['dsr_network_init']},
         first=('dsr_actions', 'dsr_actions_init'), probe=('dsr_actions_parse', 'dsr_actions_request_parse'), bss='65'),
-    'history': dict(
-        public={'dsr_history': ['dsr_history_init', 'dsr_history_record', 'dsr_history_query', 'dsr_history_service', 'dsr_history_clock_execute'],
-                'dsr_history_model': ['dsr_history_model_record', 'dsr_history_model_query', 'dsr_history_decode', 'dsr_history_checkpoint'],
-                'dsr_history_store': ['dsr_history_store_load', 'dsr_history_store_append', 'dsr_history_store_checkpoint'],
-                'dsr_history_api': ['dsr_history_json', 'dsr_history_parse'],
-                'dsr_clock': ['dsr_clock_sync'],
-                'dsr_ui_history': ['dsr_ui_history_open', 'dsr_ui_energy_open', 'dsr_ui_history_tick'],
-                'dsr_worker': ['dsr_worker_submit'],
-                'dsr_ui_network': ['dsr_network_init']},
-        first=('dsr_history', 'dsr_history_init'), probe=('dsr_clock', 'dsr_clock_sync'), bss='33'),
 }
 
 for name, c in AUDITORS.items():

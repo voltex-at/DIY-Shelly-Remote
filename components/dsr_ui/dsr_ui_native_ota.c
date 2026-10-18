@@ -22,7 +22,7 @@ static lv_obj_t *screen(void)
 {
  building=true;lv_obj_t *root=dsr_ui_screen("Firmware Update",false);building=false;active=true;
  lv_obj_t *body=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);
- lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  back_button=dsr_ui_button(root,"Wstecz",12,420,296,dsr_ui_system_open,NULL);return body;
 }
 static lv_obj_t *raw(lv_obj_t *body,const char *text,int y)

@@ -2,6 +2,7 @@
   "upstream": "https://github.com/google/material-design-icons",
   "commit": "49d4db35df873165d6bd6ba09b063c7dafbac2f4",
   "license": "Apache-2.0",
+  "path": "symbols/web/<name>/materialsymbolsrounded/<name>_fill1_24px.svg",
   "sha256": {
     "speed": "df76eca7b6eb6dac84153843c9726d4315b8bf015807454ed7bb16f91b40fbc6",
     "home": "b29e5deb4467a06ec02ac358516fd8e5955c0d704fba8776f055b638cfbab607",
@@ -26,6 +27,22 @@
     "sensor_door": "a68c5d4299a9e94bf6bdb8dc2647268a3955885c4a9c9cfa0341e6b1b365fe7e",
     "blinds": "9536fc6bfb33e76f8b90f638f32fbb079dcada6c8791ae91b7df0ce723827323",
     "battery_full": "ae2f6fbef5098bf19695ace7fd8b7405c601d1ed8346f6400e6de45d306da003",
-    "auto_awesome": "1063105af20333199d63de238ae67b803f56bccf9cf593967e0b8cd4f5107796"
+    "auto_awesome": "1063105af20333199d63de238ae67b803f56bccf9cf593967e0b8cd4f5107796",
+    "outlet": "abbff8090f72181c5964997becee1bede2f3728ed5877bdc53d50de264648274",
+    "mode_fan": "c507684022a27525dd37fd4c6182406fdd3507f4c0b7dbb5ce44a573c7f60868",
+    "thermostat": "c57ed294630ea77bb490612e66d3a34e9caf67b1321c108ea41e06fe7560a68a",
+    "tv": "97c602b6cc5d37aff6ebbf481e3fb48ddf1985f7df83fe235c758df0e770b467",
+    "water_heater": "3a207952c89491a17662e9d3b89abe1388c12089fd9671bf0ed436c5c99de493",
+    "garage_home": "35a7f4a6f1fe0849b68b7b72a60c2d12de5cb9fbfba1cd5b60d733504e00a0b3",
+    "door_front": "43ece20802dec951c84e2772044312cf44fd7773d6600aeb66f12b7b8c050c17",
+    "floor_lamp": "a7cc039d479b6aceb1879ca23cbf106421ba8d001939a00d42284b1a4cf44e7e",
+    "wall_lamp": "58f65c3ea495eb986e76ba9ee3435c8f898fc0bc263405f1e725c92c00a9ddd6",
+    "ev_station": "ec356c402ffffce1c5931b700c08c7923138af3e8fb9f111d558e3d6d71445b8",
+    "kettle": "94af013ae50f81debf31bb554bf07f1484d06494aa7dfeb421017da7e61b7cb3",
+    "coffee_maker": "02066f419a79f2846a94502f178d4ac7f4f138ab6a51bdaa5967dd64e30451cd",
+    "local_laundry_service": "30147ab0cb36ba75a4a760dd64ec167390c3e9bcea2f0771255295ffd6229823",
+    "ac_unit": "f332a8100d5d1555e8544809b021073d7cb191ccaf24ba6d04ff7e8cd07d57f0",
+    "speaker": "9b78ef1f10d17accf65c4a82c2d497d4371c19bfab58b03f9cd4600246a4fd76",
+    "router": "ff0f0599652a6caff6c7f151772d42026ca81a32ad541782625b2cde0cbcc8e7"
   }
 }

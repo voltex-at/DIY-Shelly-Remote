@@ -4,7 +4,6 @@
 #include "test_ui.c"
 #undef main
 unsigned test_cover_requests(void);
-unsigned test_history_last_kind(void);
 static void cover_response(uint8_t state,uint8_t position,uint8_t flags,uint8_t errors)
 {
  response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_voltage=true,.voltage_v=230,.has_current=true,.current_a=.014,.cover={.state=state,.current_pos=position,.flags=flags,.errors=errors}}};response.device.online=true;response.device.has_switch=false;response.device.has_power=true;response.device.power_w=3.2;deliver(DSR_OK,DSR_WIFI_IDLE);
@@ -29,8 +28,8 @@ int main(int argc,char **argv)
  lv_obj_t *choice=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(choice);click("Zapisz");CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&submitted.connection.device.channel==0);
  cover_response(DSR_COVER_STATE_STOPPED,38,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(!dsr_network_busy());
  cJSON *r=room_document(),*entry=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(entry&&!strcmp(cJSON_GetObjectItemCaseSensitive(entry,"kind")->valuestring,"cover"));uint32_t id=(uint32_t)cJSON_GetObjectItemCaseSensitive(entry,"id")->valueint;CHECK(id&&dsr_network_layout_reserved(id));cJSON_Delete(r);
- dsr_mobile_device_t typed;CHECK(dsr_network_history_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_COVER);
- dsr_ui_history_open(id);CHECK(test_history_last_kind()==DSR_ENDPOINT_COVER&&find_label(lv_screen_active(),"Zużycie"));screenshot("256-cover-history-explicitly-unsupported");dsr_network_device_control(id);
+ dsr_mobile_device_t typed;CHECK(dsr_network_typed_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_COVER);
+ dsr_ui_usage_open(id);CHECK(find_label(lv_screen_active(),"Zużycie"));screenshot("256-cover-history-explicitly-unsupported");dsr_network_device_control(id);
  click("Roleta testowa");CHECK(find_label(lv_screen_active(),"Pozycja 38%")&&!find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("250-cover-confirmed-readback");
  const char *locales[]={"en","de","pl"};unsigned locale_requests=requests;
  for(unsigned i=0;i<3;i++){r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(locales[i]));publish_document(r);tick();CHECK(requests==locale_requests);CHECK(find_label(lv_screen_active(),i==0?"Position 38%":i==1?"Position 38%":"Pozycja 38%"));if(i<2)screenshot(i==0?"254-cover-readback-en":"255-cover-readback-de");}

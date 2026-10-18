@@ -34,7 +34,6 @@ jobs:
           node tests/test_panel.cjs
           node tests/test_panel_runtime.cjs
           node tests/test_panel_runtime_model.cjs
-          node tests/test_panel_history_model.cjs
           node tests/test_panel_actions_model.cjs
           node tests/test_panel_actions_async.cjs
           node tests/test_panel_config_reads.cjs
@@ -133,7 +132,6 @@ jobs:
           python3 tools/check_ap_target.py --build-dir build-board --out build-board/AP.json
           python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json
           python3 tools/check_ble_target.py --build-dir build-board --out build-board/BLE.json
-          python3 tools/check_history_target.py --build-dir build-board --out build-board/HISTORY.json
           python3 tools/check_actions_target.py --build-dir build-board --out build-board/ACTIONS.json
           python3 tools/check_pairing_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/PAIRING.json
           python3 - <<'PY'

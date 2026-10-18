@@ -62,7 +62,7 @@ lv_obj_t *dsr_onboarding_screen(const char *title,unsigned step)
  if(step<1)step=1;
  if(step>3)step=3;
  char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),step);
- lv_obj_t *label=dsr_sc_text(root,caption,208,31,100,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);
+ lv_obj_t *label=dsr_sc_text(root,caption,208,31,100,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);
  segments(root,step,76);return root;
 }
 lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t back_cb,const char *forward,lv_event_cb_t forward_cb)
@@ -99,7 +99,7 @@ void dsr_ui_onboarding_open(lv_event_cb_t manual)
  dsr_sc_panel(sheet,138,8,44,4,DSR_SC_MUTED,2);
  dsr_sc_text(sheet,"Dodaj urządzenie",16,25,288,&dsr_roboto_18,DSR_SC_TEXT);
  dsr_sc_text(sheet,"Krok 1 z 3",16,57,288,&dsr_roboto_12,DSR_SC_MUTED);segments(sheet,1,80);
- lv_obj_t *list=dsr_sc_panel(sheet,12,96,296,230,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);
+ lv_obj_t *list=dsr_sc_panel(sheet,12,96,296,230,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  for(unsigned i=0;i<4;i++){
   lv_obj_t *row=cards[i]=dsr_sc_button(list,0,(int)i*78,296,i<3?72:52,DSR_SC_CARD,12,select_method,(void *)(uintptr_t)i);
   lv_obj_set_style_bg_color(row,dsr_sc_color(DSR_SC_PANEL),LV_STATE_DISABLED);lv_obj_set_style_opa(row,LV_OPA_COVER,LV_STATE_DISABLED);
@@ -108,7 +108,7 @@ void dsr_ui_onboarding_open(lv_event_cb_t manual)
   if(i<3)descriptions[i]=dsr_sc_text(row,descriptions_ready[i],48,35,206,&dsr_roboto_12,DSR_SC_MUTED);
   radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);lv_obj_set_style_border_width(radios[i],1,0);
  }
- hint=dsr_sc_text(sheet,"Więcej opcji poniżej",128,57,176,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_RIGHT,0);
+ hint=dsr_sc_text(sheet,"Więcej opcji poniżej",128,57,176,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_RIGHT,0);
  next_button=dsr_onboarding_footer(overlay,"Anuluj",cancel,"Dalej",next);refresh_selection();
  /* A new front door always starts at the first method. Resolve content bounds
   * before resetting so a previous focused/advanced row cannot shift the list. */

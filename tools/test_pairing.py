@@ -39,7 +39,11 @@ for name,expected in auth_hashes.items():
         runtime=' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb")||!strcmp(r->uri,"/api/v1/devices/refresh"))return runtime_api(r);\n'
         prior=' if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover"))return runtime_api(r);\n'
         assert block.count(runtime)==1 and block.index(runtime)>block.index('if(!authorized(r))'),'Light must remain behind unchanged authorization'
-        block=block.replace(runtime,prior)
+        # Energy history route removed in 0.7.51 (owner): it must stay absent;
+        # the frozen parent had it right after the runtime route.
+        history=' if(!strncmp(r->uri,"/api/v1/history/",16))return history_api(r);\n'
+        assert '/api/v1/history/' not in block,'Removed history route must not return'
+        block=block.replace(runtime,prior+history)
         typed='  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER&&endpoint_kind->valuedouble!=DSR_ENDPOINT_LIGHT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_RGB&&endpoint_kind->valuedouble!=DSR_ENDPOINT_HT&&endpoint_kind->valuedouble!=DSR_ENDPOINT_BLU))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind!=DSR_ENDPOINT_SWITCH)connection.device.generation=DSR_GEN2_PLUS;}}\n'
         prior_typed='  const cJSON *endpoint_kind=cJSON_GetObjectItemCaseSensitive(input,"endpoint_kind");if(endpoint_kind){if(!cJSON_IsNumber(endpoint_kind)||(endpoint_kind->valuedouble!=DSR_ENDPOINT_SWITCH&&endpoint_kind->valuedouble!=DSR_ENDPOINT_COVER))valid=false;else{connection.device.endpoint_kind=(uint8_t)endpoint_kind->valueint;if(connection.device.endpoint_kind==DSR_ENDPOINT_COVER)connection.device.generation=DSR_GEN2_PLUS;}}\n'
         assert block.count(typed)==1,'Unexpected typed Light BIND validation change'

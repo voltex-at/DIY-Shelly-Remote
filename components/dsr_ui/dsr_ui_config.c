@@ -30,7 +30,7 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
  m->group_count=0;cJSON_ArrayForEach(v,item(r,"groups")){dsr_mobile_group_t *g=&m->groups[m->group_count++];snprintf(g->name,sizeof(g->name),"%s",string(v,"name"));g->id=(uint32_t)integer(v,"id");g->members=(uint8_t)cJSON_GetArraySize(item(v,"members"));}
  cJSON_ArrayForEach(v,item(r,"devices")){
   dsr_mobile_device_t *d=&m->devices[m->device_count++];memset(d,0,sizeof(*d));d->id=(uint32_t)integer(v,"id");snprintf(d->name,sizeof(d->name),"%s",string(v,"name"));snprintf(d->host,sizeof(d->host),"%s",string(v,"host"));d->channel=(uint8_t)integer(v,"channel");d->room=(uint8_t)object_index(item(r,"rooms"),integer(v,"room"));
-  const char *kind=string(v,"kind");d->kind=!strcmp(kind,"light")?DSR_DEVICE_LIGHT:!strcmp(kind,"cover")?DSR_DEVICE_COVER:!strcmp(kind,"contact")?DSR_DEVICE_CONTACT:!strcmp(kind,"sensor")?DSR_DEVICE_SENSOR:!strcmp(kind,"plug")?DSR_DEVICE_PLUG:DSR_DEVICE_RELAY;d->fields=255;
+  const char *kind=string(v,"kind");d->kind=!strcmp(kind,"light")?DSR_DEVICE_LIGHT:!strcmp(kind,"cover")?DSR_DEVICE_COVER:!strcmp(kind,"contact")?DSR_DEVICE_CONTACT:!strcmp(kind,"sensor")?DSR_DEVICE_SENSOR:!strcmp(kind,"plug")?DSR_DEVICE_PLUG:DSR_DEVICE_RELAY;d->fields=255;{int icon=integer(v,"icon");d->icon=(uint8_t)(icon>0&&icon<=DSR_SC_DEVICE_ICONS?icon:0);}
  }
  const cJSON *dashboard=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard")));
  m->dashboard_id=(uint32_t)integer(dashboard,"id");
@@ -124,8 +124,8 @@ static lv_obj_t *screen(const char *title)
  view_generation++;view_save_target=SAVE_STAY;room_dialog=settings_dialog=NULL;
  dsr_network_reset_view();dsr_mobile_hide();lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_set_style_text_font(root,&dsr_roboto_14,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
  dsr_sc_header(root,"Mój dom",false,dsr_wifi_connected(),NULL,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
- status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,82,292,&dsr_roboto_11,DSR_SC_MUTED);
- body=dsr_sc_panel(root,12,106,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,82,292,&dsr_roboto_12,DSR_SC_MUTED);
+ body=dsr_sc_panel(root,12,106,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  keyboard=lv_keyboard_create(root);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  return root;
 }
@@ -188,7 +188,7 @@ static void actions(lv_obj_t *root,lv_event_cb_t back)
 static void menu_event(lv_event_t *e){(void)e;show_menu();}
 static void add_field(const char *caption,const char *key,int y,bool numeric)
 {
- dsr_sc_text(body,caption,2,y,280,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *f=lv_textarea_create(body);dsr_ui_textarea(f);lv_obj_set_pos(f,0,y+21);lv_obj_set_size(f,284,44);lv_textarea_set_one_line(f,true);
+ dsr_sc_text(body,caption,2,y-1,280,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *f=lv_textarea_create(body);dsr_ui_textarea(f);lv_obj_set_pos(f,0,y+21);lv_obj_set_size(f,284,44);lv_textarea_set_one_line(f,true);
  lv_textarea_set_max_length(f,!strcmp(key,"name")?47:!strcmp(key,"host")?15:40);
  char text[32];if(numeric){snprintf(text,sizeof(text),"%d",integer(editing,key));lv_textarea_set_accepted_chars(f,"0123456789");lv_textarea_set_text(f,text);}else lv_textarea_set_text(f,string(editing,key));
  if(!strcmp(key,"host"))lv_textarea_set_accepted_chars(f,"0123456789.");
@@ -204,7 +204,7 @@ static void select_changed(lv_event_t *event)
 }
 static void add_choice(const char *caption,const choice_t *choice,int y)
 {
- dsr_sc_text(body,caption,2,y,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);
+ dsr_sc_text(body,caption,2,y-1,284,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);
  const char *options=!strcmp(choice->key,"kind")?"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik":!strcmp(choice->key,"theme")?"Grafitowy\nNocny\nJasny":!strcmp(choice->key,"language")?"Polski\nEnglish\nDeutsch":choice->options;
  lv_dropdown_set_options(d,dsr_sc_tr(options));lv_obj_set_style_text_font(d,&dsr_roboto_14,0);
  if(choice->numeric)lv_dropdown_set_selected(d,(uint32_t)integer(editing,choice->key));else{char *options=malloc(strlen(choice->options)+1);strcpy(options,choice->options);unsigned at=0;for(char *v=strtok(options,"\n");v;v=strtok(NULL,"\n"),at++)if(!strcmp(v,string(editing,choice->key))){lv_dropdown_set_selected(d,at);break;}free(options);}
@@ -222,7 +222,7 @@ static void object_choice(const char *caption,const char *key,int y)
  const cJSON *a=item(draft,!strcmp(key,"room")?"rooms":"dashboards"),*v;char options[1024]={0};unsigned selected=0,index=0;
  if(!strcmp(key,"room")){snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));index=1;}
  cJSON_ArrayForEach(v,a){if(options[0])strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,string(v,"name"),sizeof(options)-strlen(options)-1);if(integer(v,"id")==integer(editing,key))selected=index;index++;}
- dsr_sc_text(body,caption,2,y,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);lv_dropdown_set_options(d,options);lv_dropdown_set_selected(d,selected);lv_obj_add_event_cb(d,object_selected,LV_EVENT_VALUE_CHANGED,(void *)key);
+ dsr_sc_text(body,caption,2,y-1,284,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);lv_dropdown_set_options(d,options);lv_dropdown_set_selected(d,selected);lv_obj_add_event_cb(d,object_selected,LV_EVENT_VALUE_CHANGED,(void *)key);
 }
 /* Gallery order: uploaded photos, then built-in room photos, then "none". */
 static const char *gallery_id(unsigned index)
@@ -313,13 +313,34 @@ static void show_room_form(void)
  }
  if(deleted_saved)dsr_ui_button(root,"Wstecz",12,420,296,room_back,NULL);else actions(root,room_back);
 }
+/* Icon gallery like the Shelly app "Standardbilder" (owner 2026-10-18).
+ * "icon" is written only when not automatic, so unchanged configurations stay
+ * readable by 0.7.50 and older. */
+static void device_icon_pick(lv_event_t *event)
+{
+ int icon=(int)(uintptr_t)lv_event_get_user_data(event);if(!editing||icon<0||icon>DSR_SC_DEVICE_ICONS)return;
+ cJSON_DeleteItemFromObjectCaseSensitive(editing,"icon");if(icon&&!cJSON_AddNumberToObject(editing,"icon",icon))return;
+ int scroll=body?lv_obj_get_scroll_y(body):0;show_device_form();if(body){lv_obj_update_layout(body);lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);}
+}
+static void device_icons(int y)
+{
+ dsr_sc_text(body,"Ikona",2,y-1,280,&dsr_roboto_14,DSR_SC_MUTED);
+ int chosen=integer(editing,"icon");if(chosen<0||chosen>DSR_SC_DEVICE_ICONS)chosen=0;
+ for(int i=0;i<=DSR_SC_DEVICE_ICONS;i++){
+  lv_obj_t *b=dsr_sc_button(body,(i%5)*57+2,y+24+(i/5)*58,50,50,0x17191c,LV_RADIUS_CIRCLE,device_icon_pick,(void *)(uintptr_t)i);
+  lv_obj_set_style_border_width(b,i==chosen?3:1,0);lv_obj_set_style_border_color(b,dsr_sc_color(i==chosen?DSR_SC_GLOW:0x3a3f44),0);dsr_sc_glow(b,i==chosen);
+  if(i)dsr_sc_icon_centered(b,dsr_sc_device_icons[i-1],28,i==chosen?DSR_SC_GLOW:DSR_SC_TEXT);
+  else{lv_obj_t *t=dsr_sc_text(b,"Auto",0,0,44,&dsr_roboto_12,i==chosen?DSR_SC_GLOW:DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(t);}
+ }
+ dsr_sc_text(body,"Nazwa, pokój i ikona dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,y+24+5*58+4,280,&dsr_roboto_14,DSR_SC_MUTED);
+}
 static void show_device_form(void)
 {
  lv_obj_t *root=screen("Edytuj kartę urządzenia");room_dialog=NULL;
  view_save_target=SAVE_DEVICE;
  lv_obj_set_y(body,118);lv_obj_set_height(body,280);
  add_field("Nazwa","name",0,false);object_choice("Pomieszczenie","room",80);
- dsr_sc_text(body,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,168,280,&dsr_roboto_14,DSR_SC_MUTED);
+ device_icons(160);
  actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)

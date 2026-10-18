@@ -171,7 +171,7 @@ static lv_obj_t *settings_body(const char *title)
 {
  lv_obj_t *root=dsr_ui_screen(title,false);
  lv_obj_t *body=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);
- lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  dsr_ui_button(root,"Wstecz",12,420,296,settings_back,NULL);return body;
 }
 static lv_obj_t *row(lv_obj_t *body,const char *text,int y,lv_event_cb_t action)
@@ -254,7 +254,7 @@ static void web_panel(lv_event_t *event)
  dsr_sc_text(body,address,4,36,284,&dsr_roboto_14,DSR_SC_BLUE);dsr_sc_text(body,"https://shelly-remote.local",4,62,284,&dsr_roboto_14,DSR_SC_BLUE);
  const char *fp=dsr_tls_fingerprint();char digest[80];snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp?fp:"",fp&&strlen(fp)>32?fp+32:"");
  dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",4,100,284,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_11,DSR_SC_TEXT);
+ dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_12,DSR_SC_TEXT);
  char status[64];snprintf(status,sizeof(status),"SPIFFS: %d / 0x%x",(int)health.storage,(unsigned)health.storage_error);
  dsr_sc_text(body,status,4,172,284,&dsr_roboto_12,DSR_SC_MUTED);
  web_pairing_generate=row(body,"Wygeneruj kod parowania",210,pair_browser);if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);
@@ -324,7 +324,7 @@ static void menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *root=dsr_ui_screen("Ustawienia pilota",true);
  lv_obj_t *body=dsr_sc_panel(root,12,86,296,330,DSR_SC_BG,0);
- lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
  const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_GRID,DSR_ICON_DASHBOARD,DSR_ICON_BATTERY,DSR_ICON_HOME,DSR_ICON_SETTINGS};
  const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
