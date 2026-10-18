@@ -8,6 +8,7 @@
 #include <stdatomic.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "freertos/semphr.h"
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
@@ -92,9 +93,9 @@ static bool address_equal(const char *a,const char *b)
 {if(!a||!b||strlen(a)!=17||strlen(b)!=17)return false;for(unsigned i=0;i<17;i++)if(tolower((unsigned char)a[i])!=tolower((unsigned char)b[i]))return false;return true;}
 /* Enumerate before every add/retry. Component IDs belong to the gateway; a
  * matching address is reused, never deleted or replaced to make room. */
-static dsr_result_t find_blu(const char *address,unsigned *cid,unsigned *free_cid)
+static dsr_result_t find_blu(const char *address,unsigned *cid,unsigned *free_cid,bool require_trv)
 {
- unsigned offset=0;uint16_t used=0;*cid=0;*free_cid=0;
+ unsigned offset=0,trv_link=0;uint16_t used=0;*cid=0;*free_cid=0;
  for(unsigned page=0;page<12;page++){
   cJSON *p=cJSON_CreateObject(),*response=NULL;if(!p)return DSR_IO;
   cJSON_AddBoolToObject(p,"dynamic_only",true);cJSON_AddNumberToObject(p,"offset",offset);
@@ -103,6 +104,15 @@ static dsr_result_t find_blu(const char *address,unsigned *cid,unsigned *free_ci
   if(!cJSON_IsArray(items)||!cJSON_IsNumber(total)||total->valuedouble<0||total->valuedouble>1000||!cJSON_IsNumber(at)||at->valuedouble!=offset){cJSON_Delete(response);return DSR_BAD_RESPONSE;}
   cJSON_ArrayForEach(v,items){
    const cJSON *key=cJSON_GetObjectItemCaseSensitive(v,"key");if(!cJSON_IsString(key)){cJSON_Delete(response);return DSR_BAD_RESPONSE;}
+   if(require_trv&&!strncmp(key->valuestring,"blutrv:",7)){
+    const cJSON *cfg=cJSON_GetObjectItemCaseSensitive(v,"config"),*addr=cJSON_GetObjectItemCaseSensitive(cfg,"addr"),*linked=cJSON_GetObjectItemCaseSensitive(cfg,"trv");
+    if(cJSON_IsString(addr)&&address_equal(addr->valuestring,address)){
+     char expected[32];const char *text=cJSON_IsString(linked)?linked->valuestring:"";char *end;long id=!strncmp(text,"bthomedevice:",13)?strtol(text+13,&end,10):-1;
+     snprintf(expected,sizeof(expected),"blutrv:%ld",id);
+     if(id<200||id>=216||*end||strcmp(expected,key->valuestring)||trv_link){cJSON_Delete(response);return DSR_BAD_RESPONSE;}trv_link=(unsigned)id;
+    }
+    continue;
+   }
    if(strncmp(key->valuestring,"bthomedevice:",13))continue;
    char *end;long id=strtol(key->valuestring+13,&end,10);if(!key->valuestring[13]||*end||id<200||id>299){cJSON_Delete(response);return DSR_BAD_RESPONSE;}
    if(id<216)used|=(uint16_t)(1u<<(id-200));
@@ -110,7 +120,7 @@ static dsr_result_t find_blu(const char *address,unsigned *cid,unsigned *free_ci
    if(!cJSON_IsString(addr)){cJSON_Delete(response);return DSR_BAD_RESPONSE;}
    if(address_equal(addr->valuestring,address)){if(*cid&&*cid!=(unsigned)id){cJSON_Delete(response);return DSR_CONFLICT;}*cid=(unsigned)id;}
   }
-  unsigned got=(unsigned)cJSON_GetArraySize(items);bool more=total->valuedouble>offset+got;cJSON_Delete(response);if(!more){for(unsigned i=0;i<16;i++)if(!(used&(1u<<i))){*free_cid=200+i;break;}return *cid>=216?DSR_UNSUPPORTED:DSR_OK;}if(!got)return DSR_BAD_RESPONSE;offset+=got;
+  unsigned got=(unsigned)cJSON_GetArraySize(items);bool more=total->valuedouble>offset+got;cJSON_Delete(response);if(!more){for(unsigned i=0;i<16;i++)if(!(used&(1u<<i))){*free_cid=200+i;break;}if(require_trv&&trv_link!=*cid)*cid=0;return *cid>=216?DSR_UNSUPPORTED:DSR_OK;}if(!got)return DSR_BAD_RESPONSE;offset+=got;
  }
  return DSR_FULL;
 }
@@ -149,15 +159,34 @@ static dsr_result_t add_sensor(const char *address,unsigned cid,const sensor_pla
  }
  return r;
 }
+static dsr_result_t associate_trv(const cJSON *methods,const char *address,unsigned *cid)
+{
+ if(!has_method(methods,"BluTrv.GetConfig")||!has_method(methods,"BLE.StartAssociations"))return DSR_UNSUPPORTED;
+ unsigned unused=0;dsr_result_t r=find_blu(address,cid,&unused,true);if(r!=DSR_OK||*cid)return r;
+ cJSON *params=cJSON_CreateObject(),*response=NULL;
+ if(!params)return DSR_IO;
+ if(!cJSON_AddNumberToObject(params,"target",8)||!cJSON_AddNumberToObject(params,"duration",30)||!cJSON_AddNumberToObject(params,"rssi_thr",-65)){cJSON_Delete(params);return DSR_IO;}
+ bool attempted=false;r=rpc("BLE.StartAssociations",params,&response,true,&attempted);cJSON_Delete(params);cJSON_Delete(response);
+ /* Gateway discovery has no documented address filter. The LCD explicitly
+  * asks to put only the selected TRV in pairing mode. Never use wildcard 0;
+  * completion requires its exact address AND linked BluTrv/BTHome IDs. */
+ if(attempted)for(unsigned i=0;i<40;i++){
+  r=find_blu(address,cid,&unused,true);if(r!=DSR_OK||*cid)return r;
+  vTaskDelay(pdMS_TO_TICKS(750));
+ }
+ return r==DSR_OK?DSR_OFFLINE:r;
+}
 static dsr_result_t register_blu(void)
 {
  char *end;unsigned long gen=strtoul(session->value,&end,10);if(!session->value[0]||*end||!gen||gen>UINT32_MAX)return DSR_INVALID;
  char address[18]={0},key[33]={0};
  if(!dsr_blu_gateway_key((uint32_t)gen,address,key))return DSR_AUTH_REQUIRED;
- cJSON *methods=NULL,*response=NULL,*params=NULL;dsr_result_t r=rpc("Shelly.ListMethods",NULL,&methods,false,NULL);unsigned cid=0,free_cid=0;bool attempted=false;
+ cJSON *methods=NULL,*response=NULL,*params=NULL;dsr_result_t r=rpc("Shelly.ListMethods",NULL,&methods,false,NULL);unsigned cid=0,free_cid=0;bool attempted=false,created=false;
  if(r==DSR_OK&&(!has_method(methods,"BTHome.AddDevice")||!has_method(methods,"BTHome.AddSensor")||!has_method(methods,"BTHomeDevice.GetKnownObjects")))r=DSR_UNSUPPORTED;
- if(r==DSR_OK)r=find_blu(address,&cid,&free_cid);
- if(r==DSR_OK&&!cid){
+ dsr_blu_snapshot_t peer;dsr_blu_snapshot(&peer);bool trv=peer.generation==(uint32_t)gen&&peer.model==8;
+ if(r==DSR_OK&&trv)r=associate_trv(methods,address,&cid);
+ else if(r==DSR_OK)r=find_blu(address,&cid,&free_cid,false);
+ if(r==DSR_OK&&!cid&&!trv){
   if(!free_cid)r=DSR_FULL;
   else {
    params=cJSON_CreateObject();cJSON *config=cJSON_CreateObject();
@@ -167,12 +196,26 @@ static dsr_result_t register_blu(void)
    else r=rpc("BTHome.AddDevice",params,&response,true,&attempted);
   }
   /* Reconcile even a lost ACK by address; no mutation is replayed. */
-  if(attempted){unsigned found=0,unused=0;dsr_result_t read=find_blu(address,&found,&unused);if(read==DSR_OK&&found){cid=found;r=DSR_OK;}else if(r==DSR_OK)r=read==DSR_OK?DSR_BAD_RESPONSE:read;}
+  if(attempted){unsigned found=0,unused=0;dsr_result_t read=find_blu(address,&found,&unused,false);if(read==DSR_OK&&found){cid=found;created=true;r=DSR_OK;}else if(r==DSR_OK)r=read==DSR_OK?DSR_BAD_RESPONSE:read;}
  }
  dsr_setting_json_delete(params);params=NULL;cJSON_Delete(response);response=NULL;
  if(r==DSR_OK&&cid){
   session->working.blu_registered=true;session->working.blu_cid=(uint16_t)cid;
-  sensor_plan_t plan[32];unsigned count=0,needed=0;r=known_objects(cid,plan,&count);
+  /* Explicit gateway selection also repairs an existing encrypted device's
+   * write-only key from this authenticated bond. No resets or PIN changes. */
+  if(key[0]&&(!created||trv)){
+   const char *method=trv?"BluTrv.SetConfig":"BTHomeDevice.SetConfig";
+   if(!has_method(methods,method))r=DSR_UNSUPPORTED;
+   else {
+    params=cJSON_CreateObject();cJSON *cfg=cJSON_CreateObject();
+    if(!params||!cfg){cJSON_Delete(cfg);r=DSR_IO;}
+    else if(!cJSON_AddStringToObject(cfg,"key",key)||!cJSON_AddItemToObject(params,"config",cfg)){dsr_setting_json_delete(cfg);r=DSR_IO;}
+    else if(!cJSON_AddNumberToObject(params,"id",cid))r=DSR_IO;
+    else r=rpc(method,params,&response,true,&attempted);
+    dsr_setting_json_delete(params);params=NULL;cJSON_Delete(response);response=NULL;
+   }
+  }
+  sensor_plan_t plan[32];unsigned count=0,needed=0;if(r==DSR_OK)r=known_objects(cid,plan,&count);
   /* Validate the whole plan before the first sensor mutation. */
   if(r==DSR_OK){for(unsigned i=0;i<count;i++)if(dsr_blu_sensor_shown(plan[i].object)&&plan[i].object!=0x3a&&!plan[i].configured)needed++;if(needed>8)r=DSR_FULL;}
   for(unsigned i=0;r==DSR_OK&&i<count;i++)if(dsr_blu_sensor_shown(plan[i].object)&&plan[i].object!=0x3a&&!plan[i].configured)r=add_sensor(address,cid,&plan[i]);
@@ -212,7 +255,7 @@ void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event)
     if(attempted){
      uncertain=true;
      {cJSON_Delete(fresh);fresh=NULL;dsr_result_t written=r;r=get_group(g,&fresh);
-      if(r==DSR_OK&&f->type==DSR_SETTING_SECRET){/* Read-back cannot verify write-only credentials. */r=written;}
+      if(r==DSR_OK&&(f->type==DSR_SETTING_SECRET||(!strcmp(f->component,"WiFi")&&(!strcmp(f->path,"sta.ssid")||!strcmp(f->path,"sta1.ssid"))))){/* Read-back cannot verify write-only credentials. */r=written;}
       else if(r==DSR_OK&&dsr_setting_equal(dsr_setting_value(patch,f->path),dsr_setting_value(fresh,f->path)))uncertain=false;
       else if(r==DSR_OK)r=DSR_BAD_RESPONSE;
      }

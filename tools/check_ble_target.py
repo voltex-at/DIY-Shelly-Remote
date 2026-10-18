@@ -19,6 +19,13 @@ require(type(memory["internal_bss_bytes"]) is int and 8192 <= memory["internal_b
 require(memory["ui_stack"]["bytes"] == 8192 and memory["lvgl_pool"]["bytes"] == 131072,
         "BLE RPC changed the existing UI stack/LVGL pool")
 units = {
+    "dsr_device_settings": (1024, {"dsr_device_settings_prepare", "dsr_device_settings_execute", "dsr_device_settings_snapshot"}),
+    "dsr_device_settings_model": (1024, {"dsr_setting_patch", "dsr_setting_network_patch", "dsr_setting_groups"}),
+    "dsr_blu": (1536, {"dsr_blu_start", "dsr_blu_write", "dsr_blu_forget", "dsr_blu_pin", "dsr_blu_snapshot"}),
+    "dsr_blu_model": (512, {"dsr_blu_value_parse", "dsr_blu_value_format"}),
+    "dsr_ui_blu": (1024, {"dsr_ui_blu_open", "dsr_ui_blu_settings", "dsr_ui_blu_tick"}),
+    "dsr_ui_device_settings": (1024, {"dsr_ui_device_settings_open", "dsr_ui_device_settings_tick"}),
+
     "dsr_ble": (1024, {"dsr_ble_init", "dsr_ble_scan", "dsr_ble_snapshot", "dsr_ble_manager_rpc", "dsr_ble_handoff_request", "dsr_ble_handoff_take"}),
     "dsr_ble_rpc": (1536, {"dsr_ble_rpc_start", "dsr_ble_rpc_confirm", "dsr_ble_rpc_cancel", "dsr_ble_rpc_snapshot"}),
     "dsr_ble_rpc_protocol": (1024, {"dsr_rpc_stream_begin", "dsr_rpc_stream_next", "dsr_rpc_stream_complete", "dsr_rpc_request", "dsr_rpc_response", "dsr_rpc_identity", "dsr_rpc_setup_policy"}),
@@ -46,7 +53,7 @@ for unit, (maximum, public) in units.items():
     require(public <= {name.split(".")[0] for name in frames}, f"BLE RPC public frames missing: {unit}")
     reports[unit] = {"maximum_own_frame_bytes": maximum, "own_frames": frames}
 states = {}
-for unit, maximum in [("dsr_ble", 2048), ("dsr_ble_rpc", 2048), ("dsr_ui_ble_rpc", 1024), ("dsr_ui_onboarding", 256)]:
+for unit, maximum in [("dsr_ble", 2048), ("dsr_ble_rpc", 2048), ("dsr_ui_ble_rpc", 1024), ("dsr_ui_onboarding", 256), ("dsr_blu", 128), ("dsr_device_settings", 128), ("dsr_ui_blu", 16), ("dsr_ui_device_settings", 16)]:
     objects = sorted(a.build_dir.rglob(unit + ".c.obj"))
     require(len(objects) == 1, f"Expected one BLE RPC object: {unit}")
     table = subprocess.check_output(["xtensa-esp32s3-elf-nm", "-S", "--radix=d", str(objects[0])], text=True)

@@ -6,7 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static unsigned checks,writes,mode;
+void vTaskDelay(TickType_t ticks){(void)ticks;}
+static unsigned checks,writes,mode,adds,sensors,associations;
+static bool registered,sensor_created;
+void dsr_blu_snapshot(dsr_blu_snapshot_t *out){*out=(dsr_blu_snapshot_t){.generation=1,.model=mode>=20?8:5};}
 static bool held,mapping=true;
 static cJSON *configuration;
 static dsr_http_job_guard_t guard;
@@ -20,11 +23,44 @@ bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b){return a->c
 bool dsr_wifi_connected(void){return true;}
 bool dsr_wifi_temporary_active(void){return false;}
 dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t g){dsr_http_job_guard_t old=guard;guard=g;return old;}
-bool dsr_blu_gateway_key(uint32_t generation,char address[18],char key[33]){(void)generation;(void)address;(void)key;return false;}
+bool dsr_blu_gateway_key(uint32_t generation,char address[18],char key[33]){if(mode<10||generation!=1)return false;strcpy(address,"06:05:04:03:02:01");strcpy(key,"42424242424242424242424242424242");return true;}
+static dsr_result_t gateway_rpc(const char *method,const cJSON *params,cJSON **out,bool mutation,bool *attempted)
+{
+ if(!strcmp(method,"Shelly.ListMethods"))*out=cJSON_Parse("{\"methods\":[\"BTHome.AddDevice\",\"BTHome.AddSensor\",\"BTHomeDevice.SetConfig\",\"BluTrv.SetConfig\",\"BTHomeDevice.GetKnownObjects\",\"BLE.StartAssociations\",\"BluTrv.GetConfig\"]}");
+ else if(!strcmp(method,"Shelly.GetComponents")){
+  *out=cJSON_Parse("{\"offset\":0,\"total\":0,\"components\":[]}");cJSON *items=cJSON_GetObjectItemCaseSensitive(*out,"components");
+  if(mode==15){for(unsigned i=200;i<216;i++){cJSON *v=cJSON_CreateObject(),*cfg=cJSON_CreateObject();char key[32];snprintf(key,sizeof(key),"bthomedevice:%u",i);cJSON_AddStringToObject(v,"key",key);cJSON_AddStringToObject(cfg,"addr","aa:bb:cc:dd:ee:ff");cJSON_AddItemToObject(v,"config",cfg);cJSON_AddItemToArray(items,v);}}
+  else if(registered){
+   cJSON_AddItemToArray(items,cJSON_Parse("{\"key\":\"bthomedevice:200\",\"config\":{\"addr\":\"06:05:04:03:02:01\"}}"));
+   if(mode>=20)cJSON_AddItemToArray(items,cJSON_Parse(mode==21?"{\"key\":\"blutrv:200\",\"config\":{\"addr\":\"aa:bb:cc:dd:ee:ff\",\"trv\":\"bthomedevice:200\"}}":"{\"key\":\"blutrv:200\",\"config\":{\"addr\":\"06:05:04:03:02:01\",\"trv\":\"bthomedevice:200\"}}"));
+  }
+  cJSON_ReplaceItemInObjectCaseSensitive(*out,"total",cJSON_CreateNumber(cJSON_GetArraySize(items)));
+ }
+ else if(!strcmp(method,"BTHome.AddDevice")){
+  CHECK(mutation&&!registered&&cJSON_GetObjectItemCaseSensitive(params,"id")->valueint==200);CHECK(!strcmp(dsr_setting_value(params,"config.key")->valuestring,"42424242424242424242424242424242"));adds++;if(attempted)*attempted=true;registered=mode!=14;if(mode==11||mode==14)return DSR_OFFLINE;*out=cJSON_CreateObject();
+ }
+ else if(!strcmp(method,"BLE.StartAssociations")){
+  CHECK(mutation&&dsr_setting_value(params,"target")->valueint==8&&dsr_setting_value(params,"duration")->valueint==30&&!dsr_setting_value(params,"param"));associations++;registered=true;if(attempted)*attempted=true;if(mode==22)return DSR_OFFLINE;*out=cJSON_CreateNull();
+ }
+ else if(!strcmp(method,"BTHomeDevice.SetConfig")||!strcmp(method,"BluTrv.SetConfig")){
+  CHECK(mutation&&registered&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(params,"config"))==1&&strlen(dsr_setting_value(params,"config.key")->valuestring)==32);if(attempted)*attempted=true;*out=cJSON_CreateObject();
+ }
+ else if(!strcmp(method,"BTHomeDevice.GetKnownObjects")){
+  *out=cJSON_Parse(sensor_created?"{\"objects\":[{\"obj_id\":1,\"idx\":0,\"component\":\"bthomesensor:200\"}]}":"{\"objects\":[{\"obj_id\":1,\"idx\":0,\"component\":null},{\"obj_id\":58,\"idx\":0,\"component\":null}]}");
+  cJSON *items=cJSON_GetObjectItemCaseSensitive(*out,"objects");if(mode==12)cJSON_AddItemToArray(items,cJSON_Parse("{\"obj_id\":2,\"idx\":-1,\"component\":null}"));if(mode==13)cJSON_AddItemToArray(items,cJSON_Duplicate(cJSON_GetArrayItem(items,0),true));
+ }
+ else if(!strcmp(method,"BTHome.AddSensor")){
+  CHECK(mutation&&dsr_setting_value(params,"config.obj_id")->valueint==1&&dsr_setting_value(params,"config.idx")->valueint==0);sensors++;sensor_created=mode!=16;if(attempted)*attempted=true;if(mode==11)return DSR_OFFLINE;*out=cJSON_CreateObject();
+ }
+ else if(!strcmp(method,"BTHomeDevice.GetStatus"))*out=cJSON_Parse("{\"id\":200,\"battery\":90,\"rssi\":-50,\"errors\":[],\"last_updated_ts\":0}");
+ else return DSR_UNSUPPORTED;
+ return *out?DSR_OK:DSR_IO;
+}
 dsr_result_t dsr_http_settings_rpc(const dsr_connection_t *c,const char *method,const cJSON *params,cJSON **out,bool mutating,bool *attempted)
 {
  CHECK(!held&&c->layout_id==7);*out=NULL;if(attempted)*attempted=false;
  CHECK(guard&&guard()==DSR_OK);
+ if(mode>=10)return gateway_rpc(method,params,out,mutating,attempted);
  if(!strcmp(method,"Shelly.ListMethods"))*out=cJSON_Parse("{\"methods\":[\"Switch.GetConfig\",\"Switch.SetConfig\",\"Sys.GetConfig\",\"Sys.SetConfig\"]}");
  else if(!strcmp(method,"Shelly.GetComponents"))*out=cJSON_Parse("{\"offset\":0,\"total\":1,\"components\":[{\"key\":\"switch:0\"}]}");
  else if(!strcmp(method,"Switch.GetConfig")){*out=cJSON_Duplicate(configuration,true);if(mode==1&&writes==0){cJSON_ReplaceItemInObjectCaseSensitive(*out,"auto_off",cJSON_CreateBool(true));}}
@@ -73,4 +109,21 @@ static void actor_tests(void)
  mode=0;configuration=cJSON_Parse("{}");execute(DSR_SETTINGS_LOAD,0,NULL);mapping=false;dsr_device_settings_snapshot_t s=execute(DSR_SETTINGS_GROUP,0,NULL);CHECK(s.result==DSR_CONFLICT);mapping=true;dsr_device_settings_close();cJSON_Delete(configuration);
  dsr_device_settings_visibility(true);CHECK(dsr_device_settings_sensitive());dsr_device_settings_visibility(false);CHECK(!dsr_device_settings_sensitive());
 }
-int main(void){model_tests();actor_tests();printf("PASS: %u actual settings model/actor checks; identity/HTTP/worker fixtures\n",checks);return 0;}
+static void gateway_tests(void)
+{
+ const unsigned cases[]={10,11,12,13,14,15,16,20,21,22,23};
+ for(unsigned i=0;i<sizeof(cases)/sizeof(*cases);i++){
+  mode=cases[i];adds=sensors=associations=0;registered=mode==23;sensor_created=false;
+  dsr_device_settings_snapshot_t s=execute(DSR_SETTINGS_BLU_ADD,0,"1");
+  if(mode==10||mode==11||mode==20||mode==22||mode==23){CHECK(s.result==DSR_OK&&s.blu_registered&&!s.blu_receiving&&s.blu_cid==200&&sensors==1);CHECK(adds==(mode<20?1u:0u));CHECK(associations==(mode==20||mode==22?1u:0u));
+   s=execute(DSR_SETTINGS_BLU_ADD,0,"1");CHECK(s.result==DSR_OK&&sensors==1&&adds==(mode<20?1u:0u)&&associations==(mode==20||mode==22?1u:0u));
+  }else CHECK(s.result!=DSR_OK);
+  if(mode==12||mode==13)CHECK(!sensors&&s.blu_registered);
+  if(mode==14)CHECK(adds==1&&!s.blu_registered&&!sensors);
+  if(mode==15)CHECK(!adds&&!sensors);
+  if(mode==16)CHECK(adds==1&&sensors==1&&s.result==DSR_BAD_RESPONSE);
+  if(mode==21)CHECK(!adds&&!sensors&&associations==1&&!s.blu_registered);
+  dsr_device_settings_close();
+ }
+}
+int main(void){model_tests();actor_tests();gateway_tests();printf("PASS: %u actual settings model/actor checks; identity/HTTP/worker fixtures\n",checks);return 0;}

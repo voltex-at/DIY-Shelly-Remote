@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {INTRO,SCANNING,PAIRING,PIN,SETTINGS,EDIT,CONFIRM,LAN_SCAN,GATEWAYS,CREDENTIALS,REGISTER,RESULT,FORGET};
+enum {INTRO,SCANNING,PAIRING,PIN,SETTINGS,EDIT,CONFIRM,LAN_SCAN,GATEWAYS,CREDENTIALS,REGISTER,RESULT,FORGET,ASSOCIATION};
 typedef struct {
  dsr_ble_device_t candidate;
  dsr_ble_snapshot_t scan;
@@ -36,12 +36,12 @@ static void back(lv_event_t *event)
 {
  (void)event;if(!ui)return;
  if(ui->page==EDIT||ui->page==CONFIRM||ui->page==FORGET){ui->page=SETTINGS;draw();return;}
- if(ui->page==GATEWAYS||ui->page==CREDENTIALS||ui->page==RESULT){ui->page=ui->snapshot.bonded?SETTINGS:INTRO;draw();return;}
+ if(ui->page==GATEWAYS||ui->page==CREDENTIALS||ui->page==RESULT||ui->page==ASSOCIATION){ui->page=ui->snapshot.bonded?SETTINGS:INTRO;draw();return;}
  uint32_t id=ui->selected_id;dsr_ui_blu_hide();if(id)dsr_network_device_settings(id);else dsr_network_device(NULL);
 }
 static lv_obj_t *screen(const char *title)
 {
- lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_header(root,title,false,dsr_wifi_connected(),back,NULL);
+ lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_header(root,title,false,dsr_wifi_connected(),back,NULL);char target[80];snprintf(target,sizeof(target),"%s • %02x%02x",dsr_ble_model_name(&ui->candidate),ui->target_known?ui->target[4]:ui->candidate.address[1],ui->target_known?ui->target[5]:ui->candidate.address[0]);lv_obj_t *label=dsr_sc_text(root,dsr_sc_user(target),20,64,280,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);
  ui->body=dsr_sc_panel(root,12,90,296,302,DSR_SC_BG,0);lv_obj_set_style_bg_opa(ui->body,LV_OPA_TRANSP,0);lv_obj_add_flag(ui->body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(ui->body,LV_DIR_VER);dsr_sc_scrollbar(ui->body);ui->input=ui->username=ui->password=ui->keyboard=ui->choice=ui->notice=NULL;return root;
 }
 static lv_obj_t *button(lv_obj_t *root,const char *text,int y,lv_event_cb_t cb,uintptr_t index)
@@ -67,11 +67,13 @@ static void forget(lv_event_t *event)
 {(void)event;if(!ui)return;dsr_result_t r=dsr_blu_forget(ui->snapshot.generation);if(r!=DSR_OK){ui->error=r;ui->page=RESULT;}else ui->page=PAIRING;draw();}
 static void gateway_scan(lv_event_t *event)
 {(void)event;if(!ui)return;memset(&ui->gateway_state,0,sizeof(ui->gateway_state));if(!dsr_wifi_connected()||!dsr_lan_scan()){ui->error=DSR_OFFLINE;ui->page=RESULT;}else{ui->page=LAN_SCAN;ui->started=lv_tick_get();}draw();}
+static void association_ready(lv_event_t *event)
+{(void)event;if(ui){ui->page=REGISTER;ui->register_requested=false;ui->started=lv_tick_get();draw();}}
 static void register_gateway(lv_event_t *event)
 {
  (void)event;if(!ui)return;
  if(ui->username&&ui->password){snprintf(ui->credentials.username,sizeof(ui->credentials.username),"%s",lv_textarea_get_text(ui->username));snprintf(ui->credentials.password,sizeof(ui->credentials.password),"%s",lv_textarea_get_text(ui->password));lv_textarea_set_text(ui->password,"");}
- ui->page=REGISTER;ui->register_requested=false;ui->started=lv_tick_get();draw();
+ if(ui->snapshot.model==8){ui->page=ASSOCIATION;draw();}else association_ready(NULL);
 }
 static void choose_gateway(lv_event_t *event)
 {if(!ui)return;unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(i>=ui->lan.count)return;ui->gateway=ui->lan.devices[i];wipe(&ui->credentials,sizeof(ui->credentials));if(ui->gateway.auth_required){ui->page=CREDENTIALS;draw();}else register_gateway(NULL);}
@@ -82,18 +84,19 @@ static void add_card(lv_event_t *event)
  dsr_ui_blu_hide();dsr_ui_lan_adopt_blu(&gateway,&credentials,cid,name);wipe(&credentials,sizeof(credentials));
 }
 static void focus(lv_event_t *event)
-{if(ui&&ui->keyboard)lv_keyboard_set_textarea(ui->keyboard,lv_event_get_target(event));}
+{if(ui&&ui->keyboard){lv_keyboard_set_textarea(ui->keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}}
 static lv_obj_t *input(lv_obj_t *root,int y,const char *value,unsigned length,bool secret)
 {lv_obj_t *t=lv_textarea_create(root);dsr_ui_textarea(t);lv_obj_set_pos(t,8,y);lv_obj_set_size(t,280,46);lv_textarea_set_one_line(t,true);lv_textarea_set_max_length(t,length);lv_textarea_set_password_mode(t,secret);lv_textarea_set_text(t,value);lv_obj_add_event_cb(t,focus,LV_EVENT_FOCUSED,NULL);return t;}
 static void draw(void)
 {
  if(!ui)return;
  lv_obj_t *root=screen(ui->page==SETTINGS||ui->page==EDIT||ui->page==CONFIRM?"Ustawienia BLU":"Dodaj urządzenie BLU");
- if(ui->page==INTRO){dsr_sc_text(ui->body,"Potwierdź na urządzeniu",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Pierwsze parowanie: BLU TRV — krótko naciśnij Reset. Pozostałe BLU — przytrzymaj przycisk ponad 10 s, do niebieskiej diody. Uruchom skan.",8,58,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_sc_text(ui->body,"Już sparowane: naciśnij krótko przycisk, aby obudzić urządzenie. Pilot zachowa istniejący PIN i szyfrowanie.",8,190,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Skanuj i połącz",166,412,142,start,NULL));return;}
+ if(ui->page==INTRO){dsr_sc_text(ui->body,"Potwierdź na urządzeniu",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_t *instructions=dsr_sc_text(ui->body,"Pierwsze parowanie: BLU TRV — krótko naciśnij Reset. Pozostałe BLU — przytrzymaj przycisk ponad 10 s, do niebieskiej diody. Uruchom skan.",8,58,280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_update_layout(instructions);dsr_sc_text(ui->body,"Już sparowane: naciśnij krótko przycisk, aby obudzić urządzenie. Pilot zachowa istniejący PIN i szyfrowanie.",8,58+lv_obj_get_height(instructions)+16,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Skanuj i połącz",166,412,142,start,NULL));return;}
  if(ui->page==SCANNING||ui->page==PAIRING||ui->page==LAN_SCAN||ui->page==REGISTER){
   const char *text=ui->page==SCANNING?"Skan Bluetooth • do 20 s":ui->page==LAN_SCAN?"Wyszukiwanie bramek w sieci":ui->page==REGISTER?"Dodawanie czujnika do bramki…":ui->snapshot.phase==DSR_BLU_QUARANTINED?"Zamykanie połączenia. Poczekaj.":ui->snapshot.phase==DSR_BLU_WRITING?"Zapisywanie i sprawdzanie ustawienia…":"Łączenie i sprawdzanie urządzenia…";
-  dsr_sc_text(ui->body,text,8,36,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Operacja trwa. Nie restartuj pilota.",8,150,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Anuluj",12,412,296,back,NULL);return;
+  dsr_sc_text(ui->body,text,8,36,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,ui->page==REGISTER&&ui->snapshot.model==8?"Naciśnij krótko Reset wybranego TRV. Tylko ta głowica powinna być w trybie parowania.":"Operacja trwa. Nie restartuj pilota.",8,150,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Anuluj",12,412,296,back,NULL);return;
  }
+ if(ui->page==ASSOCIATION){dsr_sc_text(ui->body,"Parowanie TRV z bramką",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Bramka szuka głowic przez 30 s. Włącz tryb parowania tylko w wybranym TRV. Po rozpoczęciu krótko naciśnij jego przycisk Reset.",8,65,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Rozpocznij",166,412,142,association_ready,NULL));return;}
  if(ui->page==SETTINGS){
   int y=0;for(unsigned i=0;i<DSR_BLU_SETTINGS;i++)if(ui->snapshot.available&(1u<<i)){const dsr_blu_setting_t *f=dsr_blu_setting(i);if(!f)continue;char text[96],value[24];dsr_blu_value_format(i,ui->snapshot.values[i],value,sizeof(value));snprintf(text,sizeof(text),"%s: %s",dsr_sc_tr(f->label),value);button(ui->body,dsr_sc_user(text),y,select_field,i);y+=58;}
   if(!y){dsr_sc_text(ui->body,"Sparowano. Brak dodatkowych ustawień tego modelu.",8,12,280,&dsr_roboto_16,DSR_SC_TEXT);y=90;}
@@ -106,12 +109,12 @@ static void draw(void)
  }
  if(ui->page==FORGET){dsr_sc_text(ui->body,"Usunąć powiązanie Bluetooth tego urządzenia z pilotem?",8,16,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Karta i konfiguracja bramki pozostaną. Ponowne połączenie będzie wymagało parowania.",8,140,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Zapomnij",166,412,142,forget,NULL);return;}
  if(ui->page==CONFIRM){const dsr_blu_setting_t *f=dsr_blu_setting(ui->field);char text[96],value[24];dsr_blu_value_format(ui->field,ui->value,value,sizeof(value));snprintf(text,sizeof(text),"%s: %s",f?dsr_sc_tr(f->label):"",value);dsr_sc_text(ui->body,dsr_sc_user(text),8,16,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Zapisać ustawienie w czujniku BLU?",8,120,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Zapisz",166,412,142,save,NULL));return;}
- if(ui->page==EDIT){const dsr_blu_setting_t *f=dsr_blu_setting(ui->field);if(!f)return;dsr_sc_text(ui->body,f->label,8,8,280,&dsr_roboto_18,DSR_SC_TEXT);if(f->boolean){ui->choice=lv_switch_create(ui->body);lv_obj_set_pos(ui->choice,12,82);if(ui->snapshot.values[ui->field])lv_obj_add_state(ui->choice,LV_STATE_CHECKED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Dalej",166,412,142,confirm,NULL);return;}
-  char value[16],range[64];dsr_blu_value_format(ui->field,ui->snapshot.values[ui->field],value,sizeof(value));ui->input=input(ui->body,65,value,10,false);snprintf(range,sizeof(range),"%.1f – %.1f",(double)f->minimum/(f->scale?f->scale:1),(double)f->maximum/(f->scale?f->scale:1));ui->notice=dsr_sc_text(ui->body,dsr_sc_user(range),8,122,280,&dsr_roboto_12,DSR_SC_MUTED);
- }else if(ui->page==PIN){dsr_sc_text(ui->body,"PIN urządzenia BLU",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);ui->input=input(ui->body,62,"",6,true);lv_textarea_set_accepted_chars(ui->input,"0123456789");ui->notice=dsr_sc_text(ui->body,"Wpisz sześciocyfrowy PIN urządzenia",8,120,280,&dsr_roboto_12,DSR_SC_MUTED);
- }else if(ui->page==CREDENTIALS){lv_obj_set_height(ui->body,174);dsr_sc_text(ui->body,"Login",8,0,280,&dsr_roboto_12,DSR_SC_MUTED);ui->username=input(ui->body,20,"admin",32,false);dsr_sc_text(ui->body,"Hasło Shelly",8,76,280,&dsr_roboto_12,DSR_SC_MUTED);ui->password=input(ui->body,96,"",64,true);ui->input=ui->password;}
- lv_obj_set_height(ui->body,174);ui->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(ui->keyboard);lv_obj_align(ui->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(ui->keyboard,ui->input);lv_keyboard_set_mode(ui->keyboard,ui->page==CREDENTIALS?LV_KEYBOARD_MODE_TEXT_LOWER:LV_KEYBOARD_MODE_NUMBER);
- lv_event_cb_t forward=ui->page==PIN?pin:ui->page==CREDENTIALS?register_gateway:confirm;lv_obj_add_event_cb(ui->keyboard,forward,LV_EVENT_READY,NULL);dsr_ui_button(root,"Wstecz",12,265,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,265,142,forward,NULL));
+ if(ui->page==EDIT){const dsr_blu_setting_t *f=dsr_blu_setting(ui->field);if(!f)return;lv_obj_t *caption=dsr_sc_text(ui->body,f->label,8,8,280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(caption,22);lv_label_set_long_mode(caption,LV_LABEL_LONG_DOT);if(f->boolean){ui->choice=lv_switch_create(ui->body);lv_obj_set_pos(ui->choice,12,82);if(ui->snapshot.values[ui->field])lv_obj_add_state(ui->choice,LV_STATE_CHECKED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Dalej",166,412,142,confirm,NULL);return;}
+  char value[16],range[64];dsr_blu_value_format(ui->field,ui->snapshot.values[ui->field],value,sizeof(value));ui->input=input(ui->body,36,value,10,false);snprintf(range,sizeof(range),"%.1f – %.1f",(double)f->minimum/(f->scale?f->scale:1),(double)f->maximum/(f->scale?f->scale:1));ui->notice=dsr_sc_text(ui->body,dsr_sc_user(range),8,84,280,&dsr_roboto_12,DSR_SC_MUTED);
+ }else if(ui->page==PIN){dsr_sc_text(ui->body,"PIN urządzenia BLU",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);ui->input=input(ui->body,36,"",6,true);lv_textarea_set_accepted_chars(ui->input,"0123456789");ui->notice=dsr_sc_text(ui->body,"Wpisz sześciocyfrowy PIN urządzenia",8,84,280,&dsr_roboto_12,DSR_SC_MUTED);
+ }else if(ui->page==CREDENTIALS){lv_obj_set_height(ui->body,100);dsr_sc_text(ui->body,"Login",8,0,280,&dsr_roboto_12,DSR_SC_MUTED);ui->username=input(ui->body,20,"admin",32,false);dsr_sc_text(ui->body,"Hasło Shelly",8,76,280,&dsr_roboto_12,DSR_SC_MUTED);ui->password=input(ui->body,96,"",64,true);ui->input=ui->password;}
+ lv_obj_set_height(ui->body,100);ui->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(ui->keyboard);lv_obj_align(ui->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(ui->keyboard,ui->input);lv_obj_update_layout(ui->body);lv_obj_scroll_to_view(ui->input,LV_ANIM_OFF);lv_keyboard_set_mode(ui->keyboard,ui->page==CREDENTIALS?LV_KEYBOARD_MODE_TEXT_LOWER:LV_KEYBOARD_MODE_NUMBER);
+ lv_event_cb_t forward=ui->page==PIN?pin:ui->page==CREDENTIALS?register_gateway:confirm;lv_obj_add_event_cb(ui->keyboard,forward,LV_EVENT_READY,NULL);dsr_ui_button(root,"Wstecz",12,190,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,190,142,forward,NULL));
 }
 static bool target_matches(const dsr_ble_device_t *d)
 {

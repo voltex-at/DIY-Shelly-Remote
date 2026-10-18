@@ -46,6 +46,7 @@ static lv_obj_t *screen(void)
 {
  lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
  dsr_sc_header(root,"Ustawienia Shelly",false,dsr_wifi_connected(),back,NULL);
+ dsr_mobile_device_t device;if(dsr_network_typed_device(editor->id,&device)){char target[96];size_t n=strlen(device.identity);snprintf(target,sizeof(target),"%s • %.12s",device.name,n>12?device.identity+n-12:device.identity);lv_obj_t *label=dsr_sc_text(root,dsr_sc_user(target),20,64,280,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);}
  editor->body=editor->input=editor->choice=editor->keyboard=editor->notice=editor->open_network=NULL;
  editor->body=dsr_sc_panel(root,12,90,296,302,DSR_SC_BG,0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_TRANSP,0);lv_obj_add_flag(editor->body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(editor->body,LV_DIR_VER);dsr_sc_scrollbar(editor->body);
  return root;
@@ -87,7 +88,7 @@ static void draw(void)
  if(!editor)return;
  lv_obj_t *root=screen();
  if(editor->page==GROUPS){
-  for(unsigned i=0;i<editor->snapshot.group_count;i++){const dsr_setting_group_t *g=&editor->snapshot.groups[i];char title[96];if(g->singleton)snprintf(title,sizeof(title),"%s",dsr_sc_tr(group_name(g->component)));else snprintf(title,sizeof(title),"%s · %u",dsr_sc_tr(group_name(g->component)),g->id);button(editor->body,dsr_sc_user(title),(int)i*58,choose_group,i);}
+  for(unsigned i=0;i<editor->snapshot.group_count;i++){const dsr_setting_group_t *g=&editor->snapshot.groups[i];char title[96];if(g->singleton)snprintf(title,sizeof(title),"%s",dsr_sc_tr(group_name(g->component)));else snprintf(title,sizeof(title),"%s • %u",dsr_sc_tr(group_name(g->component)),g->id);button(editor->body,dsr_sc_user(title),(int)i*58,choose_group,i);}
   if(!editor->snapshot.group_count)dsr_sc_text(editor->body,"Brak dostępnych ustawień",8,24,280,&dsr_roboto_16,DSR_SC_MUTED);
   dsr_ui_button(root,"Odczytaj ponownie",12,412,296,reload,NULL);return;
  }
@@ -107,7 +108,7 @@ static void draw(void)
   dsr_ui_button(root,"Odczytaj ponownie",12,350,296,reload,NULL);dsr_ui_button(root,"Wstecz",12,412,296,back,NULL);return;
  }
  const dsr_setting_field_t *f=dsr_setting_field(editor->field);if(!f)return;
- dsr_sc_text(editor->body,f->label,8,8,280,&dsr_roboto_18,DSR_SC_TEXT);
+ lv_obj_t *caption=dsr_sc_text(editor->body,network_field(f)&&editor->network_step?"Hasło Wi-Fi":f->label,8,8,280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(caption,22);lv_label_set_long_mode(caption,LV_LABEL_LONG_DOT);
  if(editor->page==CONFIRM){
   dsr_sc_text(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);
   dsr_sc_text(editor->body,network_field(f)?dsr_sc_user(editor->network_name):f->type==DSR_SETTING_SECRET?"Nowe hasło • ukryte":dsr_sc_user(editor->pending),8,130,280,&dsr_roboto_16,DSR_SC_BLUE);
@@ -116,18 +117,18 @@ static void draw(void)
  }
  char current[129];dsr_device_settings_value(editor->field,current,sizeof(current));
  if(network_field(f)&&editor->network_step){
-  lv_obj_set_height(editor->body,170);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,62);lv_obj_set_size(editor->input,280,48);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_password_mode(editor->input,true);lv_textarea_set_max_length(editor->input,63);
-  editor->open_network=lv_checkbox_create(editor->body);lv_checkbox_set_text(editor->open_network,dsr_sc_tr("Sieć otwarta • bez hasła"));lv_obj_set_pos(editor->open_network,8,120);
-  editor->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(editor->keyboard);lv_obj_align(editor->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(editor->keyboard,editor->input);lv_obj_add_event_cb(editor->keyboard,confirm,LV_EVENT_READY,NULL);dsr_ui_button(root,"Wstecz",12,265,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,265,142,confirm,NULL));return;
+  lv_obj_set_height(editor->body,100);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,36);lv_obj_set_size(editor->input,280,44);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_password_mode(editor->input,true);lv_textarea_set_max_length(editor->input,63);
+  editor->open_network=lv_checkbox_create(editor->body);lv_checkbox_set_text(editor->open_network,dsr_sc_tr("Bez hasła"));lv_obj_set_pos(editor->open_network,8,82);lv_obj_set_style_text_font(editor->open_network,&dsr_roboto_12,0);
+  editor->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(editor->keyboard);lv_obj_align(editor->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(editor->keyboard,editor->input);lv_obj_add_event_cb(editor->keyboard,confirm,LV_EVENT_READY,NULL);dsr_ui_button(root,"Wstecz",12,190,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,190,142,confirm,NULL));return;
  }
  if(f->type==DSR_SETTING_BOOL){editor->choice=lv_switch_create(editor->body);lv_obj_set_pos(editor->choice,12,88);lv_obj_set_size(editor->choice,70,38);if(!strcmp(current,"true"))lv_obj_add_state(editor->choice,LV_STATE_CHECKED);}
  else if(f->type==DSR_SETTING_ENUM){editor->choice=lv_dropdown_create(editor->body);lv_obj_set_pos(editor->choice,8,70);lv_obj_set_size(editor->choice,280,48);lv_dropdown_set_options(editor->choice,f->choices);unsigned i=0;const char *p=f->choices;while(p&&*p){const char *end=strchr(p,'\n');size_t n=end?(size_t)(end-p):strlen(p);if(strlen(current)==n&&!memcmp(current,p,n)){lv_dropdown_set_selected(editor->choice,i);break;}p=end?end+1:NULL;i++;}}
  else {
-  lv_obj_set_height(editor->body,170);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,62);lv_obj_set_size(editor->input,280,48);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_max_length(editor->input,f->type==DSR_SETTING_NUMBER?32:f->max_length);lv_textarea_set_text(editor->input,current);lv_textarea_set_password_mode(editor->input,f->type==DSR_SETTING_SECRET);
-  if(f->type==DSR_SETTING_NUMBER){char range[80];snprintf(range,sizeof(range),"%.4g – %.4g",f->minimum,f->maximum);dsr_sc_text(editor->body,dsr_sc_user(range),8,121,280,&dsr_roboto_12,DSR_SC_MUTED);}
+  lv_obj_set_height(editor->body,100);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,36);lv_obj_set_size(editor->input,280,44);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_max_length(editor->input,f->type==DSR_SETTING_NUMBER?32:f->max_length);lv_textarea_set_text(editor->input,current);lv_textarea_set_password_mode(editor->input,f->type==DSR_SETTING_SECRET);
+  if(f->type==DSR_SETTING_NUMBER){char range[80];snprintf(range,sizeof(range),"%.10g – %.10g",f->minimum,f->maximum);dsr_sc_text(editor->body,dsr_sc_user(range),8,83,280,&dsr_roboto_12,DSR_SC_MUTED);}
   editor->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(editor->keyboard);lv_obj_align(editor->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(editor->keyboard,editor->input);lv_keyboard_set_mode(editor->keyboard,f->type==DSR_SETTING_NUMBER?LV_KEYBOARD_MODE_NUMBER:LV_KEYBOARD_MODE_TEXT_LOWER);lv_obj_add_event_cb(editor->keyboard,confirm,LV_EVENT_READY,NULL);
  }
- int y=editor->keyboard?265:412;dsr_ui_button(root,"Wstecz",12,y,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,y,142,confirm,NULL));
+ int y=editor->keyboard?190:412;dsr_ui_button(root,"Wstecz",12,y,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,y,142,confirm,NULL));
 }
 void dsr_ui_device_settings_open(uint32_t id)
 {

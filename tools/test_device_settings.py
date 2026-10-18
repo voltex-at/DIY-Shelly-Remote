@@ -12,3 +12,13 @@ with tempfile.TemporaryDirectory(prefix='dsr-settings-') as temporary:
           ['tests/actor','tests/support',str(cjson_include()),'components/dsr_core/include','components/dsr_platform/include'],
           libs=['-l:libcjson.so.1','-lm'],args=args)
     subprocess.run([str(binary)],check=True,cwd=temporary)
+
+with tempfile.TemporaryDirectory(prefix='dsr-preview-privacy-') as temporary:
+    folder=Path(temporary)
+    source=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
+    start=source.index('bool dsr_panel_preview_requested(void)')
+    end=source.index('static esp_err_t json(',start)
+    (folder/'preview.inc').write_text(source[start:end])
+    binary=folder/'preview'
+    build(binary,['tests/test_preview_privacy.c'],[str(folder),'tests/actor','tests/support'],args=args)
+    subprocess.run([str(binary)],check=True,cwd=folder)

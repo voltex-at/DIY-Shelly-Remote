@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
+p.add_argument("--case", choices=["test_shelly_settings_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -73,6 +74,12 @@ def compile_source(source):
     return obj
 with ThreadPoolExecutor(max_workers=6) as pool:
     objects = list(pool.map(compile_source, sources))
+if args.case:
+    selected=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT/"tests/ui"/(args.case+".c"))]
+    binary=build/args.case
+    subprocess.run([cc,*flags,*map(str,selected),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True)
+    subprocess.run([str(binary),str(screens)],check=True,cwd=build)
+    raise SystemExit(0)
 binary = build / "test_ui"
 subprocess.run([cc, *flags, *map(str, objects), "-lm", "-l:libcjson.so.1", "-o", str(binary)], check=True,
                env=dict(os.environ, TMPDIR=str(build)))
@@ -113,7 +120,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))

@@ -104,3 +104,15 @@ zasobów: wymaga CI 5/5 firmware i kodu narzędzia, stałego tagu/SHA/uruchomien
 zgodnych digestów i odczytanego podpisu produkcyjnego. Nie podpisuje ponownie,
 nie wysyła i nie zastępuje plików. Wymaga dokładnego żądania
 `.github/complete-dev-0.7.54.json`.
+
+### Wydanie 0.7.55-dev
+
+`.github/dev-release-0.7.55.json` jest następnym, jawnie zleconym wydaniem DEV.
+`release.yml` i `DEV_REQUEST` wskazują tylko 0.7.55 oraz gałąź P0. Tag powstaje
+dopiero po pełnym CI 5/5 dokładnego SHA, bez zmiany poprzedniego tagu lub
+zasobów 0.7.54. `main` i Stable pozostają osobne. Testy konfiguracji:
+`tools/test_device_settings.py`, sterownika GATT: `tools/test_blu.py`, LCD:
+`tools/test_ui.py --case test_shelly_settings_ui`. Pełne CI nadal uruchamia
+wszystkie dotychczasowe testy, ASan/UBSan i nowe audyty stosów/BSS.
+NimBLE ma teraz SMP/NVS dla BLU, ale stary przepływ B1 nadal odmawia parowania.
+Nie interpretować testów fixture jako pomiaru SMP/RF ani trwałości Flash na sprzęcie.

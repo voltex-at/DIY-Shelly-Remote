@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.54-dev
+# Matryca funkcji — 0.7.55-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -19,6 +19,9 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Termostat BLU TRV przez bramkę (odczyt, cel 4-30 °C, łuk i pastylka jak w Shelly) | tak (0.7.47; 0.7.48 wygląd) | tak (HTTP model, kolejka, LCD, Web Panel odczyt) | brak testu | — |
 | Wbudowane zdjęcia pomieszczeń (8) | tak (0.7.47) | tak (LCD) | brak testu | — |
 | Shelly BLU Motion/Door/Window przez bramkę Shelly (LAN, tylko odczyt) | tak (0.7.42; 0.7.45: lista z GetComponents) | tak (HTTP model, LCD, Web Panel) | 0.7.44: BLU Gateway Gen3 bez kanałów (GetStatus bez BTHome), poprawione w 0.7.45, brak testu | — |
+| Edytory Shelly Gen2/3/4: Sys, Switch/Input, Cover, Light/RGB/RGBW, WiFi, BLE, Cloud, MQTT, temperatura/wilgotność | tak (pola obecne w GetConfig i metody urządzenia) | host/LVGL PL EN DE; target przed wydaniem | brak testu | — |
+| Parowanie BLU: SMP/PIN, trwałe bondy, jawne zapomnienie; GATT Motion/DW/Button/TRV | tak (0.7.55; klasyczne modele 1/2/3/5/6/7/8, nieznane modele odrzucone) | driver host; RF/SMP/NVS wymagają sprzętu | brak testu | — |
+| Dodanie BLU do zgodnej bramki LAN; osobne powiązanie TRV przez StartAssociations | tak (odczyt po dodaniu, istniejący adres bez duplikatu) | actor/HTTP model; odbiór RF niepotwierdzony | brak testu | — |
 | Grupy i sceny: bezpośredni kreator LCD/WWW, karty, pokoje i zdjęcia | tak (0.7.54; ręczne sceny, grupy Switch; automatyczne warunki i pozostałe typy grup poza zakresem) | host/LVGL; bramka CI 5/5 przed wydaniem | nowy kreator: brak testu | — |
 | Zużycie: zegar mocy na stronie urządzenia | tak (0.7.49) | tak | brak testu | — |
 | Historia energii 24 h, strona Energia, wykres WWW | usunięte w 0.7.51 (decyzja właściciela 2026-10-18; pliki w SPIFFS nietknięte) | — | — | — |
@@ -47,7 +50,7 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 2. **Synchronizacja nazwy — wariant B.** Osobno przechowywane: nazwa lokalna i
    ostatnio odczytana nazwa z Shelly (odświeżana w tle zawsze). Nazwa lokalna ma
    pierwszeństwo. „Karte bearbeiten” ma opcję „Użyj nazwy z Shelly”, która czyści
-   nazwę lokalną. Pilot nie zapisuje nazwy w Shelly (bez `Sys.SetConfig`).
+   nazwę lokalną. Edycja karty nie zapisuje nazwy w Shelly. Od 0.7.55 osobny edytor „Ustawienia Shelly” pozwala świadomie zmienić nazwę urządzenia przez `Sys.SetConfig`.
    Odbiór: zmiana nazwy w aplikacji Shelly widoczna na LCD i w WWW po kolejnym
    odświeżeniu statusu (karty bez nazwy lokalnej); nazwa lokalna zachowana;
    reset przywraca synchronizację; pusta `name` → nazwa modelu; brak duplikatów

@@ -1,9 +1,32 @@
 # Konfiguracja Shelly i dodawanie BLU z pilota
 
-Stan dokumentacji producenta: **2026-10-18**. Audyt kodu: `0.7.54-dev`,
-`b1c4a25d205b48d4afee7de95d9d596de0728f93`.
-Status tego dokumentu: **ustalenia API i projekt wdrożenia**. Opisane poniżej
-nowe edytory i bonding nie są funkcjami wydanej wersji.
+Stan dokumentacji producenta: **2026-10-18**. Implementacja: `0.7.55-dev`,
+`work/p0-spiffs-ota-brand` (Draft #65). Część API poniżej opisuje szersze możliwości
+producenta; zakres tej wersji jest określony tu i w RELEASE_NOTES. Odbiór fizyczny
+parowania i zapisu pozostaje do wykonania.
+
+## Zaimplementowany zakres 0.7.55
+
+- `dsr_device_settings_model.c` i prywatny actor `dsr_device_settings.c`: formularze
+  LAN Gen2/3/4, capability discovery, jedna zmiana, kontrola konfliktu i read-back
+  także po utracie ACK. Osobny formularz Wi-Fi SSID+PSK. Sekrety write-only nie
+  otrzymują fałszywego potwierdzenia z GetConfig.
+- `dsr_blu.c`: współdzielony central NimBLE, trwałe bondy NVS SDK, PIN, odwołanie
+  jednego powiązania, brak automatycznej eksmisji; generacje callbacków i cleanup.
+  Dotychczasowy B1 dla otwartego setupu nadal odmawia SMP w swoim przepływie.
+- `dsr_blu_model.c`: klasyczne modele 1/2/3/5/6/7/8; Motion, Door Window,
+  Button i TRV mają walidowane charakterystyki GATT. TRV ma osobne flagi z RMW,
+  podpisany offset 0.1 °C i limity temperatur. H&T zachowuje stale aktywny beacon.
+- Rejestracja na bramce: idempotentne rozpoznanie adresu, AddDevice i AddSensor
+  z odczytem po każdym możliwym zapisie, bez ponawiania mutacji po timeout.
+  Dla TRV: osobne StartAssociations(target=8), tylko wybrana głowica w trybie
+  parowania i weryfikacja jej adresu oraz powiązania BluTrv/BTHome.
+- Ekrany LCD PL/EN/DE, maskowane sekrety, zatwierdzenie i blokada podglądu WWW.
+  Zapis karty jest oddzielony od bondingu oraz rejestracji odbiornika.
+
+Nadal poza tym DEV: chmurowe przypisanie do konta, nowe BLU/ZB, Zigbee/Matter
+commissioning, harmonogramy, OTA/reset zewnętrznych urządzeń i BTHomeControl.
+Nie podnoszono limitów BSS, stosów ani kolejki. NVS prototypu nie jest szyfrowane.
 
 Cel właściciela: dodawanie i konfiguracja z ekranu urządzenia oraz kreatora
 „Dodaj urządzenie”, bez obowiązkowego przechodzenia do konfiguratora WWW.
@@ -16,7 +39,7 @@ same nie dokumentują protokołu używanego wewnętrznie przez aplikację.
 | Operacja | Mechanizm | Znaczenie dla pilota |
 | --- | --- | --- |
 | Ustawienia urządzenia Wi-Fi Gen2+/Pro | RPC komponentów, zwykle `GetConfig` / `SetConfig` | Rzeczywisty edytor ustawień Shelly jest możliwy |
-| Ustawienia klasycznych czujników BLU | Charakterystyki GATT usługi Shelly i bonding BLE | Potrzebny nowy klient konfiguracji BLU |
+| Ustawienia klasycznych czujników BLU | Charakterystyki GATT usługi Shelly i bonding BLE | Klient GATT/bonding dodany w 0.7.55 |
 | Dodanie odbioru BLU na bramce LAN | Dynamiczne komponenty BTHome | Można tworzyć lokalne powiązanie z wybraną, zgodną bramką |
 | Powiązanie BLU TRV z BLU Gateway Gen3 | `BLE.StartAssociations`, potem komponent `BluTrv` | Osobny przepływ od Motion/Door Window |
 | Przypisanie BLU do Shelly Cloud | Mechanizm konta/chmury | Publiczne lokalne API nie daje podstaw do obietnicy odtworzenia całego procesu aplikacji |
@@ -162,24 +185,13 @@ To propozycja zachowania do implementacji, a nie opis gotowego ekranu.
 
 ## Luka w aktualnym kodzie i kolejność prac
 
-| Miejsce w repozytorium | Jest | Wymaga dodania |
-| --- | --- | --- |
-| `dsr_ble_model.c`, `dsr_ble.c`, `dsr_ui_ble.c` | Skan, modele, flagi, do 16 wyników, 20 s | Wybór do parowania BLU, modelowe instrukcje, niezależne wyniki operacji |
-| `dsr_ble_rpc.c`, `dsr_ble_rpc_protocol.c` | RPC GATT dla otwartego setupu Wi-Fi, weryfikacja i zgody | Współdzielony manager z obsługą SMP, bondów, PIN oraz klientem GATT BLU |
-| `boards/lcdwiki-es3c35p/sdkconfig.defaults` | Security i NVS persist NimBLE wyłączone; sterownik odmawia security | Zaprojektowane przechowywanie i odwoływanie bondów; zmiana guardu dopiero z pełną obsługą |
-| `dsr_http.c`, `dsr_discovery_model.c` | Odczyt istniejących BTHome i sterowanie temperaturą TRV | Tworzenie/uzupełnianie BTHome, weryfikacja klucza, bezpieczne ustawienia Shelly |
-| `dsr_ui_mobile.c:device_settings` | Informacje i lokalna edycja karty | Formularze rzeczywistych ustawień urządzenia na jego stronie |
-
-1. **Edytor LAN:** wykrywanie możliwości, ograniczone formularze ogólne i
-   Switch/Input, zapis tylko zmienionych pól i odczyt potwierdzający.
-2. **Dodanie BLU do bramki:** sprawdzenie i uzupełnienie BTHome, wybór bramki,
-   świeży pomiar, trwała karta. Jawne czujniki można obsłużyć bez zmiany ich
-   kluczy. Dla szyfrowanych potrzebny istniejący klucz lub etap 3.
-3. **Pełna konfiguracja BLU:** bonding/PIN, trwałe klucze, odczyt klucza
-   BTHome po zgodzie, adaptery Motion i Door Window, odczyt po każdym zapisie.
-4. **Kolejne adaptery:** Button, H&T, konfiguracja i dodawanie TRV, nowsze ZB,
-   konfiguracja Light/Cover, mapowanie przycisków BTHomeControl, harmonogramy
-   i integracje według możliwości.
+| Miejsce w repozytorium | Implementacja 0.7.55 |
+| --- | --- |
+| `dsr_ble.c`, `dsr_blu.c`, `dsr_ui_blu.c` | Jeden manager radia, skan i bonding/PIN, GATT i kreator |
+| `sdkconfig.defaults` | SMP legacy+SC, NVS persist, 16 bondów, debug keys i auto-deletion wyłączone |
+| `dsr_device_settings.c`, `dsr_http.c` | Kontrolowane RPC LAN, dynamiczne BTHome i osobna asocjacja TRV |
+| `dsr_ui_device_settings.c` | Edytor rzeczywistych ustawień z odczytem i potwierdzeniem |
+| `dsr_ui_mobile.c:device_settings` | Osobne wejścia do edycji karty i ustawień Shelly/BLU |
 
 Rozpoczęty bonding i zapis wymagają właściciela operacji, generacji sesji,
 jednej aktywnej operacji radia i cleanup także przy wyjściu z ekranu.
@@ -198,7 +210,7 @@ go jako szyfrowanego magazynu. PIN i klucze nie trafiają do modelu kart,
 logów, eksportu konfiguracji ani odpowiedzi panelu. Formularz może pokazać
 jedynie stan „klucz zapisany”.
 
-## Weryfikacja przed następnym DEV
+## Weryfikacja DEV i odbiór sprzętowy
 
 - Parsery i kontrakty modeli: długości GATT, wartości graniczne, nieznany
   model/UUID, klasyczny BLU vs ZB, błędny PIN i brak wymaganej charakterystyki.
@@ -226,8 +238,7 @@ jedynie stan „klucz zapisany”.
   odczyt ustawień po restarcie, zachowanie odbioru w dotychczasowej aplikacji
   i bramce. Test hostowy ani sam zielony build nie zamyka tego odbioru.
 
-Ta analiza nie zmienia firmware, numeru wersji, tagu ani podpisanych zasobów
-0.7.54-dev. Nie potwierdza wykonania parowania na sprzęcie.
+Wydanie 0.7.54 pozostaje niezmienione. Nowy kod 0.7.55 nie potwierdza jeszcze wykonania parowania na sprzęcie.
 
 [rpc]: https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Shelly/
 [sys]: https://shelly-api-docs.shelly.cloud/gen2/ComponentsAndServices/Sys/
