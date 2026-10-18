@@ -481,7 +481,7 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     if(pressed)lv_obj_add_style(o,pressed,LV_STATE_PRESSED);else lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
     if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
-    /* Light surfaces need an outline to read as tappable on the light art. */
+    /* Consistent outlines distinguish controls from the background in all themes. */
     if(radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
      if(e)lv_obj_add_style(o,e,0);else{lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
     if(cb)lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
@@ -575,13 +575,24 @@ lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_widt
 
 /* Owner 2026-10-18: a slim bar on the right shows the position on long pages.
  * remove_style_all() also removed LVGL's scrollbar look, so lists had none. */
-static void scrollbar_margin(lv_event_t *e){lv_event_set_ext_draw_size(e,9);}
+static void scrollbar_margin(lv_event_t *e)
+{
+ if(lv_event_get_code(e)==LV_EVENT_REFR_EXT_DRAW_SIZE){lv_event_set_ext_draw_size(e,9);return;}
+ /* LVGL clips DRAW_POST to the list's child viewport. Draw the margin bar
+  * before that clip, while keeping rows clipped inside their normal bounds. */
+ lv_obj_t *o=lv_event_get_target(e);if(lv_obj_get_style_pad_right(o,LV_PART_SCROLLBAR)>=0)return;lv_area_t h,v;lv_obj_get_scrollbar_area(o,&h,&v);
+ if(lv_area_get_width(&v)<=0||lv_area_get_height(&v)<=0)return;
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);lv_obj_init_draw_rect_dsc(o,LV_PART_SCROLLBAR,&d);lv_draw_rect(lv_event_get_layer(e),&d,&v);
+}
 void dsr_sc_scrollbar(lv_obj_t *o)
 {
  lv_obj_set_scrollbar_mode(o,LV_SCROLLBAR_MODE_AUTO);
  lv_obj_add_event_cb(o,scrollbar_margin,LV_EVENT_REFR_EXT_DRAW_SIZE,NULL);
+ lv_obj_add_event_cb(o,scrollbar_margin,LV_EVENT_DRAW_MAIN_END,NULL);
  lv_style_t *t=shared(SHARED_SCROLLBAR,hex(dsr_sc_color(0x8a9096)),0);
  if(t)lv_obj_add_style(o,t,LV_PART_SCROLLBAR);
+ if(lv_obj_get_style_width(o,0)>=310)lv_obj_set_style_pad_right(o,1,LV_PART_SCROLLBAR);
+ lv_obj_refresh_ext_draw_size(o);
 }
 void dsr_sc_glow(lv_obj_t *o,bool on)
 {
