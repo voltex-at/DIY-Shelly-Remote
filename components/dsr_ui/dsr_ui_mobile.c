@@ -148,7 +148,7 @@ static void tabs(lv_obj_t *root)
         bool settings=page==DSR_MOBILE_DEVICE_SETTINGS;
         bool editable=!cover_preview&&!model.demo&&selected<model.device_count&&model.devices[selected].id;
         tab(root,"Sterowanie",0,109,!settings,settings?navigate:NULL,(void *)(uintptr_t)15);
-        tab(root,"Wykresy",111,101,false,editable&&actions.open_charts?navigate:NULL,(void *)(uintptr_t)16);
+        tab(root,"Zużycie",111,101,false,editable&&actions.open_charts?navigate:NULL,(void *)(uintptr_t)16);
         tab(root,"Ustawienia",214,106,settings,!settings&&editable?navigate:NULL,(void *)(uintptr_t)14);return;
     }
     if(page==DSR_MOBILE_ROOM){tab(root,"Urządzenia",0,115,true,NULL,NULL);tab(root,"Grupy",117,87,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)18);tab(root,"Sceny",206,114,false,actions.open_actions&&!model.demo?navigate:NULL,(void *)19);return;}
@@ -191,12 +191,7 @@ static void toolbar(lv_obj_t *root,const char *title)
 static lv_obj_t *power_button(lv_obj_t *parent,unsigned index,int x,int y,int size)
 {
     dsr_mobile_device_t *d=&model.devices[index];bool valid=d->online&&!d->busy&&d->can_switch;
-    lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,0x252a2e,LV_RADIUS_CIRCLE,control,(void *)(uintptr_t)index);
-    edge(b,valid&&d->output?DSR_SC_BLUE:DSR_SC_OFF,size>=70?3:2);
-    int icon=size>=70?35:22;
-    dsr_sc_icon_centered(b,DSR_ICON_POWER,icon,valid?DSR_SC_TEXT:DSR_SC_OFF);
-    if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
-    return b;
+    return dsr_sc_power_button(parent,x,y,size,valid&&d->output,valid,DSR_ICON_POWER,DSR_SC_GLOW,control,(void *)(uintptr_t)index);
 }
 static dsr_ui_icon_t kind_icon(dsr_mobile_kind_t kind)
 {return (kind==DSR_DEVICE_LIGHT||kind==DSR_DEVICE_RGB)?DSR_ICON_LIGHT:kind==DSR_DEVICE_COVER?DSR_ICON_COVER:kind==DSR_DEVICE_CONTACT||kind==DSR_DEVICE_SENSOR?DSR_ICON_CONTACT:DSR_ICON_PLUG;}
@@ -222,46 +217,69 @@ static void card_control(lv_obj_t *parent,unsigned i,dsr_ui_icon_t icon,int x,in
 }
 static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
 {
+    /* Shelly Smart Control row (owner references 2026-10-18): status strip, round
+     * device icon, name, value pill, action on the right; blue halo when on. */
     dsr_mobile_device_t *d=&model.devices[i];
-    bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR;
+    bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR,trv=trv_device(d);
     unsigned fields=page==DSR_MOBILE_HOME&&model.configured_layout?d->fields:255;
-    lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,0x41474b,DSR_SC_RADIUS,open_device,(void *)(uintptr_t)i);
-    lv_obj_set_style_bg_grad_color(card,dsr_sc_color(0x3c4246),0);lv_obj_set_style_bg_grad_dir(card,LV_GRAD_DIR_VER,0);
-    lv_obj_t *thumb=dsr_sc_panel(card,8,9,50,50,d->online&&d->output?0x244357:0x29343b,LV_RADIUS_CIRCLE);
-    dsr_sc_icon_centered(thumb,kind_icon(d->kind),32,d->online?DSR_SC_TEXT:DSR_SC_OFF);
-    int name_width=cover?124:trv_device(d)?98:sensor?218:166;
-    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),68,10,name_width,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
+    bool on=!sensor&&!cover&&d->online&&d->output&&d->error==DSR_OK&&!unbound(d);
+    lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,0x2b2f33,DSR_SC_RADIUS,open_device,(void *)(uintptr_t)i);
+    edge(card,on?DSR_SC_GLOW:0x3a3f44,on?2:1);dsr_sc_glow(card,on);
     const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy&&!(sensor&&d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",d->room<model.room_count?room_name(d):dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
-    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),68,35,cover?124:218,&dsr_roboto_12,d->online&&d->error==DSR_OK?DSR_SC_MUTED:0xffc18c);truncate(status,18);
-    if(trv_device(d))lv_obj_set_width(status,98);
+    bool warn=d->error!=DSR_OK||unbound(d)||!d->online;
+    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),12,3,width-24,&dsr_roboto_11,warn?0xffc18c:DSR_SC_MUTED);truncate(status,40);
+    int body=20+(height-20)/2;
+    lv_obj_t *thumb=dsr_sc_panel(card,8,body-25,50,50,0x17191c,LV_RADIUS_CIRCLE);
+    dsr_sc_icon_centered(thumb,kind_icon(d->kind),30,d->online?(on?DSR_SC_GLOW:DSR_SC_TEXT):DSR_SC_OFF);
+    bool state_box=sensor&&!trv&&(d->has_contact||(d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.flags&DSR_BLU_HAS_MOTION)))&&d->online;
+    int right=cover?118:trv?132:state_box?104:sensor?8:70;
+    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),66,body-24,width-66-right,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
     if(cover){
+     /* Pill with two white round arrows, as in the app. */
      bool valid=d->online&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
-     card_control(card,i,DSR_ICON_UP,width-104,44,valid,cover_control,i*2+1);
-     card_control(card,i,DSR_ICON_DOWN,width-54,44,valid,cover_control,i*2);
-    }else if(trv_device(d)){
+     lv_obj_t *pill=dsr_sc_panel(card,width-112,body-27,104,54,0x1d2124,27);
+     for(unsigned k=0;k<2;k++){
+      lv_obj_t *b=dsr_sc_button(pill,5+(int)k*50,5,44,44,valid?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,cover_control,(void *)(uintptr_t)(i*2+(k?0:1)));
+      dsr_sc_icon_centered(b,k?DSR_ICON_DOWN:DSR_ICON_UP,24,valid?DSR_SC_GLOW:0x8a9096);if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
+     }
+    }else if(trv){
      /* Shelly-style pill: -  20.0 °C  + */
-     lv_obj_t *pill=dsr_sc_panel(card,width-126,8,118,48,0x1d3f73,24);edge(pill,DSR_SC_BLUE,2);bool valid=trv_can(d);
+     lv_obj_t *pill=dsr_sc_panel(card,width-126,body-24,118,48,0x1d3f73,24);edge(pill,DSR_SC_GLOW,2);dsr_sc_glow(pill,trv_known(d));bool valid=trv_can(d);
      trv_round(pill,i,4,4,36,false,valid);trv_round(pill,i,74,4,36,true,valid);
      char t[16];if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(t,sizeof(t),"%u.%u",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(t,sizeof(t),"—");
      center(dsr_sc_text(pill,t,40,4,34,&dsr_roboto_14,DSR_SC_TEXT));center(dsr_sc_text(pill,"°C",40,24,34,&dsr_roboto_11,DSR_SC_TEXT));
-    }else if(!sensor)card_control(card,i,DSR_ICON_POWER,width-58,48,d->online&&!d->busy&&d->can_switch,control,i);
-    if(!fields)return;
-    char values[128]={0},part[40];
-    if((!d->online||d->error!=DSR_OK)&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind))snprintf(values,sizeof(values),"%s",dsr_sc_tr("Odczyty niedostępne"));
-    else if(cover){if((fields&32)&&d->has_position)snprintf(values,sizeof(values),"%s   %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else snprintf(values,sizeof(values),"%s   —",dsr_sc_tr("Pozycja"));}
-    else if(sensor){
-      if((fields&4)&&d->has_battery)snprintf(values,sizeof(values),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
-      if((fields&8)&&d->has_temperature){snprintf(part,sizeof(part),"  %.1f °C",d->temperature_c);strncat(values,part,sizeof(values)-strlen(values)-1);}
-      if((fields&16)&&d->has_humidity){snprintf(part,sizeof(part),"  %.0f%% RH",d->humidity_pct);strncat(values,part,sizeof(values)-strlen(values)-1);}
-      if(trv_device(d)&&trv_known(d)){snprintf(part,sizeof(part),dsr_sc_tr("  cel %.1f °C  zawór %u%%"),d->trv_target_c,(unsigned)d->blu.trv_pos);strncat(values,part,sizeof(values)-strlen(values)-1);}
-      else if(d->endpoint_kind==DSR_ENDPOINT_BLU&&!trv_device(d)&&d->has_illuminance){ /* TRV target shares the lux storage */snprintf(part,sizeof(part),"  %.0f lx",d->illuminance_lux);strncat(values,part,sizeof(values)-strlen(values)-1);}
-      if(!values[0])snprintf(values,sizeof(values),"Brak dodatkowych pomiarów");
-    }else{
-      if(fields&1){if(d->has_power)snprintf(values,sizeof(values),"%.1f W",d->power_w);else snprintf(values,sizeof(values),"— W");}
-      if(fields&2){if(d->has_voltage)snprintf(part,sizeof(part),"    %.1f V",d->voltage_v);else snprintf(part,sizeof(part),"    — V");strncat(values,part,sizeof(values)-strlen(values)-1);}
+    }else if(state_box){
+     /* Read-only state tile ("Geschlossen" in the app). */
+     const char *what=d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_MOTION)?"Ruch":"Brak ruchu";
+     bool alert=d->has_contact?d->contact_open:(d->blu.flags&DSR_BLU_MOTION)!=0;
+     lv_obj_t *box=dsr_sc_panel(card,width-98,body-26,90,52,0x1d2124,12);if(alert)edge(box,0xf0a020,2);
+     dsr_sc_icon(box,DSR_ICON_CONTACT,35,4,20,alert?0xf0a020:DSR_SC_TEXT);center(dsr_sc_text(box,what,2,28,86,&dsr_roboto_12,DSR_SC_TEXT));
+    }else if(!sensor){
+     bool valid=d->online&&!d->busy&&d->can_switch;
+     dsr_sc_power_button(card,width-64,body-28,56,on,valid,DSR_ICON_POWER,DSR_SC_GLOW,control,(void *)(uintptr_t)i);
     }
-    if(values[0])dsr_sc_chip(card,values,68,height-26,width-78,d->online?DSR_SC_TEXT:0xffc18c);
+    if(!fields)return;
+    char part[6][40];const char *texts[6];unsigned n=0;
+#define ADD_PART(...) do{if(n<6){snprintf(part[n],sizeof(part[n]),__VA_ARGS__);texts[n]=part[n];n++;}}while(0)
+    if((!d->online||d->error!=DSR_OK)&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind))ADD_PART("%s",dsr_sc_tr("Odczyty niedostępne"));
+    else if(cover){if((fields&32)&&d->has_position)ADD_PART("%s %.0f%%",dsr_sc_tr("Pozycja"),d->position_pct);else ADD_PART("%s —",dsr_sc_tr("Pozycja"));
+      if((fields&1)&&d->has_power)ADD_PART("%.1f W",d->power_w);}
+    else if(sensor){
+      if(trv&&trv_known(d)){ADD_PART("%.1f °C",d->temperature_c);ADD_PART(dsr_sc_tr("cel %.1f °C"),d->trv_target_c);ADD_PART(dsr_sc_tr("zawór %u%%"),(unsigned)d->blu.trv_pos);}
+      else{
+       if((fields&8)&&d->has_temperature)ADD_PART("%.1f °C",d->temperature_c);
+       if((fields&16)&&d->has_humidity)ADD_PART("%.0f%% RH",d->humidity_pct);
+       if(d->endpoint_kind==DSR_ENDPOINT_BLU&&!trv&&d->has_illuminance)ADD_PART("%.0f lx",d->illuminance_lux);
+      }
+      if((fields&4)&&d->has_battery)ADD_PART("%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
+      if(!n)ADD_PART("%s",dsr_sc_tr("Brak dodatkowych pomiarów"));
+    }else{
+      if(fields&1){if(d->has_power)ADD_PART("%.1f W",d->power_w);else ADD_PART("— W");}
+      if(fields&2){if(d->has_voltage)ADD_PART("%.1f V",d->voltage_v);else ADD_PART("— V");}
+    }
+#undef ADD_PART
+    if(n)dsr_sc_segments(card,texts,n,66,body+2,width-66-right,d->online?DSR_SC_TEXT:0xffc18c);
 }
 bool dsr_ui_photo_source(const char *id,lv_image_dsc_t *out)
 {
@@ -564,14 +582,6 @@ static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool 
 }
 static int chip_width(lv_obj_t *chip){lv_obj_update_layout(chip);return lv_obj_get_width(chip);}
 static void half_text(char *out,size_t size,uint8_t half){snprintf(out,size,"%u.%u °C",(unsigned)half/2u,(unsigned)(half%2u)*5u);}
-/* Arc 4..30 C over 270 degrees (LVGL: 0 = 3 o'clock, clockwise), blue to white to red. */
-static uint32_t trv_color(unsigned i,unsigned n)
-{
- static const uint8_t from[3][3]={{0x2f,0x6b,0xff},{0xee,0xee,0xf2},{0xe5,0x32,0x2d}};
- double t=(double)i/(double)(n-1)*2.0;unsigned k=t>=1.0?1u:0u;double f=t-k;uint32_t c=0;
- for(unsigned ch=0;ch<3;ch++)c=c<<8|(uint32_t)(from[k][ch]+(from[k+1][ch]-from[k][ch])*f+0.5);
- return c;
-}
 static void trv_details(lv_obj_t *root)
 {
  dsr_mobile_device_t *d=&model.devices[selected];char text[96];const dsr_blu_status_t *b=&d->blu;bool live=d->online,known=trv_known(d),can=trv_can(d);
@@ -584,12 +594,7 @@ static void trv_details(lv_obj_t *root)
  if(live&&d->has_battery)snprintf(chip,sizeof(chip),"%.0f%%",d->battery_pct);else snprintf(chip,sizeof(chip),"—%%");
  lv_obj_t *battery=dsr_sc_panel(root,x,93,320-12-x,20,0x292d30,6);dsr_sc_icon(battery,DSR_ICON_BATTERY,5,2,16,DSR_SC_TEXT);dsr_sc_text(battery,chip,24,3,320-12-x-26,&dsr_roboto_12,DSR_SC_TEXT);
  const int cx=160,cy=232,r=88,n=18;
- for(int i=0;i<n;i++){
-  lv_obj_t *seg=lv_arc_create(root);lv_obj_remove_flag(seg,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(seg,2*r,2*r);lv_obj_set_pos(seg,cx-r,cy-r);
-  int start=135+270*i/n,end=135+270*(i+1)/n+1;lv_arc_set_bg_angles(seg,(lv_value_precise_t)(start%360),(lv_value_precise_t)(end%360));
-  lv_obj_set_style_arc_width(seg,12,LV_PART_MAIN);lv_obj_set_style_arc_color(seg,dsr_sc_color(live?trv_color((unsigned)i,(unsigned)n):0x4a5056),LV_PART_MAIN);
-  lv_obj_set_style_arc_rounded(seg,i==0||i==n-1,LV_PART_MAIN);lv_obj_set_style_arc_opa(seg,LV_OPA_TRANSP,LV_PART_INDICATOR);lv_obj_set_style_bg_opa(seg,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_set_style_pad_all(seg,0,LV_PART_KNOB);
- }
+ static const uint32_t trv_stops[]={0x2f6bff,0xeeeef2,0xe5322d};dsr_sc_gradient_arc(root,cx,cy,r,12,135,270,trv_stops,3,(unsigned)n,live);
  if(known){
   double angle=(135.0+270.0*(half-DSR_TRV_MIN_HALF)/(double)(DSR_TRV_MAX_HALF-DSR_TRV_MIN_HALF))*3.14159265358979/180.0;
   int kx=cx+(int)lround((r-6)*cos(angle)),ky=cy+(int)lround((r-6)*sin(angle));

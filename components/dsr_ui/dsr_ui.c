@@ -164,8 +164,6 @@ static void sleep_display(lv_event_t *event) { (void)event; dsr_board_sleep_disp
 void dsr_ui_open_settings(void) { if(dsr_ui_settings_can_open())menu(NULL); }
 
 static void hardware(lv_event_t *event);
-static void cover_preview(lv_event_t *event)
-{(void)event;dsr_mobile_cover_preview();}
 /* Every global section starts with a fresh LCD body; no cached object pointers
  * survive Back/Home. Pair codes and tokens are never stored in this module. */
 static void settings_back(lv_event_t *event){(void)event;dsr_ui_open_settings();}
@@ -313,7 +311,7 @@ static void system_menu(lv_event_t *event)
  (void)event;lv_obj_t *body=settings_body("System");
  row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
- row(body,"Podgląd rolety • DEMO",232,cover_preview);row(body,"Restart pilota",290,restart_screen);
+ row(body,"Restart pilota",232,restart_screen);
 }
 void dsr_ui_system_open(lv_event_t *event){system_menu(event);}
 static void screen_settings(lv_event_t *event)

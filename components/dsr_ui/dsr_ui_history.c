@@ -5,17 +5,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#define DSR_PI 3.14159265358979323846
 
 static bool active,overview;
 static uint32_t selected,next_draw;
-static unsigned hours=1,metric;
+
 static void draw(void);
 void dsr_ui_history_hide(void){active=false;}
 static void back(lv_event_t *event)
 {(void)event;if(overview)dsr_network_home(NULL);else dsr_network_device_control(selected);}
 static void settings(lv_event_t *event){(void)event;dsr_network_device_settings(selected);}
-static void range(lv_event_t *event){hours=(unsigned)(uintptr_t)lv_event_get_user_data(event);draw();}
-static void measure(lv_event_t *event){metric=(unsigned)(uintptr_t)lv_event_get_user_data(event);draw();}
 static void clock_request(lv_event_t *event){(void)event;(void)dsr_history_request_clock();draw();}
 static void clock_cancel(lv_event_t *event){(void)event;dsr_history_cancel_clock();draw();}
 static void open_row(lv_event_t *event){dsr_ui_history_open((uint32_t)(uintptr_t)lv_event_get_user_data(event));}
@@ -23,13 +22,6 @@ static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,
 {
  lv_obj_t *b=dsr_sc_button(parent,x,y,width,40,chosen?DSR_SC_BLUE:DSR_SC_CARD,8,cb,(void *)data);
  lv_obj_t *label=dsr_sc_text(b,text,2,12,width-4,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);return b;
-}
-static void time_label(uint32_t utc,char out[48])
-{
- if(!utc){snprintf(out,48,"— UTC");return;}
- time_t value=(time_t)utc;struct tm *t=gmtime(&value);
- if(!t){snprintf(out,48,"— UTC");return;}
- snprintf(out,48,"%02d.%02d %02d:%02d UTC",t->tm_mday,t->tm_mon+1,t->tm_hour,t->tm_min);
 }
 static void clock_button(lv_obj_t *root,const dsr_history_status_t *s)
 {
@@ -46,33 +38,6 @@ static const char *failure(const dsr_history_status_t *s)
  if(!s->clock_valid)return "Brak poprawnego czasu UTC. W historii pozostaje przerwa.";
  return NULL;
 }
-static double number(const dsr_history_point_t *p)
-{return metric==0?p->power:metric==1?p->voltage:metric==2?p->current:p->energy_wh;}
-static void chart(lv_obj_t *root,const dsr_history_series_t *series)
-{
- const char *units[]={"W","V","A","Wh"};double low=DBL_MAX,high=-DBL_MAX;unsigned count=0,resets=0;
- if(series)for(unsigned i=0;i<series->count;i++){
-  const dsr_history_point_t *p=&series->points[i];if(p->flags&(DSR_HISTORY_GAP|DSR_HISTORY_RESET))resets++;
-  if(p->mask&(1u<<metric)){double v=number(p);if(v<low)low=v;if(v>high)high=v;count++;}
- }
- lv_obj_t *plot=lv_chart_create(root);lv_obj_set_pos(plot,20,203);lv_obj_set_size(plot,280,127);
- lv_obj_set_style_bg_color(plot,dsr_sc_color(DSR_SC_PANEL),0);lv_obj_set_style_border_width(plot,0,0);lv_obj_set_style_line_width(plot,0,LV_PART_ITEMS);lv_obj_set_style_size(plot,4,4,LV_PART_INDICATOR);
- lv_chart_set_type(plot,LV_CHART_TYPE_SCATTER);unsigned points=hours*12u+1u;lv_chart_set_point_count(plot,count?count:1);lv_chart_set_axis_range(plot,LV_CHART_AXIS_PRIMARY_Y,0,1000);lv_chart_set_axis_range(plot,LV_CHART_AXIS_PRIMARY_X,0,(int32_t)(points-1));
- lv_chart_series_t *line=count?lv_chart_add_series(plot,dsr_sc_color(DSR_SC_BLUE),LV_CHART_AXIS_PRIMARY_Y):NULL;
- if(count&&series){
-  uint32_t first=series->from_utc-series->from_utc%DSR_HISTORY_STEP;
-  unsigned plotted=0;
-  for(unsigned i=0;i<series->count;i++){
-   const dsr_history_point_t *p=&series->points[i];if(!(p->mask&(1u<<metric))||p->utc<first)continue;unsigned at=(p->utc-first)/DSR_HISTORY_STEP;
-   if(at<points){double scaled=high==low?500:(number(p)-low)*1000/(high-low);lv_chart_set_series_value_by_id2(plot,line,plotted++,(int32_t)at,(int32_t)lround(scaled));}
-  }
- }
- char text[128];if(count)snprintf(text,sizeof(text),"%.6g – %.6g %s",low,high,units[metric]);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Brak próbek dla tego pomiaru"));
- dsr_sc_text(root,text,12,178,296,&dsr_roboto_12,DSR_SC_TEXT);
- char from[48],to[48];time_label(series?series->from_utc:0,from);time_label(series?series->to_utc:0,to);snprintf(text,sizeof(text),"%s / %s",from,to);dsr_sc_text(root,text,12,337,296,&dsr_roboto_11,DSR_SC_MUTED);
- dsr_sc_text(root,metric==3?"Wh: odczyt licznika Shelly, nie suma W.":"Punkty: rzeczywiste średnie z okien 5 min.",12,359,296,&dsr_roboto_11,DSR_SC_MUTED);
- if(resets)dsr_sc_text(root,"Przerwy lub reset licznika. Bez interpolacji.",12,379,296,&dsr_roboto_11,0xffc18c);
-}
 static void history_header(lv_obj_t *root,const char *title)
 {
  dsr_sc_header(root,title,false,dsr_wifi_connected(),back,NULL);
@@ -81,22 +46,64 @@ static void history_header(lv_obj_t *root,const char *title)
   * title and bounds while charts rebuild in an event callback. */
  lv_obj_t *caption=lv_obj_get_child(root,1);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_CLIP);
 }
+/* "Zużycie": the Shelly Smart Control consumption gauge (owner reference
+ * 2026-10-18) instead of the old line charts. Live power from the last
+ * confirmed reading; the history service keeps collecting in the background. */
+/* lv_line keeps a pointer to its points: each line owns a heap copy freed with it. */
+static void free_points(lv_event_t *event){lv_free(lv_event_get_user_data(event));}
+static void gauge_line(lv_obj_t *root,const lv_point_precise_t *source,int width,uint32_t color,lv_opa_t opa)
+{
+ lv_point_precise_t *points=lv_malloc(2*sizeof(*points));if(!points)return;points[0]=source[0];points[1]=source[1];
+ lv_obj_t *line=lv_line_create(root);lv_obj_add_event_cb(line,free_points,LV_EVENT_DELETE,points);lv_line_set_points(line,points,2);lv_obj_set_pos(line,0,0);lv_obj_set_size(line,320,480);
+ lv_obj_set_style_line_width(line,width,0);lv_obj_set_style_line_color(line,dsr_sc_color(color),0);lv_obj_set_style_line_opa(line,opa,0);lv_obj_set_style_line_rounded(line,true,0);
+ lv_obj_remove_flag(line,LV_OBJ_FLAG_CLICKABLE);
+}
+static void gauge_value(double watts,double scale,char *value,size_t vsize,char *unit,size_t usize,char *top,size_t tsize)
+{
+ bool kw=scale>1000.0;double shown=kw?watts/1000.0:watts;
+ snprintf(value,vsize,kw?"%.2f":"%.1f",shown);snprintf(unit,usize,"%s",kw?"kW":"W");
+ if(kw)snprintf(top,tsize,"%g",scale/1000.0);else snprintf(top,tsize,"%.0f",scale);
+}
 static void detail(lv_obj_t *root)
 {
  dsr_mobile_device_t d={0};bool exists=dsr_network_history_device(selected,&d);dsr_history_series_t *series=NULL;dsr_history_status_t status;
  dsr_history_status(&status);
- history_header(root,exists?d.name:"Wykresy");
- button(root,"Sterowanie",0,44,109,back,0,false);button(root,"Wykresy",111,44,101,NULL,0,true);button(root,"Ustawienia",214,44,106,settings,0,false);
- button(root,"1 h",12,96,142,range,1,hours==1);button(root,"24 h",166,96,142,range,24,hours==24);
- const char *units[]={"W","V","A","Wh"};for(unsigned i=0;i<4;i++)button(root,units[i],12+(int)i*76,142,68,measure,i,metric==i);
- if(exists&&d.identity[0]){
-  dsr_history_key_t key={.layout_id=d.id,.generation=(uint8_t)d.generation,.channel=d.channel,.kind=d.endpoint_kind};memcpy(key.device_id,d.identity,sizeof(key.device_id));series=dsr_history_query(&key,hours);if(series)status=series->status;
+ history_header(root,exists?d.name:"Zużycie");
+ button(root,"Sterowanie",0,44,109,back,0,false);button(root,"Zużycie",111,44,101,NULL,0,true);button(root,"Ustawienia",214,44,106,settings,0,false);
+ if(exists&&d.identity[0]){ /* keeps the history service informed which endpoint is viewed */
+  dsr_history_key_t key={.layout_id=d.id,.generation=(uint8_t)d.generation,.channel=d.channel,.kind=d.endpoint_kind};memcpy(key.device_id,d.identity,sizeof(key.device_id));series=dsr_history_query(&key,24);
  }
- chart(root,series);const char *message=exists&&d.identity[0]&&d.endpoint_kind!=DSR_ENDPOINT_SWITCH?(d.endpoint_kind==DSR_ENDPOINT_HT?"Historia H&T nie jest obsługiwana":(d.endpoint_kind==DSR_ENDPOINT_LIGHT||d.endpoint_kind==DSR_ENDPOINT_RGB)?"Historia światła nie jest obsługiwana":"Historia rolet nie jest obsługiwana"):failure(&status);
- if(!message&&!series)message="Brak aktywnego połączenia";
- if(!message&&series&&!series->count)message="Brak próbek. Historia zbiera rzeczywiste odczyty.";
- if(!message)message=status.durable?"Historia lokalna • zapis potwierdzony":"Bieżące okno RAM. Restart może utracić do 5 min.";
- dsr_sc_text(root,message,12,397,296,&dsr_roboto_11,DSR_SC_MUTED);clock_button(root,&status);dsr_history_series_free(series);
+ dsr_history_series_free(series);
+ lv_obj_t *card=dsr_sc_panel(root,12,96,296,300,0x2b2f33,18);lv_obj_set_style_border_width(card,1,0);lv_obj_set_style_border_color(card,dsr_sc_color(0x3a3f44),0);
+ lv_obj_t *chip=dsr_sc_panel(card,88,12,120,32,0x1d2124,16);dsr_sc_icon(chip,DSR_ICON_ENERGY,10,6,20,0xe5322d);dsr_sc_text(chip,"Zużycie",36,8,80,&dsr_roboto_14,DSR_SC_TEXT);
+ bool fresh=exists&&d.online&&d.has_power&&d.has_sample_time&&lv_tick_get()-d.sample_ms<=15000;
+ if(!exists||!d.online||!d.has_power){
+  const char *why=!exists?"Brak aktywnego połączenia":DSR_ENDPOINT_IS_SENSOR(d.endpoint_kind)?"Czujnik nie mierzy mocy":!d.online?"Urządzenie offline • brak odczytu mocy":"To urządzenie nie raportuje mocy";
+  dsr_sc_icon(card,DSR_ICON_ENERGY,128,104,40,0x5a6066);lv_obj_t *t=dsr_sc_text(card,why,12,160,272,&dsr_roboto_16,DSR_SC_MUTED);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);
+  dsr_sc_text(root,"Zużycie pokazuje moc z liczników Shelly.",12,402,296,&dsr_roboto_11,DSR_SC_MUTED);return;
+ }
+ const double scales[]={500,1000,2000,3500,5000,10000,25000};double watts=d.power_w>0?d.power_w:0,scale=scales[0];
+ for(unsigned i=0;i<sizeof(scales)/sizeof(scales[0]);i++){scale=scales[i];if(watts<=scale*0.95)break;}
+ const int cx=160,cy=246,r=104;const uint32_t stops[]={0x6ee04a,0xf5e04a,0xf0a020,0xe5322d};
+ dsr_sc_gradient_arc(root,cx,cy,r,14,135,270,stops,4,24,fresh);
+ for(unsigned i=0;i<19;i++){ /* scale ticks, longer every fourth */
+  double a=(135.0+270.0*i/18.0)*DSR_PI/180.0;int inner=r-(i%3==0?30:24),outer=r-17;
+  const lv_point_precise_t tick[2]={{cx+inner*cos(a),cy+inner*sin(a)},{cx+outer*cos(a),cy+outer*sin(a)}};
+  gauge_line(root,tick,2,0x8a9096,LV_OPA_60);
+ }
+ double fraction=watts/scale;if(fraction>1)fraction=1;double a=(135.0+270.0*fraction)*DSR_PI/180.0;
+ const lv_point_precise_t needle[2]={{cx,cy},{cx+(r-34)*cos(a),cy+(r-34)*sin(a)}};
+ if(fresh){gauge_line(root,needle,5,0xeceff1,LV_OPA_COVER);lv_obj_t *hub=dsr_sc_panel(root,cx-9,cy-9,18,18,0x17191c,LV_RADIUS_CIRCLE);lv_obj_set_style_border_width(hub,3,0);lv_obj_set_style_border_color(hub,dsr_sc_color(0xeceff1),0);}
+ char value[24],unit[8],top[16];gauge_value(watts,scale,value,sizeof(value),unit,sizeof(unit),top,sizeof(top));
+ dsr_sc_icon(root,DSR_ICON_ENERGY,cx-10,cy+14,20,DSR_SC_TEXT);
+ lv_obj_t *v=dsr_sc_text(root,fresh?value:"—",cx-80,cy+36,160,&dsr_roboto_28,DSR_SC_TEXT);lv_obj_set_style_text_align(v,LV_TEXT_ALIGN_CENTER,0);
+ lv_obj_t *u=dsr_sc_text(root,unit,cx-40,cy+72,80,&dsr_roboto_16,DSR_SC_MUTED);lv_obj_set_style_text_align(u,LV_TEXT_ALIGN_CENTER,0);
+ dsr_sc_text(root,"0",cx-r+6,cy+82,30,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_t *t=dsr_sc_text(root,top,cx+r-46,cy+82,40,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_RIGHT,0);
+ char when[64];if(!d.has_sample_time)snprintf(when,sizeof(when),"%s",dsr_sc_tr("Ostatnia aktualizacja: brak"));
+ else{unsigned age=(unsigned)((lv_tick_get()-d.sample_ms)/1000);if(age<3)snprintf(when,sizeof(when),"%s",dsr_sc_tr("Ostatnia aktualizacja: teraz"));else snprintf(when,sizeof(when),dsr_sc_tr("Ostatnia aktualizacja: %u s temu"),age);}
+ lv_obj_t *w=dsr_sc_text(root,dsr_sc_user(when),12,366,296,&dsr_roboto_12,fresh?DSR_SC_TEXT:0xffc18c);lv_obj_set_style_text_align(w,LV_TEXT_ALIGN_CENTER,0);
+ char counter[96];if(d.online&&d.has_energy)snprintf(counter,sizeof(counter),dsr_sc_tr("Licznik Shelly: %.3f kWh"),d.energy_wh/1000.0);else snprintf(counter,sizeof(counter),"%s",dsr_sc_tr(fresh?"Licznik energii niedostępny":"Brak świeżego odczytu mocy"));
+ dsr_sc_text(root,dsr_sc_user(counter),12,402,296,&dsr_roboto_11,DSR_SC_MUTED);
 }
 static bool duplicate(unsigned index,const dsr_mobile_device_t *device)
 {
@@ -133,6 +140,6 @@ static void draw(void)
 void dsr_ui_energy_open(void)
 {dsr_network_home(NULL);dsr_mobile_hide();active=overview=true;draw();}
 void dsr_ui_history_open(uint32_t id)
-{dsr_network_home(NULL);dsr_mobile_hide();selected=id;hours=1;metric=0;active=true;overview=false;draw();}
+{dsr_network_home(NULL);dsr_mobile_hide();selected=id;active=true;overview=false;draw();}
 void dsr_ui_history_tick(void)
 {if(active&&(int32_t)(lv_tick_get()-next_draw)>=0)draw();}

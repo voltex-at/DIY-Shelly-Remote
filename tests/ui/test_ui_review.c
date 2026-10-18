@@ -147,9 +147,10 @@ static void navigation_and_chips(void)
  for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);if(lv_obj_get_width(o)==320&&lv_obj_get_height(o)==52)bar=o;}
  CHECK(bar);unsigned count=0;
  for(unsigned i=0;i<lv_obj_get_child_count(bar);i++){lv_obj_t *b=lv_obj_get_child(bar,(int)i);if(!lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))continue;CHECK(lv_obj_get_width(b)==64);CHECK(lv_obj_get_height(b)>=44);CHECK(lv_obj_has_state(b,LV_STATE_DISABLED)==(count==2));lv_area_t area;lv_obj_get_coords(b,&area);CHECK(area.x1==(int)count*64&&area.x2==(int)(count+1)*64-1);count++;}CHECK(count==5);
- lv_obj_t *power=find(lv_screen_active(),"18.6 W    230.1 V");CHECK(power);lv_obj_t *chip=lv_obj_get_parent(power);
- CHECK(lv_obj_get_width(chip)<160);CHECK(lv_obj_get_width(chip)>=lv_obj_get_width(power)+14);
- lv_obj_t *position=find(lv_screen_active(),"Pozycja   65%");if(!position)position=find(lv_screen_active(),"Position   65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<120);
+ /* Shelly-style value capsule: one pill, one segment per value, separators between. */
+ lv_obj_t *power=find(lv_screen_active(),"18.6 W  #5a6066 |#  230.1 V");CHECK(power);lv_obj_t *chip=lv_obj_get_parent(power);
+ CHECK(lv_obj_get_width(chip)<180);CHECK(lv_obj_get_width(chip)>=lv_obj_get_width(power)+12);
+ lv_obj_t *position=find(lv_screen_active(),"Pozycja 65%");if(!position)position=find(lv_screen_active(),"Position 65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<170);
  unsigned before=edits;tap(236,116);CHECK(edits==before+1);
  before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
  tap(284,116);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
@@ -235,8 +236,8 @@ int main(int argc,char **argv)
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
  navigation_and_chips();
- tap(226,358);CHECK(find(lv_screen_active(),"Pozycja   100%"));CHECK(commands==0);
- tap(276,358);CHECK(find(lv_screen_active(),"Pozycja   0%"));CHECK(commands==0);
+ tap(224,382);CHECK(find(lv_screen_active(),"Pozycja 100%"));CHECK(commands==0);
+ tap(274,382);CHECK(find(lv_screen_active(),"Pozycja 0%"));CHECK(commands==0);
  dsr_mobile_update(&fixture);
  dsr_mobile_show(DSR_MOBILE_ROOMS,0);save("02-rooms");CHECK(find(lv_screen_active(),"Łazienka"));
  tap(84,176);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);save("04-room-salon");
@@ -259,6 +260,7 @@ int main(int argc,char **argv)
  fixture.configured_layout=true;fixture.tile_count=24;for(unsigned i=0;i<24;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.index=0,.span=2,.height=1,.fields=255};
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
  CHECK(count_cards(lv_screen_active())==24);lv_mem_monitor(&after);CHECK(after.free_size>2048);
+ printf("24-tile dashboard: LVGL heap free %lu B, largest %lu B (128 KB pool, same as firmware)\n",(unsigned long)after.free_size,(unsigned long)after.free_biggest_size);
  fixture.configured_layout=true;fixture.dashboard_id=2;strcpy(fixture.dashboard_name,"Pomieszczenia");fixture.tile_count=4;
  for(unsigned i=0;i<4;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.type=1,.index=i,.span=1,.height=1,.fields=255};
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("10-home-room-photos");CHECK(find(lv_screen_active(),"Salon"));

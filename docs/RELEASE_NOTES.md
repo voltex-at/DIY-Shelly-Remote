@@ -1,3 +1,11 @@
+0.7.49-dev: odświeżenie wyglądu w stylu Shelly Smart Control (etap 1). Stable: brak.
+
+Zmiany względem 0.7.48-dev (wzór: zrzuty aplikacji Shelly od właściciela):
+- Wiersze urządzeń: pasek nagłówka, czarne kółko z ikoną, wartości w jednej kapsule z separatorami, jasny okrągły przycisk zasilania w obwódce; włączone urządzenie ma niebieski pierścień i niebieskie obramowanie karty z poświatą. Roleta: kapsuła góra/dół. Jasny motyw ma własne odpowiedniki kolorów.
+- Strona urządzenia: zakładka "Zużycie" zamiast "Wykresy" - zegar mocy jak w aplikacji (łuk zielony-żółty-czerwony, podziałka, wskazówka, W lub kW, "Ostatnia aktualizacja", licznik kWh). Odczyt starszy niż 15 s jest pokazywany jako brak odczytu, nigdy jako stara wskazówka.
+- Ustawienia > System: usunięty "Podgląd rolety • DEMO".
+- Synchronizacja czasu UTC dla historii zostaje na stronie "Energia".
+
 0.7.48-dev: termostat BLU TRV w stylu Shelly Smart Control. Stable: brak.
 
 Zmiany względem 0.7.47-dev (wzór: zrzuty aplikacji Shelly od właściciela):

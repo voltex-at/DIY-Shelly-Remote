@@ -27,7 +27,10 @@ static uint32_t light(uint32_t c)
   {0xffd68a,0x7a4d00},{0x41474b,0xffffff},{0x292d30,0xe6ebf0},
   {0x252a2e,0xffffff},{0x244357,0xd6e6f8},{0x29343b,0xe3e8ed},{0x303943,0xdfe5eb},{0x25292b,0xffffff},
   {0x262a2d,0xeef1f4},{0x414548,0xffffff},{0x60646b,0xc8cfd6},{0xe8ecef,0xdfe5eb},{0x818991,0x6b7682},
-  {0xe8edf2,0x14202b},{0xffc18c,0xa4500f},{0xe1bb70,0x8a6200},{0xffc077,0xa4500f}};
+  {0xe8edf2,0x14202b},{0xffc18c,0xa4500f},{0xe1bb70,0x8a6200},{0xffc077,0xa4500f},
+  /* Shelly-style rows, rings and pills (0.7.49) */
+  {0x2b2f33,0xffffff},{0x23272a,0xe6ebf0},{0x3a3f44,0xc3cbd3},{0x17191c,0xe3e8ed},{0x1d2124,0xe6ebf0},{0x3d4246,0xc9d0d7},
+  {0xeceff1,0xf3f5f7},{0x5a6066,0xc9d0d7},{0x8a9096,0x6b7682},{0x1d3f73,0xd6e6f8},{0xf0a020,0x9a5a00}};
  for(size_t i=0;i<sizeof(map)/sizeof(map[0]);i++)if(map[i][0]==c)return map[i][1];
  return c;
 }
@@ -264,7 +267,7 @@ const char *dsr_sc_tr(const char *text)
  {"Dane nie zostały skasowane. Szczegóły są w diagnostyce i logu USB.","Data was not erased. Details are in diagnostics and the USB log.","Daten wurden nicht gelöscht. Details in Diagnose und USB-Protokoll."},
  {"Mój dom","My home","Mein Zuhause"},{"Mój pulpit","My dashboard","Mein Dashboard"},{"Aktywność","Activity","Aktivität"},
  {"Pomieszczenia","Rooms","Räume"},{"Urządzenia","Devices","Geräte"},{"Grupy","Groups","Gruppen"},{"Sceny","Scenes","Szenen"},
- {"Sterowanie","Controls","Steuerung"},{"Wykresy","Charts","Diagramme"},{"Ustawienia","Settings","Einstellungen"},
+ {"Sterowanie","Controls","Steuerung"},{"Zużycie","Usage","Verbrauch"},{"Ustawienia","Settings","Einstellungen"},
  {"Główne sterowanie","Main control","Hauptsteuerung"},{"Włączone","On","Ein"},{"Wyłączone","Off","Aus"},
  {"Włącz","Turn on","Einschalten"},{"Wyłącz","Turn off","Ausschalten"},{"Otwarte","Open","Offen"},{"Zamknięte","Closed","Geschlossen"},
  {"Brak połączenia","No connection","Keine Verbindung"},{"Nieprzypisane","Unassigned","Nicht zugeordnet"},{"Roleta","Cover","Rollladen"},
@@ -326,7 +329,6 @@ const char *dsr_sc_tr(const char *text)
  {"Nieznana pozycja","Position unknown","Position unbekannt"},{"Stan nieznany","State unknown","Zustand unbekannt"},
  {"Brak obsługi Cover RPC","Cover RPC not implemented","Cover RPC nicht implementiert"},
  {"Roleta w salonie","Living room cover","Rollladen Wohnzimmer"},
- {"Podgląd rolety • DEMO","Cover preview • DEMO","Rollladen-Vorschau • DEMO"},
  {"Podgląd grafiki bez sterowania sprzętem.","Visual preview without hardware control.","Designvorschau ohne Gerätesteuerung."},
  {"Offline • stan niepotwierdzony","Offline • state unconfirmed","Offline • Zustand unbestätigt"},
  {"Włączone • Online","On • Online","Ein • Online"},{"Wyłączone • Online","Off • Online","Aus • Online"},
@@ -444,4 +446,50 @@ lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_widt
  int width=size.x+14;if(width>max_width)width=max_width;
  lv_obj_t *chip=dsr_sc_panel(parent,x,y,width,20,0x292d30,6);
  lv_obj_t *label=dsr_sc_text(chip,dsr_sc_user(text),7,3,width-14,&dsr_roboto_12,color);lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
+}
+
+void dsr_sc_glow(lv_obj_t *o,bool on)
+{
+ lv_obj_set_style_shadow_width(o,on?14:0,0);lv_obj_set_style_shadow_spread(o,on?1:0,0);
+ lv_obj_set_style_shadow_color(o,dsr_sc_color(DSR_SC_GLOW),0);lv_obj_set_style_shadow_opa(o,on?LV_OPA_70:LV_OPA_TRANSP,0);
+}
+lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool enabled,dsr_ui_icon_t icon,uint32_t icon_color,lv_event_cb_t cb,void *context)
+{
+ /* One object: light face, thick ring as its border (blue + glow when on).
+  * Two objects per row button matter: a 24-tile dashboard shares 128 KB LVGL heap. */
+ lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,enabled?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,cb,context);
+ lv_obj_set_style_border_width(ring,5,0);lv_obj_set_style_border_color(ring,dsr_sc_color(on&&enabled?DSR_SC_GLOW:0x3a3f44),0);
+ dsr_sc_glow(ring,on&&enabled);
+ dsr_sc_icon_centered(ring,icon,(size-10)*52/100,enabled?icon_color:0x8a9096);
+ if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
+ return ring;
+}
+int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
+{
+ /* One pill + one recoloured label (separators inline): two objects per row. */
+ int widths[6],total=0;if(count>6)count=6;
+ for(unsigned i=0;i<count;i++){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(texts[i]),&dsr_roboto_12,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);widths[i]=size.x+16;total+=widths[i];}
+ /* Values that do not fit are left out (never squeezed to "..."); the first
+  * one is kept and truncated so the row always says something. */
+ while(count>1&&total>max_width)total-=widths[--count];
+ if(total>max_width){widths[0]=max_width;total=max_width;}
+ char line[200];line[0]=0;
+ for(unsigned i=0;i<count;i++){if(i)strncat(line,"  #5a6066 |#  ",sizeof(line)-strlen(line)-1);strncat(line,dsr_sc_tr(texts[i]),sizeof(line)-strlen(line)-1);}
+ lv_obj_t *pill=dsr_sc_panel(parent,x,y,total,22,0x23272a,11);
+ lv_obj_t *label=dsr_sc_text(pill,"",8,4,total-12,&dsr_roboto_12,color);lv_label_set_recolor(label,true);lv_label_set_text(label,line);
+ lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+ return total;
+}
+void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int r,int width,int start,int span,const uint32_t *stops,unsigned n_stops,unsigned n,bool enabled)
+{
+ for(unsigned i=0;i<n;i++){
+  double t=n>1?(double)i/(double)(n-1)*(double)(n_stops-1):0;unsigned k=(unsigned)t;if(k>=n_stops-1)k=n_stops-2;double f=t-k;uint32_t c=0;
+  for(int sh=16;sh>=0;sh-=8){int a=(int)((stops[k]>>sh)&255),b=(int)((stops[k+1]>>sh)&255);c=c<<8|(uint32_t)(a+(b-a)*f+0.5);}
+  lv_obj_t *seg=lv_arc_create(parent);lv_obj_remove_flag(seg,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_size(seg,2*r,2*r);lv_obj_set_pos(seg,cx-r,cy-r);
+  int a0=start+span*(int)i/(int)n,a1=start+span*(int)(i+1)/(int)n+(i+1<n?1:0);
+  lv_arc_set_bg_angles(seg,(lv_value_precise_t)(a0%360),(lv_value_precise_t)(a1%360));
+  lv_obj_set_style_arc_width(seg,width,LV_PART_MAIN);lv_obj_set_style_arc_color(seg,dsr_sc_color(enabled?c:0x4a5056),LV_PART_MAIN);
+  lv_obj_set_style_arc_rounded(seg,i==0||i==n-1,LV_PART_MAIN);lv_obj_set_style_arc_opa(seg,LV_OPA_TRANSP,LV_PART_INDICATOR);
+  lv_obj_set_style_bg_opa(seg,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_set_style_pad_all(seg,0,LV_PART_KNOB);
+ }
 }

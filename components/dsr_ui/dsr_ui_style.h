@@ -49,6 +49,16 @@ unsigned dsr_sc_language(void);
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
+/* Shelly Smart Control look (owner references 2026-10-18). */
+#define DSR_SC_GLOW 0x2f7bff
+/* Blue halo for an active control or card; off removes it. */
+void dsr_sc_glow(lv_obj_t *obj,bool on);
+/* White round button inside a dark ring; on = blue ring + halo. */
+lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool enabled,dsr_ui_icon_t icon,uint32_t icon_color,lv_event_cb_t cb,void *context);
+/* Dark pill with values separated by thin dividers ("0 W | 231.6 V"). Returns its width. */
+int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color);
+/* Arc drawn as colour segments interpolated through stops (0xRRGGBB). Angles: LVGL degrees. */
+void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int radius,int width,int start,int span,const uint32_t *stops,unsigned stop_count,unsigned segments,bool enabled);
 /* Built-in room photos (owner artwork, flash): 100x100 RGB565, content-addressed
  * like uploaded photos so the config keeps one 32-hex photo field. */
 #define DSR_ROOM_PHOTO_SIZE 100
