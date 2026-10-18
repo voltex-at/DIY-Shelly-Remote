@@ -69,6 +69,14 @@ void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation 
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
+/* Advisory model/version from verified /shelly, plus one bounded read-only
+ * Sys.GetConfig request for the name after a successful status. Metadata never
+ * grants a capability or changes endpoint identity, credentials or routing. */
+typedef struct {char model[24];char fw[16];uint8_t generation;bool name_read;} dsr_device_info_t;
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection,dsr_device_info_t *info);
+dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry,dsr_device_info_t *info);
+/* Name-only NVS update: never changes endpoint, locator or credentials. */
+esp_err_t dsr_connection_update_name(const dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
 dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
 dsr_result_t dsr_http_rgb(dsr_connection_t *connection,dsr_rgb_intent_t intent);
@@ -106,7 +114,7 @@ typedef struct {
     uint32_t layout_id;
     dsr_result_t ap_write_result;
     dsr_telemetry_t telemetry;
-    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;}; dsr_wifi_status_t wifi_detail;
+    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;dsr_device_info_t info;}; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;

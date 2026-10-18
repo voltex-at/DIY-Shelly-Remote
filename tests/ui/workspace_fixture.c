@@ -183,3 +183,9 @@ uint32_t esp_random(void){static uint32_t serial=41000;return ++serial;}
 
 /* Diagnostics counters MODEL (real SDK reads only on target). */
 void dsr_system_runtime(dsr_system_runtime_t *out){*out=(dsr_system_runtime_t){.internal_min_free=61440,.ui_stack_free=2304,.ble_active=false};}
+
+void dsr_workspace_runtime_info_at(size_t index,const dsr_device_info_t *info){(void)index;(void)info;}
+bool dsr_workspace_runtime_info(uint32_t id,const char *identity,dsr_device_info_t *info){(void)id;(void)identity;memset(info,0,sizeof(*info));return false;}
+
+bool dsr_workspace_runtime_name(uint32_t id,const char *host,uint8_t channel,char out[48])
+{for(size_t i=0;i<runtime_size;i++)if(runtime_values[i].layout_id==id&&runtime_values[i].device.channel==channel&&!strcmp(runtime_values[i].device.host,host)){snprintf(out,48,"%s",runtime_values[i].device.name);return out[0]!=0;}return false;}

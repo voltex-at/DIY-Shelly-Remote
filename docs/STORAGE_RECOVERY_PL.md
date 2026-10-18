@@ -1,6 +1,15 @@
-# Magazyn — inicjalizacja 0.7.7 i kopia bez zapisu (#28 / PR #33)
+# Magazyn — stan bieżący 0.7.53-dev i historia diagnostyki
 
-## Wznowienie przerwanego pierwszego formatu (2026-10-17, lokalny patch, NIE na GitHubie)
+## Potwierdzona przyczyna (właściciel, 2026-10-18)
+
+Dawne formatowania SPIFFS przerwał **zewnętrzny reset podczas formatowania**.
+Brak informacji o wykonywanej czynności na ekranie skłaniał do resetowania.
+Jest to ustalona przyczyna, nie otwarta hipoteza. Ekran przygotowania pamięci
+oraz bezpieczne wznowienie są już w gałęzi P0 i pozostają w 0.7.53-dev.
+Odbiór nowej wersji na sprzęcie i dalsze testy fizyczne są osobnym etapem.
+Poniższe raporty zachowują szczegóły oraz chronologię wcześniejszej diagnostyki.
+
+## Wznowienie przerwanego pierwszego formatu (wdrożone w gałęzi P0)
 
 **Zmiana zachowania.** Do tej pory przerwany pierwszy format (prefiks 109/992
 lub 313/992) był traktowany jak „niepusty FS” i blokował magazyn na zawsze.
@@ -43,7 +52,7 @@ Brak dodatkowych zadań, watchdogów, zmian priorytetów ani partycji.
 Test był czerwony na starym `dsr_storage.c` i jest zielony po zmianie.
 Pełne `tools/test.py --sanitize` i `tools/test_config.py --sanitize` są zielone.
 
-**Ekran postępu formatowania (2026-10-17, lokalny patch, NIE na GitHubie).**
+**Ekran postępu formatowania (wdrożony w gałęzi P0).**
 LCD i LVGL są już zainicjowane przed magazynem (`dsr_board_init`). Teraz
 na czas jedynego przebiegu formatowania pojawia się ekran „Przygotowanie
 pamięci” (PL/EN/DE):
@@ -78,13 +87,12 @@ prawdopodobieństwa:
 2. brownout przy kasowaniu Flash z aktywnym Wi-Fi;
 3. watchdog.
 
-Różne punkty przerwania (109 vs 313) przemawiają raczej za resetem
-zewnętrznym niż za stałym limitem czasu. **Właściciel (2026-10-17) uznał
-za bardzo prawdopodobne, że reset został wciśnięty z zewnątrz dwukrotnie w
-czasie czarnego ekranu** — to wyjaśnia oba prefiksy; brak logu, więc formalnie
-nadal hipoteza, ale ekran postępu i wznowienie usuwają oba skutki. Rozstrzyga `reset_reason` z
-następnego startu (logowany już w `app_main`): POWERON, USB, BROWNOUT,
-TASK_WDT, INT_WDT lub PANIC.
+Różne punkty przerwania (109 i 313) wskazywały na reset zewnętrzny.
+Właściciel potwierdził tę przyczynę 2026-10-18: reset był wykonywany podczas
+formatowania przy braku komunikatu na ekranie. Powyższa lista zachowuje
+wcześniejszą kolejność rozważanych hipotez; nie jest listą nadal otwartych
+przyczyn tego zdarzenia. Log `reset_reason` pozostaje diagnostyką przyszłych
+resetów, a nie warunkiem uznania tego potwierdzenia.
 
 ## Dwa warianty instalacji FACTORY i UPDATE (2026-10-16)
 
@@ -113,8 +121,8 @@ IDF są obowiązkowymi bramkami przed uploadem. Weryfikacja hostowa nie zapisuje
 obrazu wejściowego: zapis testowej konfiguracji/remount odbywa się na kopii NOR.
 [Instrukcja FACTORY](INSTALL_FACTORY_PL.md) i [UPDATE](INSTALL_UPDATE_PL.md).
 Nie wykonano device writes, nie proponuje się kolejnego erase przed gotowym
-artefaktem. Factory omija koszt pierwszego formatu na płytce, **nie zamyka
-przyczyny przerwania automatycznego formatowania** ani testu fizycznego.
+artefaktem. Factory omija koszt pierwszego formatu na płytce. Przyczynę dawnych przerwań
+potwierdził właściciel (zewnętrzny reset); odbiór na sprzęcie pozostaje do wykonania.
 
 ## Sprostowany raport 0.7.23 / PR51 i test trwałości (2026-10-16)
 
@@ -209,7 +217,8 @@ Recenzja #28 zawiera oczyszczony log fizycznej instalacji 0.7.4:
 `Configuration storage unavailable: ESP_FAIL`. Dotyk działa. Magazyn nie
 startuje, więc stary callback edycji zwracał bez komunikatu; serwer HTTPS
 był pomijany. To potwierdzony FAIL odbioru 0.7.4, mimo poprzedniego CI.
-Nie znamy jeszcze przyczyny niezgodnych bajtów ani ich wartości dla właściciela.
+W tym historycznym raporcie przyczyna niezgodnych bajtów nie była jeszcze ustalona;
+przyczynę późniejszych przerwanych formatowań opisuje bieżący status na początku dokumentu.
 Nie przypisujemy logu do commitu wyłącznie po numerze wersji.
 
 0.7.6 naprawia **ciche błędy i diagnostykę**. Nie naprawia przez zgadywanie

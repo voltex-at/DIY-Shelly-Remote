@@ -13,7 +13,7 @@
 #endif
 
 _Static_assert(sizeof(dsr_mobile_model_t)<=8192,"bounded shared mobile view model");
-_Static_assert(sizeof(dsr_mobile_device_t)==320&&sizeof(dsr_mobile_model_t)==6944,"Light uses existing mobile padding");
+_Static_assert(sizeof(dsr_mobile_device_t)==336&&sizeof(dsr_mobile_model_t)==7200,"Light uses existing mobile padding");
 static dsr_mobile_model_t model;
 static dsr_mobile_model_t preview_saved;
 static bool cover_preview;
@@ -695,15 +695,16 @@ static void device_settings(lv_obj_t *root)
  const dsr_mobile_device_t *d=&model.devices[selected];char text[160];
  content=dsr_sc_panel(root,12,96,296,246,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
  lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
- lv_obj_t *identity=dsr_sc_panel(content,0,0,296,154,DSR_SC_CARD,14);
+ lv_obj_t *identity=dsr_sc_panel(content,0,0,296,174,DSR_SC_CARD,14);
  dsr_sc_icon(identity,DSR_ICON_INFO,12,13,24,DSR_SC_BLUE);dsr_sc_text(identity,"Wybrane urządzenie",48,17,236,&dsr_roboto_16,DSR_SC_TEXT);
  dsr_sc_text(identity,unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->online?"Online":"Brak połączenia",12,44,272,&dsr_roboto_14,d->online&&d->error==DSR_OK?DSR_SC_BLUE:DSR_SC_MUTED);
  lv_obj_t *model_name=dsr_sc_text(identity,d->model[0]?d->model:"Model nieodczytany",12,68,272,&dsr_roboto_14,DSR_SC_MUTED);truncate(model_name,20);
- snprintf(text,sizeof(text),dsr_sc_tr("Adres karty: %s • kanał %u"),d->host[0]?d->host:"—",d->channel);dsr_sc_text(identity,text,12,90,272,&dsr_roboto_12,DSR_SC_TEXT);
+ snprintf(text,sizeof(text),dsr_sc_tr("Adres karty: %s • kanał %u"),d->host[0]?d->host:"—",d->channel);dsr_sc_text(identity,text,12,110,272,&dsr_roboto_12,DSR_SC_TEXT);
+ snprintf(text,sizeof(text),d->fw[0]?dsr_sc_tr("Firmware: %s"):"%s",d->fw[0]?d->fw:dsr_sc_tr("Firmware nieodczytany"));dsr_sc_text(identity,text,12,90,272,&dsr_roboto_12,DSR_SC_MUTED);
  const char *family=d->identity[0]?(d->generation==DSR_GEN1?"Gen1":d->generation==DSR_GEN2_PLUS?"Gen2+":"—"):"—";
- snprintf(text,sizeof(text),"%s • %s",dsr_sc_tr("Zapisane ID"),family);dsr_sc_text(identity,text,12,110,272,&dsr_roboto_12,DSR_SC_MUTED);
- lv_obj_t *id=dsr_sc_text(identity,d->identity[0]?d->identity:"Tożsamość niepotwierdzona",12,130,272,&dsr_roboto_12,DSR_SC_TEXT);truncate(id,20);
- lv_obj_t *readings=dsr_sc_panel(content,0,164,296,78,DSR_SC_PANEL,12);
+ if(d->physical_generation)snprintf(text,sizeof(text),"%s • Gen %u",dsr_sc_tr("Zapisane ID"),d->physical_generation);else snprintf(text,sizeof(text),"%s • %s",dsr_sc_tr("Zapisane ID"),family);dsr_sc_text(identity,text,12,130,272,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *id=dsr_sc_text(identity,d->identity[0]?d->identity:"Tożsamość niepotwierdzona",12,150,272,&dsr_roboto_12,DSR_SC_TEXT);truncate(id,20);
+ lv_obj_t *readings=dsr_sc_panel(content,0,184,296,78,DSR_SC_PANEL,12);
  dsr_sc_text(readings,"Dostępne pomiary",12,11,272,&dsr_roboto_14,DSR_SC_TEXT);
  text[0]=0;bool valid=d->online&&d->error==DSR_OK;
  if(d->endpoint_kind==DSR_ENDPOINT_BLU){if(d->has_contact)snprintf(text,sizeof(text),"%s",dsr_sc_tr(d->contact_open?"Otwarte":"Zamknięte"));else if(d->blu.flags&DSR_BLU_HAS_MOTION)snprintf(text,sizeof(text),"%s",dsr_sc_tr((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"));if(d->has_illuminance)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f lx",text[0]?" • ":"",d->illuminance_lux);if(d->has_battery)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f%%",text[0]?" • ":"",d->battery_pct);valid=false;}
@@ -718,7 +719,7 @@ static void device_settings(lv_obj_t *root)
  lv_obj_t *edit=dsr_sc_button(root,166,354,142,48,DSR_SC_CARD,12,edit_device,NULL);center(dsr_sc_text(edit,"Edytuj kartę",4,16,134,&dsr_roboto_14,DSR_SC_TEXT));
  if(model.demo||!d->id||!actions.edit_device)lv_obj_add_state(edit,LV_STATE_DISABLED);
  dsr_sc_text(root,"Ustawienia karty • lokalnie",12,410,296,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(content,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",4,254,288,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(content,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",4,274,288,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void render(void)
 {

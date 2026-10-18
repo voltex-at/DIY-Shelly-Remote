@@ -66,6 +66,9 @@ const char *dsr_sc_tr(const char *text)
 {
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
+ {"Firmware: %s","Firmware: %s","Firmware: %s"},
+ {"Firmware nieodczytany","Firmware not read","Firmware nicht ausgelesen"},
+ {"Użyj nazwy z Shelly","Use name from Shelly","Namen von Shelly verwenden"},
  {"Stan: włączone","State: on","Status: ein"},
  {"Stan: wyłączone","State: off","Status: aus"},
  {"Zmiana stanu","State change","Statusänderung"},

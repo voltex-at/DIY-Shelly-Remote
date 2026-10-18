@@ -80,9 +80,6 @@ static void keyboard(lv_obj_t *root,lv_obj_t *a,lv_obj_t *b)
 static void toggle_secret(lv_event_t *event){if(password)lv_textarea_set_password_mode(password,!lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED));}
 static lv_obj_t *form(lv_obj_t *root)
 {form_body=dsr_sc_panel(root,0,FORM_Y,320,FORM_H,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);dsr_sc_scrollbar(form_body);return form_body;}
-/* Product line from the SKU prefix only (no guessed model names). */
-static const char *family(const char *sku)
-{return !strncmp(sku,"SP",2)?"Shelly Pro":!strncmp(sku,"SN",2)?"Shelly Plus":!strncmp(sku,"S3",2)?"Shelly Gen3":!strncmp(sku,"S4",2)?"Shelly Gen4":!strncmp(sku,"SH",2)?"Shelly Gen1":"Shelly";}
 static void line(lv_obj_t *card,const char *text,int y,const lv_font_t *font,uint32_t color)
 {lv_obj_t *l=dsr_sc_text(card,dsr_sc_user(text),52,y,236,font,color);lv_obj_set_height(l,font==&dsr_roboto_16?20:17);lv_label_set_long_mode(l,LV_LABEL_LONG_MODE_DOTS);}
 /* Owner 2026-10-18: show what the remote actually knows about the device
@@ -91,9 +88,9 @@ static void identity(lv_obj_t *root)
 {
     lv_obj_t *card=dsr_sc_panel(root,12,88,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,DSR_SC_TEXT);
     char text[96];
-    bool named=selected.name[0]&&strcmp(selected.name,selected.model); /* name defaults to the SKU when unset */
-    snprintf(text,sizeof(text),"%s",named?selected.name:family(selected.model));line(card,text,6,&dsr_roboto_16,DSR_SC_TEXT);
-    if(named)snprintf(text,sizeof(text),"%s • %s • Gen %u",family(selected.model),selected.model,selected.generation);else snprintf(text,sizeof(text),"%s • Gen %u",selected.model,selected.generation);
+    const char *friendly=dsr_device_model_name(selected.id);
+    snprintf(text,sizeof(text),"%s",selected.name[0]?selected.name:friendly?friendly:selected.id);line(card,text,6,&dsr_roboto_16,DSR_SC_TEXT);
+    snprintf(text,sizeof(text),"%s • Gen %u",selected.model,selected.generation);
     line(card,text,28,&dsr_roboto_14,DSR_SC_MUTED);
     char mac[18]="";if(strlen(selected.mac)==12)snprintf(mac,sizeof(mac),"%.2s:%.2s:%.2s:%.2s:%.2s:%.2s",selected.mac,selected.mac+2,selected.mac+4,selected.mac+6,selected.mac+8,selected.mac+10);
     unsigned switches=0,covers=0,lights=0,rgbs=0,blu=0;for(unsigned i=0;i<16;i++){switches+=(capabilities.switches>>i)&1u;covers+=(capabilities.covers>>i)&1u;lights+=(capabilities.lights>>i)&1u;rgbs+=(capabilities.rgbs>>i)&1u;blu+=(capabilities.blu>>i)&1u;}
@@ -132,9 +129,9 @@ static void show_results(void)
     dsr_lan_snapshot(&snapshot);lv_obj_t *root=screen("Znalezione urządzenia",2);
     lv_obj_t *list=dsr_sc_panel(root,12,86,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
     for(unsigned i=0;i<snapshot.count;i++){
-        const dsr_lan_device_t *d=&snapshot.devices[i];char text[120];if(d->name[0])snprintf(text,sizeof(text),"%s • %s • Gen %u",d->name,d->host,d->generation);else snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);
+        const dsr_lan_device_t *d=&snapshot.devices[i];char text[120];if(d->model[0])snprintf(text,sizeof(text),"%s • %s • Gen %u",d->model,d->host,d->generation);else snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);
         const char *state=dsr_network_endpoint_added(d->id,d->generation==1?DSR_GEN1:DSR_GEN2_PLUS,UINT32_MAX)?"Już dodane":d->auth_required?"API • wymaga hasła":"Zweryfikowano API";
-        dsr_onboarding_result(list,(int)i*96,!strcmp(d->model,"S3GW-1DBT001")?DSR_ICON_INFO:DSR_ICON_PLUG,d->model,text,state,true,choose,(void *)(uintptr_t)i);
+        dsr_onboarding_result(list,(int)i*96,!strcmp(d->model,"S3GW-1DBT001")?DSR_ICON_INFO:DSR_ICON_PLUG,d->name[0]?d->name:d->id,text,state,true,choose,(void *)(uintptr_t)i);
     }
     if(!snapshot.count)dsr_sc_text(list,snapshot.phase==DSR_LAN_NO_WIFI?"Najpierw połącz Wi-Fi":"Nie znaleziono Shelly. Sprawdź sieć i ponów.",12,40,272,&dsr_roboto_16,DSR_SC_TEXT);
     notice=dsr_sc_text(root,snapshot.phase==DSR_LAN_CANCELLED?"Wyszukiwanie przerwane":"Zakończono wyszukiwanie",16,372,288,&dsr_roboto_12,DSR_SC_MUTED);

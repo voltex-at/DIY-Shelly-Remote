@@ -280,3 +280,7 @@ static dsr_http_job_write_hook_t action_write_hook;
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook){dsr_http_job_write_hook_t previous=action_write_hook;action_write_hook=hook;return previous;}
 
 void dsr_actions_worker_write_attempted(uint32_t id){(void)id;}
+
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_refresh(c);}
+dsr_result_t dsr_http_probe_info(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_probe_telemetry(c,d,t);}
+esp_err_t dsr_connection_update_name(const dsr_connection_t *c){(void)c;return ESP_OK;}

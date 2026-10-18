@@ -106,3 +106,7 @@ int main(void)
 esp_err_t dsr_panel_pairing_revoke(void){return ESP_OK;}
 
 dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent){(void)c;(void)intent;return DSR_INVALID;}
+
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_refresh(c);}
+dsr_result_t dsr_http_probe_info(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_probe_telemetry(c,d,t);}
+esp_err_t dsr_connection_update_name(const dsr_connection_t *c){(void)c;return ESP_OK;}

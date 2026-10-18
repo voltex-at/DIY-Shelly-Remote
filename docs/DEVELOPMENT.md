@@ -65,3 +65,13 @@ Stable). The workflow builds, signs the v2 manifest with the `DSR_OTA_SIGNING_KE
 secret ([OTA_MANIFEST_PL.md](OTA_MANIFEST_PL.md)) and attaches the app BIN,
 manifest and FACTORY ZIP. Stable and merges to `main` require explicit owner
 approval. Never commit keys, tokens, SSIDs or backups.
+
+### Wydanie 0.7.53-dev
+
+Jednorazowe żądanie `.github/dev-release-0.7.53.json` na
+`work/codex-p0-review` uruchamia istniejący `Signed release`.
+`release_tool.py` akceptuje wyłącznie tę parę gałęzi i wersji; tag tworzy
+dopiero po CI 5/5 dla dokładnego SHA. Tag i opublikowane zasoby są niezmienne.
+Podpis pozostaje w chronionym środowisku `release`; ścieżka Stable zachowuje
+osobną zgodę właściciela. Oba archiwa instalacyjne przechodzą kontrolę
+pakietów, FACTORY dodatkowo rzeczywisty montaż SPIFFS IDF 5.5.4 na kopii NOR.

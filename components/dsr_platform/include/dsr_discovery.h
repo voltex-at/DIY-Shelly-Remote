@@ -8,7 +8,7 @@
 typedef struct {
     char host[16], id[64], mac[13], model[40], name[48];
     uint8_t generation;
-    bool auth_required;
+    bool auth_required;uint8_t profile; /* 0 absent, 1 switch, 2 cover, 3 light, 4 rgb, 255 unknown */
 } dsr_lan_device_t;
 /* blu: bit i = gateway reports BTHomeDevice cid 200+i (Shelly BLU sensor). */
 typedef struct {uint16_t switches, covers, lights, rgbs;bool sensors,ht;uint16_t blu;} dsr_lan_capabilities_t;

@@ -13,7 +13,7 @@ typedef enum {DSR_DEVICE_LIGHT,DSR_DEVICE_PLUG,DSR_DEVICE_RELAY,DSR_DEVICE_COVER
 typedef enum {DSR_COVER_UNKNOWN,DSR_COVER_OPENING,DSR_COVER_CLOSING,DSR_COVER_STOPPED,DSR_COVER_CALIBRATING} dsr_mobile_cover_state_t;
 typedef struct {
     char name[48],model[40],host[16];
-    uint8_t channel;
+    uint8_t channel,physical_generation;
     uint8_t room,icon; /* icon: 0 = by type, 1..DSR_CONFIG_DEVICE_ICONS = chosen (0.7.51, existing padding) */
     dsr_mobile_kind_t kind;
     bool online,output,busy,can_switch,has_power,has_voltage,has_current;
@@ -32,6 +32,7 @@ typedef struct {
     uint8_t fields;
     /* Only supplied for the actually bound transport; never inferred from a card. */
     char identity[64];
+    char fw[16];
     dsr_generation_t generation;
     bool can_refresh,can_position,has_energy;
     uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */

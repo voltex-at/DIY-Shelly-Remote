@@ -40,7 +40,7 @@ static bool unique_keys(const cJSON *o,unsigned depth)
 static bool collection(const cJSON *root,const char *key,int max)
 {
  const cJSON *a=get(root,key);if(!cJSON_IsArray(a)||cJSON_GetArraySize(a)>max)return false;
- const cJSON *v;cJSON_ArrayForEach(v,a){if(!cJSON_IsObject(v)||!number(v,"id",1,1000000)||!text(v,"name",47,false))return false;
+ const cJSON *v;cJSON_ArrayForEach(v,a){if(!cJSON_IsObject(v)||!number(v,"id",1,1000000)||!text(v,"name",47,!strcmp(key,"devices")&&number(root,"schema",2,2)))return false;
   for(const cJSON *b=v->next;b;b=b->next)if(number(b,"id",1,1000000)&&get(b,"id")->valueint==get(v,"id")->valueint)return false;}
  return true;
 }

@@ -78,7 +78,9 @@
  function cancelRange(card){if(card.range){card.dragging=false;card.rangeCanceled=true;}card.colorDirty=false;}
  function paint(card){
   const d=card.data,l=local.get(key(d));
-  card.name.textContent=d.name;card.identity.textContent=d.device_id;
+  const title=d.name;card.name.textContent=title;
+  card.identity.textContent=[d.model,d.firmware,d.device_id].filter(Boolean).join(' · ');
+  if(Number.isInteger(d.layout_id))for(const node of document.querySelectorAll('[data-device-name-id]'))if(node.dataset.deviceNameId===String(d.layout_id))node.textContent=title;
   card.address.textContent=text('channel',d);
   const stop=stops.get(key(d)),waiting=d.pending||!!l?.waiting||!!stop?.waiting,sensor=kind(d)===4,cover=kind(d)===1,light=kind(d)===2,rgb=kind(d)===3;
   if(kind(d)===5){
@@ -191,6 +193,7 @@
  };
  window.dsrRuntimeRefresh=refresh;
  new MutationObserver(translate).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+ window.dsrRuntimeDeviceName=id=>{for(const card of cards.values())if(card.data.layout_id===id)return card.data.name;return '';};
  // panel.js may finish its initial config fetch before this deferred asset.
  if(config&&page==='devices')window.dsrRuntimeMount(document.querySelector('#editor').firstElementChild);
 })();

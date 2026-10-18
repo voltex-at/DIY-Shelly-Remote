@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.52-dev
+# Matryca funkcji — 0.7.53-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -31,14 +31,14 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
 | Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 
-| Nazwa zamiast SKU w kreatorze, na kartach i w Web Panelu (decyzja 2026-10-18) | nie | nie | zgłoszone (lista „Gefundene Geräte” i nagłówek karty pokazują SKU, np. `SPSH-002PE16EU`) | — |
-| Pole modelu w Settings wypełniane z `model` (zamiast „Modell nicht ausgelesen”) | nie | nie | zgłoszone (`shellypro2cover`) | — |
-| Synchronizacja nazwy z Shelly, wariant B — nazwa lokalna ma pierwszeństwo (decyzja 2026-10-18) | nie | nie | brak testu | — |
-| Rozpoznawanie typu po `profile` i komponentach, wszystkie kanały (decyzja 2026-10-18) | nie | nie | zgłoszone (Pro 2 Cover pokazuje tylko „Kanal 0”) | — |
+| Nazwa zamiast SKU w kreatorze, na kartach i w Web Panelu (decyzja 2026-10-18) | tak | tak (UTF-8, wybór etykiety) | odbiór LCD/WWW na sprzęcie do wykonania | — |
+| Pole modelu w Settings wypełniane z `model` (zamiast „Modell nicht ausgelesen”) | tak (model, firmware, generacja) | tak (parser, tożsamość) | odbiór na sprzęcie do wykonania | — |
+| Synchronizacja nazwy z Shelly, wariant B — nazwa lokalna ma pierwszeństwo (decyzja 2026-10-18) | tak | tak (odczyt, błędy i trwałość) | odbiór na sprzęcie do wykonania | — |
+| Rozpoznawanie typu po `profile` i komponentach, wszystkie kanały (decyzja 2026-10-18) | tak | tak (profile i Cover 0/1) | fizyczny Pro Dual Cover do odbioru | — |
 
 ### Decyzje właściciela 2026-10-18 (szczegóły do powyższych wierszy)
 
-1. **Nazwa zamiast SKU.** Kolejność wyświetlania: nazwa lokalna → `name` z
+1. **Nazwa zamiast SKU.** Kolejność wyświetlania: nazwa lokalna → `device.name` z `Sys.GetConfig`
    Shelly → przyjazna nazwa modelu → `id`. SKU jako druga linia. Przy duplikacie
    lub braku nazwy dopisek końcówki MAC (np. „Lampa · 2b84”). Klucz wiązania
    pozostaje `id`/MAC; nazwa nie trafia do nazw plików SPIFFS. Sprawdzić znaki
@@ -58,7 +58,9 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
    Urządzenia wielokanałowe: zaproponować wszystkie kanały.
 4. **Gen1 odrzucone** — brak urządzeń do testów.
 
-Kolejność: po zamknięciu bieżących prac P0 — najpierw (1)+(2), potem (3).
+Implementacja (1)–(3) w 0.7.53-dev. Odbiór fizyczny pozostaje przed nami.
+SPIFFS: przyczyna dawnych przerwań potwierdzona 2026-10-18 — zewnętrzny reset przy braku komunikatu.
+Pusta nazwa lokalna w schemacie 2 włącza synchronizację; przed downgrade do 0.7.52 lub starszego ustaw niepuste nazwy lokalne.
 
 Poza zakresem tej wersji: Stable, zmiana tablicy partycji, Gen1 (decyzja
 właściciela 2026-10-18: odrzucone), sterowanie H&T, historia Light/RGB/Cover.

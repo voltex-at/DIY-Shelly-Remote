@@ -3,7 +3,9 @@ name: Signed release
 # Tag dev-vX.Y.Z  -> Dev prerelease
 # Start: push the tag, or in the GitHub UI: Releases -> Draft a new release ->
 # new tag on a commit whose "Firmware checks" passed 5/5 -> Publish (tick
-# "Set as a pre-release" for dev-v...). Exactly one run per tag (tag push only).
+# "Set as a pre-release" for dev-v...).
+# One owner-requested 0.7.53-dev may also start from the explicit request file
+# on work/codex-p0-review. Its immutable tag is created only after exact CI 5/5.
 #
 # gate:    tag == built commit, CI 5/5 for that commit, Stable approval
 #          environment; a release opened in the UI is hidden until complete.
@@ -12,13 +14,15 @@ name: Signed release
 #          are read back before the release becomes visible.
 on:
   push:
+    branches: ['work/codex-p0-review']
+    paths: ['.github/dev-release-0.7.53.json']
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
 permissions:
   contents: read
 env:
-  RELEASE_TAG: ${{ github.ref_name }}
+  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev-v0.7.53' }}
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev-v0.7.53' }}
   cancel-in-progress: false
 jobs:
   gate:
@@ -31,7 +35,13 @@ jobs:
       - name: Exact commit, CI 5/5, Stable approval; hide an incomplete UI release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
+        shell: bash
+        run: |
+          request=()
+          if [[ "$GITHUB_REF" == refs/heads/work/codex-p0-review ]]; then
+            request=(--dev-request .github/dev-release-0.7.53.json)
+          fi
+          python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA" "${request[@]}"
   build:
     needs: gate
     runs-on: ubuntu-24.04
@@ -62,6 +72,7 @@ jobs:
           python3 tools/package_factory.py --build-dir build-board --sdkconfig sdkconfig --idf "$IDF_PATH" --out build-board/installers --source "$GITHUB_SHA" --tested "$GITHUB_SHA (release ${RELEASE_TAG})"
           CC=gcc python3 tools/test_idf_spiffs.py --idf-source "$IDF_PATH" --cjson-source "$IDF_PATH/components/json/cJSON" --factory-image build-board/installers/FACTORY-CLEAN-16MB/dsrdata.bin --verification-report build-board/installers/FACTORY-CLEAN-16MB/SPIFFS_MOUNT_PROOF.json --ubsan-only
           cp docs/INSTALL_FACTORY_PL.md build-board/installers/FACTORY-CLEAN-16MB/
+          cp docs/INSTALL_UPDATE_PL.md build-board/installers/UPDATE-APP-ONLY/
           python3 tools/check_factory_package.py --package-dir build-board/installers
           mkdir -p release
           cp build-board/diy_shelly_remote.bin release/
@@ -69,12 +80,13 @@ jobs:
           # Deterministic ZIP: sorted entries, fixed timestamps and modes.
           import zipfile
           from pathlib import Path
-          root=Path('build-board/installers/FACTORY-CLEAN-16MB')
-          with zipfile.ZipFile('release/DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.zip','w',zipfile.ZIP_DEFLATED) as z:
-              for path in sorted(p for p in root.rglob('*') if p.is_file()):
-                  info=zipfile.ZipInfo(str(path.relative_to(root)),date_time=(2026,1,1,0,0,0))
-                  info.external_attr=0o644<<16;info.compress_type=zipfile.ZIP_DEFLATED
-                  z.writestr(info,path.read_bytes())
+          for package in ('FACTORY-CLEAN-16MB','UPDATE-APP-ONLY'):
+              root=Path('build-board/installers')/package
+              with zipfile.ZipFile(f'release/DIY-Shelly-Remote-es3c35p-{package}.zip','w',zipfile.ZIP_DEFLATED) as z:
+                  for path in sorted(p for p in root.rglob('*') if p.is_file()):
+                      info=zipfile.ZipInfo(str(path.relative_to(root)),date_time=(2026,1,1,0,0,0))
+                      info.external_attr=0o644<<16;info.compress_type=zipfile.ZIP_DEFLATED
+                      z.writestr(info,path.read_bytes())
           PY
       - uses: actions/upload-artifact@v4
         with:

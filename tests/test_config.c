@@ -85,6 +85,9 @@ int main(int argc,char **argv)
  cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms"),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices"),*dash=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
  cJSON *room=cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}");cJSON_AddItemToArray(rooms,room);
  cJSON *device=cJSON_Parse("{\"id\":1,\"name\":\"Światło\",\"host\":\"192.168.1.77\",\"channel\":0,\"kind\":\"light\",\"room\":1}");cJSON_AddItemToArray(devices,device);
+ cJSON_ReplaceItemInObjectCaseSensitive(device,"name",cJSON_CreateString(""));CHECK(dsr_config_validate(r,error));
+ cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),1);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),2);
+ cJSON_ReplaceItemInObjectCaseSensitive(device,"name",cJSON_CreateString("Światło"));
  cJSON *tile=cJSON_Parse("{\"id\":1,\"type\":\"device\",\"ref\":1,\"span\":2,\"height\":1,\"fields\":3}");cJSON_AddItemToArray(tiles,tile);CHECK(dsr_config_validate(r,error));
  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(tile,"span"),1);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(tile,"span"),2);
  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(device,"room"),2);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(device,"room"),1);

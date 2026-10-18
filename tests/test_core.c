@@ -106,9 +106,19 @@ static void test_update_policy(void)
     CHECK(dsr_update_metadata_check(NULL, "test-board-r1", "0.1.0", 4096) == DSR_INVALID);
 }
 
+static void test_names(void)
+{
+ char text[48];CHECK(dsr_text_copy(text,sizeof(text),"Światło Küche ÄÖÜ ß")&&!strcmp(text,"Światło Küche ÄÖÜ ß"));
+ char small[4];CHECK(dsr_text_copy(small,sizeof(small),"ąąą")&&!strcmp(small,"ą"));
+ const char *bad[]={"a\nb","\x80","\xc0\xaf","\xed\xa0\x80","\xf4\x90\x80\x80","\xe2\x82"};
+ for(size_t i=0;i<sizeof(bad)/sizeof(*bad);i++)CHECK(!dsr_text_copy(text,sizeof(text),bad[i])&&!text[0]);
+ CHECK(!strcmp(dsr_device_model_name("shellypro2cover-aabbccddeeff"),"Shelly Pro Dual Cover PM"));
+ CHECK(dsr_device_model_name("unknown-aabbccddeeff")==NULL);
+ dsr_text_copy(text,sizeof(text),"Światło Küche");dsr_name_disambiguate(text,"shellypro2cover-aabbccddeeff",1);CHECK(strstr(text,"eeff/1"));
+}
 int main(void)
 {
-    test_addresses(); test_protocol(); test_registry(); test_versions(); test_update_policy();
+    test_names(); test_addresses(); test_protocol(); test_registry(); test_versions(); test_update_policy();
     printf("PASS: %u checks (IPv4, Gen1/Gen2+ requests, registry, versions, OTA metadata policy)\n", checks);
     return 0;
 }

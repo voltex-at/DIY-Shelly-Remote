@@ -3,6 +3,7 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Użyj nazwy z Shelly","Use name from Shelly","Namen von Shelly verwenden"],
  ["Rodzina API", "API family", "API-Familie"],
  ["H&T Gen3 • read only", "H&T Gen3 • read only", "H&T Gen3 • nur lesen"],
  ["Light poza grupami Switch", "Light excluded from Switch groups", "Light außerhalb von Switch-Gruppen"],
@@ -141,7 +142,7 @@ async function load(){
 function box(title){const n=el('div',undefined,'box');if(title)n.append(el('h2',title));return n;}
 function empty(parent,text){parent.append(el('p',text,'empty'));}
 function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&config.devices.some(d=>d.room===id)){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
-function list(kind,edit){const n=box(titles[kind]);for(const item of config[kind]){const row=el('div',undefined,'row'),txt=el('div',undefined,'grow');txt.append(el('h3',item.name));txt.append(el('p',kind==='devices'?(m('{0} · {1}',kinds[item.kind],item.host||m('Bez adresu'))):'#'+item.id));row.append(txt,button(m('Edytuj'),()=>edit(item)),button(m('Usuń'),()=>remove(kind,item.id),'danger'));n.append(row);}if(!config[kind].length)empty(n,m('Brak wpisów. Dodaj pierwszy.'));n.append(button(m('+ Dodaj'),()=>{const id=nextId(config[kind]);if(config[kind].length>=({dashboards:4,rooms:8,devices:16,scenes:8,groups:8}[kind]))return notice(m('Osiągnięto limit wpisów.'));const item={id,name:translate(kind==='dashboards'?m('Nowy pulpit'):kind==='rooms'?m('Nowe pomieszczenie'):kind==='devices'?m('Nowe urządzenie'):kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='dashboards'?{tiles:[]}:kind==='rooms'?{icon:0,photo:''}:kind==='devices'?{host:'',channel:0,room:0,kind:'light'}:kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();edit(item);},'primary'));return n;}
+function list(kind,edit){const n=box(titles[kind]);for(const item of config[kind]){const row=el('div',undefined,'row'),txt=el('div',undefined,'grow');const heading=el('h3',item.name||(kind==='devices'?window.dsrRuntimeDeviceName?.(item.id)||'Shelly':''));if(kind==='devices')heading.dataset.deviceNameId=String(item.id);txt.append(heading);txt.append(el('p',kind==='devices'?(m('{0} · {1}',kinds[item.kind],item.host||m('Bez adresu'))):'#'+item.id));row.append(txt,button(m('Edytuj'),()=>edit(item)),button(m('Usuń'),()=>remove(kind,item.id),'danger'));n.append(row);}if(!config[kind].length)empty(n,m('Brak wpisów. Dodaj pierwszy.'));n.append(button(m('+ Dodaj'),()=>{const id=nextId(config[kind]);if(config[kind].length>=({dashboards:4,rooms:8,devices:16,scenes:8,groups:8}[kind]))return notice(m('Osiągnięto limit wpisów.'));const item={id,name:translate(kind==='dashboards'?m('Nowy pulpit'):kind==='rooms'?m('Nowe pomieszczenie'):kind==='devices'?m('Nowe urządzenie'):kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='dashboards'?{tiles:[]}:kind==='rooms'?{icon:0,photo:''}:kind==='devices'?{host:'',channel:0,room:0,kind:'light'}:kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();edit(item);},'primary'));return n;}
 function editBase(kind,item){const target=$('#editor');target.replaceChildren();const n=box(m('Edycja: {0}',item.name));const form=el('div',undefined,'fields');field(form,m('Nazwa'),item.name,v=>item.name=v).maxLength=47;n.append(form);target.append(n);n.append(button(m('← Wróć do listy'),render));return {n,form};}
 function editRoom(item){
  const {n,form}=editBase('rooms',item);
@@ -153,6 +154,7 @@ function editRoom(item){
 }
 function editDevice(item){
  const {form,n}=editBase('devices',item);
+ n.append(button(m('Użyj nazwy z Shelly'),()=>{item.name='';changed();editDevice(item);}));
  select(form,m('Typ urządzenia'),item.kind,Object.entries(kinds),v=>item.kind=v);
  field(form,m('Adres IPv4 Shelly'),item.host,v=>item.host=v).maxLength=15;
  field(form,m('Kanał (0–15)'),item.channel,v=>item.channel=v,'number');
@@ -366,9 +368,9 @@ function discoveryView(){
  onboardingSteps(n,lanMode==='components'?3:2);
  if(lanMode==='results'){
   n.append(button(m('Skanuj ponownie'),scanLan));if(!lanSnapshot?.devices.length)empty(n,m('Nie znaleziono Shelly. Sprawdź Wi-Fi, mDNS i izolację klientów.'));
-  for(const d of lanSnapshot?.devices||[]){const row=el('div',undefined,'row'),text=el('div',undefined,'grow');text.append(el('h3',d.model),el('p',m('{0} · Gen {1} · {2}',d.host,d.generation,d.auth_required?m('Wymaga hasła'):m('Bez hasła'))),el('p',d.id,'muted'));if(alreadyBound(d))text.append(el('p',m('Już dodane'),'tag'));row.append(text,button(m('Sprawdź urządzenie'),()=>inspectLan(d)));n.append(row);}return n;
+  for(const d of lanSnapshot?.devices||[]){const row=el('div',undefined,'row'),text=el('div',undefined,'grow');text.append(el('h3',d.name||d.id),el('p',m('{0} · Gen {1} · {2}',d.host,d.generation,d.auth_required?m('Wymaga hasła'):m('Bez hasła'))),el('p',d.id,'muted'));if(alreadyBound(d))text.append(el('p',m('Już dodane'),'tag'));row.append(text,button(m('Sprawdź urządzenie'),()=>inspectLan(d)));n.append(row);}return n;
  }
- n.append(el('h3',lanSelected.model),el('p',`${lanSelected.host} · Gen ${lanSelected.generation} · ${lanSelected.id}`,'muted'));
+ n.append(el('h3',lanSelected.name||lanSelected.id),el('p',`${lanSelected.host} · Gen ${lanSelected.generation} · ${lanSelected.id}`,'muted'));
  const form=el('div',undefined,'fields');n.append(form);
  if(lanMode==='credentials'){
   const u=lanInput(form,m('Login'),'admin'),p=lanInput(form,m('Hasło Shelly'),'','password');n.append(button(m('Sprawdź urządzenie'),()=>inspectLan(lanSelected,{username:u.value,password:p.value}),'primary'));return n;

@@ -14,6 +14,7 @@ only adds `gh api` I/O.
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -34,6 +35,20 @@ def channel(tag):
     if not TAG.match(tag or ''):
         raise Refused(f'unsupported tag {tag!r}')
     return 'dev' if tag.startswith('dev-') else 'stable'
+
+
+# One owner-requested DEV publication (2026-10-18), not a general branch release.
+# It cannot select another tag, Stable, branch or CMake version.
+DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.53', 'version': '0.7.53-dev',
+               'branch': 'refs/heads/work/codex-p0-review'}
+
+
+def dev_request_allowed(tag, request, ref, cmake):
+    if request != DEV_REQUEST or tag != DEV_REQUEST['tag'] or ref != DEV_REQUEST['branch']:
+        raise Refused('DEV request does not match the one authorized version and branch')
+    version = re.search(r'set\(PROJECT_VER "([^"]+)"\)', cmake)
+    if not version or version.group(1) != DEV_REQUEST['version']:
+        raise Refused('DEV request version does not match PROJECT_VER')
 
 
 def ci_verdict(sha, runs, jobs_by_run):
@@ -134,17 +149,34 @@ def sha256(path):
 
 def cmd_gate(a):
     kind = channel(a.tag)
-    tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
+    requested = bool(a.dev_request)
+    current = tag_commit(a.repo, a.tag)
+    if requested:
+        dev_request_allowed(a.tag, json.loads(Path(a.dev_request).read_text()), os.environ.get('GITHUB_REF'),
+                            Path('CMakeLists.txt').read_text())
+        if current:
+            tag_unchanged(a.sha, current)
+    else:
+        tag_unchanged(a.sha, current)
     deadline = time.time() + a.wait_minutes * 60
     while True:
         runs = (gh(f'repos/{a.repo}/actions/workflows/{CI_WORKFLOW}/runs?head_sha={a.sha}&per_page=20') or {}).get('workflow_runs', [])
         jobs = {r['id']: (gh(f'repos/{a.repo}/actions/runs/{r["id"]}/jobs?per_page=50') or {}).get('jobs', [])
                 for r in runs if r.get('head_sha') == a.sha and r.get('status') == 'completed' and r.get('conclusion') == 'success'}
+        # The push starts both workflows: allow the CI run a short discovery window.
+        if requested and not runs and time.time() < deadline:
+            time.sleep(10)
+            continue
         if ci_verdict(a.sha, runs, jobs) == 'ok':
             break
         if time.time() > deadline:
             raise Refused(f'CI for {a.sha} still running after {a.wait_minutes} min')
         time.sleep(60)
+    if requested and not current:
+        # Only create the immutable tag AFTER exact-commit CI 5/5. A concurrent
+        # creation fails closed; no forced update or tag/asset replacement.
+        gh(f'repos/{a.repo}/git/refs', '-X', 'POST', data={'ref': 'refs/tags/' + a.tag, 'sha': a.sha})
+    tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
     if kind == 'stable':
         stable_approval(gh(f'repos/{a.repo}/environments/{STABLE_ENVIRONMENT}'))
     release = release_by_tag(a.repo, a.tag)
@@ -192,6 +224,7 @@ def main():
         s.add_argument('--sha', required=True)
         if name == 'gate':
             s.add_argument('--wait-minutes', type=int, default=45)
+            s.add_argument('--dev-request', help='one authorized DEV request; exact commit CI remains mandatory')
         else:
             s.add_argument('--dir', required=True)
             s.add_argument('--notes', required=True)

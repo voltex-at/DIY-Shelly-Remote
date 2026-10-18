@@ -27,7 +27,8 @@ dsr_result_t dsr_wifi_temporary_connect(const dsr_wifi_ap_t *ap,dsr_wifi_status_
 dsr_result_t dsr_wifi_restore_home(dsr_wifi_status_t *detail){temporary_ap=false;ap_restores++;*detail=DSR_WIFI_CONNECTED;return DSR_OK;}
 dsr_result_t dsr_lan_suspend(void){ap_suspends++;if(cancel_after_drain)dsr_ap_cancel();return DSR_OK;}
 void dsr_lan_resume(void){}
-int64_t esp_timer_get_time(void){return 0;}
+static int64_t name_clock;
+int64_t esp_timer_get_time(void){return name_clock;}
 #define CHECK(expr) do { checks++; if (!(expr)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); assert(expr); } } while (0)
 typedef struct { const char *path, *body; int status; bool post, challenge; } step_t;
 static step_t steps[24];
@@ -42,7 +43,7 @@ esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cf
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
     bool identity = strcmp(steps[used].path, "/shelly") == 0;
-    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:3000));
+    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/Sys.GetConfig")?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:3000));
     CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
     if (identity) CHECK(!cfg->username && !cfg->password);
     else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
@@ -143,6 +144,48 @@ static void test_probe(void)
     data[1].status = 200; data[1].body = huge;
     fixture(data, 2, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_probe(&c, &device) == DSR_BAD_RESPONSE);
 }
+/* Verified identity + optional protected name: bad advisory data must not
+ * discard a valid measurement, while a profile/identity change blocks I/O. */
+static void test_device_info(void)
+{
+ dsr_connection_t c=connection();dsr_device_t d;dsr_device_info_t info;dsr_telemetry_t telemetry;
+ step_t data[]={{"/shelly","{\"gen\":3,\"id\":\"shellyplus1-AABBCCDDEEFF\",\"model\":\"S3SW-001X16EU\",\"ver\":\"1.7.1\",\"profile\":\"switch\"}",200,false,false},
+ {"/rpc/Switch.GetStatus?id=0","{\"output\":false,\"apower\":4.5}",200,false,false},
+ {"/rpc/Sys.GetConfig","{\"device\":{\"name\":\"Światło Küche\"}}",200,false,true}};
+ fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_info(&c,&d,&telemetry,&info)==DSR_OK&&used==3&&info.name_read&&info.generation==3);
+ CHECK(!strcmp(d.name,"Światło Küche")&&!strcmp(info.model,"S3SW-001X16EU")&&!strcmp(info.fw,"1.7.1")&&d.has_power&&d.power_w==4.5);
+ c.device=d;
+ const char *bad[]={"{\"device\":{\"name\":5}}","{\"device\":{\"name\":\"bad\\nname\"}}","{\"device\":{\"name\":\"a\",\"name\":\"b\"}}","{} trailing"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){data[2].body=bad[i];fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&!info.name_read&&!strcmp(c.device.name,"Światło Küche")&&c.device.online);}
+ data[2].body="{}";data[2].status=401;fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&!info.name_read&&c.device.online);
+ data[2].body="{\"device\":{\"name\":null}}";data[2].status=200;fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&info.name_read&&!strcmp(c.device.name,"Shelly Plus 1"));
+ data[0].body="{\"gen\":3,\"id\":\"shellyplus1-FOREIGN\",\"model\":\"foreign\"}";fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh_info(&c,&info)==DSR_IDENTITY_MISMATCH&&used==1&&!info.model[0]&&!info.name_read);
+ data[0].body="{\"gen\":3,\"id\":\"shellyplus1-AABBCCDDEEFF\",\"profile\":\"cover\"}";fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh_info(&c,&info)==DSR_UNSUPPORTED&&used==1&&!info.model[0]);
+ data[0].body="{\"gen\":3,\"id\":\"shellyplus1-AABBCCDDEEFF\",\"profile\":\"switch\",\"profile\":\"cover\"}";fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh_info(&c,&info)==DSR_BAD_RESPONSE&&used==1);
+ /* Two independent cover channels from the same physical device. */
+ c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.endpoint_kind=DSR_ENDPOINT_COVER;
+ data[0].body="{\"gen\":2,\"id\":\"shellypro2cover-AABBCCDDEEFF\",\"profile\":\"cover\"}";
+ data[1].body="{\"id\":0,\"state\":\"stopped\",\"current_pos\":10,\"pos_control\":true}";data[1].path="/rpc/Cover.GetStatus?id=0";
+ data[2].body="{\"device\":{\"name\":\"Rolety\"}}";fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_info(&c,&d,&telemetry,&info)==DSR_OK&&d.channel==0&&info.name_read);
+ c.device.channel=1;data[1].body="{\"id\":1,\"state\":\"stopped\",\"current_pos\":80,\"pos_control\":true}";data[1].path="/rpc/Cover.GetStatus?id=1";
+ fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_info(&c,&d,&telemetry,&info)==DSR_OK&&d.channel==1&&telemetry.cover.current_pos==80);
+}
+static void test_name_persistence(void)
+{
+ memset(sizes,0,sizeof(sizes));memset(schemas,0,sizeof(schemas));
+ dsr_connection_t a=connection();a.device.generation=DSR_GEN2_PLUS;strcpy(a.device.device_id,"shelly-name-AABBCCDDEEFF");a.layout_id=900;strcpy(a.device.name,"Old");
+ dsr_connection_t b=a;b.device.channel=1;b.layout_id=901;strcpy(b.device.name,"Sibling");
+ CHECK(dsr_connection_save(&a)==ESP_OK&&dsr_connection_save(&b)==ESP_OK);
+ strcpy(a.device.name,"Światło Küche");unsigned before=write_opens;name_clock=1000000;
+ CHECK(dsr_connection_update_name(&a)==ESP_OK&&write_opens==before+1);
+ dsr_connection_t loaded[16];size_t n;CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==2);
+ CHECK(!strcmp(loaded[0].device.name,a.device.name)&&!strcmp(loaded[1].device.name,"Sibling")&&loaded[1].layout_id==901&&!strcmp(loaded[0].credentials.password,a.credentials.password));
+ strcpy(a.device.name,"Changed again");before=write_opens;CHECK(dsr_connection_update_name(&a)==ESP_OK&&write_opens==before);
+ name_clock+=60000001;fail_commit=true;CHECK(dsr_connection_update_name(&a)!=ESP_OK);fail_commit=false;name_clock+=60000001;
+ CHECK(dsr_connection_update_name(&a)==ESP_OK);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&!strcmp(loaded[0].device.name,"Changed again"));
+ dsr_connection_t foreign=a;strcpy(foreign.device.host,"192.168.1.99");name_clock+=60000001;before=write_opens;CHECK(dsr_connection_update_name(&foreign)==ESP_ERR_NOT_FOUND&&write_opens==before);
+ CHECK(dsr_connection_remove(&a)==ESP_OK&&dsr_connection_remove(&b)==ESP_OK);name_clock=0;
+}
 static void test_control(void)
 {
     dsr_connection_t c = connection();
@@ -241,11 +284,17 @@ static void test_discovery(void)
     dsr_lan_capabilities_t caps;
     json=cJSON_Parse("{\"switch:0\":{\"id\":0,\"output\":true},\"switch:3\":{\"id\":3,\"output\":false},\"cover:1\":{\"id\":1,\"state\":\"stopped\"}}");CHECK(dsr_lan_parse_capabilities(json,2,&caps)==DSR_OK&&caps.switches==9&&caps.covers==2);cJSON_Delete(json);
     json=cJSON_Parse("{\"relays\":[{\"ison\":false},{\"ison\":true}],\"rollers\":[{\"state\":\"stop\"}]}");CHECK(dsr_lan_parse_capabilities(json,1,&caps)==DSR_OK&&caps.switches==3&&caps.covers==1);cJSON_Delete(json);
-    const char *bad_caps[]={"{\"switch:0\":{\"id\":1,\"output\":true}}","{\"switch:16\":{\"id\":16,\"output\":true}}","{\"switch:0\":{\"id\":0,\"output\":\"true\"}}","{\"switch:0\":{},\"switch:0\":{}}"};
+    const char *bad_caps[]={"{\"switch:01\":{\"id\":1,\"output\":true}}","{\"cover:+0\":{\"id\":0,\"state\":\"stopped\"}}","{\"switch:0\":{\"id\":1,\"output\":true}}","{\"switch:16\":{\"id\":16,\"output\":true}}","{\"switch:0\":{\"id\":0,\"output\":\"true\"}}","{\"switch:0\":{},\"switch:0\":{}}"};
     for(unsigned i=0;i<sizeof(bad_caps)/sizeof(bad_caps[0]);i++){json=cJSON_Parse(bad_caps[i]);CHECK(dsr_lan_parse_capabilities(json,2,&caps)!=DSR_OK);cJSON_Delete(json);}
     lan_mode=true;step_t data[]={{"/shelly",info2,200,false,false},{"/rpc/Shelly.GetStatus","{\"switch:0\":{\"id\":0,\"output\":false}}",200,false,true}};
     fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OK&&used==1);
     dsr_connection_t c=connection();fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&caps.switches==1&&used==2);
+    data[0].body="{\"gen\":2,\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"auth_en\":true,\"profile\":\"cover\"}";
+    data[1].body="{\"switch:0\":{\"id\":0,\"output\":false},\"cover:0\":{\"id\":0,\"state\":\"stopped\"},\"cover:1\":{\"id\":1,\"state\":\"stopped\"}}";
+    fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_OK&&caps.covers==3&&!caps.switches);
+    data[0].body="{\"gen\":2,\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"auth_en\":true,\"profile\":\"unknown\"}";
+    fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_UNSUPPORTED&&!caps.switches&&!caps.covers);
+    data[0].body=info2;data[1].body="{\"switch:0\":{\"id\":0,\"output\":false}}";
     data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_AUTH_REQUIRED);
     data[1].status=429;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_lan_inspect(&d,&c.credentials,&caps,NULL)==DSR_RATE_LIMITED);
     data[0].body=NULL;data[0].status=0;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_lan_identity("192.168.1.10",&d)==DSR_OFFLINE);
@@ -387,7 +436,7 @@ static void test_registered_guard(void)
 }
 int main(void)
 {
-    test_probe(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
+    test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;

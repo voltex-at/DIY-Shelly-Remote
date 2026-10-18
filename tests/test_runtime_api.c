@@ -7,6 +7,7 @@
 static unsigned checks,attempts,fail_at,live;
 static dsr_runtime_device_t snapshots[DSR_MAX_DEVICES];
 static size_t snapshot_count;
+static const char *workspace_json;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static void *tracked_malloc(size_t n){attempts++;if(fail_at&&attempts==fail_at)return NULL;void *p=malloc(n);if(p)live++;return p;}
 static void tracked_free(void *p){if(p){CHECK(live>0);live--;free(p);}}
@@ -120,7 +121,24 @@ static void blu_parser(void)
  snapshots[0].telemetry.blu.errors=DSR_BLU_TRV;json=dsr_runtime_json(131);CHECK(json&&strstr(json,"\"trv\":{\"target_c\":null,\"current_c\":null,\"valve_pct\":null,\"fault\":false}"));cJSON_free(json);CHECK(!live);
  snapshots[0].telemetry=(dsr_telemetry_t){.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN,.errors=DSR_BLU_ERROR_DECRYPT}};json=dsr_runtime_json(130);CHECK(json&&strstr(json,"\"open\":false")&&strstr(json,"\"motion\":null")&&strstr(json,"\"errors\":2")&&strstr(json,"\"updated_s\":null"));cJSON_free(json);CHECK(!live);
 }
+static void name_serializer(void)
+{
+ snapshot_count=2;memset(snapshots,0,sizeof(snapshots));
+ for(unsigned i=0;i<2;i++){snapshots[i].layout_id=10+i;snapshots[i].device.generation=DSR_GEN2_PLUS;snapshots[i].device.channel=(uint8_t)i;strcpy(snapshots[i].device.device_id,"shellypro2cover-AABBCCDDEEFF");strcpy(snapshots[i].device.name,"Rolety Küche");}
+ workspace_json="{\"devices\":[{\"id\":10,\"name\":\"Lokalna Światło\"},{\"id\":11,\"name\":\"\"}]}";
+ attempts=0;char *json=dsr_runtime_json(132);CHECK(json);unsigned total=attempts;cJSON *root=cJSON_Parse(json);CHECK(root);cJSON *devices=cJSON_GetObjectItemCaseSensitive(root,"devices");
+ CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(devices,0),"name")->valuestring,"Lokalna Światło"));
+ CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(devices,1),"name")->valuestring,"Rolety Küche"));cJSON_Delete(root);cJSON_free(json);CHECK(!live);
+ for(unsigned i=1;i<=total;i++){attempts=0;fail_at=i;json=dsr_runtime_json(132);CHECK(!json&&!live);}fail_at=0;
+ workspace_json="{\"devices\":[{\"id\":10,\"name\":\"\"},{\"id\":11,\"name\":\"\"}]}";
+ json=dsr_runtime_json(133);CHECK(json&&strstr(json,"Rolety Küche · EEFF/0")&&strstr(json,"Rolety Küche · EEFF/1"));cJSON_free(json);CHECK(!live);workspace_json=NULL;
+}
 int main(void)
 {
- cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();light_parser();rgb_parser();ht_parser();blu_parser();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
+ cJSON_Hooks hooks={tracked_malloc,tracked_free};cJSON_InitHooks(&hooks);parser();serializer();cover_parser();light_parser();rgb_parser();ht_parser();blu_parser();name_serializer();CHECK(live==0);cJSON_InitHooks(NULL);printf("PASS: %u actual runtime parser/serializer checks; exhaustive cJSON allocation failures; snapshot/HTTP MODEL\n",checks);return 0;
 }
+
+void dsr_workspace_runtime_info_at(size_t index,const dsr_device_info_t *info){(void)index;(void)info;}
+bool dsr_workspace_runtime_info(uint32_t id,const char *identity,dsr_device_info_t *info){(void)id;(void)identity;memset(info,0,sizeof(*info));return false;}
+
+char *dsr_workspace_snapshot(void){if(!workspace_json)return NULL;char *s=malloc(strlen(workspace_json)+1);CHECK(s);strcpy(s,workspace_json);return s;}

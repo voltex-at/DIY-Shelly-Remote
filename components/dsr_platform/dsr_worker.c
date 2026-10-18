@@ -153,7 +153,7 @@ static void network_task(void *arg)
         } else if (!dsr_wifi_connected()) {
             event.result = DSR_OFFLINE; event.device.online = false;
         } else if (job.kind == DSR_JOB_BIND) {
-            event.result = dsr_http_probe_telemetry(&job.connection,&event.device,&event.telemetry);
+            event.result = dsr_http_probe_info(&job.connection,&event.device,&event.telemetry,&event.info);
             /* Verification is RAM-only. The full private record is written by
              * LAYOUT_PUBLISH only after exact durable workspace ACK. */
         } else {
@@ -161,10 +161,15 @@ static void network_task(void *arg)
             dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id);
             if(owned){actor_connection=&job.connection;actor_job=job.id;previous_guard=dsr_http_job_guard(actor_guard);previous_write=dsr_http_job_write_hook(actor_write);}
 #endif
-            event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh(&job.connection) :job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
+            event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh_info(&job.connection,&event.info) :job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
 #ifdef DSR_BOARD_ES3C35P
             if(owned){(void)dsr_http_job_guard(previous_guard);(void)dsr_http_job_write_hook(previous_write);actor_connection=NULL;actor_job=0;}
 #endif
+            if(job.kind==DSR_JOB_PROBE&&event.result==DSR_OK&&event.info.name_read&&job.connection.layout_id&&dsr_workspace_mapping_matches(&job.connection)){
+                esp_err_t name_error=dsr_connection_update_name(&job.connection);
+                if(name_error!=ESP_OK)ESP_LOGW("dsr_network","name persistence result=0x%x",(unsigned)name_error);
+                (void)name_error;
+            }
             event.device = job.connection.device;
             event.telemetry=job.connection.telemetry;
             /* Transaction outcomes only: never host, identity or credentials.

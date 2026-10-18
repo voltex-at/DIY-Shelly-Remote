@@ -47,7 +47,7 @@ static void device_settings_regression(void)
  dsr_network_device_settings(a);before=requests;tap(236,376);
  CHECK(find_label(lv_screen_active(),"Edytuj kartę urządzenia")&&!dsr_mobile_active());
  unsigned skip=1;CHECK(!nth_type(lv_screen_active(),&lv_textarea_class,&skip));
- room_name("");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj nazwę urządzenia."));
+ click("Użyj nazwy z Shelly");CHECK(!lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class))[0]);
  room_name("ąąąąąąąąąąąąąąąąąąąąąąąą");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Podaj krótszą nazwę urządzenia."));
  room_name("Światło testowe");tap(100,158);lv_obj_t *kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(kb&&!lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));
  key(kb,"q");key(kb,LV_SYMBOL_BACKSPACE);screenshot("232-settings-card-keyboard");key(kb,"Gotowe");CHECK(lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN)&&requests==before);
@@ -107,6 +107,18 @@ static void device_settings_regression(void)
   * one-sided: any leak still lowers free memory and fails. */
  for(unsigned i=0;i<40;i++){tap(236,376);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&y);CHECK(y.free_size>=x.free_size);
  printf("Device Settings heap before=%u after=%u; model=%zu B;40 edit/back; targeted read and durable ACK; SDK/workspace MODEL\n",(unsigned)x.free_size,(unsigned)y.free_size,sizeof(dsr_mobile_model_t));
+ /* Follow mode changes only the local label. A verified poll can then change
+  * its remote source without replacing layout/room/channel or the Settings target. */
+ dsr_network_device_settings(a);tap(236,376);click("Użyj nazwy z Shelly");click("Zapisz");dsr_ui_workspace_tick();
+ r=room_document();entry=settings_entry(r,a);CHECK(!cJSON_GetObjectItemCaseSensitive(entry,"name")->valuestring[0]&&cJSON_GetObjectItemCaseSensitive(entry,"room")->valueint==888);cJSON_Delete(r);
+ wifi.connected=true;tick();CHECK(in_flight&&!strcmp(submitted.connection.device.device_id,"shelly-A"));
+ response=(dsr_event_t){.device=submitted.connection.device,.info={.model="SNSW-001X16EU",.fw="1.7.1",.generation=2,.name_read=true}};
+ strcpy(response.device.name,"Zdalna Küche");response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Zdalna Küche")&&find_label(lv_screen_active(),"SNSW-001X16EU")&&find_label(lv_screen_active(),"Firmware: 1.7.1"));
+ click("Odśwież status");CHECK(in_flight);response=(dsr_event_t){.device=submitted.connection.device,.info={.name_read=true}};strcpy(response.device.name,"Nowa Światło");response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(find_label(lv_screen_active(),"Nowa Światło"));
+ /* Restore the private remote-name fixture for subsequent storage-loss tests. */
+ click("Odśwież status");CHECK(in_flight);response=(dsr_event_t){.device=submitted.connection.device};strcpy(response.device.name,"Relay A");response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);wifi.connected=false;tick();
  /* Restore unchanged A/B fixture for the existing removal/migration corpus. */
  wifi.connected=false;tick();cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);tick();dsr_network_home(NULL);
  CHECK(dsr_network_layout_reserved(a)&&dsr_network_layout_reserved(b)&&!in_flight&&!maintenance_ready);

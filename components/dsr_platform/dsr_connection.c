@@ -1,6 +1,7 @@
 #include "dsr_platform.h"
 #include "nvs.h"
 #include "dsr_activity.h"
+#include "esp_timer.h"
 #include <string.h>
 #include <stdlib.h>
 /* Exact schema-1 layout from before volatile telemetry was added. Keeping the
@@ -173,3 +174,23 @@ static esp_err_t registry_change(const dsr_connection_t *connection,bool remove)
 }
 esp_err_t dsr_connection_publish(const dsr_connection_t *connection){return registry_change(connection,false);}
 esp_err_t dsr_connection_remove(const dsr_connection_t *connection){return registry_change(connection,true);}
+
+/* Last network name is stored separately from workspace's local override,
+ * using the existing name bytes: no registry ABI/schema change. A hostile
+ * alternating name can cause at most one update per endpoint per minute. */
+esp_err_t dsr_connection_update_name(const dsr_connection_t *c)
+{
+ static struct {uint32_t id;int64_t after;} saved[DSR_MAX_DEVICES];
+ if(!dsr_connection_valid(c,true)||!c->layout_id)return ESP_ERR_INVALID_ARG;
+ int64_t now=esp_timer_get_time();unsigned slot=DSR_MAX_DEVICES;
+ for(unsigned i=0;i<DSR_MAX_DEVICES;i++){if(saved[i].id==c->layout_id){if(now<saved[i].after)return ESP_OK;slot=i;break;}if(slot==DSR_MAX_DEVICES&&!saved[i].id)slot=i;}
+ if(slot==DSR_MAX_DEVICES){slot=0;for(unsigned i=1;i<DSR_MAX_DEVICES;i++)if(saved[i].after<saved[slot].after)slot=i;}
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ connection_registry_v6_t *r=calloc(1,sizeof(*r));esp_err_t error=r?registry_read(r):ESP_ERR_NO_MEM;
+ if(error==ESP_OK){error=ESP_ERR_NOT_FOUND;
+  for(uint32_t i=0;i<r->count;i++)if(same_endpoint(&r->items[i].device,&c->device)&&r->items[i].layout_id==c->layout_id&&!strcmp(r->items[i].device.host,c->device.host)){
+   error=ESP_OK;if(strcmp(r->items[i].device.name,c->device.name)){memcpy(r->items[i].device.name,c->device.name,sizeof(c->device.name));saved[slot].id=c->layout_id;saved[slot].after=now+60000000;error=registry_write(r);}break;
+  }
+ }
+ if(r){memset(r,0,sizeof(*r));free(r);}dsr_activity_end();return error;
+}

@@ -2,6 +2,39 @@
 #include <stdio.h>
 #include <string.h>
 
+bool dsr_text_copy(char *out,size_t size,const char *text)
+{
+ if(!out||!size||!text)return false;
+ out[0]=0;size_t used=0,kept=0;
+ const unsigned char *p=(const unsigned char *)text;
+ while(*p){
+  unsigned n=*p<0x80?1:*p>=0xc2&&*p<=0xdf?2:*p>=0xe0&&*p<=0xef?3:*p>=0xf0&&*p<=0xf4?4:0;
+  if(!n||*p<32||*p==127)return false;
+  for(unsigned i=1;i<n;i++)if(!p[i]||(p[i]&0xc0)!=0x80)return false;
+  if((n==3&&((*p==0xe0&&p[1]<0xa0)||(*p==0xed&&p[1]>=0xa0)))||
+     (n==4&&((*p==0xf0&&p[1]<0x90)||(*p==0xf4&&p[1]>=0x90))))return false;
+  used+=n;if(used<size)kept=used;p+=n;
+ }
+ memcpy(out,text,kept);out[kept]=0;return true;
+}
+void dsr_name_disambiguate(char name[48],const char *identity,uint8_t channel)
+{
+ char base[35];dsr_text_copy(base,sizeof(base),name);size_t n=identity?strlen(identity):0;
+ snprintf(name,48,"%s · %.4s/%u",base,n>4?identity+n-4:identity?identity:"?",channel);
+}
+const char *dsr_device_model_name(const char *id)
+{
+ static const struct {const char *prefix,*name;} models[]={
+  {"shellypro2cover-","Shelly Pro Dual Cover PM"},{"shellypro2pm-","Shelly Pro 2PM"},
+  {"shellypro1pm-","Shelly Pro 1PM"},{"shellypro1-","Shelly Pro 1"},
+  {"shellyplus2pm-","Shelly Plus 2PM"},{"shellyplus1pm-","Shelly Plus 1PM"},
+  {"shellyplus1-","Shelly Plus 1"},{"shelly1pmminig3-","Shelly 1PM Mini Gen3"},
+  {"shelly1minig3-","Shelly 1 Mini Gen3"},{"shellyhtg3-","Shelly H&T Gen3"},
+  {"shellyplusrgbwpm-","Shelly Plus RGBW PM"},{"shellyblugwg3-","Shelly BLU Gateway Gen3"}};
+ if(id)for(size_t i=0;i<sizeof(models)/sizeof(*models);i++)if(!strncmp(id,models[i].prefix,strlen(models[i].prefix)))return models[i].name;
+ return NULL;
+}
+
 static bool ascii_digit(char c) { return c >= '0' && c <= '9'; }
 uint8_t dsr_endpoint_from_kind(const char *kind)
 {return kind&&!strcmp(kind,"cover")?DSR_ENDPOINT_COVER:kind&&!strcmp(kind,"light")?DSR_ENDPOINT_LIGHT:kind&&!strcmp(kind,"sensor")?DSR_ENDPOINT_HT:DSR_ENDPOINT_SWITCH;}

@@ -129,6 +129,13 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
     dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/Shelly.GetStatus");cJSON *json=NULL;
     result=fetch_json(&c,&request,false,&json);
     if(result==DSR_OK)result=dsr_lan_parse_capabilities(json,expected->generation,out);
+    if(result==DSR_OK&&observed.profile){
+        if(observed.profile!=1)out->switches=0;
+        if(observed.profile!=2)out->covers=0;
+        if(observed.profile!=3)out->lights=0;
+        if(observed.profile!=4)out->rgbs=0;
+        if(!out->switches&&!out->covers&&!out->lights&&!out->rgbs&&!out->ht&&!out->blu)result=DSR_UNSUPPORTED;
+    }
     /* BTHome devices are dynamic components; a gateway's Shelly.GetStatus may
      * omit them. Only Bluetooth-capable devices are asked; a failed page keeps
      * what earlier pages proved and never fails the inspection. */
@@ -158,16 +165,30 @@ static bool identifier(const char *text, bool mac)
 }
 
 static bool light_unique(const cJSON *r);
-static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *out)
+/* Printable ASCII only and bounded: the strings come from the network and are shown on the LCD. */
+static void info_text(const cJSON *item,char *out,size_t size)
+{
+    out[0]=0;
+    if(!cJSON_IsString(item)||!item->valuestring[0]||strlen(item->valuestring)>=size)return;
+    for(const unsigned char *p=(const unsigned char *)item->valuestring;*p;p++)if(*p<0x20||*p>0x7e)return;
+    strcpy(out,item->valuestring);
+}
+static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *out, dsr_device_info_t *info)
 {
     dsr_request_t request = {.path = "/shelly"};
     cJSON *root = NULL;
     dsr_result_t result = fetch_json(connection, &request, true, &root);
     if (result != DSR_OK) return result;
+    if(!light_unique(root)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
     /* BLU Gateway Gen3 has no Switch component. Never route its manual bind
      * through a relay endpoint or disclose saved relay credentials to it. */
     const cJSON *model=cJSON_GetObjectItemCaseSensitive(root,"model");
     if(cJSON_IsString(model)&&!strcmp(model->valuestring,"S3GW-1DBT001")&&connection->device.endpoint_kind!=DSR_ENDPOINT_BLU){cJSON_Delete(root);return DSR_UNSUPPORTED;}
+    const cJSON *profile=cJSON_GetObjectItemCaseSensitive(root,"profile");
+    if(profile&&connection->device.endpoint_kind<=DSR_ENDPOINT_RGB){
+        const char *expected=connection->device.endpoint_kind==DSR_ENDPOINT_COVER?"cover":connection->device.endpoint_kind==DSR_ENDPOINT_LIGHT?"light":connection->device.endpoint_kind==DSR_ENDPOINT_RGB?"rgb":"switch";
+        if(!cJSON_IsString(profile)||strcmp(profile->valuestring,expected)){cJSON_Delete(root);return DSR_UNSUPPORTED;}
+    }
     if(connection->device.endpoint_kind==DSR_ENDPOINT_RGB){
         const cJSON *profile=cJSON_GetObjectItemCaseSensitive(root,"profile");
         const cJSON *rgb_gen=cJSON_GetObjectItemCaseSensitive(root,"gen");
@@ -202,6 +223,11 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
     }
     if (!out->name[0]) snprintf(out->name, sizeof(out->name), "%s", name);
     out->online = false; out->has_switch = false; out->has_power = false;
+    if (info && generation == DSR_GEN2_PLUS && out->endpoint_kind!=DSR_ENDPOINT_BLU) {
+        info_text(cJSON_GetObjectItemCaseSensitive(root, "model"), info->model, sizeof(info->model));
+        info_text(cJSON_GetObjectItemCaseSensitive(root, "ver"), info->fw, sizeof(info->fw));
+        info->generation=(uint8_t)gen->valueint;
+    }
     cJSON_Delete(root);
     if(out->endpoint_kind==DSR_ENDPOINT_BLU){
         /* Endpoint identity = gateway id + BLU MAC: a cid reassigned by the
@@ -414,14 +440,34 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
 
 static dsr_result_t status(dsr_connection_t *c){return status_expected(c,NULL);}
 
-dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry)
+/* Read-only advisory name, after identity and status succeeded. A failed or
+ * malformed optional response does not turn valid control telemetry into an
+ * error, or erase the last name. Never read another device's protected config. */
+static void read_name(dsr_connection_t *c,dsr_device_info_t *info)
 {
+ if(!info||c->device.generation!=DSR_GEN2_PLUS||c->device.endpoint_kind==DSR_ENDPOINT_BLU)return;
+ if(urgent()||allowed()!=DSR_OK)return;
+ dsr_request_t request={.path="/rpc/Sys.GetConfig"};cJSON *root=NULL;
+ dsr_result_t result=fetch_json_timeout(c,&request,false,&root,650);
+ const cJSON *device=cJSON_GetObjectItemCaseSensitive(root,"device"),*name=cJSON_GetObjectItemCaseSensitive(device,"name");
+ char next[48];
+ if(result==DSR_OK&&light_unique(root)&&cJSON_IsObject(device)&&(cJSON_IsNull(name)||cJSON_IsString(name))){
+  if(cJSON_IsNull(name)){next[0]=0;info->name_read=true;}
+  else info->name_read=dsr_text_copy(next,sizeof(next),name->valuestring);
+  if(info->name_read){const char *fallback=dsr_device_model_name(c->device.device_id);dsr_text_copy(c->device.name,sizeof(c->device.name),next[0]?next:fallback?fallback:c->device.device_id);}
+ }
+ cJSON_Delete(root);
+}
+
+dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry,dsr_device_info_t *info)
+{
+    if(info)memset(info,0,sizeof(*info));
     if (!out || !dsr_connection_valid(connection, false)) return DSR_INVALID;
     dsr_connection_t probed = *connection;
     probed.device.online=probed.device.has_power=false;
     uint8_t hint=trv_hint(connection);
     memset(&probed.telemetry,0,sizeof(probed.telemetry));probed.telemetry.blu.errors=hint;
-    dsr_result_t result = identity(connection, &probed.device);
+    dsr_result_t result = identity(connection, &probed.device, info);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id)){
         /* BLU bind from the LAN wizard knows only the gateway id; the probe
          * appends the sensor MAC. Any other difference is a mismatch. */
@@ -430,33 +476,43 @@ dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_dev
         if(!gateway_only)result=DSR_IDENTITY_MISMATCH;
     }
     if (result == DSR_OK){(void)urgent();result = status(&probed);}
+    if(result==DSR_OK)read_name(&probed,info);
+    else if(info)memset(info,0,sizeof(*info));
     *out = probed.device;
     if(telemetry)*telemetry=probed.telemetry;
     return result;
 }
+dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry)
+{return dsr_http_probe_info(connection,out,telemetry,NULL);}
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection,dsr_device_t *out)
 {return dsr_http_probe_telemetry(connection,out,NULL);}
 
-static dsr_result_t verify(dsr_connection_t *connection)
+static dsr_result_t verify_info(dsr_connection_t *connection, dsr_device_info_t *info)
 {
     if (!dsr_connection_valid(connection, true)) return DSR_INVALID;
     dsr_result_t permission=allowed();if(permission!=DSR_OK)return permission;
     connection->device.online = false;
     connection->device.has_power=false;memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_device_t observed = {0};
-    dsr_result_t result = identity(connection, &observed);
+    dsr_result_t result = identity(connection, &observed, info);
     if (result != DSR_OK) return result;
     if (strcmp(observed.device_id, connection->device.device_id) ||
-        observed.generation != connection->device.generation) return DSR_IDENTITY_MISMATCH;
+        observed.generation != connection->device.generation) { if (info) memset(info, 0, sizeof(*info)); return DSR_IDENTITY_MISMATCH; }
     return DSR_OK;
 }
+static dsr_result_t verify(dsr_connection_t *connection){return verify_info(connection, NULL);}
 
-dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection, dsr_device_info_t *info)
 {
+    if (info) memset(info, 0, sizeof(*info));
+    if(!dsr_connection_valid(connection,true))return DSR_INVALID;
     uint8_t hint=trv_hint(connection);
-    dsr_result_t result = verify(connection);connection->telemetry.blu.errors=hint; /* verify() clears telemetry */
-    (void)urgent();if(result==DSR_OK)result=allowed();return result == DSR_OK ? status(connection) : result;
+    dsr_result_t result = verify_info(connection, info);connection->telemetry.blu.errors=hint;
+    (void)urgent();if(result==DSR_OK)result=allowed();if(result==DSR_OK)result=status(connection);
+    if(result==DSR_OK)read_name(connection,info);else if(info)memset(info,0,sizeof(*info));
+    return result;
 }
+dsr_result_t dsr_http_refresh(dsr_connection_t *connection){return dsr_http_refresh_info(connection, NULL);}
 
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
 {

@@ -30,7 +30,11 @@ dsr_result_t dsr_shelly_parse_identity(const cJSON *r,dsr_lan_device_t *out)
         for(const unsigned char *p=(const unsigned char *)id->valuestring;*p;p++)if(!(isalnum(*p)||*p=='-'||*p=='_'))return DSR_BAD_RESPONSE;
         next.generation=(uint8_t)gen->valueint;next.auth_required=cJSON_IsTrue(auth);strcpy(next.id,id->valuestring);strcpy(next.model,model->valuestring);
     }
-    snprintf(next.name,sizeof(next.name),"%s",text(name,sizeof(next.name))?name->valuestring:next.model);*out=next;return DSR_OK;
+    const cJSON *profile=get(r,"profile");
+    if(profile){if(!text(profile,24))return DSR_BAD_RESPONSE;next.profile=!strcmp(profile->valuestring,"switch")?1:!strcmp(profile->valuestring,"cover")?2:!strcmp(profile->valuestring,"light")?3:!strcmp(profile->valuestring,"rgb")?4:255;}
+    const char *friendly=dsr_device_model_name(next.id);
+    if(!cJSON_IsString(name)||!name->valuestring[0]||!dsr_text_copy(next.name,sizeof(next.name),name->valuestring))dsr_text_copy(next.name,sizeof(next.name),friendly?friendly:next.id);
+    *out=next;return DSR_OK;
 }
 dsr_result_t dsr_lan_parse_identity(const cJSON *r,const char *host,dsr_lan_device_t *out)
 {if(!out||!dsr_ipv4_valid(host))return DSR_BAD_RESPONSE;dsr_result_t result=dsr_shelly_parse_identity(r,out);if(result==DSR_OK)strcpy(out->host,host);return result;}
@@ -246,6 +250,7 @@ dsr_result_t dsr_lan_parse_capabilities(const cJSON *r,unsigned generation,dsr_l
         for(const cJSON *v=r->child;v;v=v->next){const char *colon=strchr(v->string,':');if(!colon)continue;
             bool sw=!strncmp(v->string,"switch:",7),cover=!strncmp(v->string,"cover:",6),light=!strncmp(v->string,"light:",6),rgb=!strncmp(v->string,"rgb:",4);
             if(sw||cover||light||rgb){char *end;long index=strtol(colon+1,&end,10);if(!colon[1]||*end||index<0||index>15||!cJSON_IsObject(v)||!unique_keys(v)||!integral(get(v,"id"),(int)index,(int)index))return DSR_BAD_RESPONSE;
+                char canonical[16];snprintf(canonical,sizeof(canonical),"%.*s:%ld",(int)(colon-v->string),v->string,index);if(strcmp(canonical,v->string))return DSR_BAD_RESPONSE;
                 if(rgb){
                     const cJSON *color=get(v,"rgb");if(strcmp(v->string,"rgb:0")||index!=0||!cJSON_IsBool(get(v,"output"))||!integral(get(v,"brightness"),0,100)||!cJSON_IsArray(color)||cJSON_GetArraySize(color)!=3)return DSR_BAD_RESPONSE;
                     for(const cJSON *c=color->child;c;c=c->next)if(!integral(c,0,255))return DSR_BAD_RESPONSE;

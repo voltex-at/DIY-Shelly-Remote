@@ -13,6 +13,15 @@
 static const cJSON *item(const cJSON *o,const char *k){return cJSON_GetObjectItemCaseSensitive(o,k);}
 static int integer(const cJSON *o,const char *k){const cJSON *v=item(o,k);return cJSON_IsNumber(v)?v->valueint:0;}
 static const char *string(const cJSON *o,const char *k){const cJSON *v=item(o,k);return cJSON_IsString(v)?v->valuestring:"";}
+#ifndef DSR_UI_REVIEW_DEMO
+static const char *display_name(const cJSON *device)
+{
+ const char *name=string(device,"name");if(name[0])return name;
+ static char fallback[48];
+ if(dsr_workspace_runtime_name((uint32_t)integer(device,"id"),string(device,"host"),(uint8_t)integer(device,"channel"),fallback))return fallback;
+ snprintf(fallback,sizeof(fallback),"Shelly · %.15s/%u",string(device,"host"),(unsigned)integer(device,"channel"));return fallback;
+}
+#endif
 static unsigned object_index(const cJSON *array,int id)
 {unsigned i=0;const cJSON *v;cJSON_ArrayForEach(v,array){if(integer(v,"id")==id)return i;i++;}return 255;}
 bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
@@ -174,7 +183,7 @@ static void save(lv_event_t *event)
  if(room_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
   dsr_sc_label_set_text(status_label,!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
  }
- if(device_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+ if(device_editor&&editing&&strlen(string(editing,"name"))>47){
   device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";dsr_sc_label_set_text(status_label,device_input_error);return;
  }
  char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
@@ -221,7 +230,7 @@ static void object_choice(const char *caption,const char *key,int y)
 {
  const cJSON *a=item(draft,!strcmp(key,"room")?"rooms":"dashboards"),*v;char options[1024]={0};unsigned selected=0,index=0;
  if(!strcmp(key,"room")){snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));index=1;}
- cJSON_ArrayForEach(v,a){if(options[0])strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,string(v,"name"),sizeof(options)-strlen(options)-1);if(integer(v,"id")==integer(editing,key))selected=index;index++;}
+ cJSON_ArrayForEach(v,a){if(options[0])strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,display_name(v),sizeof(options)-strlen(options)-1);if(integer(v,"id")==integer(editing,key))selected=index;index++;}
  dsr_sc_text(body,caption,2,y-1,284,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);lv_dropdown_set_options(d,options);lv_dropdown_set_selected(d,selected);lv_obj_add_event_cb(d,object_selected,LV_EVENT_VALUE_CHANGED,(void *)key);
 }
 /* Gallery order: uploaded photos, then built-in room photos, then "none". */
@@ -334,13 +343,16 @@ static void device_icons(int y)
  }
  dsr_sc_text(body,"Nazwa, pokój i ikona dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,y+24+5*58+4,280,&dsr_roboto_14,DSR_SC_MUTED);
 }
+static void use_shelly_name(lv_event_t *event)
+{(void)event;if(editing){cJSON_ReplaceItemInObjectCaseSensitive(editing,"name",cJSON_CreateString(""));show_device_form();}}
 static void show_device_form(void)
 {
  lv_obj_t *root=screen("Edytuj kartę urządzenia");room_dialog=NULL;
  view_save_target=SAVE_DEVICE;
  lv_obj_set_y(body,118);lv_obj_set_height(body,280);
  add_field("Nazwa","name",0,false);object_choice("Pomieszczenie","room",80);
- device_icons(160);
+ dsr_ui_button(body,"Użyj nazwy z Shelly",0,148,284,use_shelly_name,NULL);
+ device_icons(208);
  actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)
@@ -454,11 +466,11 @@ static void show_entity(cJSON *entity)
  if(!strcmp(collection_name,"devices")){add_choice("Typ",&kind_choice,80);add_field("Adres IPv4 Shelly","host",160,false);add_field("Kanał (0–15)","channel",240,true);object_choice("Pomieszczenie","room",320);}
  if(!strcmp(collection_name,"scenes")){
   const cJSON *actions_list=item(editing,"actions"),*a;int i=0;
-  cJSON_ArrayForEach(a,actions_list){int y=80+i*112;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));dsr_ui_button(body,string(d,"name"),0,y,284,scene_device_cycle,(void *)a);dsr_ui_button(body,string(a,"command"),0,y+52,180,scene_action_cycle,(void *)a);dsr_ui_button(body,"Usuń",190,y+52,94,scene_action_remove,(void *)(uintptr_t)i);i++;}dsr_ui_button(body,"+ Działanie",0,88+i*112,284,scene_action_add,NULL);
+  cJSON_ArrayForEach(a,actions_list){int y=80+i*112;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));dsr_ui_button(body,display_name(d),0,y,284,scene_device_cycle,(void *)a);dsr_ui_button(body,string(a,"command"),0,y+52,180,scene_action_cycle,(void *)a);dsr_ui_button(body,"Usuń",190,y+52,94,scene_action_remove,(void *)(uintptr_t)i);i++;}dsr_ui_button(body,"+ Działanie",0,88+i*112,284,scene_action_add,NULL);
  }
  if(!strcmp(collection_name,"groups")){
   dsr_sc_text(body,"Do 16 kanałów Switch. Grupa ma jawne Włącz/Wyłącz.",0,78,284,&dsr_roboto_12,DSR_SC_MUTED);unsigned i=0;const cJSON *d,*member;
-  cJSON_ArrayForEach(d,item(draft,"devices")){const char *kind=string(d,"kind");bool included=false;cJSON_ArrayForEach(member,item(editing,"members"))if(member->valueint==integer(d,"id"))included=true;if(strcmp(kind,"relay")&&strcmp(kind,"plug")&&!included)continue;lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,6,128+(int)i++*44);lv_checkbox_set_text(check,string(d,"name"));if(included)lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_add_event_cb(check,group_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)integer(d,"id"));}
+  cJSON_ArrayForEach(d,item(draft,"devices")){const char *kind=string(d,"kind");bool included=false;cJSON_ArrayForEach(member,item(editing,"members"))if(member->valueint==integer(d,"id"))included=true;if(strcmp(kind,"relay")&&strcmp(kind,"plug")&&!included)continue;lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,6,128+(int)i++*44);lv_checkbox_set_text(check,display_name(d));if(included)lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_add_event_cb(check,group_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)integer(d,"id"));}
  }
  if(!strcmp(collection_name,"dashboards")){
   cJSON *tiles=cJSON_GetObjectItemCaseSensitive(entity,"tiles");int i=0,visible=0;
@@ -494,7 +506,7 @@ static void show_collection(lv_event_t *event)
  if(event&&lv_event_get_user_data(event))snprintf(collection_name,sizeof(collection_name),"%s",(const char *)lv_event_get_user_data(event));
  editing=NULL;lv_obj_t *root=screen("Edycja • wspólna konfiguracja");const cJSON *a=item(draft,collection_name);int y=0;const cJSON *v;
  view_save_target=SAVE_MENU;
- cJSON_ArrayForEach(v,a){dsr_ui_button(body,dsr_sc_name(string(v,"name")),0,y,284,edit_event,(void *)v);y+=58;}dsr_ui_button(body,"+ Dodaj wpis",0,y,284,add_entity,NULL);actions(root,menu_event);
+ cJSON_ArrayForEach(v,a){dsr_ui_button(body,dsr_sc_name(display_name(v)),0,y,284,edit_event,(void *)v);y+=58;}dsr_ui_button(body,"+ Dodaj wpis",0,y,284,add_entity,NULL);actions(root,menu_event);
 }
 static const choice_t language_choice={"language","pl\nen\nde",false},theme_choice={"theme","graphite\nmidnight\nlight",false};
 static const uint32_t colors[]={DSR_SC_BLUE,0x34cbb5,0x8c9dff,0xe4a858};
@@ -664,7 +676,7 @@ static bool merge_migration(cJSON *r,migration_t *m)
   if(m->layout_id)return false;
   if(cJSON_GetArraySize(a)>=DSR_MAX_DEVICES)return false;
   found=cJSON_CreateObject();if(!found)return false;
-  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name[0]?m->device.name:"Shelly")||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind",dsr_endpoint_kind_name(m->device.endpoint_kind))){cJSON_Delete(found);return false;}
+  if(!cJSON_AddNumberToObject(found,"id",id)||!cJSON_AddStringToObject(found,"name",m->device.name)||!cJSON_AddStringToObject(found,"host",m->device.host)||!cJSON_AddNumberToObject(found,"channel",m->device.channel)||!cJSON_AddNumberToObject(found,"room",0)||!cJSON_AddStringToObject(found,"kind",dsr_endpoint_kind_name(m->device.endpoint_kind))){cJSON_Delete(found);return false;}
   cJSON_AddItemToArray(a,found);
   cJSON *dash=cJSON_GetArrayItem(item(r,"dashboards"),(int)object_index(item(r,"dashboards"),integer(r,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
   if(cJSON_GetArraySize(tiles)<24){

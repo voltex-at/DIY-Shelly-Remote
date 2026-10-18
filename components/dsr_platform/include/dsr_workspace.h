@@ -64,11 +64,15 @@ typedef struct {
  dsr_telemetry_t telemetry;
  dsr_result_t error;
  bool pending,has_sample_time;union {bool can_stop;bool can_refresh;};bool stop_pending;
- uint32_t sample_age_ms,operation_id;
+ uint32_t sample_age_ms,operation_id,layout_id;
 } dsr_runtime_device_t;
 typedef struct {dsr_device_t device;union {bool on;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_rgb_intent_t rgb;};uint32_t operation_id;} dsr_output_request_t;
 bool dsr_workspace_runtime_publish_begin(size_t count);
 void dsr_workspace_runtime_publish_end(void);
+/* Advisory label for editors; never authorizes an action or binding. */
+bool dsr_workspace_runtime_name(uint32_t id,const char *host,uint8_t channel,char out[48]);
+void dsr_workspace_runtime_info_at(size_t index,const dsr_device_info_t *info);
+bool dsr_workspace_runtime_info(uint32_t layout_id,const char *identity,dsr_device_info_t *info);
 void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device);
 size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *devices,size_t capacity);
 dsr_result_t dsr_workspace_output_request(const dsr_device_t *device,bool on,uint32_t *operation_id);

@@ -181,6 +181,18 @@ int main(void)
  CHECK(dsr_workspace_start()==ESP_OK);test_mapping_guard();test_ap_handoff();publish(devices,2);
  CHECK(dsr_workspace_runtime_snapshot(snapshot,DSR_MAX_DEVICES)==2&&!strcmp(snapshot[0].device.device_id,"shelly-A")&&!strcmp(snapshot[1].device.device_id,"shelly-B"));
 
+ /* Advisory labels and metadata are matched by the durable layout/identity;
+  * a reused locator or another layout cannot inherit them. */
+ dsr_runtime_device_t advisory=devices[0];advisory.layout_id=88;strcpy(advisory.device.name,"Światło Küche");
+ CHECK(dsr_workspace_runtime_publish_begin(1));dsr_device_info_t info={.model="fixture-model",.fw="1.7.1",.generation=3};
+ dsr_workspace_runtime_info_at(0,&info);dsr_workspace_runtime_publish_at(0,1,&advisory);dsr_workspace_runtime_publish_end();
+ char label[48];dsr_device_info_t read_info;
+ CHECK(dsr_workspace_runtime_name(88,advisory.device.host,advisory.device.channel,label)&&!strcmp(label,"Światło Küche"));
+ CHECK(!dsr_workspace_runtime_name(89,advisory.device.host,advisory.device.channel,label));
+ CHECK(!dsr_workspace_runtime_name(88,"192.0.2.99",advisory.device.channel,label));
+ CHECK(dsr_workspace_runtime_info(88,"shelly-A",&read_info)&&!strcmp(read_info.model,"fixture-model")&&read_info.generation==3);
+ CHECK(!dsr_workspace_runtime_info(88,"foreign",&read_info));publish(devices,2);
+
  uint32_t a=0,b=0;CHECK(dsr_workspace_output_request(&devices[0].device,true,&a)==DSR_OK&&a>0);
  CHECK(dsr_workspace_output_request(&devices[0].device,false,&operation)==DSR_BUSY);
  CHECK(dsr_workspace_output_request(&devices[1].device,false,&b)==DSR_OK&&b>a);

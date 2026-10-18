@@ -575,7 +575,7 @@ static void rooms_regression(void)
  r=room_document();CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"rooms"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"devices"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"scenes"))==1);d=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(d,"host")->valuestring,bound.device.host));CHECK(cJSON_GetObjectItemCaseSensitive(d,"channel")->valueint==bound.device.channel);cJSON_Delete(r);
  /* New rooms appear in the existing LAN wizard and dashboard tile selector. */
  dsr_ui_edit_dashboard();click("Pulpity");click("Mój pulpit");click("+ Pomieszczenie");click("Zapisz");dsr_ui_workspace_tick();r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(tiles->child&&cJSON_GetObjectItemCaseSensitive(tiles->child,"ref")->valueint==1);cJSON_Delete(r);
- wifi.connected=true;dsr_ui_lan_open(NULL);test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-test\",\"mac\":\"aabbccddeeff\",\"model\":\"TEST model\",\"auth_en\":false}","192.168.1.88");dsr_ui_lan_tick();click("TEST model");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();lv_obj_t *room=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(room);CHECK(strstr(lv_dropdown_get_options(room),"Salon 2"));CHECK(lv_dropdown_get_option_count(room)==2);dsr_ui_lan_reset();wifi.connected=false;
+ wifi.connected=true;dsr_ui_lan_open(NULL);test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-test\",\"mac\":\"aabbccddeeff\",\"model\":\"TEST model\",\"auth_en\":false}","192.168.1.88");dsr_ui_lan_tick();click("Shelly Plus 1");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();lv_obj_t *room=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(room);CHECK(strstr(lv_dropdown_get_options(room),"Salon 2"));CHECK(lv_dropdown_get_option_count(room)==2);dsr_ui_lan_reset();wifi.connected=false;
  dsr_network_rooms();for(unsigned i=1;i<8;i++){dsr_ui_add_room();room_name("Pokój TEST");click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);}
  dsr_ui_add_room();CHECK(find_label(lv_screen_active(),"Limit: 8 pomieszczeń. Edytuj lub usuń istniejący pokój."));screenshot("100-rooms-limit");click("Wstecz");
  /* PL/EN/DE use the same production form and reference warning. */
@@ -811,7 +811,7 @@ static void ap_regression(void)
  response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_CONNECTED);CHECK(!find_label(lv_screen_active(),"Nazwa i pomieszczenie"));test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");tick();
  CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie")&&!dsr_ui_ap_active()&&!dsr_ap_sensitive());CHECK(requests==before+1);screenshot("223-ap-verified-lan-bind-form");
  /* 0.7.51: the device card tells SKU, product line, address and the channels found. */
- CHECK(find_label(lv_screen_active(),"Shelly Plus")&&find_label(lv_screen_active(),"SNSW-001X16EU • Gen 2")&&find_label(lv_screen_active(),"192.168.1.77 • Switch: 1"));wifi.connected=false;dsr_network_home(NULL);tick();
+ CHECK(find_label(lv_screen_active(),"Shelly Plus 1")&&find_label(lv_screen_active(),"SNSW-001X16EU • Gen 2")&&find_label(lv_screen_active(),"192.168.1.77 • Switch: 1"));wifi.connected=false;dsr_network_home(NULL);tick();
  for(unsigned language=1;language<=2;language++){
   dsr_sc_appearance(DSR_SC_BLUE,false,language);ap_pick();screenshot(language==1?"224-ap-connect-consent-en":"226-ap-connect-consent-de");ap_disclose();screenshot(language==1?"225-ap-disclose-en":"227-ap-disclose-de");
   lv_obj_t *label=find_label(lv_screen_active(),"Przekaż nazwę i hasło zapisanej domowej sieci temu urządzeniu. Otwarty AP i HTTP nie zapewniają kryptograficznego uwierzytelnienia.");CHECK(label);bounds(label,324);ap_cancel_finish();
@@ -935,7 +935,7 @@ int main(int argc,char **argv)
     wifi.connected=false;dsr_ui_lan_open(NULL);tick();CHECK(find_label(lv_screen_active(),"Najpierw połącz Wi-Fi"));screenshot("19-lan-no-wifi");
     wifi.connected=true;dsr_network_device(NULL);choose_method("Skanuj sieć Wi-Fi");tick();CHECK(dsr_ui_lan_active());screenshot("15-lan-scanning");
     const char info[]="{\"gen\":2,\"id\":\"shellyplus2pm-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-002P16EU\",\"auth_en\":true}";
-    test_lan_found(info,"192.168.1.88");tick();CHECK(find_label(lv_screen_active(),"SNSW-002P16EU"));screenshot("16-lan-results");click("SNSW-002P16EU");
+    test_lan_found(info,"192.168.1.88");tick();CHECK(find_label(lv_screen_active(),"Shelly Plus 2PM"));screenshot("16-lan-results");click("Shelly Plus 2PM");
     unsigned skip=1;password=nth_type(lv_screen_active(),&lv_textarea_class,&skip);CHECK(password);
     lv_obj_send_event(password,LV_EVENT_CLICKED,NULL);lv_obj_update_layout(lv_screen_active());bounds(password,240);screenshot("36-lan-password-keyboard");key(find_type(lv_screen_active(),&lv_keyboard_class),"Gotowe");
     lv_textarea_set_text(password,"wrong-password");click("Sprawdź");

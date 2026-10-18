@@ -1,9 +1,19 @@
+0.7.53-dev: porządek w P0, nazwy Shelly i kanały. Stable: brak.
+
+- Przyczyna dawnych przerwań SPIFFS jest potwierdzona przez właściciela: zewnętrzny reset podczas formatowania, gdy ekran nie informował o wykonywanej czynności. Zachowane: ekran przygotowania pamięci z postępem odczytywanym z Flash, bezpieczne wznowienie wyłącznie rozpoznanej pustej resztki formatu i odmowa kasowania obcych danych.
+- Zintegrowane zaległości: Settings bez odsyłacza do usuniętej historii, kontrola gotowości magazynu przy zatwierdzaniu OTA, model/wersja/generacja z rzeczywistego odczytu urządzenia. Zegar, diagnostyka baterii i zwalnianie BLE pozostają z gałęzi P0.
+- Nazwa lokalna ma pierwszeństwo. „Użyj nazwy z Shelly” w edytorze LCD/WWW usuwa lokalny wpis i włącza odczyt nazwy przez `Sys.GetConfig` po zweryfikowaniu tożsamości oraz statusu. Pusta nazwa Shelly daje nazwę modelu lub ID; duplikaty mają dopisek ID/kanału. Nie zapisujemy konfiguracji do Shelly. Błędna/niedostępna nazwa nie usuwa ostatniej poprawnej nazwy ani telemetrii. Odczyt nazwy ma limit 650 ms, zapis jej kopii do NVS najwyżej raz na minutę na endpoint (po błędzie ponowienie w następnym oknie).
+- Nazwy UTF-8 są skracane na granicy znaków. Nazwa/SKU nie jest kluczem sterowania. `profile` ogranicza typ aktuatora, status komponentów dostarcza kanały; Cover 0 i 1 pozostają oddzielnymi endpointami. Nieznany/zmieniony profil nie uruchamia zastępczego przekaźnika.
+- Publikacja DEV ma bramkę CI 5/5 dla dokładnego commitu, podpisany manifest i paczki UPDATE-APP-ONLY oraz FACTORY-CLEAN-16MB. FACTORY kasuje dane i służy osobno zatwierdzonemu czystemu testowi; do zachowania danych wybierz UPDATE zgodnie z instrukcją w paczce.
+- Zgodność: bez zmiany partycji, formatu rejestru NVS i limitów pamięci. Pusta lokalna nazwa w schemacie 2 oznacza synchronizację; powrót do firmware 0.7.52 lub starszego wymaga wcześniejszego wpisania niepustych nazw lokalnych. Dotychczasowe nazwy nie są automatycznie czyszczone.
+- Fizyczne testy urządzeń, dalszy UX i grafika są kolejnym etapem. Wyniki hosta i CI nie oznaczają odbioru sprzętowego.
+
 0.7.52-dev: płynniejszy dotyk i diagnostyka pamięci. Stable: brak.
 
 Poprawki gałęzi roboczej (bez nowego wydania):
 - Settings nie odsyła już do usuniętej historii 1 h / 24 h ani zakładki Wykresy. Test rzeczywistych obiektów LVGL sprawdza PL/EN/DE.
 - Sama funkcja zatwierdzająca nowy obraz OTA wymaga poprawnego startu SPIFFS i workspace. Dotychczasowy jedyny caller UI już sprawdzał workspace/panel/dotyk; to dodatkowa ochrona kontraktu API, nie dowód zaobserwowanej awarii rollbacku. UI odzyskiwania nadal działa bez magazynu; nie dodano automatycznego resetu ani kasowania. Test startu odrzuca niegotowe fazy i błędy obu warstw.
-- Przyczyna historycznych przerwań formatu 109/992 i 313/992 pozostaje nieudowodniona. Testy hostowe i CI nie zastępują fizycznego odbioru.
+- Sprostowanie właściciela 2026-10-18: historyczne formatowania przerwał zewnętrzny reset; brak informacji na ekranie skłaniał do resetowania. Przyczyna została potwierdzona. Testy hostowe/CI nadal nie zastępują odbioru nowej wersji na sprzęcie.
 
 Zmiany względem 0.7.51-dev:
 - BLE nie zostaje już włączone do restartu: stos NimBLE i kontroler Bluetooth są zwalniane 30 s po ostatnim skanie lub dodawaniu przez BLE i uruchamiane ponownie przy następnym użyciu. Wcześniej po pierwszym użyciu BLE Wi-Fi do restartu dzieliło radio z Bluetooth, a kontroler trzymał RAM wewnętrzny.

@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+/* Display metadata only; never grants a device capability. */
+const char *dsr_device_model_name(const char *identity);
+bool dsr_text_copy(char *out,size_t size,const char *text);
+void dsr_name_disambiguate(char name[48],const char *identity,uint8_t channel);
 
 #define DSR_MAX_DEVICES 16
 #define DSR_MAX_CHANNEL 15

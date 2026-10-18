@@ -176,11 +176,35 @@ dsr_ap_handoff_t dsr_workspace_ap_handoff(uint32_t now_ms)
 /* Mutex also protects cross-task command admission; no HTTP thread may touch
  * LVGL or copy credentials. One mailbox per endpoint prevents duplicate SET. */
 static dsr_runtime_device_t runtime[DSR_MAX_DEVICES];
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+EXT_RAM_BSS_ATTR
+#endif
+static dsr_device_info_t runtime_info[DSR_MAX_DEVICES];
+static size_t runtime_count;
+void dsr_workspace_runtime_info_at(size_t index,const dsr_device_info_t *info)
+{if(index<runtime_count)runtime_info[index]=info?*info:(dsr_device_info_t){0};}
+bool dsr_workspace_runtime_info(uint32_t id,const char *identity,dsr_device_info_t *info)
+{
+ if(!mutex||!id||!identity||!info)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool found=false;
+ for(size_t i=0;i<runtime_count;i++)if(runtime[i].layout_id==id&&!strcmp(runtime[i].device.device_id,identity)){*info=runtime_info[i];found=true;break;}
+ xSemaphoreGive(mutex);return found;
+}
+
+bool dsr_workspace_runtime_name(uint32_t id,const char *host,uint8_t channel,char out[48])
+{
+ if(!mutex||!id||!host||!out)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool found=false;
+ for(size_t i=0;i<runtime_count;i++)if(runtime[i].layout_id==id&&runtime[i].device.channel==channel&&!strcmp(runtime[i].device.host,host)&&runtime[i].device.name[0]){dsr_text_copy(out,48,runtime[i].device.name);found=true;break;}
+ xSemaphoreGive(mutex);return found;
+}
+
 static dsr_output_request_t outputs[DSR_MAX_DEVICES];
 _Static_assert(sizeof(runtime)<=4096,"Runtime fixed storage budget");
 _Static_assert(sizeof(outputs)<=4096,"Output mailbox fixed storage budget");
 static bool output_waiting[DSR_MAX_DEVICES];
-static size_t runtime_count;
+
 static uint32_t output_serial;
 static bool endpoint(const dsr_device_t *a,const dsr_device_t *b)
 {return a->device_id[0]&&!strcmp(a->device_id,b->device_id)&&a->generation==b->generation&&a->endpoint_kind==b->endpoint_kind&&a->channel==b->channel;}
