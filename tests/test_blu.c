@@ -23,7 +23,7 @@ static void (*operation)(bool);
 static int (*gap_cb)(struct ble_gap_event *,void *);
 static void *gap_arg;
 static ble_addr_t identity={.type=0,.val={1,2,3,4,5,6}};
-enum {NORMAL,PIN_MODE,CANCEL_PIN,DUPLICATE,WRONG_ATTRIBUTE,WRITE_TIMEOUT,WRONG_READBACK,REPEAT,FULL,BAD_LENGTH,CANCEL_CONNECT,CHANGED_FIELD,OLD_CALLBACK};
+enum {NORMAL,PIN_MODE,CANCEL_PIN,DUPLICATE,WRONG_ATTRIBUTE,WRITE_TIMEOUT,WRONG_READBACK,REPEAT,FULL,BAD_LENGTH,CANCEL_CONNECT,CHANGED_FIELD,OLD_CALLBACK,DISCONNECT_WRITE};
 SemaphoreHandle_t xSemaphoreCreateMutex(void){return (void *)1;}
 int xSemaphoreTake(SemaphoreHandle_t m,TickType_t t){(void)t;CHECK(m==(void *)1&&!held);held=true;return 1;}
 int xSemaphoreGive(SemaphoreHandle_t m){CHECK(m==(void *)1&&held);held=false;return 1;}
@@ -50,15 +50,15 @@ int ble_store_util_delete_peer(const ble_addr_t *peer){CHECK(peer->type==identit
 int ble_uuid_from_str(ble_uuid_any_t *uuid,const char *text){CHECK(strlen(text)==36);uuid->u.type=128;strcpy(uuid->u.text,text);return 0;}
 int ble_uuid_cmp(const ble_uuid_t *a,const ble_uuid_t *b){return strcmp(a->text,b->text);}
 int ble_gattc_disc_svc_by_uuid(uint16_t handle,const ble_uuid_t *uuid,ble_gatt_disc_svc_fn *cb,void *arg)
-{CHECK(handle==7&&!strcmp(uuid->text,"de8a5aac-a99b-c315-0c80-60d4cbb51225"));struct ble_gatt_svc s={.start_handle=1,.end_handle=60};struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};cb(handle,&ok,&s,arg);if(mode==DUPLICATE)cb(handle,&ok,&s,arg);cb(handle,&done,NULL,arg);return 0;}
+{CHECK(handle==7&&!strcmp(uuid->text,"de8a5aac-a99b-c315-0c80-60d4cbb51225"));struct ble_gatt_svc s={.start_handle=1,.end_handle=100};struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};cb(handle,&ok,&s,arg);if(mode==DUPLICATE)cb(handle,&ok,&s,arg);cb(handle,&done,NULL,arg);return 0;}
 int ble_gattc_disc_all_chrs(uint16_t handle,uint16_t first,uint16_t last,ble_gatt_chr_fn *cb,void *arg)
-{CHECK(handle==7&&first==1&&last==60);struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};for(unsigned i=0;i<=DSR_BLU_SETTINGS;i++){const dsr_blu_setting_t *f=dsr_blu_setting(i);if(!f&&i!=DSR_BLU_SETTINGS)continue;struct ble_gatt_chr c={.def_handle=(uint16_t)(i==DSR_BLU_SETTINGS?49:1+2*i),.val_handle=(uint16_t)(i==DSR_BLU_SETTINGS?50:2+2*i),.properties=BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE};ble_uuid_from_str(&c.uuid,f?f->uuid:"eb0fb41b-af4b-4724-a6f9-974f55aba81a");cb(handle,&ok,&c,arg);}cb(handle,&done,NULL,arg);return 0;}
+{CHECK(handle==7&&first==1&&last==100);struct ble_gatt_error ok={0},done={.status=BLE_HS_EDONE};for(unsigned i=0;i<=DSR_BLU_SETTINGS;i++){const dsr_blu_setting_t *f=dsr_blu_setting(i);if(!f&&i!=DSR_BLU_SETTINGS)continue;bool duplicate=false;for(unsigned j=0;f&&j<i;j++){const dsr_blu_setting_t *previous=dsr_blu_setting(j);if(previous&&!strcmp(previous->uuid,f->uuid))duplicate=true;}if(duplicate)continue;struct ble_gatt_chr c={.def_handle=(uint16_t)(i==DSR_BLU_SETTINGS?89:1+2*i),.val_handle=(uint16_t)(i==DSR_BLU_SETTINGS?90:2+2*i),.properties=BLE_GATT_CHR_F_READ|BLE_GATT_CHR_F_WRITE};ble_uuid_from_str(&c.uuid,f?f->uuid:"eb0fb41b-af4b-4724-a6f9-974f55aba81a");cb(handle,&ok,&c,arg);}cb(handle,&done,NULL,arg);return 0;}
 static void attribute(ble_gatt_attr_fn *cb,void *arg,uint16_t handle,const uint8_t *bytes,unsigned n)
 {struct os_mbuf b={.data=bytes,.length=n};struct ble_gatt_attr a={.handle=mode==WRONG_ATTRIBUTE?99:handle,.om=n?&b:NULL};struct ble_gatt_error ok={0};if(mode==OLD_CALLBACK){void *old=(void *)((uintptr_t)arg-1);cb(7,&ok,&a,old);}cb(7,&ok,&a,arg);}
 int ble_gattc_read(uint16_t handle,uint16_t attribute_handle,ble_gatt_attr_fn *cb,void *arg)
-{CHECK(handle==7&&connected&&secured);uint8_t bytes[16];if(attribute_handle==50){memset(bytes,0x42,sizeof(bytes));attribute(cb,arg,attribute_handle,bytes,16);}else{unsigned index=(attribute_handle-2)/2;const dsr_blu_setting_t *f=dsr_blu_setting(index);CHECK(f);uint32_t value=values[index];if(mode==CHANGED_FIELD&&index==2)value=90;for(unsigned i=0;i<f->bytes;i++)bytes[i]=(uint8_t)(value>>(8*i));attribute(cb,arg,attribute_handle,bytes,mode==BAD_LENGTH?3:f->bytes);}return 0;}
+{CHECK(handle==7&&connected&&secured);uint8_t bytes[16];if(attribute_handle==90){memset(bytes,0x42,sizeof(bytes));attribute(cb,arg,attribute_handle,bytes,16);}else{unsigned index=(attribute_handle-2)/2;const dsr_blu_setting_t *f=dsr_blu_setting(index);CHECK(f);uint32_t value=values[index];if(mode==CHANGED_FIELD&&index==2)value=90;for(unsigned i=0;i<f->bytes;i++)bytes[i]=(uint8_t)(value>>(8*i));attribute(cb,arg,attribute_handle,bytes,mode==BAD_LENGTH?3:f->bytes);}return 0;}
 int ble_gattc_write_flat(uint16_t handle,uint16_t attribute_handle,const void *bytes,uint16_t length,ble_gatt_attr_fn *cb,void *arg)
-{CHECK(handle==7&&connected&&secured);writes++;unsigned index=(attribute_handle-2)/2;const dsr_blu_setting_t *f=dsr_blu_setting(index);CHECK(f&&length==f->bytes);uint32_t value=0;for(unsigned i=0;i<length;i++)value|=(uint32_t)((const uint8_t *)bytes)[i]<<(8*i);if(mode!=WRONG_READBACK)values[index]=value;if(mode!=WRITE_TIMEOUT)attribute(cb,arg,attribute_handle,NULL,0);return 0;}
+{CHECK(handle==7&&connected&&secured);writes++;unsigned index=(attribute_handle-2)/2;const dsr_blu_setting_t *f=dsr_blu_setting(index);CHECK(f&&length==f->bytes);uint32_t value=0;for(unsigned i=0;i<length;i++)value|=(uint32_t)((const uint8_t *)bytes)[i]<<(8*i);if(mode!=WRONG_READBACK)values[index]=value;if(mode==DISCONNECT_WRITE){connected=secured=false;gap_event(BLE_GAP_EVENT_DISCONNECT);}else if(mode!=WRITE_TIMEOUT)attribute(cb,arg,attribute_handle,NULL,0);return 0;}
 unsigned test_mbuf_length(const struct os_mbuf *b){return b?b->length:0;}
 int os_mbuf_copydata(const struct os_mbuf *b,int offset,int length,void *out){CHECK(b&&offset==0&&length>=0&&(unsigned)length<=b->length);memcpy(out,b->data,(size_t)length);return 0;}
 void vTaskDelay(TickType_t ticks)
@@ -72,17 +72,24 @@ static void reset(unsigned test)
 int main(void)
 {
  dsr_blu_host_setup();CHECK(ble_hs_cfg.sm_bonding&&ble_hs_cfg.sm_sc&&ble_hs_cfg.store_status_cb);struct ble_store_status_event full={0};CHECK(ble_hs_cfg.store_status_cb(&full,NULL)==BLE_HS_ESTORE_CAP);
- for(unsigned test=0;test<=OLD_CALLBACK;test++){
+ for(unsigned test=0;test<=DISCONNECT_WRITE;test++){
   reset(test);dsr_ble_device_t c=candidate();CHECK(dsr_blu_start(&c)==DSR_OK);dsr_blu_snapshot_t s=run();
-  bool success=test==NORMAL||test==PIN_MODE||test==WRITE_TIMEOUT||test==WRONG_READBACK||test==CHANGED_FIELD||test==OLD_CALLBACK;
+  bool success=test==NORMAL||test==PIN_MODE||test==WRITE_TIMEOUT||test==WRONG_READBACK||test==CHANGED_FIELD||test==OLD_CALLBACK||test==DISCONNECT_WRITE;
   if(success){CHECK(s.result==DSR_OK&&s.bonded&&(s.available&(1u<<2)));if(test==PIN_MODE){CHECK(pin_injected&&s.key_available);char address[18],key[33];CHECK(dsr_blu_gateway_key(s.generation,address,key));CHECK(strlen(address)==17&&strlen(key)==32);}
    if(test==CHANGED_FIELD){values[2]=60;mode=NORMAL;CHECK(dsr_blu_write(s.generation,2,120)==DSR_OK);s=run();CHECK(s.result==DSR_CONFLICT&&!writes);}
-   else {CHECK(dsr_blu_write(s.generation,2,120)==DSR_OK);s=run();CHECK(writes==1);if(test==WRITE_TIMEOUT||test==WRONG_READBACK)CHECK(s.result!=DSR_OK&&s.uncertain);else CHECK(s.result==DSR_OK&&!s.uncertain&&s.values[2]==120);}
+   else {CHECK(dsr_blu_write(s.generation,2,120)==DSR_OK);s=run();CHECK(writes==1);if(test==DISCONNECT_WRITE||test==WRONG_READBACK)CHECK(s.result!=DSR_OK&&s.uncertain);else CHECK(s.result==DSR_OK&&!s.uncertain&&s.values[2]==120);}
   }else CHECK(s.result!=DSR_OK&&!writes);
   CHECK(!deletes);
  }
  reset(NORMAL);dsr_ble_device_t c=candidate();CHECK(dsr_blu_start(&c)==DSR_OK);dsr_blu_snapshot_t s=run();CHECK(dsr_blu_forget(s.generation)==DSR_OK);s=run();CHECK(!s.bonded&&deletes==1&&!has_bond);
  CHECK(dsr_blu_write(s.generation,2,120)==DSR_INVALID);CHECK(dsr_blu_pin(s.generation,"12")==DSR_INVALID);
+ reset(NORMAL);c=candidate();c.model_id=8;
+ for(unsigned i=9;dsr_blu_setting(i);i++)values[i]=(uint32_t)dsr_blu_setting(i)->minimum;
+ values[9]=0xa201;values[23]=(uint8_t)-15;values[26]=300;
+ CHECK(dsr_blu_start(&c)==DSR_OK);s=run();CHECK(s.result==DSR_OK&&s.values[9]==1&&s.values[18]==1&&s.values[15]==0);
+ CHECK(dsr_blu_write(s.generation,15,1)==DSR_OK);s=run();CHECK(s.result==DSR_OK&&!s.uncertain&&values[9]==0xa241&&writes==1);
+ uint32_t raw;char text[24];CHECK(dsr_blu_value_parse(23,8,"-1.5",&raw)&&raw==(uint8_t)-15);dsr_blu_value_format(23,raw,text,sizeof(text));CHECK(!strcmp(text,"-1.5"));
+ CHECK(!dsr_blu_value_parse(23,8,"-12.6",&raw));CHECK(!dsr_blu_value_parse(23,8,"1.01",&raw));CHECK(!dsr_blu_value_parse(23,5,"1",&raw));CHECK(!dsr_blu_value_parse(24,8,"nan",&raw));CHECK(dsr_blu_value_parse(24,8,"21.5",&raw)&&raw==215);
  dsr_blu_close();CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u actual BLU central checks; callback/security/storage MODEL, no physical BLE claim\n",checks);return 0;
 }

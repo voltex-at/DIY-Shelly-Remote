@@ -3,7 +3,6 @@
 #include "dsr_fleet.h"
 #include "dsr_discovery.h"
 #include "dsr_blu.h"
-#include "freertos/task.h"
 #include <ctype.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -115,6 +114,41 @@ static dsr_result_t find_blu(const char *address,unsigned *cid,unsigned *free_ci
  }
  return DSR_FULL;
 }
+typedef struct {uint8_t object,index;bool configured;} sensor_plan_t;
+static dsr_result_t known_objects(unsigned cid,sensor_plan_t plan[32],unsigned *count)
+{
+ cJSON *params=cJSON_CreateObject(),*response=NULL;if(!params)return DSR_IO;
+ if(!cJSON_AddNumberToObject(params,"id",cid)){cJSON_Delete(params);return DSR_IO;}
+ dsr_result_t r=rpc("BTHomeDevice.GetKnownObjects",params,&response,false,NULL);cJSON_Delete(params);*count=0;
+ const cJSON *items=cJSON_GetObjectItemCaseSensitive(response,"objects"),*item;
+ if(r==DSR_OK&&(!cJSON_IsArray(items)||cJSON_GetArraySize(items)>32))r=DSR_BAD_RESPONSE;
+ if(r==DSR_OK)cJSON_ArrayForEach(item,items){
+  const cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"obj_id"),*idx=cJSON_GetObjectItemCaseSensitive(item,"idx"),*component=cJSON_GetObjectItemCaseSensitive(item,"component");
+  if(!cJSON_IsNumber(id)||id->valuedouble<0||id->valuedouble>255||floor(id->valuedouble)!=id->valuedouble||!cJSON_IsNumber(idx)||idx->valuedouble<0||idx->valuedouble>255||floor(idx->valuedouble)!=idx->valuedouble||(!cJSON_IsNull(component)&&!cJSON_IsString(component))){r=DSR_BAD_RESPONSE;break;}
+  if(cJSON_IsString(component)){
+   char *end;const char *key=component->valuestring;
+   if(strncmp(key,"bthomesensor:",13)){r=DSR_BAD_RESPONSE;break;}
+   long n=strtol(key+13,&end,10);if(!key[13]||*end||n<200||n>299){r=DSR_BAD_RESPONSE;break;}
+  }
+  for(unsigned i=0;i<*count;i++)if(plan[i].object==id->valueint&&plan[i].index==idx->valueint)r=DSR_BAD_RESPONSE;
+  if(r!=DSR_OK)break;
+  plan[*count]=(sensor_plan_t){(uint8_t)id->valueint,(uint8_t)idx->valueint,cJSON_IsString(component)};(*count)++;
+ }
+ cJSON_Delete(response);return r;
+}
+static dsr_result_t add_sensor(const char *address,unsigned cid,const sensor_plan_t *sensor)
+{
+ cJSON *params=cJSON_CreateObject(),*config=cJSON_CreateObject(),*response=NULL;
+ if(!params||!config){cJSON_Delete(params);cJSON_Delete(config);return DSR_IO;}
+ if(!cJSON_AddStringToObject(config,"addr",address)||!cJSON_AddNumberToObject(config,"obj_id",sensor->object)||!cJSON_AddNumberToObject(config,"idx",sensor->index)||!cJSON_AddItemToObject(params,"config",config)){cJSON_Delete(config);cJSON_Delete(params);return DSR_IO;}
+ bool attempted=false;dsr_result_t r=rpc("BTHome.AddSensor",params,&response,true,&attempted);cJSON_Delete(params);cJSON_Delete(response);
+ if(attempted){
+  sensor_plan_t actual[32];unsigned count=0;dsr_result_t read=known_objects(cid,actual,&count);
+  if(read==DSR_OK){for(unsigned i=0;i<count;i++)if(actual[i].object==sensor->object&&actual[i].index==sensor->index&&actual[i].configured)return DSR_OK;}
+  if(r==DSR_OK)r=read==DSR_OK?DSR_BAD_RESPONSE:read;
+ }
+ return r;
+}
 static dsr_result_t register_blu(void)
 {
  char *end;unsigned long gen=strtoul(session->value,&end,10);if(!session->value[0]||*end||!gen||gen>UINT32_MAX)return DSR_INVALID;
@@ -125,31 +159,32 @@ static dsr_result_t register_blu(void)
  if(r==DSR_OK)r=find_blu(address,&cid,&free_cid);
  if(r==DSR_OK&&!cid){
   if(!free_cid)r=DSR_FULL;
-  else {params=cJSON_CreateObject();cJSON *config=cJSON_CreateObject();if(!params||!config){cJSON_Delete(config);r=DSR_IO;}else{cJSON_AddStringToObject(config,"addr",address);if(key[0])cJSON_AddStringToObject(config,"key",key);cJSON_AddItemToObject(params,"config",config);cJSON_AddNumberToObject(params,"id",free_cid);r=rpc("BTHome.AddDevice",params,&response,true,&attempted);}}
-  /* Even a lost ACK is resolved by address; AddDevice is never replayed. */
+  else {
+   params=cJSON_CreateObject();cJSON *config=cJSON_CreateObject();
+   if(!params||!config){cJSON_Delete(config);r=DSR_IO;}
+   else if(!cJSON_AddStringToObject(config,"addr",address)||(key[0]&&!cJSON_AddStringToObject(config,"key",key))||!cJSON_AddItemToObject(params,"config",config)){dsr_setting_json_delete(config);r=DSR_IO;}
+   else if(!cJSON_AddNumberToObject(params,"id",free_cid))r=DSR_IO;
+   else r=rpc("BTHome.AddDevice",params,&response,true,&attempted);
+  }
+  /* Reconcile even a lost ACK by address; no mutation is replayed. */
   if(attempted){unsigned found=0,unused=0;dsr_result_t read=find_blu(address,&found,&unused);if(read==DSR_OK&&found){cid=found;r=DSR_OK;}else if(r==DSR_OK)r=read==DSR_OK?DSR_BAD_RESPONSE:read;}
  }
+ dsr_setting_json_delete(params);params=NULL;cJSON_Delete(response);response=NULL;
  if(r==DSR_OK&&cid){
   session->working.blu_registered=true;session->working.blu_cid=(uint16_t)cid;
-  cJSON_Delete(params);params=cJSON_CreateObject();cJSON_Delete(response);response=NULL;if(!params)r=DSR_IO;else{cJSON_AddNumberToObject(params,"id",cid);r=rpc("BTHomeDevice.GetKnownObjects",params,&response,false,NULL);}
-  const cJSON *objects=cJSON_GetObjectItemCaseSensitive(response,"objects"),*obj;
-  if(r==DSR_OK&&(!cJSON_IsArray(objects)||cJSON_GetArraySize(objects)>32))r=DSR_BAD_RESPONSE;
-  unsigned created=0;
-  if(r==DSR_OK)cJSON_ArrayForEach(obj,objects){
-   const cJSON *id=cJSON_GetObjectItemCaseSensitive(obj,"obj_id"),*idx=cJSON_GetObjectItemCaseSensitive(obj,"idx"),*component=cJSON_GetObjectItemCaseSensitive(obj,"component");
-   if(!cJSON_IsNumber(id)||id->valuedouble<0||id->valuedouble>255||floor(id->valuedouble)!=id->valuedouble||!cJSON_IsNumber(idx)||idx->valuedouble<0||idx->valuedouble>255||floor(idx->valuedouble)!=idx->valuedouble){r=DSR_BAD_RESPONSE;break;}
-   if(!dsr_blu_sensor_shown((uint8_t)id->valueint)||id->valueint==0x3a||!cJSON_IsNull(component))continue;
-   if(created++==8){r=DSR_FULL;break;}
-   cJSON *add=cJSON_CreateObject(),*config=cJSON_CreateObject(),*ack=NULL;if(!add||!config){cJSON_Delete(add);cJSON_Delete(config);r=DSR_IO;break;}
-   cJSON_AddStringToObject(config,"addr",address);cJSON_AddNumberToObject(config,"obj_id",id->valueint);cJSON_AddNumberToObject(config,"idx",idx->valueint);cJSON_AddItemToObject(add,"config",config);
-   r=rpc("BTHome.AddSensor",add,&ack,true,&attempted);cJSON_Delete(ack);cJSON_Delete(add);if(r!=DSR_OK)break;
+  sensor_plan_t plan[32];unsigned count=0,needed=0;r=known_objects(cid,plan,&count);
+  /* Validate the whole plan before the first sensor mutation. */
+  if(r==DSR_OK){for(unsigned i=0;i<count;i++)if(dsr_blu_sensor_shown(plan[i].object)&&plan[i].object!=0x3a&&!plan[i].configured)needed++;if(needed>8)r=DSR_FULL;}
+  for(unsigned i=0;r==DSR_OK&&i<count;i++)if(dsr_blu_sensor_shown(plan[i].object)&&plan[i].object!=0x3a&&!plan[i].configured)r=add_sensor(address,cid,&plan[i]);
+  if(r==DSR_OK){
+   params=cJSON_CreateObject();if(!params||!cJSON_AddNumberToObject(params,"id",cid))r=DSR_IO;else r=rpc("BTHomeDevice.GetStatus",params,&response,false,NULL);
+   dsr_telemetry_t sample;if(r==DSR_OK)r=dsr_blu_parse_device(response,cid,&sample);
+   if(r==DSR_OK){time_t now=time(NULL);session->working.blu_receiving=(sample.blu.flags&DSR_BLU_VALID)&&!(sample.blu.errors&DSR_BLU_ERROR_MASK)&&now>1735689600&&sample.blu_updated_s<=(uint64_t)now&&(uint64_t)now-sample.blu_updated_s<=30;}
   }
-  cJSON_Delete(response);response=NULL;
-  if(r==DSR_OK){r=rpc("BTHomeDevice.GetStatus",params,&response,false,NULL);dsr_telemetry_t sample;if(r==DSR_OK)r=dsr_blu_parse_device(response,cid,&sample);
-   if(r==DSR_OK){time_t now=time(NULL);session->working.blu_receiving=(sample.blu.flags&DSR_BLU_VALID)&&!(sample.blu.errors&DSR_BLU_ERROR_MASK)&&now>1735689600&&sample.blu_updated_s<=(uint64_t)now&&(uint64_t)now-sample.blu_updated_s<=30;}}
  }
- wipe(key,sizeof(key));cJSON_Delete(methods);cJSON_Delete(params);cJSON_Delete(response);return r;
+ wipe(key,sizeof(key));cJSON_Delete(methods);dsr_setting_json_delete(params);cJSON_Delete(response);return r;
 }
+
 void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event)
 {
  event->result=DSR_INVALID;if(!dsr_device_settings_admitted(job)||!lock())return;
@@ -176,8 +211,8 @@ void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event)
     if(r==DSR_OK){char method[48];snprintf(method,sizeof(method),"%s.SetConfig",g->component);r=rpc(method,params,&response,true,&attempted);restart=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response,"restart_required"));}
     if(attempted){
      uncertain=true;
-     if(r==DSR_OK){cJSON_Delete(fresh);fresh=NULL;r=get_group(g,&fresh);
-      if(r==DSR_OK&&f->type==DSR_SETTING_SECRET){/* Write-only: ACK is not a credential read-back. */}
+     {cJSON_Delete(fresh);fresh=NULL;dsr_result_t written=r;r=get_group(g,&fresh);
+      if(r==DSR_OK&&f->type==DSR_SETTING_SECRET){/* Read-back cannot verify write-only credentials. */r=written;}
       else if(r==DSR_OK&&dsr_setting_equal(dsr_setting_value(patch,f->path),dsr_setting_value(fresh,f->path)))uncertain=false;
       else if(r==DSR_OK)r=DSR_BAD_RESPONSE;
      }

@@ -29,6 +29,7 @@ typedef struct {
  bool connecting,connected,closing,cancelled,pin_ready,secured,io_pending,io_done,duplicate,have_identity,discard;
  dsr_result_t io_result;
  uint8_t key[16];
+ uint32_t raw[DSR_BLU_SETTINGS];
 } blu_t;
 static blu_t *blu;
 static SemaphoreHandle_t mutex;
@@ -143,13 +144,14 @@ static dsr_result_t read_handle(uint16_t handle)
 {uint32_t token=begin_io();if(!token||!handle)return DSR_UNSUPPORTED;lock();blu->pending_handle=handle;unlock();return wait_io(ble_gattc_read(blu->connection,handle,attribute,(void *)(uintptr_t)token));}
 static dsr_result_t read_fields(void)
 {
- publish(DSR_BLU_READING,DSR_BUSY);uint16_t available=0;uint32_t values[DSR_BLU_SETTINGS]={0};
+ publish(DSR_BLU_READING,DSR_BUSY);uint32_t available=0;uint32_t values[DSR_BLU_SETTINGS]={0};
  for(unsigned i=0;i<DSR_BLU_SETTINGS;i++)if(blu->handles[i]){
   dsr_result_t r=read_handle(blu->handles[i]);if(r!=DSR_OK)return r;const dsr_blu_setting_t *f=dsr_blu_setting(i);uint32_t value=0;
   if(!f||blu->length!=f->bytes)return DSR_BAD_RESPONSE;
   for(unsigned j=0;j<f->bytes;j++)value|=(uint32_t)blu->data[j]<<(8*j);
+  blu->raw[i]=value;if(f->mask)value=(value&f->mask)?1:0;
   if(!dsr_blu_value_valid(i,blu->view.model,value))return DSR_BAD_RESPONSE;
-  available|=(uint16_t)(1u<<i);values[i]=value;
+  available|=1u<<i;values[i]=value;
  }
  if(blu->candidate.encrypted){dsr_result_t r=read_handle(blu->key_handle);if(r!=DSR_OK||blu->length!=16)return r==DSR_OK?DSR_BAD_RESPONSE:r;memcpy(blu->key,blu->data,16);}
  lock();blu->view.available=available;memcpy(blu->view.values,values,sizeof(values));blu->view.key_available=blu->candidate.encrypted;unlock();return DSR_OK;
@@ -202,11 +204,14 @@ static void run(bool host_ready)
    unsigned field=blu->field;const dsr_blu_setting_t *f=dsr_blu_setting(field);
    if(!f||!(blu->view.available&(1u<<field)))r=DSR_UNSUPPORTED;
    else if(blu->view.values[field]!=blu->expected)r=DSR_CONFLICT;
+   else if(field==8&&blu->value&&(!(blu->view.available&1u)||!blu->view.values[0]))r=DSR_INVALID;
+   else if(blu->view.model==8&&((field==25&&(!(blu->view.available&(1u<<26))||blu->value>=blu->view.values[26]))||(field==26&&(!(blu->view.available&(1u<<25))||blu->value<=blu->view.values[25]))))r=DSR_INVALID;
    else {
-    publish(DSR_BLU_WRITING,DSR_BUSY);uint8_t bytes[4]={0};for(unsigned i=0;i<f->bytes;i++)bytes[i]=(uint8_t)(blu->value>>(8*i));
+    publish(DSR_BLU_WRITING,DSR_BUSY);uint32_t raw=f->mask?(blu->raw[field]&~(uint32_t)f->mask)|(blu->value?f->mask:0):blu->value;uint8_t bytes[4]={0};for(unsigned i=0;i<f->bytes;i++)bytes[i]=(uint8_t)(raw>>(8*i));
     uint32_t token=begin_io();lock();blu->pending_handle=blu->handles[field];blu->view.write_possible=true;blu->view.uncertain=true;unlock();
     r=token?wait_io(ble_gattc_write_flat(blu->connection,blu->handles[field],bytes,f->bytes,attribute,(void *)(uintptr_t)token)):DSR_IO;
-    if(r==DSR_OK){r=read_fields();if(r==DSR_OK&&blu->view.values[field]!=blu->value)r=DSR_BAD_RESPONSE;if(r==DSR_OK){lock();blu->view.uncertain=false;unlock();}}
+    lock();bool linked=blu->connected&&blu->secured;unlock();
+    if(alive()&&linked){r=read_fields();if(r==DSR_OK&&blu->view.values[field]!=blu->value)r=DSR_BAD_RESPONSE;if(r==DSR_OK){lock();blu->view.uncertain=false;unlock();}}
    }
   }
   disconnect_peer();

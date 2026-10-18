@@ -47,6 +47,9 @@ for name,expected in auth_blocks.items():
         actions=b' if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);\n'
         assert block.count(actions)==1 and block.index(actions)>block.index(b'if(!authorized(r))'),'Actions must remain behind authorization'
         block=block.replace(actions,b'')
+        privacy=b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
+        assert block.count(privacy)==1 and block.index(privacy)>block.index(b'if(!authorized(r))'),'Settings preview privacy must remain after authorization'
+        block=block.replace(privacy,b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())')
         preview=b'esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())'
         assert block.count(preview)==1,'Unexpected AP preview gate'
         block=block.replace(preview,b'esp_timer_get_time()<pair_until')

@@ -65,9 +65,9 @@ static void actor_tests(void)
   unsigned group=0;while(group<s.group_count&&strcmp(s.groups[group].component,"Switch"))group++;CHECK(group<s.group_count);
   unsigned saved_mode=mode;mode=0;s=execute(DSR_SETTINGS_GROUP,group,NULL);mode=saved_mode;CHECK(s.result==DSR_OK&&s.ready);
   s=execute(DSR_SETTINGS_SAVE,field("Switch","auto_off_delay"),"120");
-  if(mode==0)CHECK(s.result==DSR_OK&&!s.uncertain&&writes==1);
+  if(mode==0||mode==2)CHECK(s.result==DSR_OK&&!s.uncertain&&writes==1);
   if(mode==1)CHECK(s.result==DSR_CONFLICT&&!writes);
-  if(mode==2||mode==3)CHECK(s.result!=DSR_OK&&s.uncertain&&writes==1);
+  if(mode==3)CHECK(s.result!=DSR_OK&&s.uncertain&&writes==1);
   dsr_device_settings_close();cJSON_Delete(configuration);configuration=NULL;
  }
  mode=0;configuration=cJSON_Parse("{}");execute(DSR_SETTINGS_LOAD,0,NULL);mapping=false;dsr_device_settings_snapshot_t s=execute(DSR_SETTINGS_GROUP,0,NULL);CHECK(s.result==DSR_CONFLICT);mapping=true;dsr_device_settings_close();cJSON_Delete(configuration);
