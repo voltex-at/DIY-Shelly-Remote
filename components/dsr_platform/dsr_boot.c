@@ -1,5 +1,6 @@
 #include "dsr_boot.h"
 #include "dsr_activity.h"
+#include "dsr_config_health.h"
 #include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
@@ -41,6 +42,14 @@ bool dsr_ota_boot_confirm(void)
     if (error == ESP_ERR_NOT_FOUND) return true;
     if (error != ESP_OK) return false;
     if (image_state == ESP_OTA_IMG_PENDING_VERIFY) {
+        /* The recovery UI remains usable when storage fails. That must not
+         * cancel rollback for a new app that cannot load the saved workspace.
+         * This is startup health evidence, not a destructive write probe. */
+        dsr_config_health_t health;
+        dsr_config_health_snapshot(&health);
+        if (health.storage != DSR_STORAGE_READY || health.storage_error != ESP_OK ||
+            health.workspace != DSR_WORKSPACE_READY || health.workspace_error != ESP_OK)
+            return false;
         if(!dsr_activity_begin())return false;
         bool confirmed=esp_ota_mark_app_valid_cancel_rollback()==ESP_OK;
         dsr_activity_end();return confirmed;

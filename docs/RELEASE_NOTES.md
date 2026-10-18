@@ -1,5 +1,10 @@
 0.7.52-dev: płynniejszy dotyk i diagnostyka pamięci. Stable: brak.
 
+Poprawki gałęzi roboczej (bez nowego wydania):
+- Settings nie odsyła już do usuniętej historii 1 h / 24 h ani zakładki Wykresy. Test rzeczywistych obiektów LVGL sprawdza PL/EN/DE.
+- Sama funkcja zatwierdzająca nowy obraz OTA wymaga poprawnego startu SPIFFS i workspace. Dotychczasowy jedyny caller UI już sprawdzał workspace/panel/dotyk; to dodatkowa ochrona kontraktu API, nie dowód zaobserwowanej awarii rollbacku. UI odzyskiwania nadal działa bez magazynu; nie dodano automatycznego resetu ani kasowania. Test startu odrzuca niegotowe fazy i błędy obu warstw.
+- Przyczyna historycznych przerwań formatu 109/992 i 313/992 pozostaje nieudowodniona. Testy hostowe i CI nie zastępują fizycznego odbioru.
+
 Zmiany względem 0.7.51-dev:
 - BLE nie zostaje już włączone do restartu: stos NimBLE i kontroler Bluetooth są zwalniane 30 s po ostatnim skanie lub dodawaniu przez BLE i uruchamiane ponownie przy następnym użyciu. Wcześniej po pierwszym użyciu BLE Wi-Fi do restartu dzieliło radio z Bluetooth, a kontroler trzymał RAM wewnętrzny.
 - Wątek ekranu ma priorytet 5, wyżej niż wątek sieciowy (4): przetwarzanie dużych odpowiedzi Shelly/BLU nie dzieli już procesora po równo z obsługą dotyku.

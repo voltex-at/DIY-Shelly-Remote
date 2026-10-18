@@ -140,7 +140,6 @@ const char *dsr_sc_tr(const char *text)
  {"Sprawdź aktualizacje","Check for updates","Nach Updates suchen"},
  {"Zmień kanał","Change channel","Kanal ändern"},
  {"Zainstaluj","Install","Installieren"},
- {"Historia 1 h / 24 h jest w zakładce Wykresy. Oś czasu UTC.","1 h / 24 h history is in Charts. UTC timeline.","1 h / 24 h Verlauf unter Diagramme. UTC-Zeitachse."},
  {"Energia","Energy","Energie"},
  {"Anuluj synchronizację","Cancel synchronization","Synchronisierung abbrechen"},
  {"Synchronizuj czas UTC","Synchronize UTC time","UTC-Zeit synchronisieren"},

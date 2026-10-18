@@ -2,6 +2,7 @@
 #include "dsr_board.h"
 #include "dsr_ui.h"
 #include "dsr_platform.h"
+#include "dsr_config_health.h"
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
@@ -37,7 +38,13 @@ static unsigned observer_sets;
 const dsr_storage_observer_t *dsr_ui_storage_observer(void) { return &fake_observer; }
 /* Registered before storage, every boot; storage tests own the hook calls. */
 void dsr_storage_set_observer(const dsr_storage_observer_t *o) { CHECK(o==&fake_observer&&trace[at-1]=='F'); observer_sets++; }
-esp_err_t dsr_workspace_start(void) { call('C'); CHECK(observer_sets==1); return storage_error; }
+esp_err_t dsr_workspace_start(void)
+{
+    call('C'); CHECK(observer_sets==1);
+    dsr_config_health_storage(storage_error==ESP_OK?DSR_STORAGE_READY:DSR_STORAGE_NONEMPTY,storage_error);
+    dsr_config_health_workspace(storage_error==ESP_OK?DSR_WORKSPACE_READY:DSR_WORKSPACE_MOUNTING,storage_error);
+    return storage_error;
+}
 esp_err_t dsr_panel_start(void) { call('P'); return ESP_OK; }
 esp_err_t dsr_lan_init(void) { call('L'); return ESP_OK; }
 esp_err_t dsr_ble_init(void) { call('E'); return ESP_OK; }
@@ -60,6 +67,8 @@ static void reset(void)
     nvs_error=board_error=worker_error=wifi_error=storage_error=ui_error=backlight_error=state_error=confirm_error=ESP_OK;
     restart_error=ESP_OK;
     image_state=ESP_OTA_IMG_PENDING_VERIFY;
+    dsr_config_health_storage(DSR_STORAGE_NOT_STARTED,ESP_OK);
+    dsr_config_health_workspace(DSR_WORKSPACE_NOT_STARTED,ESP_OK);
 }
 static void diagnostic(const char *expected)
 {
@@ -105,6 +114,30 @@ int main(void)
      * automatic retry loop. It can recover from a previous process latch. */
     reset(); wifi_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBZSWFCLEzITK"));
     reset(); storage_error=ESP_FAIL; app_main(); CHECK(dsr_boot_ready() && !strcmp(trace,"NBZSWFCLEzITK"));
+    /* A working recovery UI is not a healthy OTA boot. Preserve the SDK's
+     * pending state so the previous app remains available on the next reset. */
+    CHECK(!dsr_ota_boot_confirm()&&ota_marks==0&&dsr_boot_ui_gate());
+    dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);
+    const dsr_workspace_phase_t incomplete[]={DSR_WORKSPACE_NOT_STARTED,DSR_WORKSPACE_MOUNTING,
+        DSR_WORKSPACE_LOADING,DSR_WORKSPACE_PROVISIONING,DSR_WORKSPACE_ALLOCATING,DSR_WORKSPACE_TASK};
+    for(size_t i=0;i<sizeof(incomplete)/sizeof(*incomplete);i++){
+        dsr_config_health_workspace(incomplete[i],ESP_OK);
+        CHECK(!dsr_ota_boot_confirm()&&ota_marks==0);
+    }
+    dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_FAIL);
+    CHECK(!dsr_ota_boot_confirm()&&ota_marks==0);
+    dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
+    const dsr_storage_phase_t unavailable[]={DSR_STORAGE_NOT_STARTED,DSR_STORAGE_MOUNTING,
+        DSR_STORAGE_MOUNT_ERROR,DSR_STORAGE_NONEMPTY,DSR_STORAGE_READ_ERROR,
+        DSR_STORAGE_PROVISION_ERROR,DSR_STORAGE_PROVISIONING};
+    for(size_t i=0;i<sizeof(unavailable)/sizeof(*unavailable);i++){
+        dsr_config_health_storage(unavailable[i],ESP_OK);
+        CHECK(!dsr_ota_boot_confirm()&&ota_marks==0);
+    }
+    dsr_config_health_storage(DSR_STORAGE_READY,ESP_FAIL);
+    CHECK(!dsr_ota_boot_confirm()&&ota_marks==0);
+    dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);
+    CHECK(dsr_ota_boot_confirm()&&ota_marks==1); /* Both stores ready: normal confirmation. */
     reset(); restart_error=ESP_ERR_NO_MEM; app_main(); CHECK(dsr_boot_ready()&&!strcmp(trace,"NBZSWFCPLEzITK"));
     CHECK(dsr_activity_restart_reserve());unsigned marks=ota_marks;CHECK(!dsr_ota_boot_confirm()&&ota_marks==marks);dsr_activity_restart_cancel();
     printf("PASS: %u startup/recovery checks; actual app_main fault injection, UI/backlight/worker/NVS errors, subsequent boot, OTA pending/valid/error guards; host only\n",checks);

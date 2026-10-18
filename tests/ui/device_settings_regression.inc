@@ -23,6 +23,7 @@ static void device_settings_regression(void)
  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"rooms"),cJSON_Parse("{\"id\":888,\"name\":\"Settings test room\",\"icon\":0,\"photo\":\"\"}"));publish_document(r);
  dsr_network_device_settings(a);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);
  CHECK(find_label(lv_screen_active(),"Wybrane urządzenie")&&find_label(lv_screen_active(),"shelly-A")&&find_label(lv_screen_active(),"Model nieodczytany"));
+ CHECK(!find_label(lv_screen_active(),dsr_sc_tr("Historia 1 h / 24 h jest w zakładce Wykresy. Oś czasu UTC.")));
  screenshot("230-settings-bound-offline");
  /* Independent failures remain blocked. An explicit read of A never clears
   * B's auth block, and the in-flight read already satisfies a duplicate. */
@@ -85,6 +86,7 @@ static void device_settings_regression(void)
  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(settings_entry(r,a),"host",cJSON_CreateString("192.168.1.60"));publish_document(r);tick();
  for(unsigned language=1;language<3;language++){
   r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(r);dsr_network_device_settings(a);
+  CHECK(!find_label(lv_screen_active(),dsr_sc_tr("Historia 1 h / 24 h jest w zakładce Wykresy. Oś czasu UTC.")));
   screenshot(language==1?"236-settings-english":"238-settings-german");tap(236,376);CHECK(find_label(lv_screen_active(),language==1?"Room":"Raum"));screenshot(language==1?"237-settings-card-english":"239-settings-card-german");click("Wstecz");
  }
  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("pl"));publish_document(r);dsr_network_device_settings(a);

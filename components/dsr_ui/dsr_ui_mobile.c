@@ -719,7 +719,6 @@ static void device_settings(lv_obj_t *root)
  if(model.demo||!d->id||!actions.edit_device)lv_obj_add_state(edit,LV_STATE_DISABLED);
  dsr_sc_text(root,"Ustawienia karty • lokalnie",12,410,296,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_sc_text(content,"Nazwa i pokój dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",4,254,288,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(content,"Historia 1 h / 24 h jest w zakładce Wykresy. Oś czasu UTC.",4,312,288,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void render(void)
 {
