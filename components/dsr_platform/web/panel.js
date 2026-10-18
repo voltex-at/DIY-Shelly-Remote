@@ -3,6 +3,8 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Zapis", "Save", "Speichern"],
+ ["Gotowe", "Done", "Fertig"],
  ["Nazwa grupy", "Group name", "Gruppenname"],
  ["Nazwa sceny", "Scene name", "Szenenname"],
  ["np. Lampy na parterze", "e.g. Downstairs lights", "z. B. Lichter im Erdgeschoss"],
@@ -252,8 +254,9 @@ function actionList(kind){
  },'primary'));return n;
 }
 function editAction(kind,item,step,view={}){
+ document.body.classList.add('editing-action');
  const group=kind==='groups',target=$('#editor'),n=box(m(actionSession?.fresh?(group?'Nowa grupa':'Nowa scena'):(group?'Edytuj grupę':'Edytuj scenę')));target.replaceChildren(n);
- const track=el('ol',undefined,'action-steps');for(const [i,label]of ['Nazwa',group?'Urządzenia':'Polecenia','Podsumowanie'].entries()){const marker=el('li',m(label));if(i===(step===3?view.returnStep||0:step))marker.setAttribute('aria-current','step');track.append(marker);}n.append(track);
+ const track=el('ol',undefined,'action-steps');for(const [i,label]of ['Nazwa',group?'Urządzenia':'Polecenia','Zapis'].entries()){const marker=el('li',m(label));if(i===(step===3?view.returnStep||0:step))marker.setAttribute('aria-current','step');track.append(marker);}n.append(track);
  const body=el('div',undefined,'action-form');n.append(body);let next;
  const complete=()=>actionNameValid(item)&&(group?item.members.length:item.actions.length)>0;
  const rerender=()=>editAction(kind,item,step,view);
@@ -517,7 +520,7 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 async function save(){
  if(!dirty||saving||conflict)return;

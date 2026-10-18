@@ -34,6 +34,10 @@ poleceń w jednej scenie; urządzenia grupy korzystają z istniejącego rejestru
 
 ## Zapis i anulowanie
 
+W formularzu WWW widoczny jest jego własny przycisk zapisu na ostatnim kroku.
+Globalna stopka zapisu jest wtedy ukryta. Na małym ekranie znika też podgląd
+LCD; wraca po zakończeniu lub anulowaniu edycji.
+
 Zapis wymaga trwałego potwierdzenia pilota i zgodnej rewizji. Błąd pozostawia
 zmiany w formularzu do poprawienia lub ponowienia. Późniejsze zmiany nie są
 usuwane po potwierdzeniu wcześniejszego zapisu. Anuluj na pierwszym kroku
