@@ -6,10 +6,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#endif
 static lv_obj_t *body;
 static bool active;static uint8_t page;static uint32_t next_draw,last_status;static dsr_result_t admission;
+typedef struct {
+ char query[48];uint32_t room,revision;bool typing;
+ lv_obj_t *search,*keyboard;
+ lv_image_dsc_t photos[8];
+} browse_t;
+_Static_assert(sizeof(browse_t)<=512,"bounded presentation heap in PSRAM");
+static browse_t *browse_context;
+#define browse (*browse_context)
+static bool browse_prepare(void)
+{
+ if(browse_context)return true;
+#ifdef ESP_PLATFORM
+ browse_context=heap_caps_calloc(1,sizeof(*browse_context),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+#else
+ browse_context=calloc(1,sizeof(*browse_context));
+#endif
+ return browse_context!=NULL;
+}
 static void draw(void);
-void dsr_ui_actions_hide(void){active=false;body=NULL;}
+void dsr_ui_actions_hide(void){active=false;body=NULL;if(browse_context){browse.search=browse.keyboard=NULL;browse.typing=false;}}
 static const char *outcome(unsigned value)
 {return value==DSR_ACTION_SUCCESS?"Potwierdzono":value==DSR_ACTION_FAILED?"Błąd kroku":value==DSR_ACTION_UNCERTAIN?"Wynik niepewny • sprawdź stan":value==DSR_ACTION_CANCELLED?"Anulowano pozostałe kroki":"Oczekuje";}
 static const char *command(unsigned value)
@@ -22,11 +43,12 @@ static uint32_t status_hash(const dsr_actions_snapshot_t *s)
  for(unsigned i=0;i<s->count;i++){hash=hash*33u+s->steps[i].outcome;hash=hash*33u+(uint32_t)s->steps[i].result;}return hash;
 }
 static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,lv_event_cb_t cb,uintptr_t data)
-{lv_obj_t *b=dsr_sc_button(parent,x,y,width,40,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
+{lv_obj_t *b=dsr_sc_button(parent,x,y,width,40,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
 static void back(lv_event_t *event){(void)event;dsr_network_rooms();}
-static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);admission=DSR_OK;draw();}
+static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);browse.query[0]=0;browse.room=0;admission=DSR_OK;draw();}
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
 {
+ if(!browse_prepare())return;
  dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);char request[256];
  snprintf(request,sizeof(request),"{\"id\":%u,\"revision\":%u,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%08x%08x\"%s}",(unsigned)id,(unsigned)status.revision,(unsigned)status.boot_id,(unsigned)status.admission_generation,(unsigned)esp_random(),(unsigned)esp_random(),kind?"":on?",\"on\":true":",\"on\":false");
  uint32_t run=0;dsr_result_t accepted=dsr_actions_request(request,kind,1,&run);dsr_network_home(NULL);dsr_mobile_hide();active=true;page=3;admission=accepted;draw();
@@ -43,19 +65,65 @@ static void progress(lv_obj_t *root,const dsr_actions_snapshot_t *s)
  for(unsigned i=0;i<s->count;i++){const dsr_action_result_t *step=&s->steps[i];snprintf(text,sizeof(text),"#%u • %s",(unsigned)step->layout_id,dsr_sc_tr(command(step->command)));dsr_sc_text(list,text,6,(int)i*58,270,&dsr_roboto_14,DSR_SC_TEXT);snprintf(text,sizeof(text),"%s%s%s",dsr_sc_tr(outcome(step->outcome)),step->result==DSR_OK?"":" • ",step->result==DSR_OK?"":dsr_sc_tr(reason(step->result)));dsr_sc_text(list,text,6,(int)i*58+24,270,&dsr_roboto_12,step->outcome==DSR_ACTION_UNCERTAIN?0xffc18c:DSR_SC_MUTED);}
  if(s->active)button(root,"Anuluj pozostałe kroki",12,426,296,cancel,0);else dsr_sc_text(root,"Bez automatycznego ponawiania poleceń.",12,432,296,&dsr_roboto_12,DSR_SC_MUTED);
 }
-static void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
+static const cJSON *get(const cJSON *o,const char *key){return cJSON_GetObjectItemCaseSensitive(o,key);}
+static int number(const cJSON *o,const char *key){const cJSON *v=get(o,key);return cJSON_IsNumber(v)?v->valueint:0;}
+static const char *text(const cJSON *o,const char *key){const cJSON *v=get(o,key);return cJSON_IsString(v)?v->valuestring:"";}
+static void edit(lv_event_t *event)
+{dsr_ui_edit_action(page,(uint32_t)(uintptr_t)lv_event_get_user_data(event));}
+static void search_done(lv_event_t *event)
+{(void)event;if(browse.search)snprintf(browse.query,sizeof(browse.query),"%s",lv_textarea_get_text(browse.search));browse.typing=false;draw();}
+static void search_focus(lv_event_t *event)
+{browse.typing=true;lv_obj_set_height(body,90);dsr_ui_keyboard_focus(browse.keyboard,lv_event_get_target(event));}
+static void room_filter(lv_event_t *event)
 {
- dsr_sc_text(root,"Cały dom • każde urządzenie ma własny wynik.",12,96,296,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_t *list=body=dsr_sc_panel(root,12,132,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+ unsigned at=lv_dropdown_get_selected(lv_event_get_target(event));browse.room=0;
+ char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);
+ if(at)browse.room=(uint32_t)number(cJSON_GetArrayItem(get(r,"rooms"),(int)at-1),"id");
+ cJSON_Delete(r);draw();
+}
+static __attribute__((noinline)) void object_card(lv_obj_t *list,const cJSON *r,const cJSON *v,unsigned i,int y,const dsr_actions_snapshot_t *s)
+{
+ unsigned id=(unsigned)number(v,"id"),count=(unsigned)cJSON_GetArraySize(get(v,page?"actions":"members"));
+ lv_obj_t *card=dsr_sc_panel(list,0,y,280,164,DSR_SC_CARD,12);lv_obj_set_style_clip_corner(card,true,0);
+ const char *photo=text(v,"photo");const cJSON *room=NULL,*candidate;
+ cJSON_ArrayForEach(candidate,get(r,"rooms"))if(number(candidate,"id")==number(v,"room"))room=candidate;
+ if(!*photo)photo=text(room,"photo");
+ if(dsr_ui_photo_source(photo,&browse.photos[i])){
+  lv_obj_t *clip=dsr_sc_panel(card,0,0,280,112,DSR_SC_PANEL,0);lv_obj_set_style_clip_corner(clip,true,0);
+  lv_obj_t *image=lv_image_create(clip);lv_image_set_src(image,&browse.photos[i]);
+  uint32_t scale=280u*256u/browse.photos[i].header.w,vertical=112u*256u/browse.photos[i].header.h;
+  lv_image_set_scale(image,scale>vertical?scale:vertical);lv_obj_center(image);
+ }
+ lv_obj_t *shade=dsr_sc_panel(card,0,0,280,112,0x101820,0);lv_obj_set_style_bg_opa(shade,170,0);
+ lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(text(v,"name")),10,10,210,&dsr_roboto_16,0xffffff);
+ lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
+ lv_obj_t *pencil=dsr_sc_button(card,232,4,44,44,DSR_SC_PANEL,10,edit,(void *)(uintptr_t)id);dsr_sc_icon_centered(pencil,DSR_ICON_EDIT,24,DSR_SC_BLUE);
+ char caption[96];snprintf(caption,sizeof(caption),"%s • %u",*text(room,"name")?text(room,"name"):dsr_sc_tr("Cały dom"),count);
+ dsr_sc_text(card,dsr_sc_user(caption),10,83,258,&dsr_roboto_12,0xffffff);
+ lv_obj_t *first=button(card,page?"Uruchom scenę":"Włącz grupę",4,118,page?272:132,run,((uintptr_t)id<<2)|(page?1:2));
+ if(!s->available||!count)lv_obj_add_state(first,LV_STATE_DISABLED);
+ if(!page){lv_obj_t *off=button(card,"Wyłącz grupę",144,118,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
+}
+static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
+{
+ button(root,page?"+ Scena":"+ Grupa",12,94,112,edit,0);
+ browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,94);lv_obj_set_size(browse.search,176,40);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
+ lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_FOCUSED,NULL);lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_CLICKED,NULL);
+ lv_obj_t *list=body=dsr_sc_panel(root,12,190,296,224,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);char error[96];
  if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);dsr_sc_text(list,"Konfiguracja niedostępna",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);return;}
- const cJSON *v,*all=cJSON_GetObjectItemCaseSensitive(r,page?"scenes":"groups");unsigned i=0;
- cJSON_ArrayForEach(v,all){const cJSON *id=cJSON_GetObjectItemCaseSensitive(v,"id"),*name=cJSON_GetObjectItemCaseSensitive(v,"name"),*members=cJSON_GetObjectItemCaseSensitive(v,page?"actions":"members");int y=(int)i++*100;dsr_sc_text(list,dsr_sc_name(name->valuestring),6,y+4,270,&dsr_roboto_16,DSR_SC_TEXT);
-  lv_obj_t *first=button(list,page?"Uruchom scenę":"Włącz grupę",0,y+36,page?280:136,run,((uintptr_t)id->valueint<<2)|(page?1:2));if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(first,LV_STATE_DISABLED);
-  if(!page){lv_obj_t *off=button(list,"Wyłącz grupę",144,y+36,136,run,(uintptr_t)id->valueint<<2);if(!s->available||!cJSON_GetArraySize(members))lv_obj_add_state(off,LV_STATE_DISABLED);}
+ char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Cały dom"));unsigned index=0,selected=0;const cJSON *v;
+ cJSON_ArrayForEach(v,get(r,"rooms")){strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,text(v,"name"),sizeof(options)-strlen(options)-1);index++;if((uint32_t)number(v,"id")==browse.room)selected=index;}
+ lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,142);lv_obj_set_size(filter,296,40);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
+ unsigned i=0;cJSON_ArrayForEach(v,get(r,page?"scenes":"groups")){
+  if(browse.room&&browse.room!=(uint32_t)number(v,"room"))continue;
+  if(*browse.query&&!strstr(text(v,"name"),browse.query))continue;
+  object_card(list,r,v,i,(int)i*176,s);i++;
  }
- if(!i)dsr_sc_text(list,"Dodaj wpis w edytorze konfiguracji.",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);
- cJSON_Delete(r);
- if(s->active)button(root,"Pokaż bieżące wykonanie",12,427,296,choose,3);else dsr_sc_text(root,"Polecenia wymagają zgodnego powiązania i uprawnień.",12,420,296,&dsr_roboto_14,DSR_SC_MUTED);
+ if(!i){dsr_sc_icon(list,page?DSR_ICON_SCENES:DSR_ICON_GRID,116,24,48,DSR_SC_MUTED);dsr_sc_text(list,"Dodaj pierwszy wpis przyciskiem + u góry.",12,92,260,&dsr_roboto_16,DSR_SC_TEXT);}
+ browse.revision=(uint32_t)number(r,"revision");cJSON_Delete(r);
+ if(s->active)button(root,"Pokaż bieżące wykonanie",12,427,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,426,296,&dsr_roboto_12,DSR_SC_MUTED);
+ browse.keyboard=lv_keyboard_create(root);dsr_ui_keyboard(browse.keyboard);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(browse.keyboard,LV_OBJ_FLAG_HIDDEN);
 }
 static void draw(void)
 {
@@ -67,5 +135,5 @@ static void draw(void)
  dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=status_hash(&s);if(page==3)progress(root,&s);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);next_draw=lv_tick_get()+1000;
 }
 void dsr_ui_actions_open(uint8_t kind)
-{dsr_network_home(NULL);dsr_mobile_hide();page=kind<2?kind:0;admission=DSR_OK;active=true;draw();}
-void dsr_ui_actions_tick(void){if(!active)return;dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);if(status_hash(&status)!=last_status||(int32_t)(lv_tick_get()-next_draw)>=0)draw();}
+{dsr_network_home(NULL);if(!browse_prepare()){lv_obj_t *root=dsr_ui_screen("Konfiguracja niedostępna",false);dsr_sc_text(root,"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.",12,96,296,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);return;}dsr_mobile_hide();page=kind<2?kind:0;browse.query[0]=0;browse.room=0;admission=DSR_OK;active=true;draw();}
+void dsr_ui_actions_tick(void){if(!active)return;dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);if(!browse.typing&&(status_hash(&status)!=last_status||(page==3&&(int32_t)(lv_tick_get()-next_draw)>=0)||(page<2&&browse.revision!=dsr_workspace_revision())))draw();}

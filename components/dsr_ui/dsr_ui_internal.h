@@ -74,6 +74,7 @@ void dsr_ui_usage_open(uint32_t id);
 void dsr_ui_usage_hide(void);
 void dsr_ui_usage_tick(void);
 void dsr_ui_actions_open(uint8_t kind);
+void dsr_ui_edit_action(uint8_t kind,uint32_t id);
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on);
 void dsr_ui_actions_tick(void);
 void dsr_ui_actions_hide(void);

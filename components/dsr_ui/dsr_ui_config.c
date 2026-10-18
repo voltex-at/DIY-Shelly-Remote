@@ -8,6 +8,9 @@
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "esp_attr.h"
+#else
+#define EXT_RAM_BSS_ATTR
 #endif
 
 static const cJSON *item(const cJSON *o,const char *k){return cJSON_GetObjectItemCaseSensitive(o,k);}
@@ -52,6 +55,13 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
 }
 
 #ifndef DSR_UI_REVIEW_DEMO
+static EXT_RAM_BSS_ATTR struct {
+ bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page;uint32_t expanded;
+ char query[48];lv_obj_t *count,*next;lv_image_dsc_t photos[12];
+} action_editor;
+_Static_assert(sizeof(action_editor)<=1024,"bounded contextual editor PSRAM metadata");
+static void action_form(void);
+static void action_leave(lv_event_t *event);
 static cJSON *draft;
 /* A pending write owns an immutable snapshot; later edits remain in draft. */
 static cJSON *submitted_draft,*saved_baseline;
@@ -73,7 +83,7 @@ static lv_obj_t *room_dialog,*settings_dialog;
 static bool settings_context,appearance_editor;
 static unsigned tile_page;
 static cJSON *fields_tile;
-typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY,SAVE_DEVICE} save_target_t;
+typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY,SAVE_DEVICE,SAVE_ACTIONS} save_target_t;
 static save_target_t view_save_target,submitted_save_target;
 static uint32_t view_generation,submitted_generation;
 static bool room_return_detail;
@@ -93,7 +103,7 @@ static void config_log(const char *stage,int code)
 #endif
 }
 static void clear_draft(void)
-{cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
+{memset(&action_editor,0,sizeof(action_editor));cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
 void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
 static void settings_stay(lv_event_t *event)
 {(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
@@ -125,7 +135,8 @@ static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add
 static void focus(lv_event_t *event)
 {if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
 static void set_text(lv_event_t *event)
-{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;device_input_error=NULL;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));}
+{const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;device_input_error=NULL;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));
+ if(action_editor.active&&action_editor.next&&!strcmp(key,"name")){size_t length=strlen(string(editing,"name"));if(length&&length<=47)lv_obj_remove_state(action_editor.next,LV_STATE_DISABLED);else lv_obj_add_state(action_editor.next,LV_STATE_DISABLED);}}
 static void set_number(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateNumber(strtoul(lv_textarea_get_text(lv_event_get_target(event)),NULL,10)));}
 static lv_obj_t *screen(const char *title)
@@ -180,8 +191,8 @@ static open_result_t prepare_draft(void)
 static void save(lv_event_t *event)
 {
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
- if(room_editor&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
-  dsr_sc_label_set_text(status_label,!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
+ if((room_editor||action_editor.active)&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+  dsr_sc_label_set_text(status_label,action_editor.active?"Podaj nazwę (maks. 47 bajtów).":!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
  }
  if(device_editor&&editing&&strlen(string(editing,"name"))>47){
   device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";dsr_sc_label_set_text(status_label,device_input_error);return;
@@ -283,6 +294,8 @@ static void room_delete(lv_event_t *event)
  unsigned devices=0,tiles=0;const cJSON *d,*t;int id=integer(editing,"id");
  cJSON_ArrayForEach(d,item(draft,"devices"))if(integer(d,"room")==id)devices++;
  cJSON_ArrayForEach(d,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(d,"tiles"))if(!strcmp(string(t,"type"),"room")&&integer(t,"ref")==id)tiles++;
+ const cJSON *object;const char *collections[]={"groups","scenes"};
+ for(unsigned i=0;i<2;i++)cJSON_ArrayForEach(object,item(draft,collections[i]))if(integer(object,"room")==id)tiles++;
  if(devices||tiles){
   char text[224];snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • karty pomieszczenia: %u. Przenieś urządzenia i usuń te karty z pulpitów. Sceny i urządzenia pozostaną zachowane."),devices,tiles);
   lv_obj_t *panel=room_modal("Pomieszczenie jest używane",text);dsr_ui_button(panel,"Wstecz",12,188,272,room_dialog_close,NULL);return;
@@ -391,7 +404,11 @@ static bool entity_deletable(void)
  cJSON_ArrayForEach(v,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(v,"tiles"))if(!strcmp(string(t,"type"),type)&&integer(t,"ref")==id)referenced=true;
  if(!strcmp(collection_name,"devices"))cJSON_ArrayForEach(v,item(draft,"scenes"))cJSON_ArrayForEach(t,item(v,"actions"))if(integer(t,"device")==id)referenced=true;
  if(!strcmp(collection_name,"devices"))cJSON_ArrayForEach(v,item(draft,"groups"))cJSON_ArrayForEach(t,item(v,"members"))if(cJSON_IsNumber(t)&&t->valueint==id)referenced=true;
- if(!strcmp(collection_name,"rooms"))cJSON_ArrayForEach(v,item(draft,"devices"))if(integer(v,"room")==id)referenced=true;
+ if(!strcmp(collection_name,"rooms")){
+  cJSON_ArrayForEach(v,item(draft,"devices"))if(integer(v,"room")==id)referenced=true;
+  cJSON_ArrayForEach(v,item(draft,"groups"))if(integer(v,"room")==id)referenced=true;
+  cJSON_ArrayForEach(v,item(draft,"scenes"))if(integer(v,"room")==id)referenced=true;
+ }
  if(strcmp(collection_name,"dashboards")&&referenced){dsr_sc_label_set_text(status_label,"Najpierw usuń powiązane karty lub działania.");return false;}
  if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)<=1){dsr_sc_label_set_text(status_label,"Zachowaj przynajmniej jeden pulpit.");return false;}
  return true;
@@ -402,7 +419,7 @@ static void delete_entity_confirm(lv_event_t *event)
  cJSON *a=cJSON_GetObjectItemCaseSensitive(draft,collection_name);int id=integer(editing,"id"),at=0;
  for(cJSON *entry=a->child;entry;entry=entry->next,at++)if(entry==editing){cJSON_DeleteItemFromArray(a,at);break;}
  if(!strcmp(collection_name,"dashboards")&&integer(draft,"active_dashboard")==id)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),integer(a->child,"id"));
- editing=NULL;show_collection(NULL);view_save_target=SAVE_COLLECTION;
+ editing=NULL;if(action_editor.active){action_editor.deleted=true;action_form();}else{show_collection(NULL);view_save_target=SAVE_COLLECTION;}
 }
 static void delete_entity(lv_event_t *event)
 {
@@ -416,6 +433,7 @@ static void delete_entity(lv_event_t *event)
  dsr_ui_button(panel,"Anuluj",12,188,130,room_dialog_close,NULL);
  dsr_ui_button(panel,"Usuń",154,188,130,delete_entity_confirm,NULL);
 }
+#include "dsr_ui_action_editor.inc"
 static void edit_event(lv_event_t *event){show_entity(lv_event_get_user_data(event));}
 static void reorder(lv_event_t *event)
 {
@@ -616,6 +634,7 @@ void dsr_ui_workspace_tick(void)
   save_target_t target=submitted_save_target;submitted_save_target=SAVE_STAY;
   bool clean=cJSON_Compare(draft,saved_baseline,true);
   if(clean&&submitted_generation==view_generation&&target!=SAVE_STAY){
+   if(target==SAVE_ACTIONS){action_leave(NULL);return;}
    if(target==SAVE_HOME){return_home(NULL);return;}
    if(target==SAVE_ROOMS){room_leave(NULL);return;}
    if(target==SAVE_DEVICE){room_leave(NULL);return;}

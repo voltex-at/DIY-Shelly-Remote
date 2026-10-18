@@ -3,6 +3,23 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Wstecz","Back","Zurück"],["Zapisz","Save","Speichern"],
+ ["Edytuj grupę", "Edit group", "Gruppe bearbeiten"],
+ ["Edytuj scenę", "Edit scene", "Szene bearbeiten"],
+ ["Typ grupy", "Group type", "Gruppentyp"],
+ ["Sceny uruchamiane ręcznie", "Manually started scenes", "Manuell gestartete Szenen"],
+ ["Przekaźniki i gniazdka", "Relays and plugs", "Relais und Steckdosen"],
+ ["Światła • wkrótce", "Lights • coming later", "Lichter • später verfügbar"],
+ ["Rolety i termostaty • wkrótce", "Covers and thermostats • later", "Rollläden und Thermostate • später"],
+ ["Przycisk uruchamia wybrane działania po kolei. Warunki i harmonogramy nie są jeszcze obsługiwane.", "The button runs selected actions in order. Conditions and schedules are not supported yet.", "Die Taste führt Aktionen nacheinander aus. Bedingungen und Zeitpläne werden noch nicht unterstützt."],
+ ["Wybrano: {0}", "Selected: {0}", "Ausgewählt: {0}"],
+ ["Szukaj", "Search", "Suchen"],
+ ["Cały dom", "Whole home", "Ganzes Zuhause"],
+ ["Wybierz pomieszczenie", "Choose a room", "Raum wählen"],
+ ["Wybierz zdjęcie", "Choose a photo", "Bild wählen"],
+ ["Zdjęcie z pomieszczenia", "Photo from a room", "Bild aus einem Raum"],
+ ["Bez zdjęcia", "No photo", "Ohne Bild"],
+ ["Brak zgodnych urządzeń. Dodaj je na stronie Urządzenia.", "No compatible devices. Add them on the Devices page.", "Keine kompatiblen Geräte. Auf der Seite Geräte hinzufügen."],
  ["Użyj nazwy z Shelly","Use name from Shelly","Namen von Shelly verwenden"],
  ["Rodzina API", "API family", "API-Familie"],
  ["H&T Gen3 • read only", "H&T Gen3 • read only", "H&T Gen3 • nur lesen"],
@@ -141,7 +158,7 @@ async function load(){
 }
 function box(title){const n=el('div',undefined,'box');if(title)n.append(el('h2',title));return n;}
 function empty(parent,text){parent.append(el('p',text,'empty'));}
-function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&config.devices.some(d=>d.room===id)){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
+function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&(config.devices.some(d=>d.room===id)||config.groups.some(g=>g.room===id)||config.scenes.some(s=>s.room===id))){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
 function list(kind,edit){const n=box(titles[kind]);for(const item of config[kind]){const row=el('div',undefined,'row'),txt=el('div',undefined,'grow');const heading=el('h3',item.name||(kind==='devices'?window.dsrRuntimeDeviceName?.(item.id)||'Shelly':''));if(kind==='devices')heading.dataset.deviceNameId=String(item.id);txt.append(heading);txt.append(el('p',kind==='devices'?(m('{0} · {1}',kinds[item.kind],item.host||m('Bez adresu'))):'#'+item.id));row.append(txt,button(m('Edytuj'),()=>edit(item)),button(m('Usuń'),()=>remove(kind,item.id),'danger'));n.append(row);}if(!config[kind].length)empty(n,m('Brak wpisów. Dodaj pierwszy.'));n.append(button(m('+ Dodaj'),()=>{const id=nextId(config[kind]);if(config[kind].length>=({dashboards:4,rooms:8,devices:16,scenes:8,groups:8}[kind]))return notice(m('Osiągnięto limit wpisów.'));const item={id,name:translate(kind==='dashboards'?m('Nowy pulpit'):kind==='rooms'?m('Nowe pomieszczenie'):kind==='devices'?m('Nowe urządzenie'):kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='dashboards'?{tiles:[]}:kind==='rooms'?{icon:0,photo:''}:kind==='devices'?{host:'',channel:0,room:0,kind:'light'}:kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();edit(item);},'primary'));return n;}
 function editBase(kind,item){const target=$('#editor');target.replaceChildren();const n=box(m('Edycja: {0}',item.name));const form=el('div',undefined,'fields');field(form,m('Nazwa'),item.name,v=>item.name=v).maxLength=47;n.append(form);target.append(n);n.append(button(m('← Wróć do listy'),render));return {n,form};}
 function editRoom(item){
@@ -164,8 +181,60 @@ function editDevice(item){
  const passLabel=el('label',m('Hasło Shelly')),password=el('input');password.type='password';password.autocomplete='off';password.maxLength=64;passLabel.append(password);form.append(loginLabel,passLabel);
  n.append(button(m('Sprawdź i powiąż połączenie'),async()=>{try{notice(m('Sprawdzanie tożsamości Shelly…'));await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:item.host,name:item.name,channel:item.channel,username:login.value,password:password.value})});password.value='';for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,500));const status=await(await request('status')).json();if(!status.device_busy){notice(serverMessage(status.device_message)||m('Sprawdź wynik na ekranie pilota.'));return;}}notice(m('Sprawdzanie trwa. Wynik pojawi się na pilocie.'));}catch(error){password.value='';notice(error.uiMessage||serverMessage(error.message));}},'primary'));
 }
-function editGroup(item){const {n}=editBase('groups',item);n.append(el('p',m('Grupa: do 16 kanałów Switch, jawne Włącz i Wyłącz.'),'muted'));for(const d of config.devices.filter(d=>['relay','plug'].includes(d.kind)||item.members.includes(d.id))){const supported=['relay','plug'].includes(d.kind),label=el('label',d.name+(supported?'':` • ${m('Light poza grupami Switch')}`)),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{if(check.checked&&!supported){check.checked=false;return;}item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);changed();});label.prepend(check);n.append(label);}}
-function editScene(item){const {n}=editBase('scenes',item);n.append(el('p',m('Jawne działania sceny. Wykonanie wymaga obsługi typu urządzenia przez moduł komunikacji.'),'muted'));for(const [index,a]of item.actions.entries()){const row=el('div',undefined,'row');select(row,m('Urządzenie'),a.device,config.devices.map(d=>[d.id,d.name]),v=>{a.device=Number(v);a.command=config.devices.find(d=>d.id===a.device)?.kind==='cover'?'open':'on';editScene(item);});select(row,m('Działanie'),a.command,(config.devices.find(d=>d.id===a.device)?.kind==='cover'?[['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]:[['on',m('Włącz')],['off',m('Wyłącz')],['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]).filter(([command])=>config.devices.find(d=>d.id===a.device)?.kind==='cover'||['on','off'].includes(command)),v=>a.command=v);row.append(button('×',()=>{item.actions.splice(index,1);changed();editScene(item);}));n.append(row);}n.append(button(m('+ Działanie'),()=>{if(!config.devices.length||item.actions.length>=8)return notice(m('Dodaj urządzenie; limit sceny to 8 działań.'));item.actions.push({device:config.devices[0].id,command:config.devices[0].kind==='cover'?'open':'on'});changed();editScene(item);}));}
+// Contextual forms use the same shared document and exact durable Save ACK.
+// Editing a saved object starts at its name/image; Back opens the earlier steps.
+window.dsrEditAction=(kind,id)=>{const item=config?.[kind]?.find(o=>o.id===id);if(item)editAction(kind,item,3);};
+function editGroup(item){editAction('groups',item,3);}
+function editScene(item){editAction('scenes',item,3);}
+function actionList(kind){
+ const n=box(titles[kind]),tools=el('div',undefined,'row'),searchLabel=el('label',m('Szukaj')),search=el('input'),roomLabel=el('label',m('Pomieszczenie')),room=el('select');
+ search.type='search';searchLabel.append(search);roomLabel.append(room);
+ for(const [id,name]of [[0,m('Cały dom')],...config.rooms.map(r=>[r.id,r.name])]){const option=el('option',name);option.value=id;room.append(option);}
+ const filter=()=>window.dsrActionsFilter?.(search.value,Number(room.value));search.addEventListener('input',filter);room.addEventListener('change',filter);tools.append(searchLabel,roomLabel);n.append(tools);n.append(button(m('+ Dodaj'),()=>{
+  if(config[kind].length>=8)return notice(m('Osiągnięto limit wpisów.'));
+  const item={id:nextId(config[kind]),name:translate(kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='groups'?{members:[]}:{actions:[]})};
+  config[kind].push(item);changed();editAction(kind,item,0);
+ },'primary'));return n;
+}
+function editAction(kind,item,step){
+ const group=kind==='groups',target=$('#editor'),n=box(group?m('Edytuj grupę'):m('Edytuj scenę'));
+ target.replaceChildren(n);const track=el('div',undefined,'action-steps');
+ for(let i=0;i<4;i++){const marker=el('span');if(i===step)marker.className='selected';track.append(marker);}n.append(track);
+ const body=el('div',undefined,'action-form');n.append(body);
+ if(step===0){
+  body.append(el('h3',group?m('Typ grupy'):m('Sceny uruchamiane ręcznie')));
+  if(group){body.append(button(m('Przekaźniki i gniazdka'),()=>editAction(kind,item,1),'primary'));for(const title of [m('Światła • wkrótce'),m('Rolety i termostaty • wkrótce')]){const b=button(title,()=>{});b.disabled=true;body.append(b);}}
+  else body.append(el('p',m('Przycisk uruchamia wybrane działania po kolei. Warunki i harmonogramy nie są jeszcze obsługiwane.'),'muted'));
+ }else if(step===1){
+  if(group){
+   const count=el('p',m('Wybrano: {0}',item.members.length)),search=field(body,m('Szukaj'),'',()=>{});body.prepend(count);
+   const rooms=el('div',undefined,'action-rooms');body.append(rooms);
+   const draw=()=>{rooms.replaceChildren();for(const room of [{id:0,name:translate(m('Nieprzypisane'))},...config.rooms]){
+    const devices=config.devices.filter(d=>d.room===room.id&&(['relay','plug'].includes(d.kind)||item.members.includes(d.id))&&(d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly').toLocaleLowerCase().includes(search.value.toLocaleLowerCase()));
+    if(!devices.length)continue;const section=el('details'),heading=el('summary',room.name);section.open=!!search.value;section.append(heading);
+    for(const d of devices){const label=el('label',d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly'),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{if(check.checked&&!['relay','plug'].includes(d.kind)){check.checked=false;return;}item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);setText(count,m('Wybrano: {0}',item.members.length));changed();next.disabled=!item.members.length;});label.prepend(check);section.append(label);}rooms.append(section);
+   }};search.addEventListener('input',draw);draw();
+  }else{
+   for(const [index,a]of item.actions.entries()){
+    const row=el('div',undefined,'row');select(row,m('Urządzenie'),a.device,config.devices.filter(d=>['relay','plug','cover'].includes(d.kind)||d.id===a.device).map(d=>[d.id,(config.rooms.find(r=>r.id===d.room)?.name||translate(m('Cały dom')))+' · '+(d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly')]),v=>{a.device=Number(v);a.command=config.devices.find(d=>d.id===a.device)?.kind==='cover'?'open':'on';editAction(kind,item,step);});
+    select(row,m('Działanie'),a.command,config.devices.find(d=>d.id===a.device)?.kind==='cover'?[['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]:[['on',m('Włącz')],['off',m('Wyłącz')]],v=>a.command=v);
+    row.append(button('↑',()=>{if(index){item.actions.splice(index-1,0,item.actions.splice(index,1)[0]);changed();editAction(kind,item,step);}}),button(m('Usuń'),()=>{item.actions.splice(index,1);changed();editAction(kind,item,step);}));body.append(row);
+   }
+   const add=button(m('+ Działanie'),()=>{const d=config.devices.find(d=>['relay','plug','cover'].includes(d.kind));if(!d)return notice(m('Brak zgodnych urządzeń. Dodaj je na stronie Urządzenia.'));item.actions.push({device:d.id,command:d.kind==='cover'?'open':'on'});changed();editAction(kind,item,step);});add.disabled=item.actions.length>=8;body.append(add);
+  }
+ }else if(step===2){select(body,m('Wybierz pomieszczenie'),item.room||0,[[0,m('Cały dom')],...config.rooms.map(r=>[r.id,r.name])],v=>item.room=Number(v));}
+ else{
+  field(body,m('Nazwa'),item.name,v=>item.name=v).maxLength=47;
+  body.append(el('h3',m('Wybierz zdjęcie')));const upload=field(body,m('Zdjęcie pomieszczenia'),'',()=>{},'file');upload.accept='image/jpeg,image/png,image/webp';
+  upload.addEventListener('change',async()=>{if(!upload.files[0])return;try{await uploadPhoto(upload.files[0],item);notice(m('Zdjęcie zoptymalizowane do 320 × 180. Zapisz konfigurację.'));}catch(e){notice(e.uiMessage||serverMessage(e.message));}});
+  body.append(button(m('Bez zdjęcia'),()=>{item.photo='';changed();editAction(kind,item,step);}));
+  select(body,m('Zdjęcie z pomieszczenia'),item.photo||'',[['',m('Bez zdjęcia')],...config.rooms.filter(r=>r.photo).map(r=>[r.photo,r.name])],v=>item.photo=v);
+  body.append(button(m('Usuń'),()=>remove(kind,item.id),'danger'));
+ }
+ const footer=el('div',undefined,'onboarding-footer');footer.append(button(m('Wstecz'),()=>step?editAction(kind,item,step-1):render()));
+ const next=button(step===3?m('Zapisz'):m('Dalej'),async()=>{if(step<3){editAction(kind,item,step+1);return;}await save();if(!dirty&&!saving&&target.firstElementChild===n)render();},'primary');
+ next.disabled=saving||conflict||(step===1&&!(group?item.members.length:item.actions.length));footer.append(next);n.append(footer);
+}
 function move(d,id,delta){const at=d.tiles.findIndex(t=>t.id===id),to=at+delta;if(to<0||to>=d.tiles.length)return;d.tiles.splice(to,0,d.tiles.splice(at,1)[0]);changed();editDashboard(d);}
 function editDashboard(d){const {n,form}=editBase('dashboards',d);select(form,m('Pulpit startowy'),config.active_dashboard===d.id?'yes':'no',[['yes',m('Tak')],['no',m('Nie')]],v=>{if(v==='yes')config.active_dashboard=d.id;});n.append(el('p',m('Przeciągaj karty albo użyj strzałek. Karty urządzeń zawsze zajmują pełną szerokość.'),'muted'));for(const t of d.tiles){const row=el('div',undefined,'tile');row.draggable=true;row.dataset.id=t.id;row.addEventListener('dragstart',()=>{dragId=t.id;row.classList.add('dragging');});row.addEventListener('dragend',()=>row.classList.remove('dragging'));row.addEventListener('dragover',e=>e.preventDefault());row.addEventListener('drop',e=>{e.preventDefault();const a=d.tiles.findIndex(x=>x.id===dragId),b=d.tiles.findIndex(x=>x.id===t.id);if(a>=0&&b>=0){d.tiles.splice(b,0,d.tiles.splice(a,1)[0]);changed();editDashboard(d);}});row.append(el('span','⠿','drag'));const target=config[t.type==='device'?'devices':t.type==='room'?'rooms':t.type==='scene'?'scenes':'groups'].find(x=>x.id===t.ref);const text=el('div',undefined,'grow');text.append(el('h3',target?.name||m('Brak obiektu')),el('p',m('{0} · {1}',m({device:'Urządzenie',room:'Pomieszczenie',scene:'Scena',group:'Grupa'}[t.type]),t.span===2?m('pełna szerokość'):m('½ szerokości')),'muted'));row.append(text,button('↑',()=>move(d,t.id,-1)),button('↓',()=>move(d,t.id,1)),button(m('Edytuj'),()=>editTile(d,t)),button('×',()=>{d.tiles=d.tiles.filter(x=>x.id!==t.id);changed();editDashboard(d);}));n.append(row);}if(!d.tiles.length)empty(n,m('Ten pulpit jest pusty.'));n.append(button(m('+ Dodaj kartę'),()=>{if(d.tiles.length>=24)return notice(m('Limit: 24 karty na pulpit.'));if(!config.devices.length&&!config.rooms.length&&!config.scenes.length&&!config.groups.length)return notice(m('Najpierw dodaj pomieszczenie lub urządzenie.'));const type=config.devices.length?'device':config.rooms.length?'room':config.scenes.length?'scene':'group',a=config[type==='device'?'devices':type==='room'?'rooms':type==='scene'?'scenes':'groups'];const tile={id:nextId(d.tiles),type,ref:a[0].id,span:2,height:1,fields:255};d.tiles.push(tile);changed();editTile(d,tile);},'primary'));}
 function editTile(d,t){
@@ -383,7 +452,7 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 async function save(){
  if(!dirty||saving||conflict)return;

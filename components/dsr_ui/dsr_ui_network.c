@@ -781,7 +781,7 @@ void dsr_network_start_view(void)
 void dsr_network_init(void)
 {
     (void)dsr_actions_init();
-    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv};
+    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

@@ -1,11 +1,46 @@
 /* Actual LCD + actual actor/model/definition/API. Worker, radio and workspace
  * are explicit providers; no device execution or Flash claim. */
+static void action_editor_select(const char *name,bool scene)
+{
+ lv_obj_t *search=find_type(lv_screen_active(),&lv_textarea_class);CHECK(search);lv_textarea_set_text(search,name);
+ lv_obj_t *kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(kb);lv_obj_send_event(kb,LV_EVENT_READY,NULL);
+ /* Search expands the matching room; settle layout before pointer hit testing. */
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *target=NULL;
+ if(scene){search=find_type(lv_screen_active(),&lv_textarea_class);CHECK(search);lv_obj_t *panel=lv_obj_get_parent(search);
+  for(unsigned i=0;i<lv_obj_get_child_count(panel);i++){lv_obj_t *b=lv_obj_get_child(panel,(int)i),*label=lv_obj_get_child(b,0);if(lv_obj_check_type(b,&lv_obj_class)&&label&&lv_obj_check_type(label,&lv_label_class)&&!strcmp(lv_label_get_text(label),name))target=b;}
+ }else target=find_type(lv_screen_active(),&lv_checkbox_class);
+ CHECK(target);lv_area_t bounds;lv_obj_get_coords(target,&bounds);tap((bounds.x1+bounds.x2)/2,(bounds.y1+bounds.y2)/2);
+
+}
+static void contextual_actions_regression(void)
+{
+ cJSON *before=room_document();unsigned requests_before=requests;uint32_t revision=dsr_workspace_revision();
+ dsr_ui_actions_open(0);click("+ Grupa");CHECK(find_label(lv_screen_active(),"Typ grupy"));screenshot("257-group-type");
+ click("Przekaźniki i gniazdka");CHECK(find_label(lv_screen_active(),"Wybrano: 0"));screenshot("258-group-devices");
+ action_editor_select("Relay A",false);CHECK(find_label(lv_screen_active(),"Wybrano: 1"));screenshot("259-group-selected");click("Dalej");CHECK(find_label(lv_screen_active(),"Wybierz pomieszczenie"));screenshot("260-group-room");click("Cały dom");click("Dalej");
+ lv_obj_t *name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name);lv_textarea_set_text(name,"Context group");tap(44,344);name=find_type(lv_screen_active(),&lv_textarea_class);CHECK(name&&!strcmp(lv_textarea_get_text(name),"Context group"));screenshot("261-group-name-photo");
+ test_workspace_defer(true);click("Zapisz");CHECK(dsr_workspace_revision()==revision);cJSON *old=room_document();CHECK(cJSON_Compare(old,before,true));cJSON_Delete(old);
+ lv_textarea_set_text(name,"Later group draft");test_workspace_finish(true);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapisano wcześniejszą wersję • są niezapisane zmiany"));CHECK(find_type(lv_screen_active(),&lv_textarea_class));
+ test_workspace_defer(false);click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Later group draft")&&!find_label(lv_screen_active(),"Edytuj grupę"));screenshot("262-group-saved-card");
+ cJSON *saved=room_document(),*group=cJSON_GetObjectItemCaseSensitive(saved,"groups")->child;while(group&&strcmp(cJSON_GetObjectItemCaseSensitive(group,"name")->valuestring,"Later group draft"))group=group->next;
+ CHECK(group&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(group,"members"))==1);CHECK(cJSON_GetObjectItemCaseSensitive(group,"photo")&&strlen(cJSON_GetObjectItemCaseSensitive(group,"photo")->valuestring)==32);uint32_t id=(uint32_t)cJSON_GetObjectItemCaseSensitive(group,"id")->valueint;cJSON_Delete(saved);
+ dsr_ui_edit_action(0,id);click("Dalej");click("Dalej");click("Dalej");name=find_type(lv_screen_active(),&lv_textarea_class);lv_textarea_set_text(name,"Must survive failure");test_workspace_defer(true);click("Zapisz");test_workspace_finish(false);dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze."));CHECK(!strcmp(lv_textarea_get_text(name),"Must survive failure"));test_workspace_defer(false);
+ click("Wstecz");click("Wstecz");click("Wstecz");click("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));click("Odrzuć");CHECK(find_label(lv_screen_active(),"Later group draft"));
+ dsr_ui_actions_open(1);click("+ Scena");CHECK(find_label(lv_screen_active(),"Sceny uruchamiane ręcznie"));click("Dalej");click("+ Działanie");action_editor_select("Relay A",true);lv_obj_t *command=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(command);lv_dropdown_set_selected(command,1);lv_obj_send_event(command,LV_EVENT_VALUE_CHANGED,NULL);screenshot("263-scene-actions");click("Dalej");click("Dalej");name=find_type(lv_screen_active(),&lv_textarea_class);lv_textarea_set_text(name,"Context scene");click("Zapisz");dsr_ui_workspace_tick();CHECK(find_label(lv_screen_active(),"Context scene"));screenshot("264-scene-saved-card");
+ saved=room_document();cJSON *scene=cJSON_GetObjectItemCaseSensitive(saved,"scenes")->child;while(scene&&strcmp(cJSON_GetObjectItemCaseSensitive(scene,"name")->valuestring,"Context scene"))scene=scene->next;CHECK(scene);CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(scene,"actions")->child,"command")->valuestring,"off"));cJSON_Delete(saved);CHECK(requests==requests_before);
+ for(unsigned language=1;language<=2;language++){
+  cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(language==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);dsr_ui_edit_action(0,id);CHECK(dsr_sc_language()==language);screenshot(language==1?"401-group-wizard-en":"402-group-wizard-de");click("Dalej");click("Dalej");click("Dalej");CHECK(find_label(lv_screen_active(),"Wybierz zdjęcie"));screenshot(language==1?"403-group-appearance-en":"404-group-appearance-de");dsr_network_home(NULL);
+ }
+ CHECK(requests==requests_before);
+ cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(before,"revision"),dsr_workspace_revision());publish_document(before);tick();dsr_network_home(NULL);
+}
 static void actions_regression(void)
 {
  CHECK(!in_flight&&!maintenance_ready);cJSON *original=room_document();uint32_t a=review_entry_id("Relay A"),b=review_entry_id("Relay B");CHECK(a&&b&&a!=b);
  cJSON *r=room_document(),*groups=cJSON_GetObjectItemCaseSensitive(r,"groups"),*scenes=cJSON_GetObjectItemCaseSensitive(r,"scenes");CHECK(cJSON_IsArray(groups));cJSON *group=cJSON_CreateObject();cJSON_AddNumberToObject(group,"id",91);cJSON_AddStringToObject(group,"name","All fixtures");cJSON *members=cJSON_AddArrayToObject(group,"members");cJSON_AddItemToArray(members,cJSON_CreateNumber(a));cJSON_AddItemToArray(members,cJSON_CreateNumber(b));cJSON_AddItemToArray(groups,group);
  cJSON *scene=cJSON_CreateObject();cJSON_AddNumberToObject(scene,"id",92);cJSON_AddStringToObject(scene,"name","Night fixture");cJSON *steps=cJSON_AddArrayToObject(scene,"actions");const char *commands[]={"on","off"};for(unsigned i=0;i<2;i++){cJSON *step=cJSON_CreateObject();cJSON_AddNumberToObject(step,"device",a);cJSON_AddStringToObject(step,"command",commands[i]);cJSON_AddItemToArray(steps,step);}cJSON_AddItemToArray(scenes,scene);
  cJSON *dashboard=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dashboard,"tiles");cJSON *tile=cJSON_Parse("{\"id\":991,\"type\":\"scene\",\"ref\":92,\"span\":2,\"height\":1,\"fields\":255}");cJSON_InsertItemInArray(tiles,0,tile);publish_document(r);tick();
+ contextual_actions_regression();
  unsigned sets=job_counts[DSR_JOB_SET_OUTPUT];dsr_ui_actions_open(0);CHECK(find_label(lv_screen_active(),"All fixtures")&&find_label(lv_screen_active(),"Cały dom • każde urządzenie ma własny wynik."));screenshot("251-groups-lcd");CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);
  /* Offline group reports a result per endpoint without any optimistic SET. */
  CHECK(!wifi.connected);click("Włącz grupę");for(unsigned i=0;i<4&&dsr_actions_active();i++)tick();dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);CHECK(!status.active&&status.count==2&&status.steps[0].outcome==DSR_ACTION_FAILED&&status.steps[1].outcome==DSR_ACTION_FAILED);CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);screenshot("252-group-offline-partial");

@@ -77,6 +77,7 @@ typedef struct {
     void (*open_usage)(uint32_t id);
     void (*open_battery)(void);
     void (*open_actions)(uint8_t kind);
+    void (*edit_action)(uint8_t kind,uint32_t id);
     void (*run_scene)(uint32_t id);
     void (*run_group)(uint32_t id,bool on);
     void (*set_brightness)(unsigned index,uint8_t brightness);

@@ -335,18 +335,20 @@ static void scene_run(lv_event_t *event)
 {unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(!model.demo&&i<model.scene_count&&actions.run_scene)actions.run_scene(model.scenes[i].id);}
 static void group_run(lv_event_t *event)
 {unsigned value=(unsigned)(uintptr_t)lv_event_get_user_data(event),i=value/2;if(!model.demo&&i<model.group_count&&actions.run_group)actions.run_group(model.groups[i].id,(value&1)!=0);}
+static void action_edit(lv_event_t *event)
+{unsigned value=(unsigned)(uintptr_t)lv_event_get_user_data(event),index=value/2;bool scene=(value&1)!=0;if(model.demo||!actions.edit_action)return;if(scene&&index<model.scene_count)actions.edit_action(1,model.scenes[index].id);else if(!scene&&index<model.group_count)actions.edit_action(0,model.groups[index].id);}
 static void scene_card(unsigned index,int y,int height)
 {
  dsr_mobile_scene_t *scene=&model.scenes[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,0x414548,12,navigate,(void *)(uintptr_t)19);
  lv_obj_t *icon=dsr_sc_panel(card,8,17,50,50,0x29343b,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(icon,DSR_ICON_SCENES,32,DSR_SC_TEXT);
  lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(scene->name),68,10,164,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
  char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Scena • %u działań"),scene->actions);dsr_sc_text(card,text,68,36,210,&dsr_roboto_12,DSR_SC_MUTED);
- card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
+ card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_action!=NULL,action_edit,index*2+1);
  lv_obj_t *run=dsr_sc_button(card,68,height-36,164,30,DSR_SC_PANEL,8,scene_run,(void *)(uintptr_t)index);dsr_sc_text(run,"Uruchom scenę",4,7,156,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_scene||!scene->actions)lv_obj_add_state(run,LV_STATE_DISABLED);
 }
 static void group_card(unsigned index,int y,int height)
 {
- dsr_mobile_group_t *group=&model.groups[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,DSR_SC_CARD,12,navigate,(void *)18);dsr_sc_text(card,dsr_sc_name(group->name),12,10,230,&dsr_roboto_16,DSR_SC_TEXT);card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_dashboard!=NULL,navigate,12);
+ dsr_mobile_group_t *group=&model.groups[index];lv_obj_t *card=dsr_sc_button(content,0,y,296,height,DSR_SC_CARD,12,navigate,(void *)18);dsr_sc_text(card,dsr_sc_name(group->name),12,10,230,&dsr_roboto_16,DSR_SC_TEXT);card_control(card,0,DSR_ICON_EDIT,244,26,actions.edit_action!=NULL,action_edit,index*2);
  lv_obj_t *on=dsr_sc_button(card,12,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2+1)),*off=dsr_sc_button(card,152,height-44,128,34,DSR_SC_PANEL,8,group_run,(void *)(uintptr_t)(index*2));dsr_sc_text(on,"Włącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);dsr_sc_text(off,"Wyłącz grupę",4,10,120,&dsr_roboto_12,DSR_SC_TEXT);if(model.demo||!actions.run_group||!group->members){lv_obj_add_state(on,LV_STATE_DISABLED);lv_obj_add_state(off,LV_STATE_DISABLED);}
 }
 static void empty(const char *heading,const char *text)

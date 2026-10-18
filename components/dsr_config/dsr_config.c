@@ -85,6 +85,18 @@ static bool validate_v1(const cJSON *r,char error[96])
  }
  error[0]=0;return true;
 }
+/* Presentation metadata is optional: old definitions keep their exact meaning.
+ * IDs, never paths/URLs, select bounded local photo assets. */
+static bool action_appearance(const cJSON *r,const cJSON *o)
+{
+ if(get(o,"room")&&!reference(r,"rooms",get(o,"room"),true))return false;
+ if(!get(o,"photo"))return true;
+ if(!text(o,"photo",32,true))return false;
+ const char *p=get(o,"photo")->valuestring;if(!*p)return true;
+ if(strlen(p)!=32)return false;
+ for(unsigned i=0;i<32;i++)if(!((p[i]>='a'&&p[i]<='f')||(p[i]>='0'&&p[i]<='9')))return false;
+ return true;
+}
 static bool validate_v2(const cJSON *r,char error[96])
 {
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
@@ -104,7 +116,7 @@ static bool validate_v2(const cJSON *r,char error[96])
    !choice(v,"kind","|light||relay||plug||cover||contact||sensor|")||!reference(r,"rooms",get(v,"room"),true))return fail(error,"Invalid device address/type/room");
  }
  cJSON_ArrayForEach(v,get(r,"scenes")){
-  const cJSON *actions=get(v,"actions"),*a;if(!keys(v,"|id||name||actions|")||!cJSON_IsArray(actions)||cJSON_GetArraySize(actions)>8)return fail(error,"Scene limit: 8 explicit actions");
+  const cJSON *actions=get(v,"actions"),*a;if(!keys(v,"|id||name||actions||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(actions)||cJSON_GetArraySize(actions)>8)return fail(error,"Scene limit: 8 explicit actions");
   cJSON_ArrayForEach(a,actions)if(!keys(a,"|device||command|")||!reference(r,"devices",get(a,"device"),false)||!choice(a,"command","|on||off||open||close||stop|"))return fail(error,"Invalid scene action");
  }
  /* Groups deliberately support Switch ON/OFF only. This validates the
@@ -112,7 +124,7 @@ static bool validate_v2(const cJSON *r,char error[96])
   * again by the executor before any I/O. */
  cJSON_ArrayForEach(v,get(r,"groups")){
   const cJSON *members=get(v,"members"),*member;
-  if(!keys(v,"|id||name||members|")||!cJSON_IsArray(members)||cJSON_GetArraySize(members)>16)return fail(error,"Group limit: 16 unique Switch members");
+  if(!keys(v,"|id||name||members||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(members)||cJSON_GetArraySize(members)>16)return fail(error,"Group limit: 16 unique Switch members");
   cJSON_ArrayForEach(member,members){
    if(!reference(r,"devices",member,false))return fail(error,"Group references missing device");
    const cJSON *device;bool compatible=false;cJSON_ArrayForEach(device,get(r,"devices"))if(get(device,"id")->valueint==member->valueint)compatible=choice(device,"kind","|light||relay||plug|");

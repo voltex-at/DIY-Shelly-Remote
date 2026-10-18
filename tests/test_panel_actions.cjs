@@ -31,6 +31,22 @@ let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x=>{asser
  admit=false;await live.getByRole('button',{name:'Włącz grupę',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('Nie potwierdzono przyjęcia'));await page.evaluate(()=>dsrActionsRefresh());ok(await live.getByRole('button',{name:'Włącz grupę',exact:true}).isDisabled());eq(posts.length,3);actor={...actor,boot_id:18,admission_generation:0,run_id:0,nonce:'',steps:[],active:false,available:true};await page.evaluate(()=>dsrActionsRefresh());eq(posts.length,3);ok((await live.innerText()).includes('uruchomiono ponownie'));
  // Editor and language changes preserve the dirty draft and never run it.
  await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Unsaved group');const draft=await page.evaluate(()=>JSON.stringify(config));await page.locator('#web-locale').selectOption('de');eq(await page.evaluate(()=>JSON.stringify(config)),draft);eq(posts.length,3);ok(await page.evaluate(()=>dirty));await page.locator('#save').click();await page.waitForFunction(()=>!saving&&!dirty);eq(config.groups[0].name,'Unsaved group');
+ // Create directly on Groups/Scenes; only Save may publish, never execute.
+ await page.locator('#web-locale').selectOption('pl');await page.locator('nav [data-page=groups]').click();
+ await page.locator('#editor').getByRole('button',{name:'+ Dodaj',exact:true}).click();
+ await page.getByRole('button',{name:'Przekaźniki i gniazdka',exact:true}).click();
+ await page.getByLabel('Szukaj',{exact:true}).fill('A');await page.locator('.action-rooms input[type=checkbox]').check();
+ await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
+ await page.getByLabel('Nazwa',{exact:true}).fill('Group from its page');eq(posts.length,3);
+ await page.screenshot({path:path.join(out,'group-contextual-editor-model.png'),fullPage:true});
+ await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);
+ eq(config.groups.length,2);eq(config.groups[1].members,[1]);eq(config.groups[1].name,'Group from its page');eq(posts.length,3);
+ await page.locator('nav [data-page=scenes]').click();await page.locator('#editor').getByRole('button',{name:'+ Dodaj',exact:true}).click();
+ ok((await page.locator('#editor').innerText()).includes('Sceny uruchamiane ręcznie'));await page.getByRole('button',{name:'Dalej',exact:true}).click();
+ await page.getByRole('button',{name:'+ Działanie',exact:true}).click();await page.getByLabel('Działanie',{exact:true}).selectOption('off');
+ await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
+ await page.getByLabel('Nazwa',{exact:true}).fill('Scene from its page');await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);
+ eq(config.scenes[1].actions,[{device:1,command:'off'}]);eq(posts.length,3);await page.locator('#web-locale').selectOption('de');
  await page.locator('nav [data-page=activity]').click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('UTC fehlt'));await page.screenshot({path:path.join(out,'activity-german-model.png'),fullPage:true});await live.getByRole('button',{name:'RAM-Aktivität löschen',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('Keine Einträge'));eq(posts.length,3);eq(errors,[]);
  await browser.close();fs.rmSync(temp,{recursive:true,force:true});console.log(`PASS: ${checks} actual Chromium actions checks; shared assets/editor and actor HTTP MODEL; partial success, lostPOST GET-only, boot, locale/dirty/save, UTC activity/clear; no device proof`);
 })().catch(async e=>{console.error(e);if(page)await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});process.exit(1);});

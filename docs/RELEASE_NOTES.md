@@ -1,3 +1,13 @@
+0.7.54-dev: sceny i grupy edytowane na swoich stronach. Stable: brak.
+
+- LCD: dodawanie i edycja bez przechodzenia do konfiguratora; karty ze zdjęciem, nazwa i pokój, oddzielne sterowanie i ołówek. Ołówek na pulpicie otwiera konkretny wpis. Wyszukiwanie oraz filtr pomieszczeń na liście.
+- Cztery kroki: typ/uruchomienie, urządzenia lub działania, pomieszczenie, nazwa i zdjęcie. Urządzenia grupowane według pokoju, licznik zaznaczeń, wybór zdjęć wbudowanych i własnych zapisanych w pilocie. Scena pozwala wybrać polecenie, zmienić kolejność i usunąć krok. Oddzielna stopka nie przesłania przewijanej zawartości; podczas wpisywania widoczna jest klawiatura.
+- Web Panel: jedna lista kart z edycją i sterowaniem na stronach Grupy/Sceny, wyszukiwanie, filtr pokoju i formularze czterech kroków. Własne zdjęcie można przesłać bezpośrednio z formularza.
+- Zapis nadal wymaga dokładnego trwałego ACK i zgodnej rewizji. Błąd zachowuje formularz, późniejsze zmiany nie są zastępowane wcześniejszym zapisem, porzucenie zmian na LCD wymaga jawnego potwierdzenia. Edycja nie uruchamia urządzeń.
+- Zgodność: opcjonalne pola `room` (0 lub istniejący pokój) i `photo` (lokalny identyfikator) dla scen/grup w schemacie 2. Dotychczasowe wpisy działają bez migracji. Zdjęcia wskazane w dowolnym z dwóch checkpointów przez pokoje, grupy lub sceny są zachowywane. Usunięcie pokoju używanego przez scenę/grupę jest blokowane. Po zapisaniu nowych pól powrót do 0.7.53 lub starszej wymaga usunięcia tych pól z kopii konfiguracji; starszy walidator ich nie zna.
+- Zakres wykonania bez zmian: grupy przekaźników/gniazdek Switch ON/OFF; sceny ręczne, do 8 działań Switch/Cover. Nowy interfejs nie dodaje automatycznych warunków, harmonogramów, grup Light/Dimmer/RGB ani TRV. Ich referencje graficzne nie oznaczają zaimplementowanego wykonawcy.
+- Właściciel potwierdził udaną instalację 0.7.53-dev. Nowy kreator wymaga odbioru na ES3C35P; testy hosta i CI nie zastępują tego sprawdzenia.
+
 0.7.53-dev: porządek w P0, nazwy Shelly i kanały. Stable: brak.
 
 - Przyczyna dawnych przerwań SPIFFS jest potwierdzona przez właściciela: zewnętrzny reset podczas formatowania, gdy ekran nie informował o wykonywanej czynności. Zachowane: ekran przygotowania pamięci z postępem odczytywanym z Flash, bezpieczne wznowienie wyłącznie rozpoznanej pustej resztki formatu i odmowa kasowania obcych danych.

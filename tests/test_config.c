@@ -71,6 +71,30 @@ static void photo_gc(cJSON *source,const char *base)
  for(unsigned i=20;i<52;i++){snprintf(file,sizeof(file),"%s/p%032x.rgb",dir,i);f=fopen(file,"wb");CHECK(f);fclose(f);CHECK(dsr_config_store_collect_photos(dir,&removed,error));CHECK(removed==1);CHECK(access(file,F_OK)!=0);}
  cJSON_Delete(doc);
 }
+static void action_metadata_gc(cJSON *source,const char *base)
+{
+ char dir[512],file[600],id[33],error[96];snprintf(dir,sizeof(dir),"%s/action-photos",base);CHECK(!mkdir(dir,0700));
+ cJSON *doc=cJSON_Duplicate(source,true);CHECK(doc);cJSON *room=cJSON_GetObjectItemCaseSensitive(doc,"rooms")->child;CHECK(room);
+ cJSON_ReplaceItemInObjectCaseSensitive(room,"photo",cJSON_CreateString(""));
+ cJSON *group=cJSON_Parse("{\"id\":901,\"name\":\"Group photo\",\"members\":[],\"room\":1,\"photo\":\"00000000000000000000000000000003\"}");
+ cJSON *scene=cJSON_Parse("{\"id\":902,\"name\":\"Scene photo\",\"actions\":[],\"room\":0,\"photo\":\"00000000000000000000000000000004\"}");
+ CHECK(group&&scene);cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"groups"),group);cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"scenes"),scene);CHECK(dsr_config_validate(doc,error));
+ cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(group,"room"),999);CHECK(!dsr_config_validate(doc,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(group,"room"),1);
+ const char *bad[]={"../config0.dat","FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF","short"};
+ for(unsigned i=0;i<3;i++){cJSON_ReplaceItemInObjectCaseSensitive(scene,"photo",cJSON_CreateString(bad[i]));CHECK(!dsr_config_validate(doc,error));}
+ cJSON_ReplaceItemInObjectCaseSensitive(scene,"photo",cJSON_CreateNull());CHECK(!dsr_config_validate(doc,error));
+ cJSON_ReplaceItemInObjectCaseSensitive(scene,"photo",cJSON_CreateString("00000000000000000000000000000004"));CHECK(dsr_config_validate(doc,error));
+ for(unsigned i=1;i<=4;i++){snprintf(file,sizeof(file),"%s/p%032x.rgb",dir,i);FILE *f=fopen(file,"wb");CHECK(f&&!fclose(f));}
+ unsigned removed=0;
+ for(unsigned revision=1;revision<=6;revision++){
+  if(revision==3)cJSON_ReplaceItemInObjectCaseSensitive(group,"photo",cJSON_CreateString(""));
+  if(revision==5)cJSON_ReplaceItemInObjectCaseSensitive(scene,"photo",cJSON_CreateString(""));
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),revision);char *json=cJSON_PrintUnformatted(doc);CHECK(json&&dsr_config_store_save(dir,json,error));free(json);
+  CHECK(dsr_config_store_collect_photos(dir,&removed,error));CHECK(removed==(revision==1?2u:revision==4||revision==6?1u:0u));
+  snprintf(id,sizeof(id),"%032x",4);snprintf(file,sizeof(file),"%s/p%s.rgb",dir,id);CHECK((access(file,F_OK)==0)==(revision<6));
+ }
+ cJSON_Delete(doc);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==3);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
@@ -107,6 +131,7 @@ int main(int argc,char **argv)
  loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&error[0]);
  CHECK(dsr_config_store_save(argv[1],initial,error));
  photo_gc(r,argv[1]);
+ action_metadata_gc(r,argv[1]);
  compact_photo_gc(r,argv[1]);
  cJSON_ReplaceItemInObjectCaseSensitive(r,"schema",cJSON_CreateNumber(3));char *future=cJSON_PrintUnformatted(r);uint32_t header[]={0x44535231,(uint32_t)strlen(future),dsr_config_crc32(future,strlen(future)),1};
  snprintf(path,sizeof(path),"%s/config1.dat",argv[1]);f=fopen(path,"wb");CHECK(f);CHECK(fwrite(header,sizeof(header),1,f)==1);CHECK(fwrite(future,1,strlen(future),f)==strlen(future));CHECK(!fclose(f));free(future);

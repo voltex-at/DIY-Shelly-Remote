@@ -18,6 +18,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+/* Deterministic clock provider: minute rollover must not change label/cache
+ * allocations during exact heap-cycle assertions. Firmware uses real SNTP. */
+time_t time(time_t *out){time_t now=1760877240;if(out)*out=now;return now;}
 
 static unsigned checks;
 static unsigned screenshots,requests;

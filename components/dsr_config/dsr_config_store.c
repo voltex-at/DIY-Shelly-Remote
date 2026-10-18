@@ -57,7 +57,8 @@ bool dsr_config_store_collect_photos(const char *dir,unsigned *removed,char erro
  while((entry=readdir(directory))){
   const char *name=entry->d_name;char id[33];if(!dsr_photo_filename_id(name,id))continue;
   bool referenced=false;const cJSON *room;
-  for(unsigned i=0;i<2;i++)cJSON_ArrayForEach(room,cJSON_GetObjectItemCaseSensitive(roots[i],"rooms")){
+  const char *collections[]={"rooms","groups","scenes"};
+  for(unsigned i=0;i<2;i++)for(unsigned j=0;j<3;j++)cJSON_ArrayForEach(room,cJSON_GetObjectItemCaseSensitive(roots[i],collections[j])){
    const cJSON *photo=cJSON_GetObjectItemCaseSensitive(room,"photo");if(cJSON_IsString(photo)&&!strcmp(photo->valuestring,id))referenced=true;
   }
   if(!referenced){char file[256];int length=snprintf(file,sizeof(file),"%s/%s",dir,name);
