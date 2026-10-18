@@ -1,6 +1,6 @@
-0.7.55-dev: baza opublikowana; bieżący kandydat poprawia obsługę LCD oraz upraszcza sceny i grupy. Stable: brak.
+0.7.56-dev: poprawki dotyku i UI, odczytu rolet, termostatu i OTA; prostsze sceny i grupy.
 
-Zmiany robocze po opublikowanym 0.7.55-dev. Bez nowego publicznego wydania.
+Zakres 0.7.56-dev. Testy fizyczne poprawek pozostają do wykonania; Stable: brak.
 
 - LCD: usunięty ogólny nagłówek domu we wszystkich językach i dodatkowa zakładka pulpitu; większy zegar, uporządkowane odstępy, bateria bez wystającego prostokąta. Powrót ma większe pole dotyku, a Bateria działa również z dolnego paska ustawień.
 - Karty: sterowanie wyśrodkowane pionowo, wspólne obramowania przycisków; czerwone przyciski usuwania. Wskaźnik przewijania ma 2 × 36 px i leży w prawym marginesie. Numer kroku dodawania przeniesiony niżej, poprawione niemieckie teksty parowania BLU.

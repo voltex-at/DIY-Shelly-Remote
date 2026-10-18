@@ -1,6 +1,6 @@
 # Lokalne sceny i grupy
 
-Bieżący kandydat po 0.7.55-dev upraszcza tworzenie bezpośrednio na stronach
+Wersja 0.7.56-dev upraszcza tworzenie bezpośrednio na stronach
 **Grupy** i **Sceny**, na LCD i w Web Panelu. Nie wymaga Shelly Cloud.
 
 Grupa służy do wspólnego włączenia lub wyłączenia przekaźników i gniazdek.
@@ -64,4 +64,4 @@ nie mierzą szczytu SDK ani nie potwierdzają fizycznego wykonania.
   uruchomienia, odłączenie jednego urządzenia i oddzielny wynik dla każdego.
 
 Nie wykonywano w tej zmianie operacji na fizycznych przekaźnikach ani roletach.
-Kandydat nie zmienia podpisanego wydania 0.7.55-dev ani gałęzi main.
+Wersja 0.7.56-dev nie zmienia plików poprzedniego wydania 0.7.55-dev ani gałęzi main.

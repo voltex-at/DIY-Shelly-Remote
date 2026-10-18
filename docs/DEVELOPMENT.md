@@ -109,7 +109,7 @@ nie wysyła i nie zastępuje plików. Wymaga dokładnego żądania
 ### Wydanie 0.7.55-dev
 
 `.github/dev-release-0.7.55.json` jest następnym, jawnie zleconym wydaniem DEV.
-`release.yml` i `DEV_REQUEST` wskazują tylko 0.7.55 oraz gałąź P0. Tag powstaje
+Dla tego wydania `release.yml` i `DEV_REQUEST` wskazywały tylko 0.7.55 oraz gałąź P0. Tag powstał
 dopiero po pełnym CI 5/5 dokładnego SHA, bez zmiany poprzedniego tagu lub
 zasobów 0.7.54. `main` i Stable pozostają osobne. Testy konfiguracji:
 `tools/test_device_settings.py`, sterownika GATT: `tools/test_blu.py`, LCD:
@@ -117,3 +117,14 @@ zasobów 0.7.54. `main` i Stable pozostają osobne. Testy konfiguracji:
 wszystkie dotychczasowe testy, ASan/UBSan i nowe audyty stosów/BSS.
 NimBLE ma teraz SMP/NVS dla BLU, ale stary przepływ B1 nadal odmawia parowania.
 Nie interpretować testów fixture jako pomiaru SMP/RF ani trwałości Flash na sprzęcie.
+
+### Wydanie 0.7.56-dev
+
+Właściciel jawnie zlecił publikację OTA Dev 2026-10-19 (Europe/Vienna).
+`.github/dev-release-0.7.56.json`, `release.yml` i `DEV_REQUEST` dopuszczają
+wyłącznie nowy tag `dev-v0.7.56`, wersję `0.7.56-dev` i gałąź P0.
+Istniejące tagi i zasoby pozostają niezmienne. Gate czeka na CI 5/5 dokładnego
+commitu przed utworzeniem tagu. Podpis używa zatwierdzonego klucza w środowisku
+`release`; klucz nie jest odczytywany do workspace. Nie zmienia to main ani
+Stable. Zakres: uproszczone sceny/grupy i poprawki zgłoszeń LCD, Cover, TRV,
+priorytetu dotyku oraz postępu OTA. Odbiór fizyczny pozostaje osobnym krokiem.

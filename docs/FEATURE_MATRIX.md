@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.55-dev i bieżący kandydat
+# Matryca funkcji — 0.7.56-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -22,7 +22,8 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Edytory Shelly Gen2/3/4: Sys, Switch/Input, Cover, Light/RGB/RGBW, WiFi, BLE, Cloud, MQTT, temperatura/wilgotność | tak (pola obecne w GetConfig i metody urządzenia) | host/LVGL PL EN DE; target przed wydaniem | brak testu | — |
 | Parowanie BLU: SMP/PIN, trwałe bondy, jawne zapomnienie; GATT Motion/DW/Button/TRV | tak (0.7.55; klasyczne modele 1/2/3/5/6/7/8, nieznane modele odrzucone) | driver host; RF/SMP/NVS wymagają sprzętu | brak testu | — |
 | Dodanie BLU do zgodnej bramki LAN; osobne powiązanie TRV przez StartAssociations | tak (odczyt po dodaniu, istniejący adres bez duplikatu) | actor/HTTP model; odbiór RF niepotwierdzony | brak testu | — |
-| Grupy i sceny: 3 kroki LCD/WWW, jawne polecenia, opcjonalny pokój/zdjęcie | tak (kandydat po 0.7.55; ręczne sceny Switch/Cover, grupy Switch; warunki chmurowe i inne grupy poza zakresem) | host/LVGL; dokładny SHA i CI w Draft PR #65 | uproszczony formularz: brak testu | — |
+| Grupy i sceny: 3 kroki LCD/WWW, jawne polecenia, opcjonalny pokój/zdjęcie | tak (0.7.56; ręczne sceny Switch/Cover, grupy Switch; warunki chmurowe i inne grupy poza zakresem) | host/LVGL; dokładny SHA i CI w Draft PR #65 | uproszczony formularz: brak testu | — |
+| Poprawki zgłoszeń UI: pola dotyku/Bateria, nagłówek i zegar, wskaźnik, niemiecki BLU, OTA progress, przeciąganie TRV, odczyt Cover po błędzie | tak (0.7.56) | host/LVGL/piksele/target; dokładny SHA w Draft PR #65 | brak ponownego testu | — |
 | Zużycie: zegar mocy na stronie urządzenia | tak (0.7.49) | tak | brak testu | — |
 | Historia energii 24 h, strona Energia, wykres WWW | usunięte w 0.7.51 (decyzja właściciela 2026-10-18; pliki w SPIFFS nietknięte) | — | — | — |
 | Ikony urządzeń do wyboru (20), zegar w pasku stanu, pasek przewijania | tak (0.7.51) | tak (LCD, schemat) | brak testu | — |
