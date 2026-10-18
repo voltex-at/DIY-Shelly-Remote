@@ -23,7 +23,8 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Zużycie: zegar mocy na stronie urządzenia | tak (0.7.49) | tak | brak testu | — |
 | Historia energii 24 h, strona Energia, wykres WWW | usunięte w 0.7.51 (decyzja właściciela 2026-10-18; pliki w SPIFFS nietknięte) | — | — | — |
 | Ikony urządzeń do wyboru (20), zegar w pasku stanu, pasek przewijania | tak (0.7.51) | tak (LCD, schemat) | brak testu | — |
-| Skan BLE i dodawanie Gen2+ przez BLE | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
+| Skan BLE i dodawanie Gen2+ przez BLE w otwartym setupie; bez bondingu | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
+| Rzeczywiste ustawienia Shelly, parowanie i konfiguracja BLU oraz tworzenie BTHome na wybranej bramce | plan i [audyt oficjalnego API](SHELLY_CONFIGURATION_BLU_PL.md) (2026-10-18); brak nowej implementacji | nie dotyczy | brak testu | — |
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
 | OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB; 0.7.43: limit pobierania obrazu, kasowanie sekwencyjne) | tak | instalacja 0.7.53-dev udana — potwierdzenie właściciela 2026-10-18; rollback bez testu | — |
 | Rollback po nieudanym starcie | tak (SDK); zatwierdzenie pending wymaga gotowych SPIFFS/workspace również wewnątrz API | model (fazy/błędy magazynu, UI odzyskiwania dostępne bez zatwierdzenia) | brak testu | — |
