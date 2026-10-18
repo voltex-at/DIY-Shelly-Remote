@@ -4,10 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <math.h>
 #ifdef ESP_PLATFORM
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_attr.h"
 #endif
 
 _Static_assert(sizeof(dsr_mobile_model_t)<=8192,"bounded shared mobile view model");
@@ -38,6 +40,16 @@ static bool light_drag;
 static uint32_t light_drag_id;
 static lv_obj_t *light_slider,*light_preview_label;
 static void render(void);
+/* Cards on the list pages, so a poll that changes values rebuilds only the
+ * affected cards (0.7.50) instead of the whole screen. */
+typedef struct{lv_obj_t *obj;uint8_t type,index,fields;int16_t x,y,w,h;} placed_card_t;
+#ifdef ESP_PLATFORM
+EXT_RAM_BSS_ATTR
+#endif
+static placed_card_t placed[24+DSR_UI_MAX_DEVICES];
+static unsigned placed_count;
+static void place(lv_obj_t *obj,uint8_t type,unsigned index,unsigned fields,int x,int y,int w,int h)
+{if(obj&&placed_count<sizeof(placed)/sizeof(placed[0]))placed[placed_count++]=(placed_card_t){obj,type,(uint8_t)index,(uint8_t)fields,(int16_t)x,(int16_t)y,(int16_t)w,(int16_t)h};}
 static bool unbound(const dsr_mobile_device_t *d);
 static bool trv_device(const dsr_mobile_device_t *d);static bool trv_known(const dsr_mobile_device_t *d);static bool trv_can(const dsr_mobile_device_t *d);
 static uint8_t trv_shown(const dsr_mobile_device_t *d);static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid);
@@ -55,7 +67,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -215,13 +227,12 @@ static void card_control(lv_obj_t *parent,unsigned i,dsr_ui_icon_t icon,int x,in
  dsr_sc_icon_centered(b,icon,26,valid?DSR_SC_BLUE:0x818991);
  if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,dsr_sc_color(0x555b60),LV_STATE_DISABLED);}
 }
-static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
+static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height,unsigned fields)
 {
     /* Shelly Smart Control row (owner references 2026-10-18): status strip, round
      * device icon, name, value pill, action on the right; blue halo when on. */
     dsr_mobile_device_t *d=&model.devices[i];
     bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR,trv=trv_device(d);
-    unsigned fields=page==DSR_MOBILE_HOME&&model.configured_layout?d->fields:255;
     bool on=!sensor&&!cover&&d->online&&d->output&&d->error==DSR_OK&&!unbound(d);
     lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,0x2b2f33,DSR_SC_RADIUS,open_device,(void *)(uintptr_t)i);
     edge(card,on?DSR_SC_GLOW:0x3a3f44,on?2:1);dsr_sc_glow(card,on);
@@ -259,7 +270,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
      bool valid=d->online&&!d->busy&&d->can_switch;
      dsr_sc_power_button(card,width-64,body-28,56,on,valid,DSR_ICON_POWER,DSR_SC_GLOW,control,(void *)(uintptr_t)i);
     }
-    if(!fields)return;
+    if(!fields)return card;
     char part[6][40];const char *texts[6];unsigned n=0;
 #define ADD_PART(...) do{if(n<6){snprintf(part[n],sizeof(part[n]),__VA_ARGS__);texts[n]=part[n];n++;}}while(0)
     if((!d->online||d->error!=DSR_OK)&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind))ADD_PART("%s",dsr_sc_tr("Odczyty niedostępne"));
@@ -280,6 +291,7 @@ static void device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int he
     }
 #undef ADD_PART
     if(n)dsr_sc_segments(card,texts,n,66,body+2,width-66-right,d->online?DSR_SC_TEXT:0xffc18c);
+    return card;
 }
 bool dsr_ui_photo_source(const char *id,lv_image_dsc_t *out)
 {
@@ -292,7 +304,7 @@ static dsr_ui_icon_t room_icon(unsigned i)
     const dsr_ui_icon_t kinds[]={DSR_ICON_SOFA,DSR_ICON_KITCHEN,DSR_ICON_BED,DSR_ICON_BATH};
     return kinds[model.rooms[i].icon%4];
 }
-static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
+static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
 {
     lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,DSR_SC_CARD,DSR_SC_RADIUS,open_room,(void *)(uintptr_t)i);
     static lv_image_dsc_t photos[DSR_UI_MAX_ROOMS];
@@ -312,6 +324,7 @@ static void room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int heig
         lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-44,0,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
         if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
     }
+    return card;
 }
 static void scene_run(lv_event_t *event)
 {unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(!model.demo&&i<model.scene_count&&actions.run_scene)actions.run_scene(model.scenes[i].id);}
@@ -706,7 +719,7 @@ static void device_settings(lv_obj_t *root)
 static void render(void)
 {
     rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
-    lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;lv_obj_clean(root);lv_obj_remove_style_all(root);
+    lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;placed_count=0;lv_obj_clean(root);lv_obj_remove_style_all(root);
     dsr_sc_background(root);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     static const char fallback_title[]="Mój dom";
@@ -723,7 +736,7 @@ static void render(void)
         lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);
         if(page==DSR_MOBILE_ROOMS){
-            for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*138,144,130);
+            for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*138,144,130);/* rooms page: not partial */
             if(!model.room_count){
                 empty("Brak pomieszczeń","Utwórz pierwszy pokój, aby uporządkować urządzenia.");
                 lv_obj_t *add=dsr_sc_button(content,12,210,272,48,DSR_SC_PANEL,10,add_room,NULL);
@@ -736,12 +749,12 @@ static void render(void)
                 int y=0,x=0,row_height=0;
                 for(unsigned t=0;t<model.tile_count;t++){
                     dsr_mobile_tile_t *tile=&model.tiles[t];
-                    if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}model.devices[tile->index].fields=tile->fields;device_card(content,tile->index,0,y,296,tile->height==2?120:84);y+=tile->height==2?128:92;at++;}
-                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?184:130;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}room_card(content,tile->index,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
+                    if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}int h=tile->height==2?120:84;place(device_card(content,tile->index,0,y,296,h,tile->fields),0,tile->index,tile->fields,0,y,296,h);y+=tile->height==2?128:92;at++;}
+                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?184:130;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place(room_card(content,tile->index,x,y,tile->span==2?296:144,height),1,tile->index,0,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
                     else if(tile->type==2&&tile->index<model.scene_count){if(x){x=0;y+=row_height+8;row_height=0;}scene_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                     else if(tile->type==3&&tile->index<model.group_count){if(x){x=0;y+=row_height+8;row_height=0;}group_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                 }
-            }else for(unsigned i=0;i<model.device_count;i++)if(page!=DSR_MOBILE_ROOM||model.devices[i].room==selected){device_card(content,i,0,(int)at*92,296,84);at++;}
+            }else for(unsigned i=0;i<model.device_count;i++)if(page!=DSR_MOBILE_ROOM||model.devices[i].room==selected){place(device_card(content,i,0,(int)at*92,296,84,255),0,i,255,0,(int)at*92,296,84);at++;}
             if(!at)empty("Brak urządzeń","Dodaj pierwsze urządzenie Shelly przyciskiem +, aby rozpocząć sterowanie swoim domem.");
         }
         lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);
@@ -781,6 +794,39 @@ static void translate_draft(void)
  if(rendered_language==dsr_sc_language())return;
  translate_labels(lv_screen_active());rendered_language=dsr_sc_language();
  if(light_drag&&light_preview_label&&light_slider){char text[48];snprintf(text,sizeof(text),"%s %d%%",dsr_sc_tr("Podgląd"),(int)lv_slider_get_value(light_slider));lv_label_set_text(light_preview_label,text);}
+}
+/* Same screen structure, only device values differ: rebuild just those cards
+ * (and room cards, whose badge sums device power). Anything else, or any doubt,
+ * falls back to the full render. */
+static bool refresh_cards(const dsr_mobile_model_t *m)
+{
+    if(!content||!placed_count||info_open||(page!=DSR_MOBILE_HOME&&page!=DSR_MOBILE_DEVICES&&page!=DSR_MOBILE_ROOM))return false;
+    bool demo=m->demo;
+#ifndef DSR_UI_REVIEW_DEMO
+    demo=false;
+#endif
+    if(demo!=model.demo||m->wifi!=model.wifi||memcmp(m->home_name,model.home_name,sizeof(model.home_name))||m->device_count!=model.device_count||m->room_count!=model.room_count)return false;
+    const size_t after=offsetof(dsr_mobile_model_t,rooms);
+    if(memcmp((const char *)m+after,(const char *)&model+after,sizeof(model)-after))return false;
+    bool changed[DSR_UI_MAX_DEVICES]={0},any=false;
+    for(unsigned i=0;i<model.device_count;i++){
+     const dsr_mobile_device_t *a=&model.devices[i],*b=&m->devices[i];
+     if(memcmp(a,b,sizeof(*a))){if(a->id!=b->id||(page==DSR_MOBILE_ROOM&&a->room!=b->room))return false;changed[i]=any=true;}
+    }
+    if(!any)return false;
+    /* Cards are only ever deleted by render(), which also empties placed[]. */
+    if(!lv_obj_is_valid(content))return false;
+    for(unsigned k=0;k<placed_count;k++)if(lv_obj_get_parent(placed[k].obj)!=content)return false;
+    int scroll=lv_obj_get_scroll_y(content);
+    memcpy(model.devices,m->devices,sizeof(model.devices));
+    for(unsigned k=0;k<placed_count;k++){
+     placed_card_t *c=&placed[k];if(c->type==0?!changed[c->index]:c->type!=1)continue;
+     int32_t at=lv_obj_get_index(c->obj);lv_obj_delete(c->obj);
+     c->obj=c->type==0?device_card(content,c->index,c->x,c->y,c->w,c->h,c->fields):room_card(content,c->index,c->x,c->y,c->w,c->h);
+     lv_obj_move_to_index(c->obj,at);
+    }
+    lv_obj_update_layout(content);if(lv_obj_get_scroll_y(content)!=scroll)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);
+    return true;
 }
 void dsr_mobile_update(const dsr_mobile_model_t *m)
 {
@@ -824,6 +870,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
         uint32_t id=model.rooms[selected].id;unsigned next=0;while(next<m->room_count&&m->rooms[next].id!=id)next++;
         if(next==m->room_count){page=DSR_MOBILE_ROOMS;selected=0;content=NULL;}else selected=next;
     }
+    if(active&&refresh_cards(m))return;
     model=*m;
 #ifndef DSR_UI_REVIEW_DEMO
     model.demo=false;

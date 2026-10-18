@@ -353,30 +353,71 @@ void dsr_sc_background(lv_obj_t *root)
     lv_obj_set_style_bg_image_src(root,dsr_ui_brand_background(),0);
 #endif
 }
+/* Shared styles (0.7.50): a panel used to carry 13 local style properties and
+ * a button three more state blocks, each a separate LVGL heap allocation. A
+ * 24-tile dashboard of mixed devices then left <2 KB of the 128 KB pool and the
+ * first repaint stalled in the shadow allocator. Identical looks now share one
+ * lv_style_t; only position and size stay per object. Entries are never freed
+ * (objects may reference them); when the table is full the old local path is
+ * used, so the look never depends on the cache. */
+enum{SHARED_PANEL,SHARED_TEXT,SHARED_PRESSED,SHARED_DISABLED,SHARED_OUTLINE,SHARED_GLOW};
+typedef struct{lv_style_t style;uint32_t a;uintptr_t b;uint8_t kind;bool used;} shared_style_t;
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+/* Same PSRAM as the LVGL pool that holds every other style and object. */
+EXT_RAM_BSS_ATTR
+#endif
+static shared_style_t shared_styles[96];
+static lv_style_t *shared(uint8_t kind,uint32_t a,uintptr_t b)
+{
+ for(unsigned i=0;i<sizeof(shared_styles)/sizeof(shared_styles[0]);i++){
+  shared_style_t *e=&shared_styles[i];
+  if(e->used){if(e->kind==kind&&e->a==a&&e->b==b)return &e->style;continue;}
+  lv_style_init(&e->style);e->kind=kind;e->a=a;e->b=b;e->used=true;lv_style_t *t=&e->style;
+  switch(kind){
+   case SHARED_PANEL:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_bg_opa(t,LV_OPA_COVER);lv_style_set_radius(t,(int32_t)(b&0xffff));lv_style_set_text_color(t,lv_color_hex((uint32_t)(b>>16)));break;
+   case SHARED_TEXT:lv_style_set_text_font(t,(const lv_font_t *)b);lv_style_set_text_color(t,lv_color_hex(a));break;
+   case SHARED_PRESSED:lv_style_set_bg_color(t,lv_color_hex(a));break;
+   case SHARED_DISABLED:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_opa(t,LV_OPA_COVER);break;
+   case SHARED_OUTLINE:lv_style_set_border_width(t,1);lv_style_set_border_color(t,lv_color_hex(a));break;
+   default:lv_style_set_shadow_width(t,14);lv_style_set_shadow_spread(t,1);lv_style_set_shadow_color(t,lv_color_hex(a));lv_style_set_shadow_opa(t,LV_OPA_70);break;
+  }
+  return t;
+ }
+ return NULL;
+}
+static uint32_t hex(lv_color_t c){return lv_color_to_u32(c)&0xffffff;}
 lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius)
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);
     lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
-    lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_pad_all(o,0,0);
-    lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);
+    /* remove_style_all leaves padding at its default 0. */
+    lv_style_t *s=radius>=0&&radius<=0xffff?shared(SHARED_PANEL,hex(dsr_sc_color(color)),(uintptr_t)radius|((uintptr_t)hex(dsr_sc_color(DSR_SC_TEXT))<<16)):NULL;
+    if(s)lv_obj_add_style(o,s,0);
+    else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+     lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
 {
     lv_obj_t *o=lv_label_create(p);lv_obj_remove_style_all(o);lv_label_set_text(o,dsr_sc_tr(s));
-    lv_obj_set_pos(o,x,y);lv_obj_set_width(o,w);lv_obj_set_style_text_font(o,font,0);
-    lv_obj_set_style_text_color(o,dsr_sc_text_color(color),0);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
+    lv_obj_set_pos(o,x,y);lv_obj_set_width(o,w);
+    lv_style_t *t=shared(SHARED_TEXT,hex(dsr_sc_text_color(color)),(uintptr_t)font);
+    if(t)lv_obj_add_style(o,t,0);else{lv_obj_set_style_text_font(o,font,0);lv_obj_set_style_text_color(o,dsr_sc_text_color(color),0);}
+    lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_WRAP);
     return o;
 }
 lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *ctx)
 {
     lv_obj_t *o=dsr_sc_panel(p,x,y,w,h,color,radius);
-    lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
-    lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);
-    lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);
+    lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);
+    lv_style_t *pressed=shared(SHARED_PRESSED,hex(dsr_sc_color(0x344f71)),0),*disabled=shared(SHARED_DISABLED,hex(dsr_sc_color(0x30373d)),0);
+    if(pressed)lv_obj_add_style(o,pressed,LV_STATE_PRESSED);else lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
+    if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
+    else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
     /* Light surfaces need an outline to read as tappable on the light art. */
-    if(style==DSR_SC_STYLE_LIGHT&&color!=DSR_SC_BLUE){lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}
+    if(style==DSR_SC_STYLE_LIGHT&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
+     if(e)lv_obj_add_style(o,e,0);else{lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
     if(cb)lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
     return o;
 }
@@ -450,6 +491,9 @@ lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_widt
 
 void dsr_sc_glow(lv_obj_t *o,bool on)
 {
+ /* Off costs nothing: default shadow width is 0. */
+ lv_style_t *g=shared(SHARED_GLOW,hex(dsr_sc_color(DSR_SC_GLOW)),0);
+ if(g){if(on)lv_obj_add_style(o,g,0);else lv_obj_remove_style(o,g,0);return;}
  lv_obj_set_style_shadow_width(o,on?14:0,0);lv_obj_set_style_shadow_spread(o,on?1:0,0);
  lv_obj_set_style_shadow_color(o,dsr_sc_color(DSR_SC_GLOW),0);lv_obj_set_style_shadow_opa(o,on?LV_OPA_70:LV_OPA_TRANSP,0);
 }

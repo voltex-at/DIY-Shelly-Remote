@@ -20,7 +20,10 @@
 
 #define WIDTH 320
 #define HEIGHT 480
-#define BUFFER_PIXELS (WIDTH * 40)
+/* Two 20-line DMA buffers (same 25.6 KB internal RAM as the former single
+ * 40-line one): LVGL renders the next band while DMA sends the previous one,
+ * instead of idling for every QSPI transfer (0.7.50). */
+#define BUFFER_PIXELS (WIDTH * 20)
 #define TOUCH_POINTS 5
 static const char *TAG = "es3c35p";
 static lv_display_t *display;
@@ -226,9 +229,10 @@ esp_err_t dsr_board_init(void)
     lv_init();
     display = lv_display_create(WIDTH, HEIGHT);
     void *buffer = heap_caps_malloc(BUFFER_PIXELS * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    if (!display || !buffer) return ESP_ERR_NO_MEM;
+    void *second = heap_caps_malloc(BUFFER_PIXELS * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (!display || !buffer || !second) { heap_caps_free(buffer); heap_caps_free(second); return ESP_ERR_NO_MEM; }
     lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
-    lv_display_set_buffers(display, buffer, NULL, BUFFER_PIXELS * 2, LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(display, buffer, second, BUFFER_PIXELS * 2, LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_user_data(display, panel);
     lv_display_set_flush_cb(display, flush);
     lv_display_add_event_cb(display, align_area, LV_EVENT_INVALIDATE_AREA, NULL);

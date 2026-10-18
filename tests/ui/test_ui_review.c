@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 static unsigned checks,commands,frames_saved,cover_commands,stop_commands,device_edits;
 static unsigned edits,settings_opens,add_opens;
@@ -21,6 +22,7 @@ static lv_indev_t *pointer;
 static bool pressed;
 static lv_point_t touch;
 static const char *output;
+static unsigned long flushed;
 static dsr_mobile_model_t fixture={.demo=true,.home_name="Mój dom",.room_count=4,.device_count=5,
  .rooms={{.name="Salon",.icon=0},{.name="Kuchnia",.icon=1},{.name="Sypialnia",.icon=2},{.name="Łazienka",.icon=3}},
  .devices={
@@ -50,7 +52,7 @@ static void tap(int x,int y)
 }
 static void flush(lv_display_t *d,const lv_area_t *a,uint8_t *data)
 {
- const uint16_t *src=(const uint16_t *)data;
+ const uint16_t *src=(const uint16_t *)data;flushed+=(unsigned long)(a->x2-a->x1+1)*(unsigned long)(a->y2-a->y1+1);
  for(int y=a->y1;y<=a->y2;y++)for(int x=a->x1;x<=a->x2;x++){
   uint16_t p=*src++;if(x<0||x>=320||y<0||y>=480)continue;unsigned at=(unsigned)(y*320+x)*3;
   pixels[at]=(unsigned char)(((p>>11)&31)*255/31);pixels[at+1]=(unsigned char)(((p>>5)&63)*255/63);pixels[at+2]=(unsigned char)((p&31)*255/31);
@@ -60,6 +62,11 @@ static lv_obj_t *find(lv_obj_t *o,const char *text)
 {
  if(lv_obj_check_type(o,&lv_label_class)&&!strcmp(lv_label_get_text(o),text))return o;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *f=find(lv_obj_get_child(o,(int)i),text);if(f)return f;}return NULL;
+}
+static lv_obj_t *find_part(lv_obj_t *o,const char *text)
+{
+ if(lv_obj_check_type(o,&lv_label_class)&&strstr(lv_label_get_text(o),text))return o;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *f=find_part(lv_obj_get_child(o,(int)i),text);if(f)return f;}return NULL;
 }
 static unsigned count_cards(lv_obj_t *o)
 {
@@ -213,6 +220,35 @@ static void cover_views(void)
  lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);printf("Cover heap before=%u after=%u largest=%u; 80 preview/control/exit cycles\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
  dsr_mobile_update(&fixture);
 }
+static double now_ms(void){struct timespec t;timespec_get(&t,TIME_UTC);return (double)t.tv_sec*1e3+(double)t.tv_nsec/1e6;}
+/* Host timing (relative only; ESP32-S3 numbers differ). A poll that changes one
+ * device value must not rebuild or repaint the other 23 cards. */
+static void perf_dashboard(void)
+{
+ setvbuf(stdout,NULL,_IONBF,0);
+ dsr_mobile_model_t m=fixture;m.configured_layout=true;m.tile_count=24;
+ for(unsigned i=0;i<24;i++)m.tiles[i]=(dsr_mobile_tile_t){.index=(uint8_t)(i%5),.span=2,.height=1,.fields=255};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
+ lv_mem_monitor_t mem;lv_mem_monitor(&mem);printf("PERF 24 mixed tiles built: LVGL free %lu B largest %lu B\n",(unsigned long)mem.free_size,(unsigned long)mem.free_biggest_size);
+ double t0=now_ms();lv_obj_invalidate(lv_screen_active());lv_refr_now(display);printf("PERF full repaint %.2f ms\n",now_ms()-t0);
+ lv_obj_t *other=find(lv_screen_active(),"Drzwi wejściowe");CHECK(other);
+ enum{N=40};double t=now_ms();flushed=0;
+ for(unsigned i=0;i<N;i++){dsr_mobile_update(&m);lv_refr_now(display);}
+ double same=(now_ms()-t)/N;unsigned long same_px=flushed/N;bool same_kept=find(lv_screen_active(),"Drzwi wejściowe")==other;
+ t=now_ms();flushed=0;
+ for(unsigned i=0;i<N;i++){m.devices[3].power_w=68.4+(double)(i%2);dsr_mobile_update(&m);lv_refr_now(display);}
+ double value=(now_ms()-t)/N;unsigned long value_px=flushed/N;bool value_kept=find(lv_screen_active(),"Drzwi wejściowe")==other;
+ CHECK(find_part(lv_screen_active(),"69.4 W"));
+ t=now_ms();flushed=0;
+ for(unsigned i=0;i<N;i++){m.devices[3].power_w=68.4+(double)(i%2);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_refr_now(display);}
+ double full=(now_ms()-t)/N;unsigned long full_px=flushed/N;
+ printf("PERF 24-tile full rebuild (pre-0.7.50 poll path, host): %.2f ms/%lu px\n",full,full_px);
+ /* Regressions: an unchanged poll touches nothing; a one-device change keeps
+  * the other cards and repaints less than the screen, faster than a rebuild. */
+ CHECK(same_kept&&same_px==0);CHECK(value_kept&&value_px<320ul*480ul&&value<full/2);
+ lv_mem_monitor(&mem);CHECK(mem.free_size>8192);
+ printf("PERF 24-tile poll (host): unchanged %.2f ms/%lu px kept=%d; one value %.2f ms/%lu px kept=%d\n",same,same_px,same_kept,value,value_px,value_kept);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2||argc==3);output=argv[1];lv_init();display=lv_display_create(320,480);
@@ -261,6 +297,7 @@ int main(int argc,char **argv)
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
  CHECK(count_cards(lv_screen_active())==24);lv_mem_monitor(&after);CHECK(after.free_size>2048);
  printf("24-tile dashboard: LVGL heap free %lu B, largest %lu B (128 KB pool, same as firmware)\n",(unsigned long)after.free_size,(unsigned long)after.free_biggest_size);
+ perf_dashboard();
  fixture.configured_layout=true;fixture.dashboard_id=2;strcpy(fixture.dashboard_name,"Pomieszczenia");fixture.tile_count=4;
  for(unsigned i=0;i<4;i++)fixture.tiles[i]=(dsr_mobile_tile_t){.type=1,.index=i,.span=1,.height=1,.fields=255};
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("10-home-room-photos");CHECK(find(lv_screen_active(),"Salon"));

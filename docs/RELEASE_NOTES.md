@@ -1,3 +1,12 @@
+0.7.50-dev: szybsze działanie interfejsu i stabilność dużych pulpitów. Stable: brak.
+
+Zmiany względem 0.7.49-dev (bez zmian wyglądu, bootloadera, partycji i trybu Flash):
+- Odczyt (poll) bez zmian wartości nie przebudowuje już pulpitu. Wcześniej pulpit z własnym układem był przebudowywany przy każdym odczycie (błąd: pola kafelków nadpisywały model).
+- Zmiana wartości jednego urządzenia przebudowuje tylko jego karty (i karty pokoi, które sumują moc), zamiast całego ekranu; przewinięcie zostaje.
+- Wspólne style LVGL zamiast kilkunastu lokalnych właściwości na każdym obiekcie: 24 kafelki mieszanych urządzeń zostawiały < 2 KB z puli 128 KB i pierwsze rysowanie zawieszało się w alokacji cienia; teraz zostaje ok. 16 KB (pomiar hosta). Pula i limity bez zmian.
+- Wyświetlacz: dwa bufory DMA po 20 linii (ta sama pamięć co jeden 40-liniowy) - rysowanie następnego pasa w trakcie wysyłania poprzedniego.
+- Kompilacja firmware płytki z -O2 (było -Os) i memcpy/memset z ROM/newlib dla LVGL. BIN 3,29 MB -> 3,67 MB, 42% slotu wolne.
+
 0.7.49-dev: odświeżenie wyglądu w stylu Shelly Smart Control (etap 1). Stable: brak.
 
 Zmiany względem 0.7.48-dev (wzór: zrzuty aplikacji Shelly od właściciela):

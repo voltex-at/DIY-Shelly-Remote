@@ -19,6 +19,11 @@ CONFIG_LV_OS_NONE=y
 CONFIG_LV_FONT_MONTSERRAT_16=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_16=y
 CONFIG_LV_MEM_SIZE_KILOBYTES=128
+# Speed (0.7.50): the UI build renders in software on the CPU; -O2 instead of
+# the common -Os, and LVGL uses the ROM/newlib memcpy/memset instead of its
+# byte-loop builtins. Diagnostic targets keep -Os.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH=y
 CONFIG_ESP_HTTP_CLIENT_ENABLE_DIGEST_AUTH=y
 CONFIG_LV_USE_SNAPSHOT=y
