@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.55-dev
+# Matryca funkcji — 0.7.55-dev i bieżący kandydat
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -22,12 +22,11 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Edytory Shelly Gen2/3/4: Sys, Switch/Input, Cover, Light/RGB/RGBW, WiFi, BLE, Cloud, MQTT, temperatura/wilgotność | tak (pola obecne w GetConfig i metody urządzenia) | host/LVGL PL EN DE; target przed wydaniem | brak testu | — |
 | Parowanie BLU: SMP/PIN, trwałe bondy, jawne zapomnienie; GATT Motion/DW/Button/TRV | tak (0.7.55; klasyczne modele 1/2/3/5/6/7/8, nieznane modele odrzucone) | driver host; RF/SMP/NVS wymagają sprzętu | brak testu | — |
 | Dodanie BLU do zgodnej bramki LAN; osobne powiązanie TRV przez StartAssociations | tak (odczyt po dodaniu, istniejący adres bez duplikatu) | actor/HTTP model; odbiór RF niepotwierdzony | brak testu | — |
-| Grupy i sceny: bezpośredni kreator LCD/WWW, karty, pokoje i zdjęcia | tak (0.7.54; ręczne sceny, grupy Switch; automatyczne warunki i pozostałe typy grup poza zakresem) | host/LVGL; bramka CI 5/5 przed wydaniem | nowy kreator: brak testu | — |
+| Grupy i sceny: 3 kroki LCD/WWW, jawne polecenia, opcjonalny pokój/zdjęcie | tak (kandydat po 0.7.55; ręczne sceny Switch/Cover, grupy Switch; warunki chmurowe i inne grupy poza zakresem) | host/LVGL; dokładny SHA i CI w Draft PR #65 | uproszczony formularz: brak testu | — |
 | Zużycie: zegar mocy na stronie urządzenia | tak (0.7.49) | tak | brak testu | — |
 | Historia energii 24 h, strona Energia, wykres WWW | usunięte w 0.7.51 (decyzja właściciela 2026-10-18; pliki w SPIFFS nietknięte) | — | — | — |
 | Ikony urządzeń do wyboru (20), zegar w pasku stanu, pasek przewijania | tak (0.7.51) | tak (LCD, schemat) | brak testu | — |
 | Skan BLE i dodawanie Gen2+ przez BLE w otwartym setupie; bez bondingu | tak (0.7.39: rozpoznanie bez UUID RPC) | tak | nie działało (0.7.38), brak testu poprawki | — |
-| Rzeczywiste ustawienia Shelly, parowanie i konfiguracja BLU oraz tworzenie BTHome na wybranej bramce | plan i [audyt oficjalnego API](SHELLY_CONFIGURATION_BLU_PL.md) (2026-10-18); brak nowej implementacji | nie dotyczy | brak testu | — |
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
 | OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB; 0.7.43: limit pobierania obrazu, kasowanie sekwencyjne) | tak | instalacja 0.7.53-dev udana — potwierdzenie właściciela 2026-10-18; rollback bez testu | — |
 | Rollback po nieudanym starcie | tak (SDK); zatwierdzenie pending wymaga gotowych SPIFFS/workspace również wewnątrz API | model (fazy/błędy magazynu, UI odzyskiwania dostępne bez zatwierdzenia) | brak testu | — |

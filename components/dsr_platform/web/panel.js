@@ -3,6 +3,44 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Nazwa grupy", "Group name", "Gruppenname"],
+ ["Nazwa sceny", "Scene name", "Szenenname"],
+ ["np. Lampy na parterze", "e.g. Downstairs lights", "z. B. Lichter im Erdgeschoss"],
+ ["np. Dobranoc", "e.g. Good night", "z. B. Gute Nacht"],
+ ["Jedno dotknięcie uruchomi wybrane polecenia.", "One tap runs the selected commands.", "Ein Tippen startet die gewählten Befehle."],
+ ["Wspólne włączanie i wyłączanie wybranych przekaźników i gniazdek.", "Turn selected relays and plugs on or off together.", "Gewählte Relais und Steckdosen gemeinsam ein- oder ausschalten."],
+ ["Pokój i zdjęcie (opcjonalnie)", "Room and photo (optional)", "Raum und Bild (optional)"],
+ ["Pomieszczenie (opcjonalnie)", "Room (optional)", "Raum (optional)"],
+ ["Zdjęcie (opcjonalnie)", "Photo (optional)", "Bild (optional)"],
+ ["Własne zdjęcie", "Your photo", "Eigenes Bild"],
+ ["Opcjonalne ustawienia", "Optional settings", "Optionale Einstellungen"],
+ ["1/3 • Nazwa", "1/3 • Name", "1/3 • Name"],
+ ["2/3 • Urządzenia", "2/3 • Devices", "2/3 • Geräte"],
+ ["2/3 • Polecenia", "2/3 • Commands", "2/3 • Befehle"],
+ ["3/3 • Podsumowanie", "3/3 • Review", "3/3 • Prüfen"],
+ ["Polecenia", "Commands", "Befehle"],
+ ["Podsumowanie", "Review", "Prüfen"],
+ ["Wybierz urządzenie", "Choose device", "Gerät wählen"],
+ ["Wybierz polecenie", "Choose command", "Befehl wählen"],
+ ["Zmień urządzenie", "Change device", "Gerät ändern"],
+ ["Zmień nazwę i opcje", "Change name and options", "Name und Optionen ändern"],
+ ["Co ma zrobić scena?", "What should this scene do?", "Was soll diese Szene tun?"],
+ ["Dodaj urządzenie i wybierz dla niego polecenie.", "Add a device and choose its command.", "Gerät hinzufügen und Befehl wählen."],
+ ["+ Dodaj polecenie", "+ Add command", "+ Befehl hinzufügen"],
+ ["Sprawdź listę i zapisz.", "Review the list and save.", "Liste prüfen und speichern."],
+ ["Zapisz scenę", "Save scene", "Szene speichern"],
+ ["Zapisz grupę", "Save group", "Gruppe speichern"],
+ ["Brak wyników. Zmień wyszukiwanie.", "No matches. Change your search.", "Keine Treffer. Suche ändern."],
+ ["+ Nowa grupa", "+ New group", "+ Neue Gruppe"],
+ ["+ Nowa scena", "+ New scene", "+ Neue Szene"],
+ ["Uzupełnij nazwę i wybierz co najmniej jedno urządzenie lub polecenie.", "Enter a name and choose at least one device or command.", "Namen eingeben und mindestens ein Gerät oder einen Befehl wählen."],
+ ["Poczekaj na zakończenie zapisu.", "Wait for saving to finish.", "Warten, bis das Speichern beendet ist."],
+ ["Odrzucić zmiany?", "Discard changes?", "Änderungen verwerfen?"],
+ ["Niezapisane zmiany tego formularza zostaną utracone.", "Unsaved changes in this form will be lost.", "Ungespeicherte Änderungen in diesem Formular gehen verloren."],
+ ["Zostań", "Stay", "Bleiben"],
+ ["Odrzuć", "Discard", "Verwerfen"],
+ ["Usuń wpis", "Delete item", "Eintrag löschen"],
+ ["Brak nazwy", "No name", "Kein Name"],
  ["Wstecz","Back","Zurück"],["Zapisz","Save","Speichern"],
  ["Edytuj grupę", "Edit group", "Gruppe bearbeiten"],
  ["Edytuj scenę", "Edit scene", "Szene bearbeiten"],
@@ -149,7 +187,7 @@ async function request(path,options={}){const r=await fetch('/api/v1/'+path,{...
 let configGeneration=0,configReadSerial=0,statusReadSerial=0;
 function configReadOwner(){return{generation:configGeneration,read:configReadSerial,document:config,revision:config?.revision,edits:editSerial,view:page,lan:lanGeneration,editor:$('#editor').firstElementChild,hidden:$('#workspace').hidden,saving};}
 function configReadCurrent(owner){return owner.generation===configGeneration&&owner.read===configReadSerial&&owner.document===config&&owner.revision===config?.revision&&owner.edits===editSerial&&owner.view===page&&owner.lan===lanGeneration&&owner.editor===$('#editor').firstElementChild&&owner.hidden===$('#workspace').hidden&&owner.saving===saving;}
-function showConfig(next){configGeneration++;config=next;dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}
+function showConfig(next){actionSession=null;configGeneration++;config=next;dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}
 async function load(){
  if(saving)return; // Never replace the submitted document before its exact ACK.
  ++configReadSerial;const owner=configReadOwner();
@@ -158,7 +196,7 @@ async function load(){
 }
 function box(title){const n=el('div',undefined,'box');if(title)n.append(el('h2',title));return n;}
 function empty(parent,text){parent.append(el('p',text,'empty'));}
-function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&(config.devices.some(d=>d.room===id)||config.groups.some(g=>g.room===id)||config.scenes.some(s=>s.room===id))){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
+function remove(kind,id){const refs=[];for(const d of config.dashboards)for(const t of d.tiles)if(t.type===kind.slice(0,-1)&&t.ref===id)refs.push(t);if(kind==='devices'&&(config.scenes.some(s=>s.actions.some(a=>a.device===id))||config.groups.some(g=>g.members.includes(id)))){notice(m('Najpierw usuń działania scen odwołujące się do urządzenia.'));return;}if(kind==='rooms'&&(config.devices.some(d=>d.room===id)||config.groups.some(g=>g.room===id)||config.scenes.some(s=>s.room===id))){notice(m('Najpierw przenieś urządzenia z tego pomieszczenia.'));return;}if(refs.length){notice(m('Najpierw usuń powiązane karty z pulpitów.'));return;}if(kind==='dashboards'&&config.dashboards.length===1){notice(m('Zachowaj przynajmniej jeden pulpit.'));return;}config[kind]=config[kind].filter(x=>x.id!==id);if(actionSession?.kind===kind&&actionSession.item.id===id)actionSession=null;if(config.active_dashboard===id&&kind==='dashboards')config.active_dashboard=config.dashboards[0].id;changed();render();}
 function list(kind,edit){const n=box(titles[kind]);for(const item of config[kind]){const row=el('div',undefined,'row'),txt=el('div',undefined,'grow');const heading=el('h3',item.name||(kind==='devices'?window.dsrRuntimeDeviceName?.(item.id)||'Shelly':''));if(kind==='devices')heading.dataset.deviceNameId=String(item.id);txt.append(heading);txt.append(el('p',kind==='devices'?(m('{0} · {1}',kinds[item.kind],item.host||m('Bez adresu'))):'#'+item.id));row.append(txt,button(m('Edytuj'),()=>edit(item)),button(m('Usuń'),()=>remove(kind,item.id),'danger'));n.append(row);}if(!config[kind].length)empty(n,m('Brak wpisów. Dodaj pierwszy.'));n.append(button(m('+ Dodaj'),()=>{const id=nextId(config[kind]);if(config[kind].length>=({dashboards:4,rooms:8,devices:16,scenes:8,groups:8}[kind]))return notice(m('Osiągnięto limit wpisów.'));const item={id,name:translate(kind==='dashboards'?m('Nowy pulpit'):kind==='rooms'?m('Nowe pomieszczenie'):kind==='devices'?m('Nowe urządzenie'):kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='dashboards'?{tiles:[]}:kind==='rooms'?{icon:0,photo:''}:kind==='devices'?{host:'',channel:0,room:0,kind:'light'}:kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();edit(item);},'primary'));return n;}
 function editBase(kind,item){const target=$('#editor');target.replaceChildren();const n=box(m('Edycja: {0}',item.name));const form=el('div',undefined,'fields');field(form,m('Nazwa'),item.name,v=>item.name=v).maxLength=47;n.append(form);target.append(n);n.append(button(m('← Wróć do listy'),render));return {n,form};}
 function editRoom(item){
@@ -181,59 +219,86 @@ function editDevice(item){
  const passLabel=el('label',m('Hasło Shelly')),password=el('input');password.type='password';password.autocomplete='off';password.maxLength=64;passLabel.append(password);form.append(loginLabel,passLabel);
  n.append(button(m('Sprawdź i powiąż połączenie'),async()=>{try{notice(m('Sprawdzanie tożsamości Shelly…'));await request('devices/bind',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:item.host,name:item.name,channel:item.channel,username:login.value,password:password.value})});password.value='';for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,500));const status=await(await request('status')).json();if(!status.device_busy){notice(serverMessage(status.device_message)||m('Sprawdź wynik na ekranie pilota.'));return;}}notice(m('Sprawdzanie trwa. Wynik pojawi się na pilocie.'));}catch(error){password.value='';notice(error.uiMessage||serverMessage(error.message));}},'primary'));
 }
-// Contextual forms use the same shared document and exact durable Save ACK.
-// Editing a saved object starts at its name/image; Back opens the earlier steps.
-window.dsrEditAction=(kind,id)=>{const item=config?.[kind]?.find(o=>o.id===id);if(item)editAction(kind,item,3);};
-function editGroup(item){editAction('groups',item,3);}
-function editScene(item){editAction('scenes',item,3);}
+// Three steps: name, devices/commands, review. Appearance is optional.
+let actionSession=null;
+const actionNameValid=item=>item.name.trim().length>0&&Array.from(item.name).reduce((n,c)=>n+(c.codePointAt(0)<128?1:c.codePointAt(0)<2048?2:c.codePointAt(0)<65536?3:4),0)<=47;
+const actionDeviceName=d=>d?.name||window.dsrRuntimeDeviceName?.(d?.id)||'Shelly';
+const actionCommands=d=>d?.kind==='cover'?[['open','Otwórz'],['close','Zamknij'],['stop','Stop']]:[['on','Włącz'],['off','Wyłącz']];
+const actionSupported=(d,group)=>['relay','plug',...(group?[]:['cover'])].includes(d?.kind);
+function openAction(kind,item,fresh=false,before=null,wasDirty=dirty){
+ actionSession={owner:config,kind,item,fresh,baseline:fresh?null:structuredClone(item),before:before||structuredClone(config),wasDirty};editAction(kind,item,0);
+}
+window.dsrEditAction=(kind,id)=>{const item=config?.[kind]?.find(o=>o.id===id);if(item)openAction(kind,item);};
+function editGroup(item){openAction('groups',item);}
+function editScene(item){openAction('scenes',item);}
+function actionDiscard(kind,item){
+ if(saving)return notice(m('Poczekaj na zakończenie zapisu.'));
+ const session=actionSession,leave=()=>{actionSession=null;render();};
+ if(!session||session.owner!==config||session.item!==item)return leave();
+ const different=session.fresh||JSON.stringify(canonical(item))!==JSON.stringify(canonical(session.baseline));if(!different)return leave();
+ const overlay=el('div',undefined,'action-modal'),dialog=el('section',undefined,'box');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');
+ dialog.append(el('h2',m('Odrzucić zmiany?')),el('p',m('Niezapisane zmiany tego formularza zostaną utracone.')));
+ const controls=el('div',undefined,'row-buttons');controls.append(button(m('Zostań'),()=>overlay.remove()),button(m('Odrzuć'),()=>{
+  const at=config[kind].indexOf(item);if(at>=0){if(session.fresh)config[kind].splice(at,1);else config[kind][at]=structuredClone(session.baseline);}
+  editSerial++;const before={...session.before,revision:config.revision};dirty=session.wasDirty||JSON.stringify(canonical(config))!==JSON.stringify(canonical(before));setText($('#dirty'),m(dirty?'Niezapisane zmiany':'Wszystkie zmiany zapisane'));$('#save').disabled=!dirty||conflict;overlay.remove();leave();
+ },'danger'));dialog.append(controls);overlay.append(dialog);document.body.append(overlay);controls.firstElementChild.focus();
+}
 function actionList(kind){
- const n=box(titles[kind]),tools=el('div',undefined,'row'),searchLabel=el('label',m('Szukaj')),search=el('input'),roomLabel=el('label',m('Pomieszczenie')),room=el('select');
- search.type='search';searchLabel.append(search);roomLabel.append(room);
+ const n=box(titles[kind]),tools=el('div',undefined,'action-list-tools'),searchLabel=el('label',m('Szukaj')),search=el('input'),roomLabel=el('label',m('Pomieszczenie')),room=el('select');search.type='search';searchLabel.append(search);roomLabel.append(room);
  for(const [id,name]of [[0,m('Cały dom')],...config.rooms.map(r=>[r.id,r.name])]){const option=el('option',name);option.value=id;room.append(option);}
- const filter=()=>window.dsrActionsFilter?.(search.value,Number(room.value));search.addEventListener('input',filter);room.addEventListener('change',filter);tools.append(searchLabel,roomLabel);n.append(tools);n.append(button(m('+ Dodaj'),()=>{
+ const filter=()=>window.dsrActionsFilter?.(search.value,Number(room.value));search.addEventListener('input',filter);room.addEventListener('change',filter);tools.append(searchLabel,roomLabel);n.append(tools);n.append(button(m(kind==='groups'?'+ Nowa grupa':'+ Nowa scena'),()=>{
   if(config[kind].length>=8)return notice(m('Osiągnięto limit wpisów.'));
-  const item={id:nextId(config[kind]),name:translate(kind==='groups'?m('Nowa grupa'):m('Nowa scena')),...(kind==='groups'?{members:[]}:{actions:[]})};
-  config[kind].push(item);changed();editAction(kind,item,0);
+  const before=structuredClone(config),wasDirty=dirty,item={id:nextId(config[kind]),name:'',...(kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();openAction(kind,item,true,before,wasDirty);
  },'primary'));return n;
 }
-function editAction(kind,item,step){
- const group=kind==='groups',target=$('#editor'),n=box(group?m('Edytuj grupę'):m('Edytuj scenę'));
- target.replaceChildren(n);const track=el('div',undefined,'action-steps');
- for(let i=0;i<4;i++){const marker=el('span');if(i===step)marker.className='selected';track.append(marker);}n.append(track);
- const body=el('div',undefined,'action-form');n.append(body);
+function editAction(kind,item,step,view={}){
+ const group=kind==='groups',target=$('#editor'),n=box(m(actionSession?.fresh?(group?'Nowa grupa':'Nowa scena'):(group?'Edytuj grupę':'Edytuj scenę')));target.replaceChildren(n);
+ const track=el('ol',undefined,'action-steps');for(const [i,label]of ['Nazwa',group?'Urządzenia':'Polecenia','Podsumowanie'].entries()){const marker=el('li',m(label));if(i===(step===3?view.returnStep||0:step))marker.setAttribute('aria-current','step');track.append(marker);}n.append(track);
+ const body=el('div',undefined,'action-form');n.append(body);let next;
+ const complete=()=>actionNameValid(item)&&(group?item.members.length:item.actions.length)>0;
+ const rerender=()=>editAction(kind,item,step,view);
  if(step===0){
-  body.append(el('h3',group?m('Typ grupy'):m('Sceny uruchamiane ręcznie')));
-  if(group){body.append(button(m('Przekaźniki i gniazdka'),()=>editAction(kind,item,1),'primary'));for(const title of [m('Światła • wkrótce'),m('Rolety i termostaty • wkrótce')]){const b=button(title,()=>{});b.disabled=true;body.append(b);}}
-  else body.append(el('p',m('Przycisk uruchamia wybrane działania po kolei. Warunki i harmonogramy nie są jeszcze obsługiwane.'),'muted'));
- }else if(step===1){
-  if(group){
-   const count=el('p',m('Wybrano: {0}',item.members.length)),search=field(body,m('Szukaj'),'',()=>{});body.prepend(count);
-   const rooms=el('div',undefined,'action-rooms');body.append(rooms);
-   const draw=()=>{rooms.replaceChildren();for(const room of [{id:0,name:translate(m('Nieprzypisane'))},...config.rooms]){
-    const devices=config.devices.filter(d=>d.room===room.id&&(['relay','plug'].includes(d.kind)||item.members.includes(d.id))&&(d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly').toLocaleLowerCase().includes(search.value.toLocaleLowerCase()));
-    if(!devices.length)continue;const section=el('details'),heading=el('summary',room.name);section.open=!!search.value;section.append(heading);
-    for(const d of devices){const label=el('label',d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly'),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{if(check.checked&&!['relay','plug'].includes(d.kind)){check.checked=false;return;}item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);setText(count,m('Wybrano: {0}',item.members.length));changed();next.disabled=!item.members.length;});label.prepend(check);section.append(label);}rooms.append(section);
-   }};search.addEventListener('input',draw);draw();
-  }else{
-   for(const [index,a]of item.actions.entries()){
-    const row=el('div',undefined,'row');select(row,m('Urządzenie'),a.device,config.devices.filter(d=>['relay','plug','cover'].includes(d.kind)||d.id===a.device).map(d=>[d.id,(config.rooms.find(r=>r.id===d.room)?.name||translate(m('Cały dom')))+' · '+(d.name||window.dsrRuntimeDeviceName?.(d.id)||'Shelly')]),v=>{a.device=Number(v);a.command=config.devices.find(d=>d.id===a.device)?.kind==='cover'?'open':'on';editAction(kind,item,step);});
-    select(row,m('Działanie'),a.command,config.devices.find(d=>d.id===a.device)?.kind==='cover'?[['open',m('Otwórz')],['close',m('Zamknij')],['stop',m('Stop')]]:[['on',m('Włącz')],['off',m('Wyłącz')]],v=>a.command=v);
-    row.append(button('↑',()=>{if(index){item.actions.splice(index-1,0,item.actions.splice(index,1)[0]);changed();editAction(kind,item,step);}}),button(m('Usuń'),()=>{item.actions.splice(index,1);changed();editAction(kind,item,step);}));body.append(row);
-   }
-   const add=button(m('+ Działanie'),()=>{const d=config.devices.find(d=>['relay','plug','cover'].includes(d.kind));if(!d)return notice(m('Brak zgodnych urządzeń. Dodaj je na stronie Urządzenia.'));item.actions.push({device:d.id,command:d.kind==='cover'?'open':'on'});changed();editAction(kind,item,step);});add.disabled=item.actions.length>=8;body.append(add);
-  }
- }else if(step===2){select(body,m('Wybierz pomieszczenie'),item.room||0,[[0,m('Cały dom')],...config.rooms.map(r=>[r.id,r.name])],v=>item.room=Number(v));}
- else{
-  field(body,m('Nazwa'),item.name,v=>item.name=v).maxLength=47;
-  body.append(el('h3',m('Wybierz zdjęcie')));const upload=field(body,m('Zdjęcie pomieszczenia'),'',()=>{},'file');upload.accept='image/jpeg,image/png,image/webp';
-  upload.addEventListener('change',async()=>{if(!upload.files[0])return;try{await uploadPhoto(upload.files[0],item);notice(m('Zdjęcie zoptymalizowane do 320 × 180. Zapisz konfigurację.'));}catch(e){notice(e.uiMessage||serverMessage(e.message));}});
-  body.append(button(m('Bez zdjęcia'),()=>{item.photo='';changed();editAction(kind,item,step);}));
+  const name=field(body,m(group?'Nazwa grupy':'Nazwa sceny'),item.name,v=>item.name=v);name.maxLength=47;setUIAttribute(name,'placeholder',m(group?'np. Lampy na parterze':'np. Dobranoc'));name.addEventListener('input',()=>next.disabled=!actionNameValid(item)||saving||conflict);
+  body.append(el('p',m(group?'Wspólne włączanie i wyłączanie wybranych przekaźników i gniazdek.':'Jedno dotknięcie uruchomi wybrane polecenia.'),'muted'));
+  body.append(button(m('Pokój i zdjęcie (opcjonalnie)'),()=>editAction(kind,item,3,{returnStep:0}),'action-optional'));
+ }else if(step===3){
+  select(body,m('Pomieszczenie (opcjonalnie)'),item.room||0,[[0,m('Cały dom')],...config.rooms.map(r=>[r.id,r.name])],v=>item.room=Number(v));
+  body.append(el('h3',m('Zdjęcie (opcjonalnie)')));const upload=field(body,m('Własne zdjęcie'),'',()=>{},'file');upload.accept='image/jpeg,image/png,image/webp';
+  upload.addEventListener('change',async()=>{if(!upload.files[0])return;const owner=config;const current=()=>config===owner&&target.firstElementChild===n&&actionSession?.item===item;try{if(await uploadPhoto(upload.files[0],item,current))notice(m('Zdjęcie zoptymalizowane do 320 × 180. Zapisz konfigurację.'));}catch(e){if(current())notice(e.uiMessage||serverMessage(e.message));}});
   select(body,m('Zdjęcie z pomieszczenia'),item.photo||'',[['',m('Bez zdjęcia')],...config.rooms.filter(r=>r.photo).map(r=>[r.photo,r.name])],v=>item.photo=v);
-  body.append(button(m('Usuń'),()=>remove(kind,item.id),'danger'));
+  body.append(button(m('Bez zdjęcia'),()=>{item.photo='';changed();rerender();}));if(!actionSession?.fresh)body.append(button(m('Usuń wpis'),()=>remove(kind,item.id),'danger'));
+ }else if(step===2){
+  const summary=el('section',undefined,'action-summary');summary.append(el('h3',item.name),el('p',config.rooms.find(r=>r.id===item.room)?.name||m('Cały dom')));body.append(summary);
+  const list=el(group?'ul':'ol');for(const value of group?item.members:item.actions){const d=config.devices.find(d=>d.id===(group?value:value.device)),row=el('li');row.append(el('strong',actionDeviceName(d)));if(!group)row.append(el('span',m(actionCommands(d).find(c=>c[0]===value.command)?.[1]||value.command),'action-command'));list.append(row);}summary.append(list);
+  body.append(button(m('Zmień nazwę i opcje'),()=>editAction(kind,item,0)));body.append(el('p',m('Sprawdź listę i zapisz.'),'muted'));
+ }else if(group||view.selecting){
+  const count=el('p',group?m('Wybrano: {0}',item.members.length):m('Wybierz urządzenie'));body.append(count);
+  if(view.device){
+   const d=config.devices.find(d=>d.id===view.device);body.append(el('h3',actionDeviceName(d)),el('p',m('Wybierz polecenie'),'muted'));
+   for(const [command,label]of actionCommands(d)){const pick=button(m(label),()=>{
+    if(!actionSupported(d,false))return;const entry={device:d.id,command};if(view.editIndex!==undefined)item.actions[view.editIndex]=entry;else if(item.actions.length<8)item.actions.push(entry);else return;changed();editAction(kind,item,1);
+   },'action-command-choice');pick.disabled=!actionSupported(d,false);body.append(pick);}
+   body.append(button(m('Zmień urządzenie'),()=>editAction(kind,item,1,{selecting:true,editIndex:view.editIndex})));
+  }else{
+   const searchLabel=el('label',m('Szukaj')),search=el('input');search.type='search';searchLabel.append(search);body.append(searchLabel);const rooms=el('div',undefined,'action-rooms');body.append(rooms);
+   const draw=()=>{rooms.replaceChildren();let shown=0;for(const room of [{id:0,name:translate(m('Nieprzypisane'))},...config.rooms]){
+    const devices=config.devices.filter(d=>d.room===room.id&&(actionSupported(d,group)||(group&&item.members.includes(d.id)))&&actionDeviceName(d).toLocaleLowerCase().includes(search.value.toLocaleLowerCase()));if(!devices.length)continue;shown+=devices.length;
+    const section=el('section',undefined,'action-room');section.append(el('h3',room.name));
+    for(const d of devices){if(group){const label=el('label',actionDeviceName(d)),check=el('input');check.type='checkbox';check.checked=item.members.includes(d.id);check.addEventListener('change',()=>{if(check.checked&&!actionSupported(d,true)){check.checked=false;return;}item.members=check.checked?[...new Set([...item.members,d.id])]:item.members.filter(id=>id!==d.id);label.classList.toggle('selected',check.checked);setText(count,m('Wybrano: {0}',item.members.length));changed();next.disabled=!item.members.length;});label.classList.toggle('selected',check.checked);label.prepend(check);section.append(label);}else section.append(button(actionDeviceName(d),()=>editAction(kind,item,1,{selecting:true,device:d.id,editIndex:view.editIndex}),'action-device-choice'));}rooms.append(section);
+   }if(!shown)empty(rooms,m(search.value?'Brak wyników. Zmień wyszukiwanie.':'Brak zgodnych urządzeń. Dodaj je na stronie Urządzenia.'));};search.addEventListener('input',draw);draw();
+  }
+ }else{
+  if(!item.actions.length)body.append(el('h3',m('Co ma zrobić scena?')),el('p',m('Dodaj urządzenie i wybierz dla niego polecenie.'),'muted'));
+  for(const [index,a]of item.actions.entries()){
+   const row=el('section',undefined,'action-edit-row'),d=config.devices.find(d=>d.id===a.device);row.append(el('h3',`${index+1}. ${actionDeviceName(d)}`));const controls=el('div',undefined,'action-row-controls');
+   controls.append(button(m(actionCommands(d).find(c=>c[0]===a.command)?.[1]||a.command),()=>editAction(kind,item,1,{selecting:true,device:a.device,editIndex:index}),'action-command-choice'));
+   for(const delta of [-1,1]){const move=button(delta<0?'↑':'↓',()=>{const to=index+delta;if(to<0||to>=item.actions.length)return;item.actions.splice(to,0,item.actions.splice(index,1)[0]);changed();rerender();});move.disabled=index+delta<0||index+delta>=item.actions.length;controls.append(move);}
+   controls.append(button('×',()=>{item.actions.splice(index,1);changed();rerender();},'danger'));row.append(controls);body.append(row);
+  }
+  const add=button(m('+ Dodaj polecenie'),()=>editAction(kind,item,1,{selecting:true}),'primary');add.disabled=item.actions.length>=8;body.append(add);
  }
- const footer=el('div',undefined,'onboarding-footer');footer.append(button(m('Wstecz'),()=>step?editAction(kind,item,step-1):render()));
- const next=button(step===3?m('Zapisz'):m('Dalej'),async()=>{if(step<3){editAction(kind,item,step+1);return;}await save();if(!dirty&&!saving&&target.firstElementChild===n)render();},'primary');
- next.disabled=saving||conflict||(step===1&&!(group?item.members.length:item.actions.length));footer.append(next);n.append(footer);
+ const footer=el('div',undefined,'onboarding-footer');footer.append(button(m(step===0?'Anuluj':'Wstecz'),()=>{if(step===0){actionDiscard(kind,item);return;}if(step===3){editAction(kind,item,view.returnStep||0);return;}if(view.device){editAction(kind,item,1,view.editIndex===undefined?{selecting:true}:{});return;}if(view.selecting){editAction(kind,item,1);return;}editAction(kind,item,step-1);}));
+ next=button(m(step===3?'Gotowe':step===2?(group?'Zapisz grupę':'Zapisz scenę'):'Dalej'),async()=>{if(next.disabled)return;if(step===3){editAction(kind,item,view.returnStep||0);return;}if(step<2){editAction(kind,item,step+1);return;}await save();if(!dirty&&!saving&&target.firstElementChild===n){actionSession=null;render();}},'primary');const refresh=()=>{if(target.firstElementChild===n)next.disabled=saving||conflict||(step===0&&!actionNameValid(item))||(step===1&&(!!view.selecting||!(group?item.members.length:item.actions.length)))||(step===2&&!complete());};if(actionSession?.item===item)actionSession.refresh=refresh;refresh();footer.append(next);n.append(footer);
 }
 function move(d,id,delta){const at=d.tiles.findIndex(t=>t.id===id),to=at+delta;if(to<0||to>=d.tiles.length)return;d.tiles.splice(to,0,d.tiles.splice(at,1)[0]);changed();editDashboard(d);}
 function editDashboard(d){const {n,form}=editBase('dashboards',d);select(form,m('Pulpit startowy'),config.active_dashboard===d.id?'yes':'no',[['yes',m('Tak')],['no',m('Nie')]],v=>{if(v==='yes')config.active_dashboard=d.id;});n.append(el('p',m('Przeciągaj karty albo użyj strzałek. Karty urządzeń zawsze zajmują pełną szerokość.'),'muted'));for(const t of d.tiles){const row=el('div',undefined,'tile');row.draggable=true;row.dataset.id=t.id;row.addEventListener('dragstart',()=>{dragId=t.id;row.classList.add('dragging');});row.addEventListener('dragend',()=>row.classList.remove('dragging'));row.addEventListener('dragover',e=>e.preventDefault());row.addEventListener('drop',e=>{e.preventDefault();const a=d.tiles.findIndex(x=>x.id===dragId),b=d.tiles.findIndex(x=>x.id===t.id);if(a>=0&&b>=0){d.tiles.splice(b,0,d.tiles.splice(a,1)[0]);changed();editDashboard(d);}});row.append(el('span','⠿','drag'));const target=config[t.type==='device'?'devices':t.type==='room'?'rooms':t.type==='scene'?'scenes':'groups'].find(x=>x.id===t.ref);const text=el('div',undefined,'grow');text.append(el('h3',target?.name||m('Brak obiektu')),el('p',m('{0} · {1}',m({device:'Urządzenie',room:'Pomieszczenie',scene:'Scena',group:'Grupa'}[t.type]),t.span===2?m('pełna szerokość'):m('½ szerokości')),'muted'));row.append(text,button('↑',()=>move(d,t.id,-1)),button('↓',()=>move(d,t.id,1)),button(m('Edytuj'),()=>editTile(d,t)),button('×',()=>{d.tiles=d.tiles.filter(x=>x.id!==t.id);changed();editDashboard(d);}));n.append(row);}if(!d.tiles.length)empty(n,m('Ten pulpit jest pusty.'));n.append(button(m('+ Dodaj kartę'),()=>{if(d.tiles.length>=24)return notice(m('Limit: 24 karty na pulpit.'));if(!config.devices.length&&!config.rooms.length&&!config.scenes.length&&!config.groups.length)return notice(m('Najpierw dodaj pomieszczenie lub urządzenie.'));const type=config.devices.length?'device':config.rooms.length?'room':config.scenes.length?'scene':'group',a=config[type==='device'?'devices':type==='room'?'rooms':type==='scene'?'scenes':'groups'];const tile={id:nextId(d.tiles),type,ref:a[0].id,span:2,height:1,fields:255};d.tiles.push(tile);changed();editTile(d,tile);},'primary'));}
@@ -456,6 +521,7 @@ function render(){if(!config)return;if(page!=='discovery'){invalidateOnboarding(
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 async function save(){
  if(!dirty||saving||conflict)return;
+ if(actionSession?.owner===config&&(!actionNameValid(actionSession.item)||!(actionSession.kind==='groups'?actionSession.item.members.length:actionSession.item.actions.length))){notice(m('Uzupełnij nazwę i wybierz co najmniej jedno urządzenie lub polecenie.'));editAction(actionSession.kind,actionSession.item,actionNameValid(actionSession.item)?1:0);return;}
  const submitted=structuredClone(config),serial=editSerial;configGeneration++;saving=true;$('#save').disabled=true;
  try{
   await request('config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(submitted)});notice(m('Zapisywanie konfiguracji…'));let acknowledged=false;
@@ -464,15 +530,17 @@ async function save(){
    if(s.revision!==submitted.revision+1)throw failure(m('Zapis nie powiódł się. Zmiany pozostają w edytorze.'));
    const published=await(await request('config')).json(),expected={...submitted,revision:s.revision};
    if(JSON.stringify(canonical(published))!==JSON.stringify(canonical(expected))){conflict=true;throw failure(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję.'));}
-   config.revision=s.revision;setText($('#revision'),s.revision);acknowledged=true;
+   config.revision=s.revision;
+   if(actionSession?.owner===config){const committed=submitted[actionSession.kind].find(item=>item.id===actionSession.item.id);if(committed){actionSession.baseline=structuredClone(committed);actionSession.fresh=false;actionSession.before=structuredClone(expected);actionSession.wasDirty=false;}}
+   setText($('#revision'),s.revision);acknowledged=true;
    if(editSerial===serial){dirty=false;setText($('#dirty'),m('Wszystkie zmiany zapisane'));notice(m('Zapisano. Ekran pilota korzysta z tej samej konfiguracji.'));}
    else{dirty=true;setText($('#dirty'),m('Niezapisane zmiany'));notice(m('Zapisano wcześniejszą wersję. Późniejsze zmiany pozostają niezapisane.'));}break;
   }
   if(!acknowledged)throw failure(m('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.'));
- }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;}
+ }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();}
 }
 async function poll(){if(!config||$('#workspace').hidden)return;const serial=++statusReadSerial,owner=configReadOwner();const current=()=>serial===statusReadSerial&&configReadCurrent(owner);try{const response=await request('status');if(!current())return;const s=await response.json();if(!current())return;remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else{await load();return;}}const r=await request('preview.raw');if(!current())return;if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(!current())return;if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));}}}catch(e){if(!current())return;remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{if(current()){if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}}
-async function uploadPhoto(file,room){
+async function uploadPhoto(file,room,current=()=>true){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw failure(m('Wybierz JPG, PNG lub WebP do 15 MB.'));
  const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw failure(m('Zbyt duże zdjęcie.'));}
  const c=document.createElement('canvas');c.width=320;c.height=180;
@@ -480,7 +548,7 @@ async function uploadPhoto(file,room){
  ctx.drawImage(bitmap,(320-bitmap.width*ratio)/2,(180-bitmap.height*ratio)/2,bitmap.width*ratio,bitmap.height*ratio);bitmap.close();
  const rgba=ctx.getImageData(0,0,320,180).data,raw=new Uint8Array(115200);
  for(let i=0;i<57600;i++){const value=(rgba[i*4]>>3)<<11|(rgba[i*4+1]>>2)<<5|(rgba[i*4+2]>>3);raw[i*2]=value&255;raw[i*2+1]=value>>8;}
- const id=sha256(raw).slice(0,32);await request('photos/'+id,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:raw});room.photo=id;changed();
+ const id=sha256(raw).slice(0,32);await request('photos/'+id,{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:raw});if(!current())return false;room.photo=id;changed();return true;
 }
 /* SHA-256 is included locally because WebCrypto.digest is not available on
  * ordinary HTTP origins. No CDN, telemetry, external fonts or cloud calls. */

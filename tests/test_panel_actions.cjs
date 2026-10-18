@@ -8,17 +8,17 @@ let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x=>{asser
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1200,height:1000},locale:'pl-PL'});await context.addInitScript(()=>{window.setInterval=()=>1;localStorage.setItem('dsr.web.locale','pl');});
  let config={schema:2,revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,rooms:[],devices:[{id:1,name:'A',host:'192.0.2.1',channel:0,kind:'relay',room:0},{id:2,name:'B',host:'192.0.2.2',channel:0,kind:'relay',room:0}],groups:[{id:1,name:'<img src=x onerror=alert(1)>',members:[1,2]}],scenes:[{id:1,name:'Sleep',actions:[{device:1,command:'off'}]}],dashboards:[{id:1,name:'Home',tiles:[{id:1,type:'scene',ref:1,span:2,height:1,fields:255}]}]};
- let actor={boot_id:17,admission_generation:0,revision:1,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]};const posts=[],errors=[];let drop=false,admit=true,epoch=1,entries=[{sequence:1,utc:0,monotonic_ms:120000,run_id:0,object_id:0,layout_id:1,kind:2,source:2,command:1,outcome:1,result:0}];
+ let actor={boot_id:17,admission_generation:0,revision:1,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]};const posts=[],errors=[];let drop=false,admit=true,holdSave=false,failSave=false,pendingWrite=null,puts=0,epoch=1,entries=[{sequence:1,utc:0,monotonic_ms:120000,run_id:0,object_id:0,layout_id:1,kind:2,source:2,command:1,outcome:1,result:0}];
  page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');const send=(status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   if(!u.pathname.startsWith('/api/')){if(u.pathname==='/favicon.ico')return route.fulfill({status:404,body:''});const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];assert(asset,u.pathname);return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});}
-  if(u.pathname.endsWith('/config')){if(req.method()==='PUT'){const next=req.postDataJSON();eq(next.schema,2);eq(next.revision,config.revision);config={...next,revision:next.revision+1};actor.revision=config.revision;return send(202,{saving:true});}return send(200,config);}
+  if(u.pathname.endsWith('/config')){if(req.method()==='PUT'){const next=req.postDataJSON();puts++;eq(next.schema,2);eq(next.revision,config.revision);if(failSave)return send(500,{error:'storage failed'});if(holdSave){pendingWrite=next;return send(202,{saving:true});}config={...next,revision:next.revision+1};actor.revision=config.revision;return send(202,{saving:true});}return send(200,config);}
   if(u.pathname.endsWith('/actions/status'))return send(200,actor);
   if(u.pathname.endsWith('/groups/run')||u.pathname.endsWith('/scenes/run')){const body=req.postDataJSON(),group=u.pathname.endsWith('/groups/run');posts.push({path:u.pathname,body});eq(Object.keys(body).sort(),(group?['id','revision','boot_id','admission_generation','nonce','on']:['id','revision','boot_id','admission_generation','nonce']).sort());eq(body.boot_id,actor.boot_id);eq(body.admission_generation,actor.admission_generation);eq(body.revision,config.revision);ok(/^[0-9a-f]{16}$/.test(body.nonce));if(admit)actor={...actor,admission_generation:actor.admission_generation+1,run_id:actor.run_id+1,object_id:body.id,kind:group?0:1,nonce:body.nonce,active:true,available:false,current:0,steps:[{layout_id:1,command:group&&body.on?1:2,outcome:0,result:0},{layout_id:2,command:2,outcome:0,result:0}]};if(drop)return route.abort('failed');return send(202,{run_id:actor.run_id,result:0});}
   if(u.pathname.endsWith('/actions/cancel')){const body=req.postDataJSON();eq(body,{boot_id:actor.boot_id,run_id:actor.run_id});actor={...actor,active:false,available:true,cancelled:true,steps:actor.steps.map(s=>({...s,outcome:4,result:8}))};return send(202,{cancelled:true});}
   if(u.pathname.endsWith('/actions/log/query')){const body=req.postDataJSON();eq(body.limit,16);return send(200,{epoch,newest:1,total:entries.length,timezone:'UTC',entries});}
   if(u.pathname.endsWith('/actions/log/clear')){eq(req.method(),'POST');ok(!req.postData());entries=[];epoch++;return send(200,{cleared:true});}
-  if(u.pathname.endsWith('/status'))return send(200,{revision:config.revision,busy:false,firmware:'HOST TEST / MODEL'});
+  if(u.pathname.endsWith('/status'))return send(200,{revision:config.revision,busy:holdSave,firmware:'HOST TEST / MODEL'});
   if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2),contentType:'application/octet-stream'});
   throw Error('Unexpected '+u.pathname);
  });
@@ -30,23 +30,48 @@ let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x=>{asser
  // A lost request that was never admitted keeps all run controls disabled.
  admit=false;await live.getByRole('button',{name:'Włącz grupę',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('Nie potwierdzono przyjęcia'));await page.evaluate(()=>dsrActionsRefresh());ok(await live.getByRole('button',{name:'Włącz grupę',exact:true}).isDisabled());eq(posts.length,3);actor={...actor,boot_id:18,admission_generation:0,run_id:0,nonce:'',steps:[],active:false,available:true};await page.evaluate(()=>dsrActionsRefresh());eq(posts.length,3);ok((await live.innerText()).includes('uruchomiono ponownie'));
  // Editor and language changes preserve the dirty draft and never run it.
- await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Unsaved group');const draft=await page.evaluate(()=>JSON.stringify(config));await page.locator('#web-locale').selectOption('de');eq(await page.evaluate(()=>JSON.stringify(config)),draft);eq(posts.length,3);ok(await page.evaluate(()=>dirty));await page.locator('#save').click();await page.waitForFunction(()=>!saving&&!dirty);eq(config.groups[0].name,'Unsaved group');
- // Create directly on Groups/Scenes; only Save may publish, never execute.
+ await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa grupy',{exact:true}).fill('Unsaved group');const draft=await page.evaluate(()=>JSON.stringify(config));await page.locator('#web-locale').selectOption('de');eq(await page.evaluate(()=>JSON.stringify(config)),draft);eq(posts.length,3);ok(await page.evaluate(()=>dirty));await page.locator('#save').click();await page.waitForFunction(()=>!saving&&!dirty);eq(config.groups[0].name,'Unsaved group');
+ // Create directly: optional appearance is skipped, only Save publishes.
  await page.locator('#web-locale').selectOption('pl');await page.locator('nav [data-page=groups]').click();
- await page.locator('#editor').getByRole('button',{name:'+ Dodaj',exact:true}).click();
- await page.getByRole('button',{name:'Przekaźniki i gniazdka',exact:true}).click();
- await page.getByLabel('Szukaj',{exact:true}).fill('A');await page.locator('.action-rooms input[type=checkbox]').check();
- await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
- await page.getByLabel('Nazwa',{exact:true}).fill('Group from its page');eq(posts.length,3);
+ await page.locator('#editor').getByRole('button',{name:'+ Nowa grupa',exact:true}).click();
+ const next=()=>page.locator('.onboarding-footer').getByRole('button',{name:'Dalej',exact:true});
+ ok(await next().isDisabled());await page.getByLabel('Nazwa grupy',{exact:true}).fill('   ');ok(await next().isDisabled());
+ await page.getByLabel('Nazwa grupy',{exact:true}).fill('Group from its page');await next().click();ok(await next().isDisabled());
+ const serial=await page.evaluate(()=>editSerial);await page.getByLabel('Szukaj',{exact:true}).fill('A');eq(await page.evaluate(()=>editSerial),serial);await page.locator('.action-rooms input[type=checkbox]').check();await next().click();
+ ok((await page.locator('.action-summary').innerText()).includes('A'));eq(posts.length,3);eq(config.groups.length,1);
  await page.screenshot({path:path.join(out,'group-contextual-editor-model.png'),fullPage:true});
- await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);
- eq(config.groups.length,2);eq(config.groups[1].members,[1]);eq(config.groups[1].name,'Group from its page');eq(posts.length,3);
- await page.locator('nav [data-page=scenes]').click();await page.locator('#editor').getByRole('button',{name:'+ Dodaj',exact:true}).click();
- ok((await page.locator('#editor').innerText()).includes('Sceny uruchamiane ręcznie'));await page.getByRole('button',{name:'Dalej',exact:true}).click();
- await page.getByRole('button',{name:'+ Działanie',exact:true}).click();await page.getByLabel('Działanie',{exact:true}).selectOption('off');
- await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();
- await page.getByLabel('Nazwa',{exact:true}).fill('Scene from its page');await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);
- eq(config.scenes[1].actions,[{device:1,command:'off'}]);eq(posts.length,3);await page.locator('#web-locale').selectOption('de');
+ await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz grupę',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);
+ eq(config.groups.length,2);eq(config.groups[1].members,[1]);eq(config.groups[1].name,'Group from its page');ok(!config.groups[1].photo);eq(posts.length,3);
+ // Explicit device -> command; Back does not append a default On command.
+ await page.locator('nav [data-page=scenes]').click();await page.locator('#editor').getByRole('button',{name:'+ Nowa scena',exact:true}).click();
+ await page.getByLabel('Nazwa sceny',{exact:true}).fill('Scene from its page');await next().click();ok(await next().isDisabled());
+ const add=()=>page.getByRole('button',{name:'+ Dodaj polecenie',exact:true});const back=()=>page.locator('.onboarding-footer').getByRole('button',{name:'Wstecz',exact:true});
+ await add().click();await page.getByRole('button',{name:'A',exact:true}).click();eq(await page.evaluate(()=>config.scenes.at(-1).actions.length),0);await back().click();await back().click();eq(await page.evaluate(()=>config.scenes.at(-1).actions.length),0);
+ await add().click();await page.getByRole('button',{name:'A',exact:true}).click();await page.getByRole('button',{name:'Wyłącz',exact:true}).click();
+ await add().click();await page.getByRole('button',{name:'B',exact:true}).click();await page.getByRole('button',{name:'Włącz',exact:true}).click();
+ await page.locator('.action-edit-row').last().getByRole('button',{name:'Przesuń w górę',exact:true}).click();eq(await page.evaluate(()=>config.scenes.at(-1).actions),[{device:2,command:'on'},{device:1,command:'off'}]);
+ await page.locator('.action-edit-row').first().getByRole('button',{name:'Usuń',exact:true}).click();await next().click();
+ await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz scenę',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);eq(config.scenes[1].actions,[{device:1,command:'off'}]);eq(posts.length,3);
+ // Cancel removes only this new entry, preserving an unrelated dirty draft.
+ await page.evaluate(()=>{config.devices[0].name='Unrelated edit';changed();});const putsBefore=puts;
+ await page.locator('#editor').getByRole('button',{name:'+ Nowa scena',exact:true}).click();await page.getByLabel('Nazwa sceny',{exact:true}).fill('Discard me');await page.getByRole('button',{name:'Anuluj',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Zostań',exact:true}).click();ok(await page.getByLabel('Nazwa sceny',{exact:true}).isVisible());
+ await page.getByRole('button',{name:'Anuluj',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Odrzuć',exact:true}).click();eq(await page.evaluate(()=>config.scenes.length),2);eq(await page.evaluate(()=>config.devices[0].name),'Unrelated edit');ok(await page.evaluate(()=>dirty));eq(puts,putsBefore);eq(posts.length,3);await page.locator('#save').click();await page.waitForFunction(()=>!saving&&!dirty);
+ // A late durable ACK must retain later name B; Cancel restores committed A.
+ await page.locator('.action-card').last().getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa sceny',{exact:true}).fill('Committed A');await next().click();await next().click();holdSave=true;await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz scenę',exact:true}).click();await page.waitForFunction(()=>saving);
+ await page.getByRole('button',{name:'Zmień nazwę i opcje',exact:true}).click();await page.getByLabel('Nazwa sceny',{exact:true}).fill('Later B');config={...pendingWrite,revision:pendingWrite.revision+1};actor.revision=config.revision;holdSave=false;await page.waitForFunction(()=>!saving&&dirty);eq(await page.getByLabel('Nazwa sceny',{exact:true}).inputValue(),'Later B');
+ await page.getByRole('button',{name:'Anuluj',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Odrzuć',exact:true}).click();eq(await page.evaluate(()=>config.scenes.at(-1).name),'Committed A');ok(!await page.evaluate(()=>dirty));
+ // Failed save retains the complete draft and supports a retry.
+ await page.locator('.action-card').last().getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa sceny',{exact:true}).fill('Retry scene');await next().click();await next().click();failSave=true;await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz scenę',exact:true}).click();await page.waitForFunction(()=>!saving&&dirty);eq(config.scenes.at(-1).name,'Committed A');ok((await page.locator('.action-summary').innerText()).includes('Retry scene'));failSave=false;await page.locator('.onboarding-footer').getByRole('button',{name:'Zapisz scenę',exact:true}).click();await page.waitForFunction(()=>!saving&&!dirty);eq(config.scenes.at(-1).name,'Retry scene');
+ // Actual responsive layout, translations and optional settings in PL/EN/DE.
+ for(const width of [320,390,1200])for(const locale of ['pl','en','de']){
+  await page.setViewportSize({width,height:900});await page.locator('#web-locale').selectOption(locale);await page.evaluate(()=>dsrEditAction('scenes',2));
+  for(const step of [0,1,2,3]){
+   await page.evaluate(step=>editAction('scenes',config.scenes[1],step,{returnStep:0}),step);
+   const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,buttons:[...document.querySelectorAll('.onboarding-footer button')].map(b=>({width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height}))}));ok(layout.width<=layout.viewport);ok(layout.buttons.every(b=>b.width>=44&&b.height>=44));
+   await page.screenshot({path:path.join(out,`scene-${locale}-${width}-step${step}-model.png`),fullPage:true});
+  }
+ }
+ await page.setViewportSize({width:1200,height:1000});await page.locator('#web-locale').selectOption('de');
  await page.locator('nav [data-page=activity]').click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('UTC fehlt'));await page.screenshot({path:path.join(out,'activity-german-model.png'),fullPage:true});await live.getByRole('button',{name:'RAM-Aktivität löschen',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.actions-section').textContent.includes('Keine Einträge'));eq(posts.length,3);eq(errors,[]);
- await browser.close();fs.rmSync(temp,{recursive:true,force:true});console.log(`PASS: ${checks} actual Chromium actions checks; shared assets/editor and actor HTTP MODEL; partial success, lostPOST GET-only, boot, locale/dirty/save, UTC activity/clear; no device proof`);
+ await browser.close();fs.rmSync(temp,{recursive:true,force:true});console.log(`PASS: ${checks} actual Chromium actions checks; shared assets/editor and actor HTTP MODEL; partial success, lostPOST GET-only, boot, explicit commands/order, 3-step creation/cancel/failure/late ACK, 320/390/1200 PL EN DE, UTC activity/clear; no device proof`);
 })().catch(async e=>{console.error(e);if(page)await page.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});process.exit(1);});

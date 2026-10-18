@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_search.h"
 #include "dsr_actions.h"
 #include "dsr_workspace.h"
 #include "esp_random.h"
@@ -43,7 +44,7 @@ static uint32_t status_hash(const dsr_actions_snapshot_t *s)
  for(unsigned i=0;i<s->count;i++){hash=hash*33u+s->steps[i].outcome;hash=hash*33u+(uint32_t)s->steps[i].result;}return hash;
 }
 static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,lv_event_cb_t cb,uintptr_t data)
-{lv_obj_t *b=dsr_sc_button(parent,x,y,width,40,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
+{lv_obj_t *b=dsr_sc_button(parent,x,y,width,44,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
 static void back(lv_event_t *event){(void)event;dsr_network_rooms();}
 static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);browse.query[0]=0;browse.room=0;admission=DSR_OK;draw();}
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
@@ -81,32 +82,33 @@ static void room_filter(lv_event_t *event)
  if(at)browse.room=(uint32_t)number(cJSON_GetArrayItem(get(r,"rooms"),(int)at-1),"id");
  cJSON_Delete(r);draw();
 }
-static __attribute__((noinline)) void object_card(lv_obj_t *list,const cJSON *r,const cJSON *v,unsigned i,int y,const dsr_actions_snapshot_t *s)
+static __attribute__((noinline)) int object_card(lv_obj_t *list,const cJSON *r,const cJSON *v,unsigned i,int y,const dsr_actions_snapshot_t *s)
 {
  unsigned id=(unsigned)number(v,"id"),count=(unsigned)cJSON_GetArraySize(get(v,page?"actions":"members"));
- lv_obj_t *card=dsr_sc_panel(list,0,y,280,164,DSR_SC_CARD,12);lv_obj_set_style_clip_corner(card,true,0);
- const char *photo=text(v,"photo");const cJSON *room=NULL,*candidate;
+ const char *photo=text(v,"photo");bool has_photo=dsr_ui_photo_source(photo,&browse.photos[i]);int height=has_photo?164:132;
+ lv_obj_t *card=dsr_sc_panel(list,0,y,280,height,DSR_SC_CARD,12);lv_obj_set_style_clip_corner(card,true,0);
+ const cJSON *room=NULL,*candidate;
  cJSON_ArrayForEach(candidate,get(r,"rooms"))if(number(candidate,"id")==number(v,"room"))room=candidate;
- if(!*photo)photo=text(room,"photo");
- if(dsr_ui_photo_source(photo,&browse.photos[i])){
+ if(has_photo){
   lv_obj_t *clip=dsr_sc_panel(card,0,0,280,112,DSR_SC_PANEL,0);lv_obj_set_style_clip_corner(clip,true,0);
   lv_obj_t *image=lv_image_create(clip);lv_image_set_src(image,&browse.photos[i]);
   uint32_t scale=280u*256u/browse.photos[i].header.w,vertical=112u*256u/browse.photos[i].header.h;
   lv_image_set_scale(image,scale>vertical?scale:vertical);lv_obj_center(image);
  }
- lv_obj_t *shade=dsr_sc_panel(card,0,0,280,112,0x101820,0);lv_obj_set_style_bg_opa(shade,170,0);
+ if(has_photo){lv_obj_t *shade=dsr_sc_panel(card,0,0,280,112,0x101820,0);lv_obj_set_style_bg_opa(shade,170,0);}
  lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(text(v,"name")),10,10,210,&dsr_roboto_16,0xffffff);
  lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
  lv_obj_t *pencil=dsr_sc_button(card,232,4,44,44,DSR_SC_PANEL,10,edit,(void *)(uintptr_t)id);dsr_sc_icon_centered(pencil,DSR_ICON_EDIT,24,DSR_SC_BLUE);
  char caption[96];snprintf(caption,sizeof(caption),"%s • %u",*text(room,"name")?text(room,"name"):dsr_sc_tr("Cały dom"),count);
- dsr_sc_text(card,dsr_sc_user(caption),10,83,258,&dsr_roboto_12,0xffffff);
- lv_obj_t *first=button(card,page?"Uruchom scenę":"Włącz grupę",4,118,page?272:132,run,((uintptr_t)id<<2)|(page?1:2));
+ dsr_sc_text(card,dsr_sc_user(caption),10,has_photo?83:60,258,&dsr_roboto_12,0xffffff);
+ lv_obj_t *first=button(card,page?"Uruchom scenę":"Włącz grupę",4,has_photo?114:82,page?272:132,run,((uintptr_t)id<<2)|(page?1:2));
  if(!s->available||!count)lv_obj_add_state(first,LV_STATE_DISABLED);
- if(!page){lv_obj_t *off=button(card,"Wyłącz grupę",144,118,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
+ if(!page){lv_obj_t *off=button(card,"Wyłącz grupę",144,has_photo?114:82,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
+ return height;
 }
 static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 {
- button(root,page?"+ Scena":"+ Grupa",12,94,112,edit,0);
+ lv_obj_t *add=button(root,page?"+ Scena":"+ Grupa",12,94,112,edit,0);dsr_ui_primary(add);
  browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,94);lv_obj_set_size(browse.search,176,40);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
  lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_FOCUSED,NULL);lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_CLICKED,NULL);
  lv_obj_t *list=body=dsr_sc_panel(root,12,190,296,224,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
@@ -115,10 +117,10 @@ static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_s
  char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Cały dom"));unsigned index=0,selected=0;const cJSON *v;
  cJSON_ArrayForEach(v,get(r,"rooms")){strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,text(v,"name"),sizeof(options)-strlen(options)-1);index++;if((uint32_t)number(v,"id")==browse.room)selected=index;}
  lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,142);lv_obj_set_size(filter,296,40);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
- unsigned i=0;cJSON_ArrayForEach(v,get(r,page?"scenes":"groups")){
+ unsigned i=0;int y=0;cJSON_ArrayForEach(v,get(r,page?"scenes":"groups")){
   if(browse.room&&browse.room!=(uint32_t)number(v,"room"))continue;
-  if(*browse.query&&!strstr(text(v,"name"),browse.query))continue;
-  object_card(list,r,v,i,(int)i*176,s);i++;
+  if(!dsr_ui_search_match(text(v,"name"),browse.query))continue;
+  y+=object_card(list,r,v,i,y,s)+12;i++;
  }
  if(!i){dsr_sc_icon(list,page?DSR_ICON_SCENES:DSR_ICON_GRID,116,24,48,DSR_SC_MUTED);dsr_sc_text(list,"Dodaj pierwszy wpis przyciskiem + u góry.",12,92,260,&dsr_roboto_16,DSR_SC_TEXT);}
  browse.revision=(uint32_t)number(r,"revision");cJSON_Delete(r);

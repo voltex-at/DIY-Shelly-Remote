@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_search.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
 #include "dsr_workspace.h"
@@ -56,8 +57,8 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
 
 #ifndef DSR_UI_REVIEW_DEMO
 static EXT_RAM_BSS_ATTR struct {
- bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page;uint32_t expanded;
- char query[48];lv_obj_t *count,*next;lv_image_dsc_t photos[12];
+ bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page,return_step,edit_index;uint32_t pending_device;
+ char query[48];lv_obj_t *count,*next,*back;lv_image_dsc_t photos[12];
 } action_editor;
 _Static_assert(sizeof(action_editor)<=1024,"bounded contextual editor PSRAM metadata");
 static void action_form(void);
@@ -133,10 +134,12 @@ static void show_room_form(void);
 static void show_device_form(void);
 static void close_keyboard(lv_event_t *event){(void)event;if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);if(body)lv_obj_set_height(body,292);}
 static void focus(lv_event_t *event)
-{if(!keyboard)return;lv_obj_set_height(body,130);dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
+{if(!keyboard)return;lv_obj_set_height(body,action_editor.active?94:130);if(action_editor.active){if(action_editor.next)lv_obj_add_flag(action_editor.next,LV_OBJ_FLAG_HIDDEN);if(action_editor.back)lv_obj_add_flag(action_editor.back,LV_OBJ_FLAG_HIDDEN);}dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
+static bool action_name_valid(const char *name)
+{const char *start=name;while(*start==' ')start++;return *start&&strlen(name)<=47;}
 static void set_text(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);lv_obj_t *field=lv_event_get_target(event);if(!editing)return;device_input_error=NULL;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateString(lv_textarea_get_text(field)));
- if(action_editor.active&&action_editor.next&&!strcmp(key,"name")){size_t length=strlen(string(editing,"name"));if(length&&length<=47)lv_obj_remove_state(action_editor.next,LV_STATE_DISABLED);else lv_obj_add_state(action_editor.next,LV_STATE_DISABLED);}}
+ if(action_editor.active&&action_editor.next&&!strcmp(key,"name")){if(action_name_valid(string(editing,"name")))lv_obj_remove_state(action_editor.next,LV_STATE_DISABLED);else lv_obj_add_state(action_editor.next,LV_STATE_DISABLED);}}
 static void set_number(lv_event_t *event)
 {const char *key=lv_event_get_user_data(event);if(!editing)return;cJSON_ReplaceItemInObjectCaseSensitive(editing,key,cJSON_CreateNumber(strtoul(lv_textarea_get_text(lv_event_get_target(event)),NULL,10)));}
 static lv_obj_t *screen(const char *title)
@@ -191,7 +194,7 @@ static open_result_t prepare_draft(void)
 static void save(lv_event_t *event)
 {
  (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
- if((room_editor||action_editor.active)&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47)){
+ if((room_editor||action_editor.active)&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47||(action_editor.active&&!action_name_valid(string(editing,"name"))))){
   dsr_sc_label_set_text(status_label,action_editor.active?"Podaj nazwę (maks. 47 bajtów).":!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
  }
  if(device_editor&&editing&&strlen(string(editing,"name"))>47){
