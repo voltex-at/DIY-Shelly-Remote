@@ -33,7 +33,7 @@ TaskHandle_t xTaskCreateStatic(void (*entry)(void *), const char *name,
     StackType_t *stack, StaticTask_t *tcb)
 {
     task_calls++;
-    CHECK(!strcmp(name,"dsr_ui") && bytes == 8192 && priority == 4 && !argument);
+    CHECK(!strcmp(name,"dsr_ui") && bytes == 8192 && priority == 5 && !argument);
     CHECK(stack && tcb);
     /* The retry must reuse permanent storage, not an expired main stack. */
     if (reserved_stack) CHECK(stack == reserved_stack && tcb == reserved_tcb);

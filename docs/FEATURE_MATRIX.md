@@ -1,4 +1,4 @@
-# Matryca funkcji — 0.7.51-dev
+# Matryca funkcji — 0.7.52-dev
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
@@ -27,7 +27,7 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | OTA z Web Panelu (zgoda LCD, SHA-256) | tak | tak | brak testu | — |
 | OTA z pilota, podpis `voltex-ota-2026-1` | tak (0.7.39: host CDN, katalog stronami; 0.7.40: rekordy TLS 16 KiB; 0.7.43: limit pobierania obrazu, kasowanie sekwencyjne) | tak | instalacja 0.7.43 → 0.7.44 z pilota potwierdzona (2026-10-17); rollback bez testu | — |
 | Rollback po nieudanym starcie | tak (SDK) | model | brak testu | — |
-| Napięcie baterii na żądanie (dolny pasek: diagnostyka baterii zamiast Energia) | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
+| Napięcie baterii na żądanie (dolny pasek: diagnostyka baterii zamiast Energia; 0.7.52: RAM, minimum, pamięć grafiki, stos ekranu, stan BLE) | tak | tak | „?” w nagłówku = brak pomiaru z ostatnich 30 s; pomiar fizyczny niewykonany | — |
 | Język: EN domyślny dla nowych instalacji, nazwy użytkownika bez tłumaczenia | tak | tak | brak testu | — |
 | Wydanie: jeden build na tag, bez nadpisywania, bramka CI 5/5, Stable z akceptacją | tak (`release.yml`, `tools/release_tool.py`) | tak (decyzje) | nie dotyczy; pierwsze uruchomienie przy dev-v0.7.40 | — |
 

@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_system_info.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -6,12 +7,13 @@ static dsr_battery_sample_t sample;
 static dsr_result_t result=DSR_IO;
 static bool attempted,pending,active,rejected,from_home;
 static uint32_t measured;
-static lv_obj_t *header_value,*value,*status,*age,*measure;
+static lv_obj_t *header_value,*value,*status,*age,*measure,*diag;
+static uint32_t diag_at;
 static void header_deleted(lv_event_t *event)
 {if(lv_event_get_target(event)==header_value)header_value=NULL;}
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
-void dsr_ui_battery_hide(void){active=false;value=status=age=measure=NULL;}
+void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=NULL;}
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
@@ -39,6 +41,14 @@ void dsr_ui_battery_tick(void)
  label(status,pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":"Napięcie BAT • dzielnik nominalny 2:1");
  if(attempted){snprintf(text,sizeof(text),dsr_sc_tr("Ostatni odczyt: %lu s temu"),(unsigned long)(elapsed/1000));label(age,text);}
  else label(age,"Brak pomiaru");
+ /* Responsiveness counters (0.7.52), refreshed once per second. */
+ if(diag&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
+  diag_at=lv_tick_get();dsr_system_info_t info;dsr_system_info_snapshot(&info);dsr_system_runtime_t run;dsr_system_runtime(&run);lv_mem_monitor_t mem;lv_mem_monitor(&mem);
+  char lines[256];snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
+   (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),
+   (unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
+  if(strcmp(lv_label_get_text(diag),lines))lv_label_set_text(diag,lines);
+ }
 }
 void dsr_ui_battery_result(const dsr_event_t *event)
 {
@@ -53,12 +63,14 @@ void dsr_ui_battery_show(void){from_home=true;show();}
 static void show(void)
 {
  lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
- dsr_sc_text(root,"Napięcie wejścia BAT",14,94,292,&dsr_roboto_14,DSR_SC_MUTED);
- value=dsr_sc_text(root,"— V",14,124,292,&dsr_roboto_28,DSR_SC_TEXT);
- status=dsr_sc_text(root,"Pomiar na żądanie",14,174,292,&dsr_roboto_14,DSR_SC_TEXT);
- age=dsr_sc_text(root,"Brak pomiaru",14,220,292,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(root,"Ładowanie i obecność akumulatora: brak wiarygodnych danych.",14,253,292,&dsr_roboto_14,DSR_SC_MUTED);
- dsr_sc_text(root,"Procent baterii wymaga potwierdzenia typu ogniwa i pomiaru multimetrem.",14,305,292,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(root,"Napięcie wejścia BAT",14,90,292,&dsr_roboto_14,DSR_SC_MUTED);
+ value=dsr_sc_text(root,"— V",14,110,292,&dsr_roboto_28,DSR_SC_TEXT);
+ status=dsr_sc_text(root,"Pomiar na żądanie",14,148,292,&dsr_roboto_14,DSR_SC_TEXT);
+ age=dsr_sc_text(root,"Brak pomiaru",14,170,292,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(root,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",14,190,292,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *card=dsr_sc_panel(root,12,224,296,126,DSR_SC_CARD,12);
+ dsr_sc_text(card,"Pamięć i radio",12,8,272,&dsr_roboto_14,DSR_SC_TEXT);
+ diag=dsr_sc_text(card,"…",12,32,276,&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
  if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
  dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);dsr_ui_battery_tick();

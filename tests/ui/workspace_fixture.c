@@ -1,3 +1,4 @@
+#include "dsr_system_info.h"
 #include "dsr_workspace.h"
 #include "dsr_activity.h"
 #include "dsr_discovery.h"
@@ -179,3 +180,6 @@ SemaphoreHandle_t xSemaphoreCreateMutex(void){return &action_lock;}
 int xSemaphoreTake(SemaphoreHandle_t handle,TickType_t wait){(void)wait;if(handle!=&action_lock||action_lock)abort();action_lock=1;return pdTRUE;}
 int xSemaphoreGive(SemaphoreHandle_t handle){if(handle!=&action_lock||!action_lock)abort();action_lock=0;return pdTRUE;}
 uint32_t esp_random(void){static uint32_t serial=41000;return ++serial;}
+
+/* Diagnostics counters MODEL (real SDK reads only on target). */
+void dsr_system_runtime(dsr_system_runtime_t *out){*out=(dsr_system_runtime_t){.internal_min_free=61440,.ui_stack_free=2304,.ble_active=false};}

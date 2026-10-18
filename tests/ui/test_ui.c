@@ -207,7 +207,7 @@ static void battery_regression(void)
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
  wifi.connected=false;tick();CHECK(!in_flight);test_workspace_disable();
  dsr_ui_open_settings();click("Bateria i zasilanie");CHECK(find_label(lv_screen_active(),"Pomiar na żądanie"));
- CHECK(find_label(lv_screen_active(),"Ładowanie i obecność akumulatora: brak wiarygodnych danych."));
+ CHECK(find_label(lv_screen_active(),"Ładowanie, ogniwo i procent: brak wiarygodnych danych."));
  CHECK(find_label(lv_screen_active(),"?"));screenshot("130-battery-unknown");
  next_submit_result=DSR_BUSY;click("Zmierz napięcie");tick();
  CHECK(!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));

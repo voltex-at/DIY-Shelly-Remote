@@ -17,4 +17,13 @@ typedef struct {
 /* Read-only, allocation-free diagnostics. No NVS, RF or Flash writes.
  * Heap counters are separate live reads, not an atomic accounting snapshot. */
 void dsr_system_info_snapshot(dsr_system_info_t *out);
+#include <stdbool.h>
+/* Runtime responsiveness counters for the diagnostics page (0.7.52). Call
+ * from the LVGL task: ui_stack_free is the calling task's lowest headroom. */
+typedef struct {
+    size_t internal_min_free;   /* lowest internal heap since boot */
+    uint32_t ui_stack_free;     /* bytes never used on the caller's stack */
+    bool ble_active;            /* BLE host + controller initialized */
+} dsr_system_runtime_t;
+void dsr_system_runtime(dsr_system_runtime_t *out);
 #endif

@@ -134,7 +134,7 @@ static void touch_task(void *arg)
         portEXIT_CRITICAL(&touch_lock);
         if (next.pressed && !previous) ESP_LOGI(TAG, "Touch x=%u y=%u", (unsigned)next.x, (unsigned)next.y);
         previous = next.pressed;
-        vTaskDelay(pdMS_TO_TICKS(20));
+        vTaskDelay(pdMS_TO_TICKS(10)); /* 0.7.52: was 20 ms */
     }
 }
 
@@ -261,6 +261,8 @@ esp_err_t dsr_board_init(void)
         lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
         lv_indev_set_display(indev, display);
         lv_indev_set_read_cb(indev, touch_read);
+        /* 0.7.52: read every 16 ms instead of the 33 ms display refresh period. */
+        lv_timer_set_period(lv_indev_get_read_timer(indev), 16);
         ESP_LOGI(TAG, "ST77922 touch responding, max points=%u", (unsigned)max_points);
     } else {
         ESP_LOGW(TAG, "ST77922 touch not identified at 0x55; display remains available for diagnostics");

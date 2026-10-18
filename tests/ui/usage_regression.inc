@@ -23,6 +23,9 @@ static void usage_regression(void)
  test_timer_boot_offset(120000);for(unsigned i=0;i<4;i++){lv_tick_inc(5001);tick();}test_timer_boot_offset(0);CHECK(!in_flight);
  /* The former Energie entry in the bottom bar opens battery diagnostics. */
  dsr_network_home(NULL);tap(160,455);CHECK(find_label(lv_screen_active(),"Bateria i zasilanie")&&find_label(lv_screen_active(),"Zmierz napięcie"));screenshot("246-battery-from-bar");
+ /* 0.7.52 diagnostics: live heap/min/stack/BLE counters on the same page. */
+ {lv_obj_t *title=find_label(lv_screen_active(),"Pamięć i radio");CHECK(title);lv_obj_t *card=lv_obj_get_parent(title);CHECK(lv_obj_get_child_count(card)==2);
+  const char *t=lv_label_get_text(lv_obj_get_child(card,1));CHECK(strstr(t,"RAM: 136 KB wolne • min 60 KB • blok 72 KB")&&strstr(t,"Stos ekranu: 2304 B zapasu • BLE: wyłączone")&&strstr(t,"grafika:"));}
  click("Wstecz");CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME);
  lv_mem_monitor_t before,after;dsr_ui_usage_open(a);tap(40,65);lv_refr_now(display);lv_mem_monitor(&before);
  for(unsigned i=0;i<40;i++){dsr_ui_usage_open(a);tap(40,65);}lv_refr_now(display);lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);

@@ -1,3 +1,12 @@
+0.7.52-dev: płynniejszy dotyk i diagnostyka pamięci. Stable: brak.
+
+Zmiany względem 0.7.51-dev:
+- BLE nie zostaje już włączone do restartu: stos NimBLE i kontroler Bluetooth są zwalniane 30 s po ostatnim skanie lub dodawaniu przez BLE i uruchamiane ponownie przy następnym użyciu. Wcześniej po pierwszym użyciu BLE Wi-Fi do restartu dzieliło radio z Bluetooth, a kontroler trzymał RAM wewnętrzny.
+- Wątek ekranu ma priorytet 5, wyżej niż wątek sieciowy (4): przetwarzanie dużych odpowiedzi Shelly/BLU nie dzieli już procesora po równo z obsługą dotyku.
+- Dotyk: panel odczytywany co 10 ms (było 20 ms), LVGL odbiera dotyk co 16 ms (było 33 ms).
+- Strona baterii (dolny pasek) pokazuje "Pamięć i radio": wolny RAM wewnętrzny, minimum od startu, największy blok, PSRAM, wolną pamięć grafiki, zapas stosu ekranu i stan BLE - do porównania przed i po użyciu BLE.
+- Bez zmian: tryb oszczędzania energii Wi-Fi (wyłączenie go zmniejszyłoby opóźnienia odpowiedzi kosztem poboru prądu - decyzja właściciela).
+
 0.7.51-dev: uproszczenie aplikacji i dokończenie oprawy graficznej. Stable: brak.
 
 Zmiany względem 0.7.50-dev (decyzje właściciela 2026-10-18):

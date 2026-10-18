@@ -7,6 +7,8 @@
 
 #define DSR_BLE_MAX_DEVICES 16
 #define DSR_BLE_SCAN_MS 20000u
+/* Host + controller are released after this long without a BLE job (0.7.52). */
+#define DSR_BLE_IDLE_RELEASE_MS 30000u
 #define DSR_BLE_MAX_ADV 31u
 typedef enum {DSR_BLE_IDLE,DSR_BLE_STARTING,DSR_BLE_SCANNING,DSR_BLE_DONE,DSR_BLE_CANCELLED,DSR_BLE_UNAVAILABLE} dsr_ble_phase_t;
 typedef enum {DSR_BLE_SHELLY_RPC,DSR_BLE_SHELLY_BLU,DSR_BLE_OTHER} dsr_ble_kind_t;
@@ -58,4 +60,5 @@ bool dsr_ble_handoff_request(uint32_t scan_serial,unsigned index);
 bool dsr_ble_handoff_take(dsr_ble_device_t *candidate,uint32_t now_ms);
 dsr_ble_handoff_t dsr_ble_handoff_status(uint32_t now_ms);
 bool dsr_ble_handoff_parse(const char *json,uint32_t *serial,unsigned *index);
+bool dsr_ble_host_active(void); /* BLE host/controller currently initialized */
 #endif

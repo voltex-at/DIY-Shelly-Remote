@@ -16,7 +16,8 @@ static const uint8_t blu[]={6,0xff,0xa9,0x0b,0x0b,2,0};
 static const uint8_t bthome[]={6,0x16,0xd2,0xfc,0x40,1,92};
 static const uint8_t rpc[]={17,7,0x5f,0x44,0x49,0x5f,0x43,0x56,0x53,0x5f,0x43,0x50,0x52,0x5f,0x53,0x4f,0x6d,0x5f};
 static uint32_t clock_ms,job;
-static bool queued,radio,init_failure,submit_failure;
+static bool queued,radio,init_failure,submit_failure,idle_release,timed_out,stop_failure;
+static unsigned stop_calls,deinit_calls;
 static unsigned init_calls,host_calls,cancel_calls,mode;
 static void (*worker)(void *);
 static int (*callback)(struct ble_gap_event *,void *);
@@ -29,7 +30,13 @@ int xSemaphoreGive(SemaphoreHandle_t s){(void)s;return 1;}
 void vSemaphoreDelete(SemaphoreHandle_t s){(void)s;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned bytes){CHECK(n==1&&bytes==4);return (void *)2;}
 int xQueueSend(QueueHandle_t q,const void *v,TickType_t t){(void)q;(void)t;if(submit_failure)return 0;CHECK(!queued);memcpy(&job,v,4);queued=true;return 1;}
-int xQueueReceive(QueueHandle_t q,void *v,TickType_t t){(void)q;(void)t;if(!queued)longjmp(idle,1);memcpy(v,&job,4);queued=false;return 1;}
+int xQueueReceive(QueueHandle_t q,void *v,TickType_t t)
+{
+ (void)q;
+ /* Idle wait: bounded only while the host is up (0.7.52 release timer). */
+ if(!queued){if(idle_release&&t!=portMAX_DELAY&&!timed_out){CHECK(t==pdMS_TO_TICKS(DSR_BLE_IDLE_RELEASE_MS));timed_out=true;return 0;}longjmp(idle,1);}
+ timed_out=false;memcpy(v,&job,4);queued=false;return 1;
+}
 void vQueueDelete(QueueHandle_t q){(void)q;}
 int xTaskCreatePinnedToCore(void (*fn)(void *),const char *n,unsigned stack,void *a,unsigned p,void *h,int core)
 {(void)n;(void)a;(void)p;(void)h;CHECK(stack==4096&&core==1);worker=fn;return 1;}
@@ -38,6 +45,8 @@ esp_err_t nimble_port_init(void){init_calls++;return init_failure?ESP_FAIL:ESP_O
 void nimble_port_freertos_init(void (*fn)(void *)){(void)fn;host_calls++;ble_hs_cfg.sync_cb();}
 void nimble_port_run(void){}
 void nimble_port_freertos_deinit(void){}
+int nimble_port_stop(void){stop_calls++;return stop_failure?1:0;}
+esp_err_t nimble_port_deinit(void){deinit_calls++;return ESP_OK;}
 int ble_hs_util_ensure_addr(int p){(void)p;return 0;}
 int ble_hs_id_infer_auto(int p,uint8_t *t){(void)p;*t=0;return 0;}
 int ble_gap_disc(uint8_t t,int32_t duration,const struct ble_gap_disc_params *p,int (*cb)(struct ble_gap_event *,void *),void *arg)
@@ -119,6 +128,14 @@ int main(void)
  dsr_ble_handoff_publish(true,false,clock_ms);CHECK(dsr_ble_handoff_request(s.serial,0));clock_ms+=10000;CHECK(!dsr_ble_handoff_take(&handoff,clock_ms)&&dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_EXPIRED);
  dsr_ble_handoff_publish(true,false,clock_ms);CHECK(dsr_ble_handoff_status(clock_ms)==DSR_BLE_HANDOFF_EXPIRED);CHECK(dsr_ble_handoff_request(s.serial,0));dsr_ble_handoff_publish(false,false,clock_ms);CHECK(!dsr_ble_handoff_take(&handoff,clock_ms));
  clock_ms+=30001;dsr_ble_handoff_publish(true,false,clock_ms);CHECK(!dsr_ble_handoff_request(s.serial,0));
+ /* 0.7.52: an idle host is released (radio + controller RAM), then re-created by
+  * the next job; a failed stop keeps it; never released while a job is queued. */
+ CHECK(dsr_ble_host_active());unsigned inits=init_calls;idle_release=true;
+ stop_failure=true;mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(stop_calls==1&&!deinit_calls&&dsr_ble_host_active());stop_failure=false;
+ mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(stop_calls==2&&deinit_calls==1&&!dsr_ble_host_active()&&!dsr_ble_host_healthy()&&init_calls==inits);
+ mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(init_calls==inits+1&&deinit_calls==2&&!dsr_ble_host_active());
+ CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(rpc_calls==2&&init_calls==inits+2&&deinit_calls==3);
+ dsr_ble_snapshot(&s);CHECK(!s.busy);idle_release=false;
  CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
- printf("PASS: %u BLE checks; real parser + scanner adapter, bounded AD, merge/dedupe/cap, 20s timeout, 10 cancel cycles, host reset, retry, late events; host radio fixture only\n",checks);return 0;
+ printf("PASS: %u BLE checks; idle host release/re-init; real parser + scanner adapter, bounded AD, merge/dedupe/cap, 20s timeout, 10 cancel cycles, host reset, retry, late events; host radio fixture only\n",checks);return 0;
 }

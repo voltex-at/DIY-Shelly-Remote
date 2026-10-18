@@ -20,6 +20,7 @@ static QueueHandle_t queue;
 static dsr_ble_snapshot_t state;
 static atomic_bool cancelled,synced,host_failed;
 static bool initialized,busy;
+static atomic_bool host_on;
 static void (*rpc_operation)(bool host_ready);
 static uint32_t now_ms(void){return (uint32_t)(esp_timer_get_time()/1000);}
 static bool running(void){return state.phase==DSR_BLE_STARTING||state.phase==DSR_BLE_SCANNING;}
@@ -48,7 +49,7 @@ static bool prepare_host(void)
 {
  if(!initialized){
   if(nimble_port_init()!=ESP_OK){memory_log("init_failed");return false;}
-  initialized=true;ble_hs_cfg.reset_cb=reset;ble_hs_cfg.sync_cb=sync_host;
+  initialized=true;atomic_store(&host_on,true);ble_hs_cfg.reset_cb=reset;ble_hs_cfg.sync_cb=sync_host;
   nimble_port_freertos_init(host_task);
  }
  uint32_t waiting=now_ms();
@@ -82,8 +83,20 @@ static void scan_once(uint32_t id)
   * at the manager level; allow next requests only after the radio is idle. */
  if(ble_gap_disc_active())(void)ble_gap_disc_cancel();
 }
+/* 0.7.52: release host and controller after DSR_BLE_IDLE_RELEASE_MS without a
+ * scan or BLE RPC. Until then they stayed on until restart: Wi-Fi kept sharing
+ * the radio (coexistence) and the controller kept its internal RAM. The next
+ * request initializes them again (prepare_host). */
+bool dsr_ble_host_active(void){return atomic_load(&host_on);}
+static void release_host(void)
+{
+ if(!initialized)return;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool idle=!busy;xSemaphoreGive(mutex);if(!idle)return;
+ if(nimble_port_stop()!=0){memory_log("stop_failed");return;}
+ (void)nimble_port_deinit();initialized=false;atomic_store(&host_on,false);atomic_store(&synced,false);atomic_store(&host_failed,false);memory_log("released");
+}
 static void scanner_task(void *arg)
-{(void)arg;uint32_t id;for(;;)if(xQueueReceive(queue,&id,portMAX_DELAY)==pdTRUE){xSemaphoreTake(mutex,portMAX_DELAY);void (*operation)(bool)=rpc_operation;xSemaphoreGive(mutex);if(operation)operation(prepare_host());else scan_once(id);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;state.serial++;xSemaphoreGive(mutex);memory_log("idle");}}
+{(void)arg;uint32_t id;for(;;)if(xQueueReceive(queue,&id,initialized?pdMS_TO_TICKS(DSR_BLE_IDLE_RELEASE_MS):portMAX_DELAY)!=pdTRUE)release_host();else{xSemaphoreTake(mutex,portMAX_DELAY);void (*operation)(bool)=rpc_operation;xSemaphoreGive(mutex);if(operation)operation(prepare_host());else scan_once(id);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;state.serial++;xSemaphoreGive(mutex);memory_log("idle");}}
 bool dsr_ble_manager_rpc(void (*operation)(bool))
 {
  if(!mutex||!queue||!operation)return false;

@@ -40,8 +40,10 @@ esp_err_t dsr_ui_task_start(bool (*startup_ready)(void))
     if (handle) return ESP_ERR_INVALID_STATE;
     if (!startup_ready) return ESP_ERR_INVALID_ARG;
     ready = startup_ready;
+    /* Priority 5, above the network worker (4): parsing large Shelly/BLU
+     * responses must not time-slice touch handling and drawing (0.7.52). */
     handle = xTaskCreateStatic(ui_task, "dsr_ui", sizeof(dsr_ui_stack), NULL,
-                              4, dsr_ui_stack, &dsr_ui_tcb);
+                              5, dsr_ui_stack, &dsr_ui_tcb);
     if (!handle) ready = NULL;
     return handle ? ESP_OK : ESP_ERR_NO_MEM;
 }

@@ -1,4 +1,7 @@
 /* PL / EN / DE. English legacy keys are accepted during the UI migration. */
+{"Pamięć i radio","Memory and radio","Speicher und Funk"},{"Ładowanie, ogniwo i procent: brak wiarygodnych danych.","Charging, cell and percentage: no reliable data.","Laden, Zelle und Prozent: keine verlässlichen Daten."},
+{"RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s","RAM: %lu KB free • min %lu KB • block %lu KB\nPSRAM: %lu KB • graphics: %lu KB free\nScreen stack: %lu B spare • BLE: %s","RAM: %lu KB frei • min %lu KB • Block %lu KB\nPSRAM: %lu KB • Grafik: %lu KB frei\nBildschirm-Stack: %lu B Reserve • BLE: %s"},
+{"włączone","on","an"},{"wyłączone","off","aus"},
 {" • hasło"," • password"," • Passwort"},
 {"Dodaj przez Wi-Fi AP","Add via Wi-Fi AP","Über WLAN-AP hinzufügen"},
 {"Fabryczne urządzenie Shelly","Factory Shelly device","Shelly im Werkszustand"},
