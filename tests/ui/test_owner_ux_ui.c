@@ -64,6 +64,7 @@ int main(int argc,char **argv)
  }
  dsr_sc_appearance(DSR_SC_BLUE,false,2);CHECK(!strcmp(dsr_sc_tr("Paruj BLU"),"BLU koppeln"));CHECK(!strstr(dsr_sc_tr("Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly."),"Sparuj"));
  lv_obj_t *root=dsr_ui_screen("Scroll test",false),*list=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_scrollbar(list);dsr_sc_panel(list,0,0,296,900,DSR_SC_CARD,8);lv_obj_update_layout(root);lv_area_t h,v;lv_obj_get_scrollbar_area(list,&h,&v);CHECK(lv_area_get_width(&v)==2&&lv_area_get_height(&v)==36&&v.x1>307&&v.x2<320);lv_obj_invalidate(root);lv_refr_now(display);unsigned pixel=((unsigned)((v.y1+v.y2)/2)*320u+(unsigned)v.x1)*3u;CHECK(canvas[pixel]>60&&canvas[pixel+1]>60&&canvas[pixel+2]>60);screenshot("502-owner-scrollbar");
+ unsigned hits=ready_count;dsr_sc_button(root,12,86,36,36,DSR_SC_CARD,8,ready,NULL);lv_obj_update_layout(root);tap(9,104);CHECK(ready_count==hits+1);
  thermostat();
  CHECK(job_counts[DSR_JOB_SET_OUTPUT]==0&&job_counts[DSR_JOB_COVER]==0);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u owner UX LCD checks; %u frames; genuine LVGL/pointer; SDK/transport MODEL\n",checks,screenshots);lv_deinit();return 0;

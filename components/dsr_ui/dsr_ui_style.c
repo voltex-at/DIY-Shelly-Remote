@@ -484,7 +484,12 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     /* Consistent outlines distinguish controls from the background in all themes. */
     if(radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
      if(e)lv_obj_add_style(o,e,0);else{lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
-    if(cb)lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
+    if(cb){
+     /* Compact +/- and group controls keep their layout but have a minimum
+      * 44 px touch target, including the space immediately around them. */
+     int shortest=w<h?w:h;if(shortest<44)lv_obj_set_ext_click_area(o,(44-shortest+1)/2);
+     lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
+    }
     return o;
 }
 
