@@ -4,7 +4,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-actions');fs.mkdirSync(out,{recursive:true});
 const temp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP||path.dirname(root),'dsr-act-web-'));process.env.TMPDIR=temp;
-let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x=>{assert(x);checks++;};
+let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=(x,message)=>{assert(x,message);checks++;};
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1200,height:1000},locale:'pl-PL'});await context.addInitScript(()=>{window.setInterval=()=>1;localStorage.setItem('dsr.web.locale','pl');});
  let config={schema:2,revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,rooms:[],devices:[{id:1,name:'A',host:'192.0.2.1',channel:0,kind:'relay',room:0},{id:2,name:'B',host:'192.0.2.2',channel:0,kind:'relay',room:0}],groups:[{id:1,name:'<img src=x onerror=alert(1)>',members:[1,2]}],scenes:[{id:1,name:'Sleep',actions:[{device:1,command:'off'}]}],dashboards:[{id:1,name:'Home',tiles:[{id:1,type:'scene',ref:1,span:2,height:1,fields:255}]}]};
@@ -67,7 +67,7 @@ let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x=>{asser
   await page.setViewportSize({width,height:900});await page.locator('#web-locale').selectOption(locale);await page.evaluate(()=>dsrEditAction('scenes',2));
   for(const step of [0,1,2,3]){
    await page.evaluate(step=>editAction('scenes',config.scenes[1],step,{returnStep:0}),step);
-   const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,buttons:[...document.querySelectorAll('.onboarding-footer button')].map(b=>({width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height}))}));ok(layout.width<=layout.viewport);ok(layout.buttons.every(b=>b.width>=44&&b.height>=44));
+   const layout=await page.evaluate(()=>({width:document.documentElement.scrollWidth,viewport:innerWidth,buttons:[...document.querySelectorAll('.onboarding-footer button')].map(b=>({width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height}))}));ok(layout.width<=layout.viewport,`${locale} ${width}px step${step}: horizontal overflow ${JSON.stringify(layout)}`);ok(layout.buttons.every(b=>b.width>=44&&b.height>=44),`${locale} ${width}px step${step}: touch targets ${JSON.stringify(layout)}`);
    await page.screenshot({path:path.join(out,`scene-${locale}-${width}-step${step}-model.png`),fullPage:true});
   }
  }

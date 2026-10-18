@@ -1,4 +1,6 @@
-Zmiany robocze po 0.7.55-dev: prostsze lokalne sceny i grupy. Bez nowego publicznego wydania.
+0.7.55-dev: baza opublikowana; bieżący kandydat upraszcza sceny i grupy. Stable: brak.
+
+Zmiany robocze po opublikowanym 0.7.55-dev. Bez nowego publicznego wydania.
 
 - Tworzenie na stronie Grupy lub Sceny w LCD i Web Panelu: **nazwa → urządzenia/polecenia → podsumowanie i zapis**. Pomieszczenie i zdjęcie są opcjonalne, w osobnym formularzu; nowy wpis nie dostaje przypadkowego zdjęcia.
 - Grupa: widoczna lista urządzeń z zaznaczeniami i licznikiem. Scena: „Dodaj polecenie” → urządzenie → jawnie wybrane Włącz/Wyłącz lub Otwórz/Zamknij/Stop. Wstecz z wyboru nie dodaje domyślnego polecenia. Kolejność można zmieniać w obie strony, kroki usuwać, a podsumowanie pokazuje nazwy i polecenia.
@@ -7,7 +9,7 @@ Zmiany robocze po 0.7.55-dev: prostsze lokalne sceny i grupy. Bez nowego publicz
 - Zakres wykonania i schemat bez zmian: lokalne grupy Switch ON/OFF, ręczne sceny do 8 poleceń Switch/Cover. Nie dodano chmurowych warunków ani harmonogramów. Dotychczasowe pokoje i zdjęcia pozostają obsługiwane.
 - Procedura obsługi i odbioru fizycznego: [SCENES_GROUPS_PL.md](SCENES_GROUPS_PL.md). Testy hostowe, rendery LVGL i Chromium nie oznaczają fizycznego odbioru.
 
-0.7.55-dev: parowanie BLU i ustawienia Shelly Gen2/3/4 na LCD. Stable: brak.
+Zakres opublikowanego 0.7.55-dev: parowanie BLU i ustawienia Shelly Gen2/3/4 na LCD.
 
 - Strona urządzenia → Ustawienia → Ustawienia Shelly: rzeczywisty odczyt `ListMethods`, `GetComponents` i `GetConfig`. Edytor pokazuje obecne, obsługiwane pola ogólne, wejść, przekaźników, rolet, świateł/RGB/RGBW, Wi-Fi, Bluetooth, Cloud, MQTT oraz temperatury i wilgotności. Nazwa lokalnej karty pozostaje oddzielna od nazwy w Shelly.
 - Zapis wymaga zatwierdzenia na LCD. Pilot odczytuje aktualną konfigurację, odrzuca konflikt i zapisuje tylko wybrane pole. Odczyt potwierdza wynik również po utracie ACK; brak odczytu lub hasło tylko do zapisu daje wynik niepotwierdzony. Zmiana sieci używa osobnego formularza SSID i hasła, z jawnym wyborem sieci otwartej.
