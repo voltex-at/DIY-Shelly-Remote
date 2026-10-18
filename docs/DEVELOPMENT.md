@@ -75,3 +75,17 @@ dopiero po CI 5/5 dla dokładnego SHA. Tag i opublikowane zasoby są niezmienne.
 Podpis pozostaje w chronionym środowisku `release`; ścieżka Stable zachowuje
 osobną zgodę właściciela. Oba archiwa instalacyjne przechodzą kontrolę
 pakietów, FACTORY dodatkowo rzeczywisty montaż SPIFFS IDF 5.5.4 na kopii NOR.
+
+### Kontrola katalogu OTA przed publikacją
+
+`release_tool.py publish` publikuje tylko krótki nagłówek bieżącej wersji
+(do 320 bajtów UTF-8) i link do pełnej historii w tagu. Po uploadzie sprawdza
+cały obiekt GitHub Release wraz z metadanymi zasobów: limit 16 KiB oraz
+`dsr_ota_discovery_parse` z firmware. Dzięki temu jedna strona z jednym
+wydaniem nie może zostać opublikowana z opisem przepełniającym klienta.
+
+`repair-dev-notes.yml` jest jednorazową korektą opisu istniejącego 0.7.53
+na zgłoszenie fizycznego błędu 0.7.52 `5/7/200/1`. Żądanie przypina stary
+hash opisu, release id, źródłowy commit i wszystkie digesty. Zmienia tylko
+pole `body`; tag, kanał, pliki i podpis pozostają bez zmian. Hostowy checker
+jest read-only i nie wykonuje operacji na urządzeniu.

@@ -136,7 +136,10 @@ with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
             if '/releases?' in url:
                 return []
             raise AssertionError(url)
-        with patch.object(t, 'gh', fake_gh), patch.dict(os.environ, GITHUB_REF=t.DEV_REQUEST['branch']):
+        source_read = Path.read_text
+        def request_read(path, *args, **kwargs):
+            return 'set(PROJECT_VER "0.7.53-dev")' if str(path) == 'CMakeLists.txt' else source_read(path, *args, **kwargs)
+        with patch.object(t, 'gh', fake_gh), patch.dict(os.environ, GITHUB_REF=t.DEV_REQUEST['branch']), patch.object(Path, 'read_text', request_read):
             if conclusion == 'failure':
                 refused(t.cmd_gate, args)
                 ok(state['tag'] is None and not any(x.endswith('/git/refs') for x in events))
@@ -144,6 +147,85 @@ with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
                 t.cmd_gate(args)
                 ok(state['tag'] == SHA)
                 ok(next(i for i, x in enumerate(events) if '/actions/runs/' in x) < events.index('repos/fixture/repo/git/refs'))
+
+# A page with one release is still bounded by body + the API/asset envelope.
+# Full historical notes reproduced 5/7/200/1 on the owner's 0.7.52 device.
+import copy
+repo = 'voltex-at/DIY-Shelly-Remote'
+tag = 'dev-v0.7.53'
+notes_text = '0.7.53-dev: porządek w P0, nazwy Shelly i kanały. Stable: brak.\n\n' + 'history 0.7.52\n' * 1000
+short = t.compact_notes(repo, tag, notes_text)
+ok(len(short.encode('utf-8')) <= 320 and 'history 0.7.52' not in short)
+ok('/blob/dev-v0.7.53/docs/RELEASE_NOTES.md' in short)
+wide = t.compact_notes(repo, tag, '0.7.53-dev: ' + 'ąü' * 500)
+ok(len(wide.encode('utf-8')) <= 320 and '\ufffd' not in wide)
+refused(t.compact_notes, repo, tag, '')
+refused(t.compact_notes, repo, tag, '0.7.52-dev: wrong source')
+
+names = ['DIY-Shelly-Remote-es3c35p-manifest.json', 'diy_shelly_remote.bin',
+         'DIY-Shelly-Remote-es3c35p-FACTORY-CLEAN-16MB.zip',
+         'DIY-Shelly-Remote-es3c35p-UPDATE-APP-ONLY.zip', 'SHA256SUMS.txt']
+api_release = dict(id=416596352, tag_name=tag, draft=False, prerelease=True,
+                   url=f'https://api.github.com/repos/{repo}/releases/416596352',
+                   body=notes_text, assets=[dict(id=i+1, name=n, state='uploaded', size=511,
+                       digest='sha256:' + str(i+1)*64, download_count=0,
+                       browser_download_url=f'https://github.com/{repo}/releases/download/{tag}/{n}') for i,n in enumerate(names)],
+                   api_metadata='x'*9500)
+refused(t.catalogue_bytes, tag, api_release)
+compact = dict(api_release, body=short)
+ok(len(t.catalogue_bytes(tag, compact)) <= 16384)
+t.verify_catalogue(tag, compact)  # Actual firmware C parser, same allocation caps.
+stable = copy.deepcopy(compact);stable.update(tag_name='v0.7.53', prerelease=False)
+for item in stable['assets']:
+    item['browser_download_url'] = item['browser_download_url'].replace('/dev-v0.7.53/', '/v0.7.53/')
+t.verify_catalogue('v0.7.53', stable)
+
+request_data = dict(schema=1, tag=tag, release_id=api_release['id'], sha='4a4d69cb200f341162146c2b90d83135bbd1ea62',
+                    old_body_sha256=t.hashlib.sha256(notes_text.encode()).hexdigest(),
+                    assets={x['name']:x['digest'][7:] for x in api_release['assets']})
+ok(t.repair_notes_allowed(request_data, api_release, short))
+ok(not t.repair_notes_allowed(request_data, compact, short))  # Safe duplicate run.
+for delta in [dict(draft=True),dict(prerelease=False),dict(id=12),dict(body='concurrent owner edit')]:
+    refused(t.repair_notes_allowed, request_data, dict(api_release, **delta), short)
+for key, value in [('schema',2),('tag','v0.7.53'),('sha','b'*40)]:
+    refused(t.repair_notes_allowed, dict(request_data, **{key:value}), api_release, short)
+changed = copy.deepcopy(api_release);changed['assets'][0]['digest']='sha256:'+'0'*64
+refused(t.repair_notes_allowed, request_data, changed, short)
+changed = copy.deepcopy(api_release);changed['assets'][0]['download_count']=50
+ok(t.asset_fingerprint(changed)==t.asset_fingerprint(api_release))
+changed['assets'][0]['size']+=1
+ok(t.asset_fingerprint(changed)!=t.asset_fingerprint(api_release))
+
+# The repair CLI may PATCH only body, after preflight. Its tag and all asset
+# identities/bytes must survive readback; GitHub I/O is a deterministic model.
+with TemporaryDirectory(prefix='dsr-repair-test-') as tmp:
+    request_path = Path(tmp) / 'request.json'
+    request_path.write_text(json.dumps(request_data))
+    args = Namespace(repo=repo, request=str(request_path))
+    state = {'release':copy.deepcopy(api_release)};events=[]
+    def repair_gh(url, *verb, data=None):
+        if '/git/ref/tags/' in url:
+            return {'object':{'type':'commit','sha':request_data['sha']}}
+        if '/releases?' in url:
+            return [copy.deepcopy(state['release'])]
+        if url.endswith('/releases/416596352'):
+            if verb:
+                ok(verb==('-X','PATCH') and data=={'body':short})
+                ok(events==['preflight'])
+                events.append('patch');state['release']['body']=data['body']
+                state['release']['assets'][0]['download_count']+=1
+            return copy.deepcopy(state['release'])
+        raise AssertionError(url)
+    original_read = Path.read_text
+    def repair_read(path,*args,**kwargs):
+        return notes_text if str(path)=='docs/RELEASE_NOTES.md' else original_read(path,*args,**kwargs)
+    def check_projected(tag, release):
+        t.catalogue_bytes(tag,release)
+        events.append('preflight' if not events else 'readback')
+    with patch.object(t,'gh',repair_gh), patch.object(t,'verify_catalogue',check_projected), patch.object(Path,'read_text',repair_read):
+        t.cmd_repair_notes(args)
+    ok(events==['preflight','patch','readback'])
+    ok(t.asset_fingerprint(state['release'])==t.asset_fingerprint(api_release))
 
 print(f'PASS: {checks} release gate/publication decisions; missing/failed/stale CI, moved tag, Stable approval, '
       'immutable assets and duplicate events refused or idempotent; no GitHub I/O')

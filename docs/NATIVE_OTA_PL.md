@@ -80,8 +80,11 @@ key istnieje tylko w testach hostowych. Stable wymaga osobnej zgody właściciel
 
 Katalog: Stable = `/releases/latest` (bez wydania Stable GitHub zwraca 404, LCD
 podpowiada kanał Dev). Dev = do pięciu stron `?per_page=1&page=N`, pierwsze
-nie-draft prerelease; każda strona mieści się w limicie 16 KiB niezależnie od
-liczby wydań. Pobrania assetów przekierowują na `release-assets` lub
+nie-draft prerelease. Limit całej odpowiedzi to **16 KiB**, łącznie z opisem,
+autorem i metadanymi wszystkich zasobów. Stronicowanie po jednym wydaniu nie
+gwarantuje tego limitu. Publikacja używa teraz opisu do 320 bajtów UTF-8 z linkiem
+do pełnego `RELEASE_NOTES.md`; po uploadzie sprawdza rzeczywistą odpowiedź API
+parserem C z firmware przed upublicznieniem wydania. Pobrania assetów przekierowują na `release-assets` lub
 `objects.githubusercontent.com`; host nie jest kotwicą zaufania (SHA-256 i rozmiar
 są w podpisanym manifeście). Nieudane sprawdzenie pokazuje na LCD
 `Kod błędu: error/fetch/HTTP/manifest` i jedną linię `W native_ota` w logu USB.
@@ -104,3 +107,25 @@ Target CI kontroluje realny linked ELF/symbole, own static frames i BSS<=80KiB,
 worker own frame<=2048B, UI8192/LVGL131072PSRAM zachowane. Nie mierzy szczytu
 SDK/TLS/cJSON/transitive heap/stack ani fizycznego jitteru Wi-Fi+BLE.
 #24 pozostaje otwarte do autentycznego wydania i niezależnego odbioru sprzętu.
+
+## Odrzucony katalog 0.7.53 (raport z 0.7.52-dev, 2026-10-18)
+
+Zdjęcie LCD pokazuje `5/7/200/1`: błąd katalogu / przekroczony rozmiar
+(`DSR_FETCH_SIZE`) / HTTP 200 / manifest jeszcze niezweryfikowany. Odpowiedź
+`releases?per_page=1&page=1` miała 24 053 bajty: do opisu wydania trafiła cała
+historia zmian (13 449 bajtów UTF-8). To błąd publikacji, a nie dowód braku
+internetu lub usterki SPIFFS. Rzeczywisty parser z 0.7.52 i 0.7.53 jest w tym
+zakresie identyczny; odrzuca tę odpowiedź zgodnie z ograniczeniem 16 KiB.
+
+Korekta zmienia wyłącznie opis `dev-v0.7.53` (187 bajtów plus link do historii).
+Jednorazowy workflow sprawdza stary hash opisu, tag/source oraz identyfikatory,
+rozmiary i digesty pięciu istniejących zasobów przed i po PATCH samego `body`.
+Nie przebudowuje aplikacji i nie podpisuje ponownie manifestu. Nowa publikacja
+ma obowiązkową kontrolę rozmiaru pełnych metadanych oraz rzeczywisty parser C
+(`tools/check_release_catalogue.py`). Limity pamięci firmware pozostają stałe.
+
+Komunikat „Pilot jest zajęty” oznacza odmowę przyjęcia nowego CHECK/INSTALL
+przez aktualny stan workera/operacji. Sam ekran nie wskazuje, która operacja
+zajęła worker; nie jest to wynik pobrania katalogu. Obecne UI może pokazać ten
+komunikat przy ponownym naciśnięciu, gdy trwa np. odczyt Shelly. Brak nowego
+kodu HTTP przy tej odmowie nie potwierdza rozpoczęcia instalacji.
