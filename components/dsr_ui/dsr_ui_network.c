@@ -48,6 +48,12 @@ _Static_assert(sizeof(fleet)<=8192,"Fleet fixed storage budget");
 static bool busy,wifi_previous;
 static dsr_job_kind_t operation;
 static uint32_t serial,outstanding;
+/* One explicit LCD operation can wait behind an ordinary read. Keep its
+ * activity lease until the worker takes ownership; never preempt a write. */
+#ifdef ESP_PLATFORM
+EXT_RAM_BSS_ATTR
+#endif
+static dsr_job_t touch_job;
 static uint32_t action_stop_id;
 static dsr_action_command_t manual_command;
 static unsigned active_slot;
@@ -61,6 +67,18 @@ static uint32_t pending_room=UINT32_MAX;
 static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5],*endpoint_choice;
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
+
+static dsr_result_t submit_touch(const dsr_job_t *job)
+{
+ if(touch_job.id||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
+ if(busy){
+  if(operation!=DSR_JOB_PROBE||!dsr_activity_begin())return DSR_BUSY;
+  touch_job=*job;return DSR_OK;
+ }
+ dsr_result_t r=dsr_worker_submit(job);
+ if(r==DSR_OK){busy=true;operation=job->kind;outstanding=job->id;}
+ return r;
+}
 
 static const char *result_text(dsr_result_t result)
 {
@@ -201,6 +219,7 @@ static void render(void)
    time_t now=time(NULL);d->blu_age_s=sample&&t->blu_updated_s&&now>=(time_t)t->blu_updated_s&&now>(time_t)1735689600?(double)(now-(time_t)t->blu_updated_s):-1;
    if(t->blu.errors&DSR_BLU_TRV){
     /* BLU TRV: BTHome temperature idx 0 is the target, not the room; use BluTrv values only. */
+    if(s->in_flight&&s->operation==DSR_JOB_PROBE&&!s->queued&&!s->mailbox_pending&&!s->urgent_stop&&!binding_target(s)&&!dsr_actions_reserved(c))d->busy=d->command_pending=false;
     bool trv=sample&&(t->blu.errors&DSR_BLU_TRV_TARGET);d->has_temperature=trv;d->temperature_c=t->trv_current_c;
     d->has_trv_target=trv;d->trv_target_c=t->trv_target_c;d->has_humidity=false;d->blu.flags&=(uint8_t)~DSR_BLU_HAS_BUTTON;
    }
@@ -225,7 +244,7 @@ static void render(void)
 }
 static dsr_result_t submit(dsr_job_kind_t kind,bool on)
 {
- if(busy||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
  if(kind==DSR_JOB_BIND)for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].queued||fleet.slots[i].mailbox_pending||fleet.slots[i].urgent_stop)return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=kind,.connection=pending,.settings=settings,.on=on};
  dsr_result_t result=dsr_worker_submit(&job);
@@ -234,7 +253,7 @@ static dsr_result_t submit(dsr_job_kind_t kind,bool on)
 }
 static bool dispatch(uint32_t now,bool allow_poll)
 {
- if(busy||dsr_worker_stop_pending()||!dsr_wifi_connected())return false;
+ if(busy||touch_job.id||dsr_worker_stop_pending()||!dsr_wifi_connected())return false;
  dsr_job_t job;unsigned index;
  if(!dsr_fleet_next(&fleet,now,allow_poll,&job,&index))return false;
  job.id=++serial;dsr_result_t result=dsr_worker_submit(&job);
@@ -244,7 +263,7 @@ static bool dispatch(uint32_t now,bool allow_poll)
 static bool dispatch_actions(uint32_t now)
 {
  if(dsr_ui_device_settings_active())return false;
- uint32_t target=dsr_actions_target();if(!target||busy||finishing_bind||dsr_worker_stop_pending())return false;
+ uint32_t target=dsr_actions_target();if(!target||busy||touch_job.id||finishing_bind||dsr_worker_stop_pending())return false;
  int at=-1;for(unsigned i=0;i<fleet.count;i++)if(fleet.slots[i].connection.layout_id==target){at=(int)i;break;}
  if(at<0||!fleet.slots[at].layout_enabled){dsr_actions_missing(target);return true;}
  dsr_fleet_slot_t *s=&fleet.slots[at];if(s->queued||s->mailbox_pending||s->urgent_stop)return false;
@@ -263,7 +282,7 @@ bool dsr_network_ap_home(char ssid[33])
 {if(ssid)snprintf(ssid,33,"%s",settings.ssid);return dsr_wifi_settings_valid(&settings)&&dsr_wifi_connected();}
 dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,const dsr_ap_identity_t *identity,const char *host,bool confirmed)
 {
- if(busy||finishing_bind||dsr_worker_stop_pending()||kind<DSR_JOB_AP_SCAN||kind>DSR_JOB_AP_VERIFY)return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||kind<DSR_JOB_AP_SCAN||kind>DSR_JOB_AP_VERIFY)return DSR_BUSY;
  dsr_actions_mode_block();dsr_job_t job={.id=++serial,.kind=kind,.settings=settings,.ap_confirmed=confirmed};
  if(ap)job.ap=*ap;
  if(identity)job.ap_identity=*identity;
@@ -272,7 +291,7 @@ dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,
 }
 dsr_result_t dsr_network_request_station(const dsr_lan_device_t *identity)
 {
- if(!identity||busy||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
+ if(!identity||busy||touch_job.id||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=DSR_JOB_LAN_STA_VERIFY,.settings=settings};
  snprintf(job.ap_identity.id,sizeof(job.ap_identity.id),"%s",identity->id);
  snprintf(job.ap_identity.mac,sizeof(job.ap_identity.mac),"%s",identity->mac);
@@ -280,10 +299,10 @@ dsr_result_t dsr_network_request_station(const dsr_lan_device_t *identity)
  snprintf(job.connection.device.host,sizeof(job.connection.device.host),"%s",identity->host);
  dsr_result_t result=dsr_worker_submit(&job);if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}memset(&job,0,sizeof(job));return result;
 }
-bool dsr_network_busy(void) { return busy||finishing_bind||dsr_worker_stop_pending(); }
+bool dsr_network_busy(void) { return busy||touch_job.id||finishing_bind||dsr_worker_stop_pending(); }
 dsr_result_t dsr_network_device_settings_request(uint32_t id,unsigned action,unsigned selection,const char *value)
 {
- if(busy||finishing_bind||dsr_worker_stop_pending()||dsr_wifi_temporary_active()||dsr_ble_rpc_active()||dsr_ui_ap_active())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_wifi_temporary_active()||dsr_ble_rpc_active()||dsr_ui_ap_active())return DSR_BUSY;
  int at=-1;for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].connection.layout_id==id&&fleet.slots[i].layout_enabled){at=(int)i;break;}
  if(at<0)return DSR_IDENTITY_MISMATCH;
  dsr_fleet_slot_t *slot=&fleet.slots[at];
@@ -296,7 +315,7 @@ dsr_result_t dsr_network_device_settings_request(uint32_t id,unsigned action,uns
 dsr_result_t dsr_network_blu_gateway_request(const dsr_lan_device_t *gateway,const dsr_credentials_t *credentials,uint32_t generation)
 {
  if(!gateway||!credentials||gateway->generation<2||gateway->generation>4||!generation)return DSR_INVALID;
- if(busy||finishing_bind||dsr_worker_stop_pending()||dsr_wifi_temporary_active()||dsr_ble_rpc_active()||dsr_blu_active())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_wifi_temporary_active()||dsr_ble_rpc_active()||dsr_blu_active())return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=DSR_JOB_DEVICE_SETTINGS};if(!job.id)job.id=++serial;
  job.connection.credentials=*credentials;job.connection.device.generation=DSR_GEN2_PLUS;job.connection.device.endpoint_kind=DSR_ENDPOINT_BLU;
  snprintf(job.connection.device.host,sizeof(job.connection.device.host),"%s",gateway->host);snprintf(job.connection.device.device_id,sizeof(job.connection.device.device_id),"%s",gateway->id);
@@ -306,24 +325,23 @@ dsr_result_t dsr_network_blu_gateway_request(const dsr_lan_device_t *gateway,con
  memset(&job,0,sizeof(job));return r;
 }
 bool dsr_network_bind_busy(void){return finishing_bind||(busy&&operation==DSR_JOB_BIND);}
-bool dsr_network_ota_busy(void){return busy&&(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL);}
+bool dsr_network_ota_busy(void){return (busy&&(operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL))||(touch_job.id&&(touch_job.kind==DSR_JOB_OTA_CHECK||touch_job.kind==DSR_JOB_OTA_INSTALL));}
 dsr_result_t dsr_network_request_ota(dsr_job_kind_t kind,unsigned channel,bool power_confirmed)
 {
- if(busy||finishing_bind||dsr_worker_stop_pending()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active())return DSR_BUSY;
+ if((busy&&operation!=DSR_JOB_PROBE)||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active())return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=kind};
  dsr_actions_mode_block();
  if(!job.id)job.id=++serial;
  dsr_result_t result=dsr_native_ota_prepare(job.id,kind,(dsr_ota_channel_t)channel,power_confirmed);
  if(result!=DSR_OK)return result;
- result=dsr_worker_submit(&job);
- if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;}
- else dsr_native_ota_reject(job.id);
+ result=submit_touch(&job);
+ if(result!=DSR_OK)dsr_native_ota_reject(job.id);
  return result;
 }
 
 dsr_result_t dsr_network_request_pairing_revoke(void)
 {
- if(busy||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending())return DSR_BUSY;
  const dsr_job_t job={.id=++serial,.kind=DSR_JOB_PAIRING_REVOKE};
  dsr_result_t accepted=dsr_worker_submit(&job);
  if(accepted==DSR_OK){busy=true;operation=DSR_JOB_PAIRING_REVOKE;outstanding=job.id;}
@@ -331,25 +349,20 @@ dsr_result_t dsr_network_request_pairing_revoke(void)
 }
 dsr_result_t dsr_network_request_display(uint8_t brightness,uint16_t seconds)
 {
- if(busy)return DSR_BUSY;
- dsr_job_t job={.id=++serial,.kind=DSR_JOB_DISPLAY_SAVE};
+ dsr_job_t job={.id=++serial,.kind=DSR_JOB_DISPLAY_SAVE};if(!job.id)job.id=++serial;
  job.settings.brightness=brightness;job.settings.idle_seconds=seconds;
- dsr_result_t accepted=dsr_worker_submit(&job);
- if(accepted==DSR_OK){busy=true;operation=DSR_JOB_DISPLAY_SAVE;outstanding=job.id;}
- return accepted;
+ return submit_touch(&job);
 }
 dsr_result_t dsr_network_request_battery(void)
 {
- if(busy)return DSR_BUSY;
- const dsr_job_t job={.id=++serial,.kind=DSR_JOB_BATTERY_READ};
- dsr_result_t accepted=dsr_worker_submit(&job);
- if(accepted==DSR_OK){busy=true;operation=DSR_JOB_BATTERY_READ;outstanding=job.id;}
- return accepted;
+ if(!++serial)++serial;
+ const dsr_job_t job={.id=serial,.kind=DSR_JOB_BATTERY_READ};
+ return submit_touch(&job);
 }
 void dsr_network_wifi_settings(dsr_settings_t *out) { *out = settings; }
 dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t *candidate)
 {
-    if (busy || (kind != DSR_JOB_WIFI_SCAN && kind != DSR_JOB_WIFI_CONNECT)) return DSR_BUSY;
+    if (busy || touch_job.id || (kind != DSR_JOB_WIFI_SCAN && kind != DSR_JOB_WIFI_CONNECT)) return DSR_BUSY;
     dsr_actions_mode_block();if (candidate) wifi_candidate = *candidate;
     dsr_job_t job = {.id = ++serial, .kind = kind, .settings = wifi_candidate};
     dsr_result_t result = dsr_worker_submit(&job);
@@ -674,7 +687,7 @@ static void __attribute__((noinline)) consume_stop(uint32_t now,bool outer_pendi
 /* Keep the private BIND snapshot out of the main LVGL polling frame. */
 static void __attribute__((noinline)) consume_bind(void)
 {
- if(!busy&&!finishing_bind&&!dsr_worker_stop_pending()){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
+ if(!busy&&!touch_job.id&&!finishing_bind&&!dsr_worker_stop_pending()){dsr_connection_t connection;uint32_t room;if(dsr_workspace_take_bind_with_room(&connection,&room)){
   pending=connection;pending_room=room;memset(&connection,0,sizeof(connection));dsr_result_t result=submit(DSR_JOB_BIND,false);
   if(result==DSR_OK)external_bind=true;else{memset(&pending,0,sizeof(pending));dsr_workspace_bind_result(result);}
  }}
@@ -746,6 +759,21 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
   render();
  }
 }
+static bool __attribute__((noinline)) dispatch_touch(void)
+{
+ if(!touch_job.id)return false;
+ if(busy||dsr_worker_stop_pending())return true;
+ dsr_result_t r=dsr_worker_submit(&touch_job);
+ if(r==DSR_BUSY)return true;
+ uint32_t id=touch_job.id;dsr_job_kind_t kind=touch_job.kind;
+ if(r==DSR_OK){busy=true;operation=kind;outstanding=id;}
+ memset(&touch_job,0,sizeof(touch_job));dsr_activity_end();
+ if(r!=DSR_OK){
+  if(kind==DSR_JOB_OTA_CHECK||kind==DSR_JOB_OTA_INSTALL)dsr_native_ota_reject(id);
+  else {dsr_event_t e={.id=id,.result=r};if(kind==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&e);else dsr_ui_display_result(&e);}
+ }
+ return true;
+}
 static void poll(lv_timer_t *timer)
 {
  (void)timer;if(!dsr_activity_begin())return;uint32_t now=lv_tick_get();
@@ -792,8 +820,8 @@ static void poll(lv_timer_t *timer)
  static uint32_t config_revision;uint32_t next_revision=dsr_workspace_revision();if(config_revision!=next_revision){config_revision=next_revision;render();}
  reconcile_layout(false);
  if(finishing_bind||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_wifi_ui_active()||dsr_network_ota_busy())dsr_actions_mode_block();
- bool attempted=dispatch_actions(now);if(!attempted)attempted=dispatch(now,false);
- if(!busy)reconcile_layout(true);
+ bool attempted=dispatch_touch();if(!attempted)attempted=dispatch_actions(now);if(!attempted)attempted=dispatch(now,false);
+ if(!busy&&!touch_job.id)reconcile_layout(true);
  if(!attempted)(void)dispatch(now,!dsr_wifi_ui_active()&&!dsr_ui_lan_active()&&!dsr_ui_ap_active());
  /* Freshness can expire while the sole transport is still waiting. Update
   * the LCD once at that transition, rather than rebuilding it every tick. */

@@ -31,14 +31,14 @@ static void icons_regression(void)
  dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);lv_obj_update_layout(lv_screen_active());CHECK(has_icon(lv_screen_active(),DSR_ICON_THERMOSTAT,30));screenshot("271-device-card-chosen-icon");
  /* Device lists show a scroll position bar on the right. */
  lv_obj_t *list=lv_obj_get_parent(find_label(lv_screen_active(),"Relay A"));while(list&&!lv_obj_has_flag(list,LV_OBJ_FLAG_SCROLLABLE))list=lv_obj_get_parent(list);
- CHECK(list&&lv_obj_get_style_width(list,LV_PART_SCROLLBAR)==4&&lv_obj_get_scrollbar_mode(list)==LV_SCROLLBAR_MODE_AUTO);
+ CHECK(list&&lv_obj_get_style_width(list,LV_PART_SCROLLBAR)==2&&lv_obj_get_scrollbar_mode(list)==LV_SCROLLBAR_MODE_AUTO);
  /* "Auto" removes the key: the stored file stays readable by 0.7.50. */
  dsr_network_device_settings(a);click("Edytuj kartę");lv_obj_send_event(icon_choice(0),LV_EVENT_CLICKED,NULL);click("Zapisz");dsr_ui_workspace_tick();tick();
  CHECK(workspace_icon(a)==0&&dsr_network_typed_device(a,&d)&&d.icon==0);
  /* Status bar clock: HH:MM local time next to Wi-Fi and battery, empty without a plausible UTC. */
  dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_ROOMS,0);lv_obj_update_layout(lv_screen_active());
  bool clock=false;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);
-  if(lv_obj_check_type(o,&lv_label_class)&&lv_obj_get_x(o)==204){const char *t=lv_label_get_text(o);clock=strlen(t)==5&&t[2]==':'&&t[0]>='0'&&t[0]<='2';}}
+  if(lv_obj_check_type(o,&lv_label_class)&&lv_obj_get_x(o)==170){const char *t=lv_label_get_text(o);clock=lv_obj_get_style_text_font(o,0)==&dsr_roboto_22&&lv_obj_get_width(o)==68&&strlen(t)==5&&t[2]==':'&&t[0]>='0'&&t[0]<='2';}}
  CHECK(clock);
  printf("PASS: device icon gallery (save/Auto/card), list scroll bar, status bar clock\n");
  dsr_network_home(NULL);

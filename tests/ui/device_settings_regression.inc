@@ -22,7 +22,7 @@ static void device_settings_regression(void)
  cJSON *original=room_document(),*r=room_document();
  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"rooms"),cJSON_Parse("{\"id\":888,\"name\":\"Settings test room\",\"icon\":0,\"photo\":\"\"}"));publish_document(r);
  dsr_network_device_settings(a);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);
- CHECK(find_label(lv_screen_active(),"Wybrane urządzenie")&&find_label(lv_screen_active(),"shelly-A")&&find_label(lv_screen_active(),"Model nieodczytany"));
+ CHECK(find_label(lv_screen_active(),"Relay A")&&find_label(lv_screen_active(),"shelly-A")&&find_label(lv_screen_active(),"Model nieodczytany"));
  CHECK(!find_label(lv_screen_active(),dsr_sc_tr("Historia 1 h / 24 h jest w zakładce Wykresy. Oś czasu UTC.")));
  screenshot("230-settings-bound-offline");
  /* Independent failures remain blocked. An explicit read of A never clears

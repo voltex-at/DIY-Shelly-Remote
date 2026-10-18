@@ -158,9 +158,9 @@ static void navigation_and_chips(void)
  lv_obj_t *power=find(lv_screen_active(),"18.6 W  #5a6066 |#  230.1 V");CHECK(power);lv_obj_t *chip=lv_obj_get_parent(power);
  CHECK(lv_obj_get_width(chip)<180);CHECK(lv_obj_get_width(chip)>=lv_obj_get_width(power)+12);
  lv_obj_t *position=find(lv_screen_active(),"Pozycja 65%");if(!position)position=find(lv_screen_active(),"Position 65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<170);
- unsigned before=edits;tap(236,116);CHECK(edits==before+1);
+ unsigned before=edits;tap(236,66);CHECK(edits==before+1);
  before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
- tap(284,116);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
+ tap(284,66);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
  dsr_mobile_model_t update=fixture;update.devices[4].online=true;dsr_mobile_update(&update);lv_obj_update_layout(lv_screen_active());CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,5u);CHECK(find(lv_screen_active(),counts));dsr_mobile_update(&fixture);
  tap(160,324);CHECK(!find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));
  tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
@@ -272,8 +272,8 @@ int main(int argc,char **argv)
  dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);save("01-home");
  CHECK(find(lv_screen_active(),"Światło w salonie"));
  navigation_and_chips();
- tap(224,382);CHECK(find(lv_screen_active(),"Pozycja 100%"));CHECK(commands==0);
- tap(274,382);CHECK(find(lv_screen_active(),"Pozycja 0%"));CHECK(commands==0);
+ tap(224,324);CHECK(find(lv_screen_active(),"Pozycja 100%"));CHECK(commands==0);
+ tap(274,324);CHECK(find(lv_screen_active(),"Pozycja 0%"));CHECK(commands==0);
  dsr_mobile_update(&fixture);
  dsr_mobile_show(DSR_MOBILE_ROOMS,0);save("02-rooms");CHECK(find(lv_screen_active(),"Łazienka"));
  tap(84,176);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOM);save("04-room-salon");
@@ -308,7 +308,7 @@ int main(int argc,char **argv)
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
  navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
- dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);tap(284,116);save("14-dashboard-info");CHECK(find(lv_screen_active(),"Informacje o pulpicie"));tap(160,324);
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);tap(284,66);save("14-dashboard-info");CHECK(find(lv_screen_active(),"Informacje o pulpicie"));tap(160,324);
  printf("PASS: %u review checks, %u real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks,frames_saved);
  lv_deinit();return 0;
 }

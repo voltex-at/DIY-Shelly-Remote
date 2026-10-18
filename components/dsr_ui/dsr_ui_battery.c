@@ -79,10 +79,9 @@ void dsr_ui_battery_header(lv_obj_t *root)
 {
  lv_obj_t *button=dsr_sc_button(root,276,0,44,44,DSR_SC_BG,0,dsr_ui_battery_open,NULL);
  lv_obj_set_style_bg_opa(button,LV_OPA_TRANSP,0);
- lv_obj_t *outline=dsr_sc_panel(button,0,12,38,19,DSR_SC_BG,3);
+ lv_obj_t *outline=dsr_sc_panel(button,4,11,34,20,DSR_SC_BG,3);
  lv_obj_set_style_border_width(outline,1,0);lv_obj_set_style_border_color(outline,dsr_sc_color(DSR_SC_MUTED),0);
- dsr_sc_panel(button,38,18,3,7,DSR_SC_MUTED,1);
- header_value=dsr_sc_text(button,"?",2,16,34,&dsr_roboto_12,DSR_SC_TEXT);
+ header_value=dsr_sc_text(button,"?",4,15,34,&dsr_roboto_12,DSR_SC_TEXT);
  lv_obj_set_style_text_align(header_value,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);dsr_ui_battery_tick();
 }

@@ -88,7 +88,7 @@ dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_
  if(!f||index>=f->count||!dsr_trv_intent_valid(intent))return DSR_INVALID;
  dsr_fleet_slot_t *s=&f->slots[index];
  if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_BLU)return DSR_UNSUPPORTED;
- if(s->queued||s->in_flight)return DSR_BUSY;
+ if(s->queued||(s->in_flight&&s->operation!=DSR_JOB_PROBE))return DSR_BUSY;
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi||!s->connection.device.online||!s->sample_valid||now-s->sample_ms>dsr_fleet_fresh_ms(&s->connection.device))return DSR_OFFLINE;
  if(s->blocked)return s->result;
@@ -98,6 +98,15 @@ dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_
 }
 void dsr_fleet_cancel_queued(dsr_fleet_t *f,unsigned index)
 {if(f&&index<f->count)discard(&f->slots[index]);}
+static bool cover_followup(const dsr_fleet_slot_t *s)
+{
+ const dsr_cover_status_t *c=&s->connection.telemetry.cover;
+ return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&
+  (s->operation==DSR_JOB_COVER||s->failures==1||s->failures==2||
+   c->state==DSR_COVER_STATE_OPENING||c->state==DSR_COVER_STATE_CLOSING||
+   c->state==DSR_COVER_STATE_CALIBRATING||
+   ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
+}
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
 {
  if(!f||!job||!index)return false;
@@ -109,6 +118,12 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
    s->result=s->blocked?s->result:(!s->connection.device.online||now-s->sample_ms>15000)?DSR_OFFLINE:DSR_IDENTITY_MISMATCH;s->command_error=true;discard(s);continue;
   }
   if(at<0||(int32_t)(s->intent_order-f->slots[at].intent_order)<0)at=(int)i;
+ }
+ /* Explicit intents stay first. A moving cover's due read then precedes
+  * routine round-robin polling; this never repeats a movement POST. */
+ if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
+  unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
+  if(cover_followup(s)&&s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
   unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
@@ -138,9 +153,12 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
   if(!retained){memset(&s->connection.telemetry,0,sizeof(s->connection.telemetry));if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind))s->sample_valid=false;}
   if(s->failures<4)s->failures++;
  }
- if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
+ /* A later confirmed Cover GET restores the actual position after a lost
+  * ACK/readback. It does not claim that the requested movement succeeded. */
+ if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&s->operation==DSR_JOB_PROBE&&result==DSR_OK)){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
  s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED;
  uint32_t delay=s->failures?(5000u<<s->failures):5000u;
+ if(!s->blocked&&cover_followup(s))delay=1000u;
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
  /* BLU values come from an always-on gateway: poll often, back off on errors. */
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}

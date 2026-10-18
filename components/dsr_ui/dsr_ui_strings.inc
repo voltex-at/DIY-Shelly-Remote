@@ -399,3 +399,10 @@
 {"Termostat zgłasza błąd (np. brak kalibracji)","Thermostat reports an error (e.g. not calibrated)","Thermostat meldet einen Fehler (z. B. nicht kalibriert)"},
 {"Pilot wysyła nastawę do bramki Shelly, a ta do termostatu przez Bluetooth.","The remote sends the setpoint to the Shelly gateway, which forwards it to the thermostat over Bluetooth.","Die Fernbedienung sendet den Sollwert an das Shelly-Gateway, das ihn per Bluetooth an das Thermostat weitergibt."},
 {"Czujniki BLU są odczytywane przez tę bramkę Shelly.","BLU sensors are read through this Shelly gateway.","BLU-Sensoren werden über dieses Shelly-Gateway gelesen."},
+
+ {"Paruj BLU","Pair BLU","BLU koppeln"},
+ {"Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly.","Pair the sensor, adjust its settings and select a Shelly gateway.","Sensor koppeln, Einstellungen anpassen und ein Shelly-Gateway wählen."},
+
+{"Nastawa","Target","Solltemperatur"},
+
+{"Usuń urządzenie","Delete device","Gerät löschen"},

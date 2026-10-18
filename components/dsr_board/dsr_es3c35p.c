@@ -255,7 +255,7 @@ esp_err_t dsr_board_init(void)
     touch_ready = read_touch_register(0x0009, &max_points, 1) == ESP_OK && max_points > 0 && max_points <= TOUCH_POINTS;
     if (touch_ready) {
         touch_max_points = max_points;
-        if (xTaskCreate(touch_task, "dsr_touch", 3072, NULL, 3, NULL) != pdPASS) return ESP_ERR_NO_MEM;
+        if (xTaskCreate(touch_task, "dsr_touch", 3072, NULL, 6, NULL) != pdPASS) return ESP_ERR_NO_MEM;
         lv_indev_t *indev = lv_indev_create();
         if (!indev) return ESP_ERR_NO_MEM;
         lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);

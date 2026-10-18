@@ -8,7 +8,7 @@ static bool active,building,confirming,restart_accepted;
 static dsr_ota_channel_t selected_channel=DSR_OTA_STABLE;
 static dsr_native_ota_snapshot_t snapshot,shown;
 static uint32_t consent_operation;
-static lv_obj_t *progress_label,*local_notice,*back_button,*countdown_label;
+static lv_obj_t *progress_label,*progress_bar,*local_notice,*back_button,*countdown_label;
 /* After a verified install: restart by itself unless the user postpones. */
 #define DSR_OTA_AUTO_RESTART_MS 10000u
 #define DSR_OTA_AUTO_RETRY_MS 5000u
@@ -16,7 +16,7 @@ static bool auto_restart_armed;static uint32_t auto_restart_at,armed_operation;
 void dsr_ui_native_ota_hide(void)
 {
  if(active&&!building)dsr_native_ota_cancel();
- active=false;auto_restart_armed=false;progress_label=local_notice=back_button=countdown_label=NULL;
+ active=false;auto_restart_armed=false;progress_label=progress_bar=local_notice=back_button=countdown_label=NULL;
 }
 static lv_obj_t *screen(void)
 {
@@ -129,6 +129,7 @@ static void progress(void)
  if(!progress_label)return;
  char text[80];snprintf(text,sizeof(text),"%lu / %lu B",(unsigned long)snapshot.received,(unsigned long)snapshot.total);
  lv_label_set_text(progress_label,text);
+ if(progress_bar){uint32_t value=snapshot.total?(uint32_t)(((uint64_t)snapshot.received*1000u)/snapshot.total):0;if(value>1000)value=1000;lv_bar_set_value(progress_bar,(int32_t)value,LV_ANIM_OFF);}
 }
 static void show(void)
 {
@@ -138,8 +139,10 @@ static void show(void)
  local_notice=dsr_sc_text(body,status_text(),4,104,284,&dsr_roboto_14,DSR_SC_TEXT);
  bool running=snapshot.state==DSR_NATIVE_CHECKING||snapshot.state==DSR_NATIVE_INSTALLING;
  if(running){
-  progress_label=dsr_sc_text(body,"",4,226,284,&dsr_roboto_14,DSR_SC_MUTED);progress();
-  dsr_ui_button(body,"Anuluj",0,280,296,cancelled_action,NULL);return;
+  lv_obj_set_height(body,260);lv_obj_set_height(local_notice,84);lv_label_set_long_mode(local_notice,LV_LABEL_LONG_MODE_DOTS);
+  progress_bar=lv_bar_create(body);lv_obj_set_pos(progress_bar,4,202);lv_obj_set_size(progress_bar,284,12);lv_bar_set_range(progress_bar,0,1000);lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_EDGE),0);lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);lv_obj_set_style_radius(progress_bar,6,0);lv_obj_set_style_radius(progress_bar,6,LV_PART_INDICATOR);
+  progress_label=dsr_sc_text(body,"",4,224,284,&dsr_roboto_14,DSR_SC_MUTED);progress();
+  dsr_ui_button(lv_obj_get_parent(body),"Anuluj",12,360,296,cancelled_action,NULL);return;
  }
  if(snapshot.state==DSR_NATIVE_FAILED){
   /* error/fetch/HTTP/manifest: what the owner reports from a failed check. */

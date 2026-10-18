@@ -445,7 +445,7 @@ static lv_style_t *shared(uint8_t kind,uint32_t a,uintptr_t b)
    case SHARED_PRESSED:lv_style_set_bg_color(t,lv_color_hex(a));break;
    case SHARED_DISABLED:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_opa(t,LV_OPA_COVER);break;
    case SHARED_OUTLINE:lv_style_set_border_width(t,1);lv_style_set_border_color(t,lv_color_hex(a));break;
-   case SHARED_SCROLLBAR:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_bg_opa(t,LV_OPA_70);lv_style_set_width(t,4);lv_style_set_radius(t,2);lv_style_set_pad_right(t,1);lv_style_set_pad_ver(t,4);break;
+   case SHARED_SCROLLBAR:lv_style_set_bg_color(t,lv_color_hex(a));lv_style_set_bg_opa(t,LV_OPA_70);lv_style_set_width(t,2);lv_style_set_length(t,36);lv_style_set_radius(t,1);lv_style_set_pad_right(t,-9);lv_style_set_pad_ver(t,6);break;
    default:lv_style_set_shadow_width(t,14);lv_style_set_shadow_spread(t,1);lv_style_set_shadow_color(t,lv_color_hex(a));lv_style_set_shadow_opa(t,LV_OPA_70);break;
   }
   return t;
@@ -482,7 +482,7 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
     /* Light surfaces need an outline to read as tappable on the light art. */
-    if(style==DSR_SC_STYLE_LIGHT&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
+    if(radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
      if(e)lv_obj_add_style(o,e,0);else{lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
     if(cb)lv_obj_add_event_cb(o,cb,LV_EVENT_CLICKED,ctx);
     return o;
@@ -537,14 +537,14 @@ void dsr_sc_clock_tick(void)
 }
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
- if(back){lv_obj_t *b=dsr_sc_button(root,0,0,44,44,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,DSR_SC_TEXT);}
- lv_obj_t *name=dsr_sc_text(root,title,back?44:12,9,back?204:232,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
+ if(back){lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,DSR_SC_TEXT);}
+ lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
-  lv_obj_set_width(name,back?160:192);
-  clock_label=dsr_sc_text(root,"",204,14,38,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
+  lv_obj_set_width(name,back?112:156);
+  clock_label=dsr_sc_text(root,"",170,8,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
   lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();
-  dsr_sc_icon(root,DSR_ICON_WIFI,244,10,22,wifi?DSR_SC_BLUE:DSR_SC_OFF);
+  dsr_sc_icon(root,DSR_ICON_WIFI,246,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #ifndef DSR_UI_REVIEW_DEMO
   dsr_ui_battery_header(root);
 #endif
@@ -575,9 +575,11 @@ lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_widt
 
 /* Owner 2026-10-18: a slim bar on the right shows the position on long pages.
  * remove_style_all() also removed LVGL's scrollbar look, so lists had none. */
+static void scrollbar_margin(lv_event_t *e){lv_event_set_ext_draw_size(e,9);}
 void dsr_sc_scrollbar(lv_obj_t *o)
 {
  lv_obj_set_scrollbar_mode(o,LV_SCROLLBAR_MODE_AUTO);
+ lv_obj_add_event_cb(o,scrollbar_margin,LV_EVENT_REFR_EXT_DRAW_SIZE,NULL);
  lv_style_t *t=shared(SHARED_SCROLLBAR,hex(dsr_sc_color(0x8a9096)),0);
  if(t)lv_obj_add_style(o,t,LV_PART_SCROLLBAR);
 }

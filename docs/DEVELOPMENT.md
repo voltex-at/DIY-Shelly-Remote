@@ -24,6 +24,7 @@ Requires a C11 compiler, `libcjson-dev`, OpenSSL (`libssl-dev`) and Python 3.
 python3 tools/test.py --sanitize          # all portable C suites (ASan/UBSan)
 python3 tools/test_config.py --sanitize
 python3 tools/test_ui.py --sanitize       # genuine LVGL 9.3.0 screens, needs .test-deps/lvgl
+python3 tools/test_ui.py --ubsan-only --case test_owner_ux_ui # photo/video LCD regressions
 python3 tools/test_ui.py --review         # renders 320x480 frames + review ZIP into build-ui/
 python3 tools/test_idf_spiffs.py --sanitize --cjson-source <esp-idf>/components/json/cJSON
 node tests/test_panel*.cjs                # panel JS models

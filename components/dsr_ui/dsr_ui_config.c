@@ -146,7 +146,7 @@ static lv_obj_t *screen(const char *title)
 {
  view_generation++;view_save_target=SAVE_STAY;room_dialog=settings_dialog=NULL;
  dsr_network_reset_view();dsr_mobile_hide();lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_set_style_text_font(root,&dsr_roboto_14,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
- dsr_sc_header(root,"Mój dom",false,dsr_wifi_connected(),NULL,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
+ dsr_sc_header(root,"",false,dsr_wifi_connected(),NULL,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
  status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,82,292,&dsr_roboto_12,DSR_SC_MUTED);
  body=dsr_sc_panel(root,12,106,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  keyboard=lv_keyboard_create(root);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
@@ -508,7 +508,7 @@ static void show_entity(cJSON *entity)
   int y=148+visible*182;if(tile_page)dsr_ui_button(body,"Poprzednie karty",0,y,284,tiles_page,(void *)(uintptr_t)(tile_page-1));if(tile_page+1<pages)dsr_ui_button(body,"Następne karty",0,y+56,284,tiles_page,(void *)(uintptr_t)(tile_page+1));
   dsr_ui_button(body,"+ Urządzenie",0,y+112,284,tile_add,(void *)0);dsr_ui_button(body,"+ Pomieszczenie",0,y+168,284,tile_add,(void *)1);dsr_ui_button(body,"+ Scena",0,y+224,284,tile_add,(void *)2);dsr_ui_button(body,"+ Grupa",0,y+280,284,tile_add,(void *)3);
  }
- if(!room&&!dashboard){int bottom=!strcmp(collection_name,"scenes")?160+cJSON_GetArraySize(item(entity,"actions"))*112:!strcmp(collection_name,"groups")?160+cJSON_GetArraySize(item(draft,"devices"))*44:420;dsr_ui_button(body,"Usuń wpis",0,bottom,284,delete_entity,NULL);}actions(root,show_collection);
+ if(!room&&!dashboard){int bottom=!strcmp(collection_name,"scenes")?160+cJSON_GetArraySize(item(entity,"actions"))*112:!strcmp(collection_name,"groups")?160+cJSON_GetArraySize(item(draft,"devices"))*44:420;dsr_ui_button(body,!strcmp(collection_name,"devices")?"Usuń urządzenie":"Usuń wpis",0,bottom,284,delete_entity,NULL);}actions(root,show_collection);
 }
 static void add_entity(lv_event_t *event)
 {

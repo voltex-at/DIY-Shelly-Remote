@@ -1,6 +1,13 @@
-0.7.55-dev: baza opublikowana; bieżący kandydat upraszcza sceny i grupy. Stable: brak.
+0.7.55-dev: baza opublikowana; bieżący kandydat poprawia obsługę LCD oraz upraszcza sceny i grupy. Stable: brak.
 
 Zmiany robocze po opublikowanym 0.7.55-dev. Bez nowego publicznego wydania.
+
+- LCD: usunięty ogólny nagłówek domu we wszystkich językach i dodatkowa zakładka pulpitu; większy zegar, uporządkowane odstępy, bateria bez wystającego prostokąta. Powrót ma większe pole dotyku, a Bateria działa również z dolnego paska ustawień.
+- Karty: sterowanie wyśrodkowane pionowo, wspólne obramowania przycisków; czerwone przyciski usuwania. Wskaźnik przewijania ma 2 × 36 px i leży w prawym marginesie. Numer kroku dodawania przeniesiony niżej, poprawione niemieckie teksty parowania BLU.
+- Jawne pomiary baterii, zapis ekranu i OTA oczekują za trwającym zwykłym odczytem zamiast odmawiać z powodu zajętości. Kolejna automatyczna próba ich nie wyprzedza; blokady zapisu, STOP i jednorazowa zgoda OTA pozostają wymagane. Zadanie dotyku ma pierwszeństwo przed UI i transportem.
+- Roleta: po poleceniu, podczas ruchu i po pierwszych dwóch błędach odczytu ponowienie GET po 1 s. Potwierdzony odczyt przywraca rzeczywistą pozycję po błędzie polecenia. Żadne polecenie ruchu nie jest automatycznie powtarzane; utracony ACK nie oznacza osiągnięcia zadanej pozycji.
+- Termostat BLU TRV: uproszczony ekran i natywne pokrętło LVGL z przeciąganiem po okręgu. Jedna nastawa po 1,2 s od puszczenia palca; opuszczenie strony, utrata dotyku, zmiana tożsamości lub zewnętrznej nastawy odrzuca niewysłany szkic. Ukryty timer nie może odtworzyć ekranu nad ustawieniami.
+- OTA: pasek postępu oparty na rzeczywistej liczbie bajtów od początku instalacji; pełny przycisk Anuluj nad stopką. Zdjęcia i oba filmy właściciela przeanalizowane; testy fizyczne pozostają do wykonania na nowym kandydacie.
 
 - Tworzenie na stronie Grupy lub Sceny w LCD i Web Panelu: **nazwa → urządzenia/polecenia → podsumowanie i zapis**. Pomieszczenie i zdjęcie są opcjonalne, w osobnym formularzu; nowy wpis nie dostaje przypadkowego zdjęcia.
 - Grupa: widoczna lista urządzeń z zaznaczeniami i licznikiem. Scena: „Dodaj polecenie” → urządzenie → jawnie wybrane Włącz/Wyłącz lub Otwórz/Zamknij/Stop. Wstecz z wyboru nie dodaje domyślnego polecenia. Kolejność można zmieniać w obie strony, kroki usuwać, a podsumowanie pokazuje nazwy i polecenia.

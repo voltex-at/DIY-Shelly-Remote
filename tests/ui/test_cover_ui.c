@@ -39,6 +39,12 @@ int main(int argc,char **argv)
  stop_result.result=DSR_OK;stop_result.device.online=true;stop_result.telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,.current_pos=41};stop_ready=true;tick();CHECK(stop_pending&&in_flight); /* outer result owns first handoff */
  cover_response(DSR_COVER_STATE_CLOSING,60,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(!stop_pending&&!in_flight&&find_label(lv_screen_active(),"Pozycja 41%")&&!find_label(lv_screen_active(),"Pozycja 60%"));screenshot("252-cover-urgent-STOP-final-readback");
  before=test_cover_requests();point(160,250,true);point(160,207,true);wifi.connected=false;tick();point(160,207,false);tick();CHECK(test_cover_requests()==before&&!in_flight);wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,41,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);
+ /* Owner video: failed write/readback must recover via GET, with no replay. */
+ click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);unsigned movements=job_counts[DSR_JOB_COVER];
+ response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));
+ lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&job_counts[DSR_JOB_COVER]==movements);
+ cover_response(DSR_COVER_STATE_OPENING,55,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 55%"));
+ lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,67,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 67%")&&job_counts[DSR_JOB_COVER]==movements);screenshot("257-cover-lost-readback-recovered");
  /* Auth errors and invalid position cannot move; STOP can stop a known
   * device while calibrating, without any calibration command in this UI. */
  click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER&&submitted.cover.command==DSR_COVER_OPEN);cover_response(DSR_COVER_STATE_CALIBRATING,0,DSR_COVER_VALID,0);before=test_cover_requests();click("Zamknij");CHECK(test_cover_requests()==before);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));screenshot("253-cover-calibration-gates");

@@ -504,7 +504,7 @@ static void storage_error_regression(void)
   test_workspace_fault(0);click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
  }
  for(unsigned fault=1;fault<=4;fault++){
-  dsr_network_home(NULL);test_workspace_fault(fault);tap(224,116);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));if(fault==1)screenshot("122-storage-pencil-error");test_workspace_fault(0);click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+  dsr_network_home(NULL);test_workspace_fault(fault);lv_obj_update_layout(lv_screen_active());tap(224,66);CHECK(find_label(lv_screen_active(),"Konfiguracja niedostępna"));if(fault==1)screenshot("122-storage-pencil-error");test_workspace_fault(0);click("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
  }
  /* Actual cJSON allocator failures: parse, duplicate, new object and field. */
  cJSON_Hooks hooks={.malloc_fn=json_alloc,.free_fn=free};char *json=dsr_workspace_snapshot();CHECK(json);cJSON_InitHooks(&hooks);json_fail_at=json_allocations=0;cJSON *parsed=cJSON_Parse(json);CHECK(parsed);unsigned parse_count=json_allocations;json_allocations=0;cJSON *duplicate=cJSON_Duplicate(parsed,true);CHECK(duplicate);unsigned duplicate_count=json_allocations;cJSON_Delete(parsed);cJSON_Delete(duplicate);cJSON_InitHooks(NULL);free(json);
@@ -516,7 +516,7 @@ static void storage_error_regression(void)
  /* All three real pointer targets still open the form with healthy storage. */
  dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
  for(unsigned surface=0;surface<3;surface++){dsr_network_rooms();tap(surface==2?280:160,surface==0?116:surface==1?380:450);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));click("Wstecz");}
- dsr_network_home(NULL);tap(224,116);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
+ dsr_network_home(NULL);tap(224,66);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
  dsr_ui_open_settings();test_panel_ready(false);click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");test_panel_ready(true);click("Wstecz");
  click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");CHECK(requests==before);test_workspace_disable();
  test_workspace_enable();
@@ -590,7 +590,7 @@ static void rooms_regression(void)
  dsr_network_rooms();dsr_ui_edit_room(1);click("Wstecz");lv_refr_now(display);lv_mem_monitor_t memory_before,memory_after;lv_mem_monitor(&memory_before);
  for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
  printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
- test_workspace_photos(false);dsr_network_home(NULL);tap(188,116);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
+ test_workspace_photos(false);dsr_network_home(NULL);tap(188,66);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
 }
 static void p0_generic(const char *collection,const char *name)
 {dsr_ui_edit_dashboard();click(collection);if(name)click(name);}
@@ -663,13 +663,13 @@ static void polling_regression(void)
  }
  CHECK(requests==before+2);screenshot("70-home-poll-stable");
  lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);before=requests;
- tap(274,178);CHECK(submitted.kind==DSR_JOB_PROBE&&requests==before);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wysyłanie polecenia…"));screenshot("71-command-queued-behind-read");
- tap(274,178);CHECK(requests==before); /* disabled duplicate, never lost/replayed */
+ tap(274,140);CHECK(submitted.kind==DSR_JOB_PROBE&&requests==before);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wysyłanie polecenia…"));screenshot("71-command-queued-behind-read");
+ tap(274,140);CHECK(requests==before); /* disabled duplicate, never lost/replayed */
  deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!submitted.on);CHECK(requests==before+1);CHECK(!find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
  response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
- tap(274,178);CHECK(submitted.kind==DSR_JOB_SET_OUTPUT&&submitted.on);response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ tap(274,140);CHECK(submitted.kind==DSR_JOB_SET_OUTPUT&&submitted.on);response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);
  /* A failed read cancels the queued intent, rather than blindly sending SET. */
- lv_tick_inc(5000);tick();before=requests;tap(274,178);response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
+ lv_tick_inc(5000);tick();before=requests;tap(274,140);response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
  click("Desk lamp");click("Odśwież stan");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
  lv_obj_t *label=find_label(lv_screen_active(),"230.4 V");CHECK(label);
  lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);CHECK(find_label(lv_screen_active(),"230.4 V")==label);CHECK(find_label(lv_screen_active(),"Włączone • Online"));

@@ -11,6 +11,7 @@ void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t err
 {view.state=state;view.error=error;view.manifest_result=why;view.boot_selection_attempted=false;if(state==DSR_NATIVE_AVAILABLE){strcpy(view.version,"9.1.2");view.total=1857984;strcpy(view.notes,"<b>plain untrusted</b>\n#ff0000 literal#");available_at=lv_tick_get();}}
 void test_native_ota_uncertain(void){view.state=DSR_NATIVE_FAILED;view.error=DSR_NATIVE_ERROR_INSTALL;view.boot_selection_attempted=true;}
 void test_native_ota_notes(const char *text){snprintf(view.notes,sizeof(view.notes),"%s",text);}
+void test_native_ota_progress(size_t received,size_t total){view.received=received;view.total=total;}
 unsigned test_native_ota_cancels(void){return cancellations;}
 void test_native_ota_detail(dsr_ota_channel_t channel,dsr_ota_fetch_result_t fetch,int http){view.channel=channel;view.fetch_result=fetch;view.http_status=http;}
 dsr_result_t dsr_native_ota_prepare(uint32_t id,dsr_job_kind_t kind,dsr_ota_channel_t channel,bool power)
