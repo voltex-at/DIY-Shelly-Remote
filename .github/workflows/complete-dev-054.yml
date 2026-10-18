@@ -1,0 +1,32 @@
+name: Complete signed DEV 0.7.54
+# Existing assets/tag are immutable; no signer or upload permissions are used.
+on:
+  push:
+    branches: ['work/p0-spiffs-ota-brand']
+    paths: ['.github/complete-dev-0.7.54.json']
+permissions:
+  contents: read
+concurrency:
+  group: release-dev-v0.7.54
+  cancel-in-progress: false
+jobs:
+  complete:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography
+      - name: Verify completion and draft/public catalogue regressions
+        run: python3 tools/test_release_tool.py
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 39157279620
+          name: unsigned-release
+          path: release
+      - name: Exact CI, immutable bytes, existing signature, draft preflight and public readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/complete_dev_054.py --repo "$GITHUB_REPOSITORY" --request .github/complete-dev-0.7.54.json

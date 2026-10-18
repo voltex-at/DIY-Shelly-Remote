@@ -227,5 +227,59 @@ with TemporaryDirectory(prefix='dsr-repair-test-') as tmp:
     ok(events==['preflight','patch','readback'])
     ok(t.asset_fingerprint(state['release'])==t.asset_fingerprint(api_release))
 
+# Draft GitHub routes are temporary; published routes must never be normalized.
+draft=copy.deepcopy(compact);draft['draft']=True
+for asset in draft['assets']:asset['browser_download_url']=asset['browser_download_url'].replace('/'+tag+'/', '/untagged-12abc-def/')
+original=copy.deepcopy(draft);t.verify_catalogue(tag,draft);ok(draft==original)
+public=copy.deepcopy(draft);public['draft']=False
+ok(json.loads(t.catalogue_bytes(tag,public))[0]['assets']==public['assets'])
+import subprocess
+try:t.verify_catalogue(tag,public)
+except subprocess.CalledProcessError:ok(True)
+else:raise AssertionError('published temporary route accepted')
+foreign=copy.deepcopy(draft);foreign['assets'][0]['browser_download_url']='https://example.com/untagged-12abc-def/'+names[0]
+ok(json.loads(t.catalogue_bytes(tag,foreign))[0]['assets'][0]['browser_download_url'].startswith('https://example.com/'))
+try:t.verify_catalogue(tag,foreign)
+except subprocess.CalledProcessError:ok(True)
+else:raise AssertionError('foreign draft URL accepted')
+
+# Publish invokes the parser before and after visibility; a failed readback
+# hides only this release again and never replaces any asset or tag.
+with TemporaryDirectory(prefix='dsr-publish-readback-') as tmp:
+ for name in names:(Path(tmp)/name).write_bytes(name.encode())
+ local={name:t.sha256(Path(tmp)/name) for name in names}
+ for reject_public in [False,True]:
+  state={'release':copy.deepcopy(draft)};events=[];validations=[]
+  for asset in state['release']['assets']:asset['digest']='sha256:'+local[asset['name']]
+  def publish_gh(url,*verb,data=None):
+   if '/git/ref/tags/' in url:return {'object':{'type':'commit','sha':SHA}}
+   if '/releases?' in url:return [copy.deepcopy(state['release'])]
+   if url.endswith('/releases/'+str(api_release['id'])):
+    if verb:
+     ok(verb==('-X','PATCH') and set(data)<= {'draft','prerelease'})
+     events.append(data['draft']);state['release'].update(data)
+    return copy.deepcopy(state['release'])
+   raise AssertionError(url)
+  def publish_verify(tag,obj):
+   validations.append(obj['draft'])
+   if not obj['draft'] and reject_public:raise t.Refused('public parser refused')
+  args=Namespace(repo=repo,tag=tag,sha=SHA,dir=tmp,notes='unused')
+  with patch.object(t,'gh',publish_gh),patch.object(t,'verify_catalogue',publish_verify):
+   if reject_public:refused(t.cmd_publish,args)
+   else:t.cmd_publish(args)
+  ok(events==([False,True] if reject_public else [False]));ok(validations==[True,False]);ok(state['release']['draft']==reject_public)
+  ok({asset['name']:asset['digest'][7:] for asset in state['release']['assets']}==local)
+
+# One-time completion rejects other source/version/branch/bytes and any upload.
+import complete_dev_054 as completion
+completion.allowed(dict(completion.REQUEST),repo,'refs/heads/work/p0-spiffs-ota-brand')
+for request,repository,ref in [(dict(completion.REQUEST,tag='v0.7.54'),repo,'refs/heads/work/p0-spiffs-ota-brand'),(dict(completion.REQUEST,source_sha='b'*40),repo,'refs/heads/work/p0-spiffs-ota-brand'),(dict(completion.REQUEST),repo,'refs/heads/main'),(dict(completion.REQUEST),'other/repo','refs/heads/work/p0-spiffs-ota-brand')]:
+ refused(completion.allowed,request,repository,ref)
+local=dict(completion.EXPECTED,**{completion.MANIFEST:'a'*64,'SHA256SUMS.txt':'b'*64})
+metadata=dict(tag_name=completion.REQUEST['tag'],draft=True,prerelease=True,assets=[dict(name=name,digest='sha256:'+digest,state='uploaded') for name,digest in local.items()])
+completion.ready(metadata,local)
+for change in [dict(draft=False),dict(prerelease=False),dict(tag_name='v0.7.54'),dict(assets=metadata['assets'][:-1])]:refused(completion.ready,dict(metadata,**change),local)
+refused(completion.ready,metadata,dict(local,**{'diy_shelly_remote.bin':'c'*64}))
+
 print(f'PASS: {checks} release gate/publication decisions; missing/failed/stale CI, moved tag, Stable approval, '
       'immutable assets and duplicate events refused or idempotent; no GitHub I/O')

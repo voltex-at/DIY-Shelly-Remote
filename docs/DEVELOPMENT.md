@@ -89,3 +89,18 @@ na zgłoszenie fizycznego błędu 0.7.52 `5/7/200/1`. Żądanie przypina stary
 hash opisu, release id, źródłowy commit i wszystkie digesty. Zmienia tylko
 pole `body`; tag, kanał, pliki i podpis pozostają bez zmian. Hostowy checker
 jest read-only i nie wykonuje operacji na urządzeniu.
+
+### Wydanie 0.7.54-dev i metadane Draft
+
+Żądanie `.github/dev-release-0.7.54.json` dotyczy wyłącznie tej wersji na
+`work/p0-spiffs-ota-brand`; firmware przypina tag do `aaff1d1` po CI 5/5.
+Pierwszą publikację zatrzymał parser katalogu przy metadanych Draft. Kontrola
+przed publikacją rozpoznaje lokalne tymczasowe ścieżki `untagged-*` i sprawdza
+ich docelowe URL tagu. Po publikacji sprawdza również rzeczywistą odpowiedź
+publiczną bez poprawiania URL; błąd ponownie ukrywa wydanie.
+
+Jednorazowy `complete-dev-054.yml` wznawia tylko widoczność istniejących pięciu
+zasobów: wymaga CI 5/5 firmware i kodu narzędzia, stałego tagu/SHA/uruchomienia,
+zgodnych digestów i odczytanego podpisu produkcyjnego. Nie podpisuje ponownie,
+nie wysyła i nie zastępuje plików. Wymaga dokładnego żądania
+`.github/complete-dev-0.7.54.json`.

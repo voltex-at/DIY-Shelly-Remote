@@ -73,6 +73,19 @@ def compact_notes(repo, tag, text):
 
 def catalogue_bytes(tag, release):
     projected = dict(release, draft=False)
+    if release.get('draft'):
+        # GitHub drafts may expose temporary untagged-* download routes. Only
+        # project this known same-repo route to its public tag URL; a published
+        # release is always checked byte-for-byte with its actual URLs.
+        projected['assets'] = [dict(asset) for asset in release.get('assets', [])]
+        prefix = 'https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/'
+        for asset in projected['assets']:
+            name = asset.get('name', '')
+            url = asset.get('browser_download_url', '')
+            if not re.fullmatch(r'[A-Za-z0-9_.-]+', name) or '..' in name:
+                raise Refused('unsafe draft asset name')
+            if re.fullmatch(re.escape(prefix) + r'untagged-[A-Za-z0-9_-]+/' + re.escape(name), url):
+                asset['browser_download_url'] = prefix + tag + '/' + name
     payload = [projected] if channel(tag) == 'dev' else projected
     # Escaped Unicode + indentation is conservative compared with the API's
     # UTF-8 response. Do not increase the firmware's allocation or parser caps.
@@ -271,6 +284,18 @@ def cmd_publish(a):
         if kind == 'stable':
             data['make_latest'] = 'true'
         gh(f'repos/{a.repo}/releases/{release["id"]}', '-X', 'PATCH', data=data)
+    # Publication changes GitHub's draft URLs. Validate the actual public
+    # response as well; never normalize a published URL or leave bad OTA visible.
+    try:
+        published = gh(f'repos/{a.repo}/releases/{release["id"]}')
+        if published.get('draft'):
+            raise Refused('release did not become public')
+        verify_uploaded(published, local)
+        verify_catalogue(a.tag, published)
+        tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
+    except Exception:
+        gh(f'repos/{a.repo}/releases/{release["id"]}', '-X', 'PATCH', data={'draft': True})
+        raise
     print(f'PUBLISHED {a.tag}: ' + ', '.join(f'{n} {local[n][:12]}' for n in sorted(local)))
 
 
