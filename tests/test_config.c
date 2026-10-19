@@ -104,6 +104,24 @@ int main(int argc,char **argv)
  invalid(r,"language",cJSON_CreateString("pl||en"));
  /* "Jasny" (#owner 2026-10-17) is accepted; unknown or pipe-smuggled themes are not. */
  {char error[96];cJSON *light=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(light,"theme",cJSON_CreateString("light"));CHECK(dsr_config_validate(light,error));cJSON_Delete(light);}
+ /* Exercise the actual dual-checkpoint serializer/loader for every skin.
+  * These are disk round trips; physical NVS/SPIFFS is not emulated here. */
+ {
+  char dir[512];snprintf(dir,sizeof(dir),"%s/skins",argv[1]);CHECK(!mkdir(dir,0700));
+  const char *skins[]={"graphite","midnight","light","cyber_blue","graphite"};
+  cJSON *doc=cJSON_Duplicate(r,true);
+  for(unsigned i=0;i<5;i++){
+   cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(skins[i]));
+   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),i+1);
+   CHECK(dsr_config_validate(doc,error));char *json=cJSON_PrintUnformatted(doc);CHECK(json);
+   CHECK(dsr_config_store_save(dir,json,error));bool found=false;
+   char *loaded=dsr_config_store_load(dir,&found,error);CHECK(found&&loaded&&!strcmp(loaded,json));
+   cJSON *restored=cJSON_Parse(loaded);CHECK(restored&&cJSON_Compare(doc,restored,true));
+   CHECK(cJSON_GetObjectItemCaseSensitive(restored,"accent")->valueint==cJSON_GetObjectItemCaseSensitive(r,"accent")->valueint);
+   cJSON_Delete(restored);free(loaded);free(json);
+  }
+  cJSON_Delete(doc);
+ }
  invalid(r,"theme",cJSON_CreateString("neon"));invalid(r,"theme",cJSON_CreateString("light||midnight"));invalid(r,"theme",cJSON_CreateString("Light"));
  cJSON_AddStringToObject(r,"password","must-not-be-stored");CHECK(!dsr_config_validate(r,error));cJSON_DeleteItemFromObjectCaseSensitive(r,"password");
  cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms"),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices"),*dash=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");

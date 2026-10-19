@@ -67,6 +67,7 @@
 {"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik","Lighting\nRelay\nPlug\nCover\nContact sensor\nSensor","Beleuchtung\nRelais\nSteckdose\nRollladen\nTürsensor\nSensor"},
 {"Grafitowy\nNocny","Graphite\nMidnight","Graphit\nNacht"},
 {"Grafitowy\nNocny\nJasny","Graphite\nMidnight\nLight","Graphit\nNacht\nHell"},
+{"Grafitowy\nNocny\nJasny\nShelly HUD — Cyber Blue","Graphite\nMidnight\nLight\nShelly HUD — Cyber Blue","Graphit\nNacht\nHell\nShelly HUD — Cyber Blue"},
 {"Pokój","Room","Raum"},{"urz.","devices","Geräte"},
 {"Offline • odczyty niedostępne","Offline • readings unavailable","Offline • keine Messwerte"},
 {"Scena • %u działań","Scene • %u actions","Szene • %u Aktionen"},

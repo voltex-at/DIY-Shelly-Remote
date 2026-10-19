@@ -1,7 +1,7 @@
 set(ui_source "")
 if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
     file(GLOB ui_fonts "${CMAKE_CURRENT_LIST_DIR}/fonts/*.c")
-    set(ui_source "dsr_ui_blu.c" "dsr_ui_device_settings.c" "dsr_ui.c" "dsr_ui_onboarding.c" "dsr_ui_native_ota.c" "dsr_ui_battery.c" "dsr_ui_display.c" "dsr_ui_keyboard.c" "dsr_ui_network.c" "dsr_ui_wifi.c" "dsr_ui_lan.c" "dsr_ui_ap.c" "dsr_ui_ble.c" "dsr_ui_ble_rpc.c" "dsr_ui_mobile.c" "dsr_ui_room_photos.c" "dsr_ui_style.c" "dsr_ui_icons.c" "dsr_ui_config.c" "dsr_ui_preview.c" ${ui_fonts} "dsr_ui_usage.c" "dsr_ui_actions.c" "dsr_ui_provision.c" "dsr_ui_brand.c")
+    set(ui_source "dsr_ui_blu.c" "dsr_ui_device_settings.c" "dsr_ui.c" "dsr_ui_onboarding.c" "dsr_ui_native_ota.c" "dsr_ui_battery.c" "dsr_ui_display.c" "dsr_ui_keyboard.c" "dsr_ui_network.c" "dsr_ui_wifi.c" "dsr_ui_lan.c" "dsr_ui_ap.c" "dsr_ui_ble.c" "dsr_ui_ble_rpc.c" "dsr_ui_mobile.c" "dsr_ui_room_photos.c" "dsr_ui_style.c" "dsr_ui_cyber.c" "dsr_ui_icons.c" "dsr_ui_config.c" "dsr_ui_preview.c" ${ui_fonts} "dsr_ui_usage.c" "dsr_ui_actions.c" "dsr_ui_provision.c" "dsr_ui_brand.c")
     set_source_files_properties(dsr_ui_blu.c dsr_ui_device_settings.c dsr_ui_onboarding.c dsr_ui_native_ota.c dsr_ui_ble_rpc.c dsr_ui_ap.c dsr_ui_config.c dsr_ui_network.c dsr_ui_mobile.c dsr_ui_usage.c dsr_ui_actions.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
 endif()
 if(IDF_TARGET STREQUAL "esp32s3")

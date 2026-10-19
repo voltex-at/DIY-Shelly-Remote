@@ -5,6 +5,7 @@
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
+#include "dsr_ui_cyber.h"
 #include "dsr_board.h"
 #include "esp_app_desc.h"
 #include "dsr_workspace.h"
@@ -65,13 +66,15 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
     lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
-    if(!strncmp(text,"Usuń",strlen("Usuń"))){lv_obj_set_style_bg_color(obj,lv_color_hex(0xb42332),0);lv_obj_set_style_bg_color(obj,lv_color_hex(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,lv_color_hex(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);}
+    if(!strncmp(text,"Usuń",strlen("Usuń"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);}
+    else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!strcmp(text,"Zapisz")||!strcmp(text,"Dalej")||!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Zmierz napięcie")||!strcmp(text,"Odśwież stan")))dsr_ui_primary(obj);
     return obj;
 }
 
 void dsr_ui_primary(lv_obj_t *obj)
 {
-    lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_BLUE), 0);
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(obj,true);
+    lv_obj_set_style_bg_color(obj, dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?lv_color_hex(0x0065ba):dsr_sc_color(DSR_SC_BLUE), 0);
     lv_obj_set_style_bg_color(obj, dsr_sc_color(0x287ec7), LV_STATE_PRESSED);
 }
 
@@ -356,10 +359,12 @@ void dsr_ui_apply_theme(void)
 {
     dsr_style_hint_set((uint8_t)dsr_sc_style()); /* NVS write only on change */
     static int applied=-1;const int light=dsr_sc_style()==DSR_SC_STYLE_LIGHT;
-    if(applied==light)return;
+    const int variant=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?2:light;
+    if(applied==variant)return;
     lv_display_t *display=lv_display_get_default();if(!display)return;
     lv_theme_t *theme=lv_theme_default_init(display,dsr_sc_color(DSR_SC_BLUE),dsr_sc_color(DSR_SC_BLUE),!light,&dsr_roboto_14);
-    lv_display_set_theme(display,theme);applied=light;
+    if(variant==2)theme=dsr_ui_cyber_theme(theme);
+    lv_display_set_theme(display,theme);applied=variant;
 }
 void dsr_ui_init(void)
 {

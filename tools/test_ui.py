@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
-p.add_argument("--case", choices=["test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui"], help="Run one focused regression after compiling production UI")
+p.add_argument("--case", choices=["test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -43,7 +43,7 @@ sources = list(sorted((lvgl / "src").rglob("*.c")))
 sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
             "components/dsr_ui/dsr_ui_blu.c", "components/dsr_platform/dsr_blu_model.c", "tests/ui/blu_fixture.c", "components/dsr_ui/dsr_ui_device_settings.c", "components/dsr_platform/dsr_device_settings.c", "components/dsr_platform/dsr_device_settings_model.c", "tests/ui/device_settings_fixture.c", "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_actions.c", "components/dsr_ui/dsr_ui_usage.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
-sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_room_photos.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
+sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_cyber.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_room_photos.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
 sources += [ROOT / "components/dsr_platform/dsr_actions.c", ROOT / "components/dsr_platform/dsr_actions_api.c", ROOT / "components/dsr_platform/dsr_actions_parse.c", ROOT / "components/dsr_platform/dsr_actions_model.c", ROOT / "components/dsr_platform/dsr_activity.c", ROOT / "components/dsr_platform/dsr_fleet.c", ROOT / "tests/ui/native_ota_fixture.c"]
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","components/dsr_platform/dsr_discovery_model.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
@@ -59,7 +59,7 @@ sources.append(ROOT / "components/dsr_ui/dsr_ui_brand.c")
 if not args.review:
     sources += [ROOT / "components/dsr_platform/dsr_config_health.c"]
 if args.review:
-    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
+    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_cyber.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
 config_hash = hashlib.sha256((ROOT / "tests/ui/lv_conf.h").read_bytes() + repr(flags).encode()).hexdigest()
 def compile_source(source):
     obj = build / (hashlib.sha256(str(source).encode()).hexdigest()[:20] + ".o")
@@ -120,7 +120,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))

@@ -1,6 +1,7 @@
 /* localtime_r/setenv for the status bar clock */
 #define _POSIX_C_SOURCE 200809L
 #include "dsr_ui_style.h"
+#include "dsr_ui_cyber.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -17,7 +18,9 @@ static unsigned style;
 static unsigned language=1; /* EN until the workspace (saved language) is loaded */
 unsigned dsr_sc_language(void){return language;}
 unsigned dsr_sc_style(void){return style;}
-void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<3?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
+void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<=DSR_SC_STYLE_CYBER_BLUE?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
+unsigned dsr_sc_style_from_name(const char *name)
+{return !name?DSR_SC_STYLE_GRAPHITE:!strcmp(name,"midnight")?DSR_SC_STYLE_MIDNIGHT:!strcmp(name,"light")?DSR_SC_STYLE_LIGHT:!strcmp(name,"cyber_blue")?DSR_SC_STYLE_CYBER_BLUE:DSR_SC_STYLE_GRAPHITE;}
 /* "Jasny": every neutral token of the dark design maps to a light twin.
  * Data colors (accent, RGB swatches, warnings) pass through unchanged. */
 static uint32_t light(uint32_t c)
@@ -42,6 +45,7 @@ static uint32_t light(uint32_t c)
  * accent fills (buttons, bars) keep the configured color. */
 lv_color_t dsr_sc_text_color(uint32_t c)
 {
+ if(style==DSR_SC_STYLE_CYBER_BLUE&&c==DSR_SC_BLUE)return lv_color_hex(DSR_CYBER_CYAN);
  if(style==DSR_SC_STYLE_LIGHT&&c==DSR_SC_BLUE){
   const uint32_t r=(accent>>16)&0xff,g=(accent>>8)&0xff,b=accent&0xff;
   return lv_color_make((uint8_t)(r*3/5),(uint8_t)(g*3/5),(uint8_t)(b*3/5));
@@ -50,6 +54,7 @@ lv_color_t dsr_sc_text_color(uint32_t c)
 }
 lv_color_t dsr_sc_color(uint32_t c)
 {
+ if(style==DSR_SC_STYLE_CYBER_BLUE)return lv_color_hex(dsr_ui_cyber_color(c));
  if(c==DSR_SC_BLUE)return lv_color_hex(accent);
  if(style==DSR_SC_STYLE_MIDNIGHT&&c==DSR_SC_BG)c=0x080f19;
  if(style==DSR_SC_STYLE_LIGHT)c=light(c);
@@ -413,6 +418,7 @@ void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...)
 /* Screen root: solid fallback color plus the owner's background artwork. */
 void dsr_sc_background(lv_obj_t *root)
 {
+    dsr_ui_cyber_background(root,style==DSR_SC_STYLE_CYBER_BLUE);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
 #ifndef DSR_UI_REVIEW_DEMO
     lv_obj_set_style_bg_image_src(root,dsr_ui_brand_background(),0);
@@ -462,6 +468,7 @@ lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int ra
     if(s)lv_obj_add_style(o,s,0);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
      lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
+    if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&w>=80&&h>=40)dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
@@ -534,7 +541,7 @@ lv_obj_t *dsr_sc_icon(lv_obj_t *p,dsr_ui_icon_t kind,int x,int y,int size,uint32
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,size,size);
     lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_line_color(o,dsr_sc_color(color),0);
+    lv_obj_set_style_line_color(o,style==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_text_color(color):dsr_sc_color(color),0);
     lv_obj_add_event_cb(o,icon_draw,LV_EVENT_DRAW_MAIN,(void *)(uintptr_t)kind);return o;
 }
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *p,dsr_ui_icon_t kind,int size,uint32_t color)
@@ -545,7 +552,7 @@ const dsr_ui_icon_t dsr_sc_device_icons[DSR_SC_DEVICE_ICONS]={
  DSR_ICON_LIGHT,DSR_ICON_FLOOR_LAMP,DSR_ICON_WALL_LAMP,DSR_ICON_PLUG,DSR_ICON_OUTLET,DSR_ICON_COVER,DSR_ICON_GARAGE,
  DSR_ICON_DOOR,DSR_ICON_CONTACT,DSR_ICON_FAN,DSR_ICON_THERMOSTAT,DSR_ICON_BOILER,DSR_ICON_AC,DSR_ICON_TV,
  DSR_ICON_SPEAKER,DSR_ICON_ROUTER,DSR_ICON_KETTLE,DSR_ICON_COFFEE,DSR_ICON_LAUNDRY,DSR_ICON_EV};
-void dsr_sc_icon_color(lv_obj_t *o,uint32_t color){lv_obj_set_style_line_color(o,lv_color_hex(color),0);lv_obj_invalidate(o);}
+void dsr_sc_icon_color(lv_obj_t *o,uint32_t color){lv_obj_set_style_line_color(o,style==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_text_color(color):lv_color_hex(color),0);lv_obj_invalidate(o);}
 
 /* Status bar clock (0.7.51): local Central European time (CET/CEST, the
  * owner's zone) once SNTP has set a plausible UTC; hidden until then. */
@@ -620,6 +627,7 @@ void dsr_sc_scrollbar(lv_obj_t *o)
 }
 void dsr_sc_glow(lv_obj_t *o,bool on)
 {
+ if(style==DSR_SC_STYLE_CYBER_BLUE){dsr_ui_cyber_glow(o,on);return;}
  /* Off costs nothing: default shadow width is 0. */
  lv_style_t *g=shared(SHARED_GLOW,hex(dsr_sc_color(DSR_SC_GLOW)),0);
  if(g){if(on)lv_obj_add_style(o,g,0);else lv_obj_remove_style(o,g,0);return;}

@@ -33,7 +33,7 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
  if(!json||!dsr_config_json_depth(json))return false;
  cJSON *r=cJSON_Parse(json);char error[96];
  if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);return false;}
- m->room_count=0;m->device_count=0;m->tile_count=0;m->configured_layout=true;m->accent=(uint32_t)integer(r,"accent");m->midnight=!strcmp(string(r,"theme"),"midnight");const unsigned style=m->midnight?DSR_SC_STYLE_MIDNIGHT:!strcmp(string(r,"theme"),"light")?DSR_SC_STYLE_LIGHT:DSR_SC_STYLE_GRAPHITE;
+ m->room_count=0;m->device_count=0;m->tile_count=0;m->configured_layout=true;m->accent=(uint32_t)integer(r,"accent");m->midnight=!strcmp(string(r,"theme"),"midnight");const unsigned style=dsr_sc_style_from_name(string(r,"theme"));
  const char *locale=string(r,"language");dsr_sc_appearance(m->accent,style,!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);dsr_ui_apply_theme();
  snprintf(m->home_name,sizeof(m->home_name),"%s",dsr_sc_tr("Mój dom"));
  const cJSON *v;cJSON_ArrayForEach(v,item(r,"rooms")){
@@ -228,7 +228,7 @@ static void select_changed(lv_event_t *event)
 static void add_choice(const char *caption,const choice_t *choice,int y)
 {
  dsr_sc_text(body,caption,2,y-1,284,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);
- const char *options=!strcmp(choice->key,"kind")?"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik":!strcmp(choice->key,"theme")?"Grafitowy\nNocny\nJasny":!strcmp(choice->key,"language")?"Polski\nEnglish\nDeutsch":choice->options;
+ const char *options=!strcmp(choice->key,"kind")?"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik":!strcmp(choice->key,"theme")?"Grafitowy\nNocny\nJasny\nShelly HUD — Cyber Blue":!strcmp(choice->key,"language")?"Polski\nEnglish\nDeutsch":choice->options;
  lv_dropdown_set_options(d,dsr_sc_tr(options));lv_obj_set_style_text_font(d,&dsr_roboto_14,0);
  if(choice->numeric)lv_dropdown_set_selected(d,(uint32_t)integer(editing,choice->key));else{char *options=malloc(strlen(choice->options)+1);strcpy(options,choice->options);unsigned at=0;for(char *v=strtok(options,"\n");v;v=strtok(NULL,"\n"),at++)if(!strcmp(v,string(editing,choice->key))){lv_dropdown_set_selected(d,at);break;}free(options);}
  lv_obj_add_event_cb(d,select_changed,LV_EVENT_VALUE_CHANGED,(void *)choice);
@@ -529,7 +529,7 @@ static void show_collection(lv_event_t *event)
  view_save_target=SAVE_MENU;
  cJSON_ArrayForEach(v,a){dsr_ui_button(body,dsr_sc_name(display_name(v)),0,y,284,edit_event,(void *)v);y+=58;}dsr_ui_button(body,"+ Dodaj wpis",0,y,284,add_entity,NULL);actions(root,menu_event);
 }
-static const choice_t language_choice={"language","pl\nen\nde",false},theme_choice={"theme","graphite\nmidnight\nlight",false};
+static const choice_t language_choice={"language","pl\nen\nde",false},theme_choice={"theme","graphite\nmidnight\nlight\ncyber_blue",false};
 static const uint32_t colors[]={DSR_SC_BLUE,0x34cbb5,0x8c9dff,0xe4a858};
 static void color_selected(lv_event_t *event){unsigned at=lv_dropdown_get_selected(lv_event_get_target(event));if(at<4)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"accent"),colors[at]);}
 static void appearance(lv_event_t *event)
@@ -649,8 +649,8 @@ void dsr_ui_workspace_tick(void)
   if(appearance_editor){
    /* Display the acknowledged style A while retaining later draft edits B. */
    const char *locale=string(saved_baseline,"language");
-   dsr_sc_appearance((uint32_t)integer(saved_baseline,"accent"),!strcmp(string(saved_baseline,"theme"),"midnight")?DSR_SC_STYLE_MIDNIGHT:!strcmp(string(saved_baseline,"theme"),"light")?DSR_SC_STYLE_LIGHT:DSR_SC_STYLE_GRAPHITE,!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);
-   appearance(NULL);
+   dsr_sc_appearance((uint32_t)integer(saved_baseline,"accent"),dsr_sc_style_from_name(string(saved_baseline,"theme")),!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);
+   dsr_ui_apply_theme();appearance(NULL);
   }
   if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}

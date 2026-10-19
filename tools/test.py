@@ -27,6 +27,7 @@ WORKSPACE = [P + 'dsr_workspace.c', P + 'dsr_config_health.c', P + 'dsr_activity
 
 # name, sources, includes, flags, libs, scenario argv lists, extra environment
 SUITES = [
+    ('style_hint', [P + 'dsr_style_hint.c', 'tests/test_style_hint.c'], ['tests/support', PLAT], [], [], [[str(m)] for m in range(6)], {}),
     ('runtime_mailbox', WORKSPACE + ['tests/test_runtime_mailbox.c'], ['tests/actor', 'tests/support', CORE, PLAT, CONF, JSON], [], CJSON, [[]], {}),
     ('lan_barrier', ['tests/test_lan_barrier.c', P + 'dsr_discovery_model.c', 'components/dsr_core/dsr_core.c'],
      ['tests/lan', 'tests/actor', 'tests/support', CORE, PLAT, CONF, JSON], ['-O1'], ['-l:libcjson.so.1'], [[]], {}),
