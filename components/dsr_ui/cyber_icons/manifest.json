@@ -1,0 +1,320 @@
+{
+  "source": "Shelly_HUD_Cyber_Blue_Icons_LVGL9.zip",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "archive_sha256": "a19b22437c66d29a0bf8a9db7edddbc8e8cac52fc60f386f1a38dd23b92e8626",
+  "format": "LV_COLOR_FORMAT_A8; original source arrays, no conversion",
+  "mask_bytes": 56256,
+  "assets": {
+    "shud_access_point_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "af1e1218ba2c5e9f081529529cf615b8f88acb1ea14ae62a9b635a5ed8e5ab94"
+    },
+    "shud_access_point_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "f2a16a3239a00e88e5d84bf17e6f67215c977cbb4b4f96b9c8743fa6918fece1"
+    },
+    "shud_activity_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "29778f5432643af150f65a902846b874b43e2774f1779de35d62dab5c63f6371"
+    },
+    "shud_back_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "f10772f11f6d97843435b7c891500ec2534671a103bc762d8e2819f8b9da398f"
+    },
+    "shud_battery_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "ce3b4f401a291ede0db155d9a7709eb47a23132b9aad3488aa4fd091d6bbd212"
+    },
+    "shud_battery_charging_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "2d5c3064c939404f7be1da93b45e567353458068556893f4e1fd60912411d147"
+    },
+    "shud_bluetooth_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "af3d605ecf93ac0fe6a0709e128cac291574e2246b1f39c74c8a7b21918eaaed"
+    },
+    "shud_chart_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "7e6e60a0ca42f8017bfd95716faa0f2f4a9e59aa6884344c6e91a0f3bd6b6f9c"
+    },
+    "shud_chart_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "0478044bff44d8b6ff1e8e3561f8718541ac444a416a3030946f45659d9a1758"
+    },
+    "shud_chevron_down_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "3f12ec5649ea4326aa372bed0f7ce5739bee9074a41b172c5d4d5e9343f2a82b"
+    },
+    "shud_chevron_right_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "ad6e399eb9730c2a037e27f1610d9d2a3d2ed61f0482bbe60835150b6efdc21c"
+    },
+    "shud_cpu_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "3cdb304e8bc6c91df51db8cdbd8da01fddc279bb1c6f8d364f75cd6471514e1c"
+    },
+    "shud_cpu_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "6b63bbdf88def5c496e696f4db11be97f60a4046fa53d1202914abe320172b1e"
+    },
+    "shud_dashboard_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "9e15bd878c0b7d94794349588a61d93d6fbbf6e450bb613acd12f827ec005cb3"
+    },
+    "shud_display_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "31fdcc5069961125b1649a52b45e1caf2f16cc9ea76f2c0ceecc8c0c59111129"
+    },
+    "shud_display_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "d4af7671ae96595b934ed6ec2c82302e092fe04628abf8a5dd69c1a1270d3777"
+    },
+    "shud_door_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "57aa531c2c46f88ede57a68ea36e64337f979211cb8c33cd039251ccfed2f4c9"
+    },
+    "shud_door_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "7e220e1482b60e67b31e282043f852091bbc089f4d3803cccd04bab07e132c3d"
+    },
+    "shud_edit_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "9729bc2598c3386ee259c9a8cce4d8ca80e0131610f97934da7ebb4b68916494"
+    },
+    "shud_git_branch_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "7ead2d2e84f0ae69f690085ac9b5446e115f89f78fc2ef759cbed04e811d348a"
+    },
+    "shud_grid_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "36c6db077aaa6979e2792b16c171a38802538c021a84144bf88ad37073638043"
+    },
+    "shud_grid_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "e99635c4fdfdf07472a3e685b650ae7820b4c0ea5b16ff61e544b2bb9cea4f3f"
+    },
+    "shud_home_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "0ddf06006b926915112a817ee9cffaa496b9100fe53d2d9d21349f6c587fa0ff"
+    },
+    "shud_home_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "58d634e0cddeeb0fa166995ce4fb1f3f5336c2abbeeee8aaa5ea0fdbe1dd94a1"
+    },
+    "shud_home_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "e3914a6e2db405cecc7ba3a8a45854b5ac9f24b6a7b7f92fe44480087099ac23"
+    },
+    "shud_info_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "e4aec6317efb32ed6c59e7fa3b5cfa2f459ed82e0b3279c7f4f7cecf853f5fd4"
+    },
+    "shud_info_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "81679ed0076b64bd81e84bb708ed36dbb2cc843bbcd52ee6bbbd425af3057d80"
+    },
+    "shud_layers_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "b2d16696ae29c1dfaaf5137fea0d117f0301b744fe1901a3eabbf71fb739f471"
+    },
+    "shud_layers_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "ba1d415aa730b0275ba5410473afce84a12622d92f0cb46d06f2d8dd95cc394e"
+    },
+    "shud_lightbulb_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "df8329f1f8eb78e5911c6eb6b229c592134e5cf8ab1a9441c54b347190c217bf"
+    },
+    "shud_lightbulb_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "09f94cb77b16501752fe59c2e7edfb8e6c3bcef9f8c0b6ce77bf46b94b2307b8"
+    },
+    "shud_memory_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "585c471b77218c914fbe2ad45eefdaa1eade059596d89dd938cff5f9c3cbe83d"
+    },
+    "shud_palette_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "0fa0d51491d89f0c1d22f9f3773790d29ca6902611f3e385776a63d6dff059f9"
+    },
+    "shud_plug_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "b3429110ffb939437974a06226d9e0c9da571ac011b9df23146f221e77cda270"
+    },
+    "shud_plug_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "7adc865bc40080d602dbda8e61c2d855014d2ebf5a054f2fe3880f5fa8b19018"
+    },
+    "shud_plus_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "5b0043e1fda2e29bc3bbaae42a7a4b03b550c4b471eac4e12b831cdccfdea9a8"
+    },
+    "shud_power_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "5b6ae9ffdc54474bfdb9eebfdc73535a524d8acd683f8cf1d5a9ad5c03063d45"
+    },
+    "shud_power_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "6f8e8ead419fdb3970dd10e635bd925e9ea070b375704fa546fe2667ded8783d"
+    },
+    "shud_refresh_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "3c89ffd7bcf2da70a9b0f7ebc188c5f276cba6baf82381faee889f8c82ab3a69"
+    },
+    "shud_save_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "1dc19cbd4ed87def25aba8a032fc263d7aa3dacef7296555b427751ad4249add"
+    },
+    "shud_sensor_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "a2cb74fc02de64a971d31d76e2cd8c97c54d91485c13a403ffc05bc6e7da2abf"
+    },
+    "shud_sensor_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "a7715e04e996ce4aa20ebbb318004baac8d7bc8c5d1f3908db46c3971c147f64"
+    },
+    "shud_sensor_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "4695a135e6f1d825bdd5431715e9d4fc2d11e1f69c643e4c740fb898ad334007"
+    },
+    "shud_settings_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "731edca9447904b1c6fd49558162b50f3d898c7dbfb895bf287f0745a8a72eaf"
+    },
+    "shud_shield_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "8827860ace58f11364ecacd2ace68d735916df32b1a3706605200d746a03d168"
+    },
+    "shud_shutter_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "7fb5feb91b58cfc7ce6287607a90eddb341529fa73db05aba968dbed57fab917"
+    },
+    "shud_shutter_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "b9f9946a779e3f6b6abbcc4c2085b4dc85916167f2b0847da9f2ebd060608269"
+    },
+    "shud_shutter_down_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "e44055fc3c2feb09b423660354f3f5c4eecae7739e2fe9a8b96ef3d300004892"
+    },
+    "shud_shutter_up_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "2d77695c46ce7311753162ae20cf6d71722523de2cd418dcd5865d8043746b49"
+    },
+    "shud_snowflake_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "4a5d26899c302e0c30961d7a518ca318fda0502dfa2184124732c5ac10fa98fb"
+    },
+    "shud_snowflake_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "a91e63acf39922cbea00a4fbf7d08b634450961f0b3fb63c85064e14e1140b41"
+    },
+    "shud_stop_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "830957959a8a3abd5f9680a3bf1a29ecd4474a0833f5b37a20de04a4a0533ff2"
+    },
+    "shud_thermometer_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "82df832181bf382d80d3b273ed1c20a3a0c05bacb70c9d77a689df86b2c9bec3"
+    },
+    "shud_thermometer_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "e4fe7c7d8e1d548939bff0118eb788754c4bdc2dd5e54ccede103b660a8d52cd"
+    },
+    "shud_trash_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "a028cd9a053c926e1377050029f29b614b96a8d61a71a40f1762afd1e862df99"
+    },
+    "shud_warning_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "fcd8b42e28e7cf229066bd242641ee70c6084bb5d5b3a6ee2f6b24cc68753930"
+    },
+    "shud_wifi_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "01f6a20a530fc0b9055c27d0ba53993ea3e07cd84a23064455d17e6f91f072c5"
+    },
+    "shud_wifi_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "bfdfc0c55b6b60862f6d14b857c6d743b66b5a258df318b02cea54cbb049c194"
+    },
+    "shud_window_closed_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "6963292862993f986c4134aca12f5cdb41ff4acde307c8baec3b1114035493a3"
+    },
+    "shud_window_closed_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "2bc11eacbcb4800a2b7ba4185428368515580e1a6845bab2ebdc9017bbbc009e"
+    },
+    "shud_window_open_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "fd2ca1f6ef202f8a511de77b69b741ec9554c364de9254b9ce0c48fc8baf9d0d"
+    },
+    "shud_window_open_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "f7800542bba9c97785aab045b72869e380770af6769070c5d82dbb96eee979da"
+    }
+  }
+}

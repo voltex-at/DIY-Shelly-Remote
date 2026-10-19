@@ -280,7 +280,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     int body=height/2-(on?2:1);
     lv_obj_t *thumb=dsr_sc_panel(card,8,body-25,50,50,0x17191c,LV_RADIUS_CIRCLE);
     if(hud)dsr_ui_cyber_inset(thumb);
-    dsr_sc_icon_centered(thumb,device_icon(d),30,d->online?(on?DSR_SC_GLOW:DSR_SC_TEXT):DSR_SC_OFF);
+    dsr_sc_icon_centered(thumb,device_icon(d),hud?32:30,d->online?(on?DSR_SC_GLOW:DSR_SC_TEXT):DSR_SC_OFF);
     bool state_box=sensor&&!trv&&(d->has_contact||(d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.flags&DSR_BLU_HAS_MOTION)))&&d->online;
     int right=cover?118:trv?132:state_box?104:sensor?8:70;
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),66,body-20,width-66-right,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,22);
@@ -475,7 +475,7 @@ static void cover_details(lv_obj_t *root)
  bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
  bool stop_valid=d->can_stop_cover&&(model.demo||actions.stop_cover);
  lv_obj_t *stop=dsr_sc_button(root,242,hud?244:225,64,64,DSR_SC_PANEL,12,cover_stop,NULL);edge(stop,DSR_SC_EDGE,1);
- dsr_sc_panel(stop,27,12,10,10,stop_valid?DSR_SC_BLUE:DSR_SC_OFF,2);center(dsr_sc_text(stop,"Stop",2,36,60,&dsr_roboto_14,stop_valid?DSR_SC_TEXT:DSR_SC_OFF));
+ if(hud)dsr_sc_icon(stop,DSR_ICON_STOP,20,6,24,stop_valid?DSR_SC_BLUE:DSR_SC_OFF);else dsr_sc_panel(stop,27,12,10,10,stop_valid?DSR_SC_BLUE:DSR_SC_OFF,2);center(dsr_sc_text(stop,"Stop",2,36,60,&dsr_roboto_14,stop_valid?DSR_SC_TEXT:DSR_SC_OFF));
  if(!stop_valid)lv_obj_add_state(stop,LV_STATE_DISABLED);
  lv_obj_t *controls=dsr_sc_panel(root,12,hud?368:345,296,hud?44:64,DSR_SC_CARD,14);
  for(unsigned i=0;i<2;i++){

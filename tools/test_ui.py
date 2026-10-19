@@ -43,7 +43,7 @@ sources = list(sorted((lvgl / "src").rglob("*.c")))
 sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
             "components/dsr_ui/dsr_ui_blu.c", "components/dsr_platform/dsr_blu_model.c", "tests/ui/blu_fixture.c", "components/dsr_ui/dsr_ui_device_settings.c", "components/dsr_platform/dsr_device_settings.c", "components/dsr_platform/dsr_device_settings_model.c", "tests/ui/device_settings_fixture.c", "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_actions.c", "components/dsr_ui/dsr_ui_usage.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
-sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_cyber.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_room_photos.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
+sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_cyber.c", ROOT / "components/dsr_ui/dsr_ui_cyber_icons.c", ROOT / "components/dsr_ui/cyber_icons/shelly_hud_icons.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_room_photos.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
 sources += [ROOT / "components/dsr_platform/dsr_actions.c", ROOT / "components/dsr_platform/dsr_actions_api.c", ROOT / "components/dsr_platform/dsr_actions_parse.c", ROOT / "components/dsr_platform/dsr_actions_model.c", ROOT / "components/dsr_platform/dsr_activity.c", ROOT / "components/dsr_platform/dsr_fleet.c", ROOT / "tests/ui/native_ota_fixture.c"]
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","components/dsr_platform/dsr_discovery_model.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
@@ -59,7 +59,7 @@ sources.append(ROOT / "components/dsr_ui/dsr_ui_brand.c")
 if not args.review:
     sources += [ROOT / "components/dsr_platform/dsr_config_health.c"]
 if args.review:
-    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_cyber.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
+    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_cyber.c","dsr_ui_cyber_icons.c","shelly_hud_icons.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
 config_hash = hashlib.sha256((ROOT / "tests/ui/lv_conf.h").read_bytes() + repr(flags).encode()).hexdigest()
 def compile_source(source):
     obj = build / (hashlib.sha256(str(source).encode()).hexdigest()[:20] + ".o")

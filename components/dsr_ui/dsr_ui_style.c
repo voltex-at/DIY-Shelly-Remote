@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "dsr_ui_style.h"
 #include "dsr_ui_cyber.h"
+#include "dsr_ui_cyber_icons.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -510,9 +511,11 @@ static void symbol_line(lv_layer_t *layer,const lv_area_t *a,int size,lv_color_t
  lv_draw_line_dsc_t line;lv_draw_line_dsc_init(&line);line.color=color;line.width=size>=48?3:2;line.round_start=line.round_end=1;
  line.p1=(lv_point_precise_t){a->x1+x1*size/64,a->y1+y1*size/64};line.p2=(lv_point_precise_t){a->x1+x2*size/64,a->y1+y2*size/64};lv_draw_line(layer,&line);
 }
+static lv_color_t icon_color(lv_obj_t *o)
+{return style==DSR_SC_STYLE_CYBER_BLUE?lv_obj_get_style_image_recolor(o,0):lv_obj_get_style_line_color(o,0);}
 static void state_symbol(lv_event_t *e,unsigned kind)
 {
- lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);int size=lv_obj_get_width(o);lv_layer_t *layer=lv_event_get_layer(e);lv_color_t color=lv_obj_get_style_line_color(o,0);
+ lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);int size=lv_obj_get_width(o);lv_layer_t *layer=lv_event_get_layer(e);lv_color_t color=icon_color(o);
 #define LINE(x1,y1,x2,y2) symbol_line(layer,&a,size,color,x1,y1,x2,y2)
  if(kind==DSR_ICON_BATTERY){LINE(20,14,44,14);LINE(44,14,44,58);LINE(44,58,20,58);LINE(20,58,20,14);LINE(26,14,26,6);LINE(26,6,38,6);LINE(38,6,38,14);LINE(36,22,27,38);LINE(27,38,35,38);LINE(35,38,29,50);}
  else if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
@@ -534,11 +537,24 @@ static void icon_draw(lv_event_t *event)
     lv_obj_t *obj=lv_event_get_target(event);
     unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
     if(kind>=DSR_ICON_COUNT)return;
+    if(style==DSR_SC_STYLE_CYBER_BLUE){
+     int side=lv_obj_get_width(obj);const lv_image_dsc_t *asset=dsr_ui_cyber_icon((dsr_ui_icon_t)kind,(unsigned)side);
+     if(asset){
+      lv_area_t a;lv_obj_get_coords(obj,&a);unsigned pixels=asset->header.w;
+      unsigned shown=(unsigned)side<pixels?(unsigned)side:pixels;
+      lv_draw_image_dsc_t d;lv_draw_image_dsc_init(&d);d.src=asset;d.recolor=icon_color(obj);
+      d.recolor_opa=lv_obj_get_style_image_recolor_opa(obj,0);d.antialias=1;
+      d.scale_x=d.scale_y=shown*256/pixels;d.pivot=(lv_point_t){0,0};
+      int x=a.x1+(side-(int)shown)/2,y=a.y1+(side-(int)shown)/2;
+      lv_area_t source={x,y,x+(int)pixels-1,y+(int)pixels-1};
+      lv_draw_image(lv_event_get_layer(event),&d,&source);return;
+     }
+    }
     if(kind>=DSR_ICON_WINDOW_CLOSED||(style==DSR_SC_STYLE_CYBER_BLUE&&kind==DSR_ICON_BATTERY)){state_symbol(event,kind);return;}
     lv_area_t area;lv_obj_get_coords(obj,&area);
     int size=lv_obj_get_width(obj);
     lv_draw_image_dsc_t draw;lv_draw_image_dsc_init(&draw);
-    draw.src=&dsr_symbol_atlas[kind];draw.recolor=lv_obj_get_style_line_color(obj,0);
+    draw.src=&dsr_symbol_atlas[kind];draw.recolor=icon_color(obj);
     draw.recolor_opa=LV_OPA_COVER;draw.antialias=1;
     draw.scale_x=draw.scale_y=(uint32_t)size*256/64;
     draw.pivot=(lv_point_t){0,0};
@@ -547,9 +563,13 @@ static void icon_draw(lv_event_t *event)
 }
 lv_obj_t *dsr_sc_icon(lv_obj_t *p,dsr_ui_icon_t kind,int x,int y,int size,uint32_t color)
 {
+    /* Native 24/32 px masks stay crisp in compact controls. Parent hit targets
+     * and positions are unchanged; smaller dropdown arrows still fit their slot. */
+    if(style==DSR_SC_STYLE_CYBER_BLUE&&size>=20&&size<=32)size=size<=28?24:32;
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);lv_obj_set_pos(o,x,y);lv_obj_set_size(o,size,size);
     lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_line_color(o,style==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_text_color(color):dsr_sc_color(color),0);
+    if(style==DSR_SC_STYLE_CYBER_BLUE){lv_obj_set_style_image_recolor(o,dsr_sc_text_color(color),0);lv_obj_set_style_image_recolor_opa(o,LV_OPA_COVER,0);}
+    else lv_obj_set_style_line_color(o,dsr_sc_color(color),0);
     lv_obj_add_event_cb(o,icon_draw,LV_EVENT_DRAW_MAIN,(void *)(uintptr_t)kind);return o;
 }
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *p,dsr_ui_icon_t kind,int size,uint32_t color)
@@ -560,7 +580,8 @@ const dsr_ui_icon_t dsr_sc_device_icons[DSR_SC_DEVICE_ICONS]={
  DSR_ICON_LIGHT,DSR_ICON_FLOOR_LAMP,DSR_ICON_WALL_LAMP,DSR_ICON_PLUG,DSR_ICON_OUTLET,DSR_ICON_COVER,DSR_ICON_GARAGE,
  DSR_ICON_DOOR,DSR_ICON_CONTACT,DSR_ICON_FAN,DSR_ICON_THERMOSTAT,DSR_ICON_BOILER,DSR_ICON_AC,DSR_ICON_TV,
  DSR_ICON_SPEAKER,DSR_ICON_ROUTER,DSR_ICON_KETTLE,DSR_ICON_COFFEE,DSR_ICON_LAUNDRY,DSR_ICON_EV};
-void dsr_sc_icon_color(lv_obj_t *o,uint32_t color){lv_obj_set_style_line_color(o,style==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_text_color(color):lv_color_hex(color),0);lv_obj_invalidate(o);}
+void dsr_sc_icon_color(lv_obj_t *o,uint32_t color)
+{if(style==DSR_SC_STYLE_CYBER_BLUE)lv_obj_set_style_image_recolor(o,dsr_sc_text_color(color),0);else lv_obj_set_style_line_color(o,lv_color_hex(color),0);lv_obj_invalidate(o);}
 
 /* Status bar clock (0.7.51): local Central European time (CET/CEST, the
  * owner's zone) once SNTP has set a plausible UTC; hidden until then. */
@@ -648,7 +669,7 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
  if(style==DSR_SC_STYLE_CYBER_BLUE){
   lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,DSR_SC_PANEL,LV_RADIUS_CIRCLE,cb,context);
   dsr_ui_cyber_power(ring,on,enabled);
-  dsr_sc_icon_centered(ring,icon,(size-10)*52/100,enabled?(on?DSR_SC_TEXT:0x163653):0x71879e);
+  dsr_sc_icon_centered(ring,icon,size>=80?48:24,enabled?(on?DSR_SC_TEXT:0x163653):0x71879e);
   if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
   return ring;
  }

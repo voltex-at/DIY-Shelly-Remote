@@ -29,3 +29,10 @@ Shelly is a third-party trademark. No official logo, app graphics or proprietary
 Binary development packages also retain license/notice files from the pinned ESP-IDF components (including cJSON, lwIP and radio libraries) and managed components in `licenses/vendor/`. This is an intentionally inclusive SDK notice collection; it does not imply every component is linked or that its license is MIT.
 
 Room photos in `assets/rooms/` and `components/dsr_ui/brand/room_*.rgb565` were provided by the project owner for this project (100×100 px).
+
+The optional Cyber Blue skin uses original A8 masks from the owner-supplied
+`Shelly_HUD_Cyber_Blue_Icons_LVGL9.zip` pack, version 1.0.0, dedicated to the
+public domain under CC0-1.0. Its notice is retained in
+`components/dsr_ui/cyber_icons/LICENSE.txt`; the subset manifest records the
+original archive hash and unchanged mask hashes. Existing Material Symbols
+remain available for the other skins and specialist symbols absent from the pack.

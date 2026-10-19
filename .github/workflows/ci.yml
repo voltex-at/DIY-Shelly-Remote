@@ -16,6 +16,7 @@ jobs:
         run: git clone --depth 1 --branch v9.3.0 https://github.com/lvgl/lvgl.git .test-deps/lvgl
       - name: Render real 320x480 UI and verify DEMO separation
         run: |
+          python3 tools/check_cyber_icons.py
           python3 tools/test_ui.py --review --sanitize
           python3 tools/test_ui.py --sanitize
           python3 tools/test_ui.py --review
@@ -152,6 +153,7 @@ jobs:
           cp LICENSE NOTICE.md third_party/xiaozhi-esp32-LICENSE third_party/Roboto-LICENSE build-board/licenses/
           cp components/dsr_crypto/vendor/LICENCE.md build-board/licenses/MONOCYPHER_LICENCE.md
           cp third_party/material-symbols/LICENSE build-board/licenses/Material-Symbols-Apache-2.0.txt
+          cp components/dsr_ui/cyber_icons/LICENSE.txt build-board/licenses/Cyber-Blue-Icons-CC0.txt
           cp "$IDF_PATH/LICENSE" build-board/licenses/ESP-IDF-Apache-2.0.txt
           cp managed_components/lvgl__lvgl/LICENCE.txt build-board/licenses/LVGL-MIT.txt
           python3 tools/package_licenses.py --idf "$IDF_PATH" --managed managed_components --out build-board/licenses/vendor

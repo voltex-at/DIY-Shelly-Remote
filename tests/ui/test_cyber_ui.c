@@ -5,6 +5,7 @@
 #undef main
 #include "../../components/dsr_ui/dsr_ui_cyber.h"
 #include "../../components/dsr_ui/dsr_ui_brand.h"
+#include "../../components/dsr_ui/dsr_ui_cyber_icons.h"
 void test_native_ota_progress(size_t received,size_t total);
 
 static unsigned rgb(lv_color_t c){return lv_color_to_u32(c)&0xffffff;}
@@ -32,6 +33,43 @@ static double full_paint_ms(void)
  struct timespec a,b;CHECK(clock_gettime(CLOCK_MONOTONIC,&a)==0);
  for(unsigned i=0;i<8;i++){lv_obj_invalidate(lv_screen_active());lv_refr_now(display);}
  CHECK(clock_gettime(CLOCK_MONOTONIC,&b)==0);return ((b.tv_sec-a.tv_sec)*1000.0+(b.tv_nsec-a.tv_nsec)/1000000.0)/8;
+}
+static void mask_pixels(lv_obj_t *o,const lv_image_dsc_t *asset,uint32_t color)
+{
+ lv_area_t a;lv_obj_get_coords(o,&a);unsigned n=asset->header.w;
+ CHECK(asset->header.cf==LV_COLOR_FORMAT_A8&&asset->header.stride==n&&asset->data_size==n*n);
+ CHECK(lv_obj_get_width(o)==(int)n&&lv_obj_get_height(o)==(int)n);
+ for(unsigned y=0;y<n;y++)for(unsigned x=0;x<n;x++)for(unsigned c=0;c<3;c++){
+  unsigned alpha=asset->data[y*n+x],component=(color>>(16-c*8))&255;
+  int expected=(int)(component*alpha/255),actual=canvas[((a.y1+(int)y)*320+a.x1+(int)x)*3+(int)c];
+  /* Independent linear-alpha oracle: RGB565 blending quantizes both
+   * coverage (5 bits) and color (5/6/5). Transparent pixels must stay exact. */
+  int tolerance=!alpha?0:alpha==255?(c==1?4:8):(c==1?13:17);
+  if(abs(actual-expected)>tolerance)fprintf(stderr,"A8 mismatch size=%u xy=%u,%u alpha=%u channel=%u expected=%d actual=%d\n",n,x,y,alpha,c,expected,actual);
+  CHECK(abs(actual-expected)<=tolerance);
+ }
+}
+static void icon_gallery(void)
+{
+ lv_obj_t *root=dsr_ui_screen("Ikony Cyber Blue A8",false);
+ lv_obj_t *well=dsr_sc_panel(root,12,86,296,110,0x000000,0);
+ const dsr_ui_icon_t roles[]={DSR_ICON_POWER,DSR_ICON_CPU,DSR_ICON_WINDOW_OPEN};
+ const unsigned sizes[]={24,32,48},colors[]={0xff3b30,0x00e5ff,0xffffff};
+ lv_obj_t *objects[3];
+ for(unsigned i=0;i<3;i++){
+  objects[i]=dsr_sc_icon(well,roles[i],16+(int)i*90,10,(int)sizes[i],colors[i]);
+  char caption[16];snprintf(caption,sizeof(caption),"A8 / %u",sizes[i]);dsr_sc_text(well,caption,12+(int)i*90,76,84,&dsr_roboto_12,DSR_SC_TEXT);
+ }
+ lv_obj_update_layout(root);lv_refr_now(display);
+ for(unsigned i=0;i<3;i++)mask_pixels(objects[i],dsr_ui_cyber_icon(roles[i],sizes[i]),colors[i]);
+ dsr_sc_icon_color(objects[0],0x00e5ff);lv_refr_now(display);
+ mask_pixels(objects[0],dsr_ui_cyber_icon(DSR_ICON_POWER,24),0x00e5ff);
+ const dsr_ui_icon_t grid[]={DSR_ICON_BACK,DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_SETTINGS,DSR_ICON_PLUS,DSR_ICON_WIFI,
+  DSR_ICON_BLUETOOTH,DSR_ICON_ROUTER,DSR_ICON_REFRESH,DSR_ICON_PALETTE,DSR_ICON_SHIELD,DSR_ICON_MEMORY,
+  DSR_ICON_UP,DSR_ICON_STOP,DSR_ICON_DOWN,DSR_ICON_SAVE,DSR_ICON_TRASH,DSR_ICON_WARNING};
+ for(unsigned i=0;i<sizeof(grid)/sizeof(grid[0]);i++)dsr_sc_icon(root,grid[i],26+(int)(i%6)*48,220+(int)(i/6)*52,24,DSR_SC_BLUE);
+ dsr_sc_text(root,"24 / 32 / 48 px • A8 • CC0",12,402,296,&dsr_roboto_14,DSR_SC_MUTED);
+ screenshot("625-cyber-icons-a8");
 }
 static void gallery(void)
 {
@@ -115,7 +153,7 @@ int main(int argc,char **argv)
  printf("LVGL free before first Cyber selection %lu, after %lu (same appearance screen; includes lazy widget/style caches)\n",(unsigned long)legacy.free_size,(unsigned long)first.free_size);
  CHECK(rgb(dsr_sc_color(DSR_SC_BG))==DSR_CYBER_BG&&rgb(dsr_sc_color(DSR_SC_BLUE))==DSR_CYBER_BLUE);
  CHECK(dsr_ui_brand_background()==background); /* Reuse original dark art. */
- gallery();
+ gallery();icon_gallery();
  /* Re-enter from the saved document, as startup does (no device reboot). */
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_LIGHT,0);dsr_ui_apply_theme();dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);
  /* Fill LVGL's lazy style/font caches for both directions before measuring. */

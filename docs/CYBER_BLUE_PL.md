@@ -25,6 +25,7 @@ aby ekran startowy wybrał dotychczasową ciemną grafikę.
 - `dsr_ui_cyber.*`: paleta, współdzielone style i nakładka na standardowy motyw
   LVGL. Obejmuje pola, dropdowny i ich listy, checkboxy, klawiatury i macierze
   przycisków, suwaki, wskaźniki, rolki oraz standardowe msgboxy z przyciemnieniem.
+- `dsr_ui_cyber_icons.*`, `cyber_icons/`: wybrany zestaw oryginalnych masek A8 z dostarczonej paczki CC0.
 - `dsr_ui_config.c`, `dsr_config.c`, `panel.js`, `dsr_style_hint.c`: rozszerzenia
   istniejącego wyboru i zapisu. Bez drugiego selektora i bez kopii ekranów.
 
@@ -55,12 +56,46 @@ kontury i kontrast wypełnień. RGB565 może pokazywać delikatne stopniowanie
 gradientów. To dopasowanie stylistyki do realnego interfejsu, nie skalowanie
 wizualizacji jako tapety.
 
-Wykorzystano oryginalne ciemne tło i istniejący atlas ikon, bez zmiany bajtów
-19 istniejących plików tła/fontów. Bluetooth, odświeżanie i konturowa bateria
-są lekkimi prymitywami rysowania. Nie dodano bitmap do firmware ani dekodera.
-Nie ma blur, animacji HUD, dodatkowego timera ani kopiowania tła do RAM.
-Refleksy są rysowane bezpośrednio na zwykłej warstwie LVGL. Wskaźnik rolety
-rysuje wypełnienie i listwy bez tworzenia osobnych obiektów dla każdej listwy.
+## Dostarczone ikony A8
+
+Zintegrowano `Shelly_HUD_Cyber_Blue_Icons_LVGL9.zip` 1.0.0: **41 symboli w 62
+używanych wariantach**, **56256 B surowych masek A8** zamiast pełnych 253760 B
+wszystkich 195 masek z paczki. Symbole `shud_*` i każdy bajt masek zachowano.
+Hash paczki i maski są zapisane w `components/dsr_ui/cyber_icons/manifest.json`.
+Import nie przerysowuje SVG, nie przetwarza PNG i nie wprowadza fontów.
+
+| Obszar | Zasoby z paczki |
+| --- | --- |
+| Nawigacja i nagłówek | back, wifi, dashboard, home, settings, plus, info |
+| Karty i sterowanie | plug, lightbulb, shutter, power, thermometer, display, snowflake, sensor |
+| Czujniki BLU | window-open, window-closed, battery |
+| Roleta | shutter-up, shutter-down, stop |
+| Wi-Fi / BLE | wifi, access-point, bluetooth, refresh |
+| Diagnostyka | battery-charging jako symbol zasilania, memory, activity |
+| OTA | cpu, git-branch, refresh, warning |
+| Ustawienia i formularze | palette, display, shield, edit, save, trash, chevron-down, chevron-right |
+
+Zachowano aktualną funkcję trzeciego przycisku dolnej nawigacji: otwiera baterię,
+więc jego ikoną pozostaje bateria. Symbol baterii z błyskawicą na karcie napięcia
+nie dodaje danych o ładowaniu: dotychczasowy komunikat o braku wiarygodnych danych
+pozostaje. Specjalistyczne symbole nieobecne w paczce, np. zawór, meble,
+wybrane sprzęty i osobne stany drzwi, nadal używają wcześniejszego atlasu lub
+geometrii. Nie zastąpiono ich symbolami o innym znaczeniu.
+
+Wspólny komponent ikon przełącza źródło wyłącznie dla Cyber Blue. Stosuje natywne
+24 px w kompaktowych kontrolkach, 32 px w kafelkach i 48 px w dużych wskaźnikach;
+małe strzałki list dopasowuje do istniejącego miejsca. Pola dotyku i callbacki
+pozostały bez zmian. Kolor nadają właściwości `image_recolor` / `image_recolor_opa`
+i standardowy renderer A8 LVGL. Nie tworzy się dodatkowych widżetów ani kopii
+masek w PSRAM. Te same maski służą kolorom białym, cyjanowym, czerwonym i bursztynowym.
+
+Oryginalne tło, fonty i atlas pozostałych skórek pozostają bajtowo niezmienione.
+Nowe maski są stałymi w Flash; nie dodano tła, dekodera PNG/SVG, blur, animacji
+HUD ani timera. Refleksy i gradienty nadal rysuje zwykła warstwa LVGL.
+
+Powtórny import: `python3 tools/import_cyber_icons.py /ścieżka/do/paczki.zip`.
+Kontrola integralności i doboru wariantów: `python3 tools/check_cyber_icons.py`.
+Test działa też w CI; notę CC0 dołączono do źródeł i pakietów budowanych przez CI.
 
 Style Cyber Blue inicjalizują się przy pierwszym wybraniu. Ich ograniczony,
 współdzielony zestaw zostaje do ponownego użycia po zmianie skórki. Nie jest
@@ -69,31 +104,35 @@ umieszczona w PSRAM na ESP32. Użyto konkretnej struktury motywu z przypiętego
 LVGL 9.3 (`lv_theme_private.h`); aktualizacja LVGL wymaga ponownej kompilacji
 i testów tego miejsca.
 
-## Sprawdzone lokalnie w iteracji Premium
+## Sprawdzone lokalnie po integracji ikon
 
 - Pełny istniejący zestaw testów UI oraz fixture review z prawdziwym LVGL 9.3.0:
   zaliczone. **344 wcześniejsze obrazy PPM identyczne bajt w bajt** względem
-  `2ef69a9`, w tym trzy wcześniejsze skórki. Review: 2643 sprawdzenia / 24 klatki.
-- Test Cyber Blue: **994 sprawdzenia, 23 rzeczywiste klatki 320 × 480**;
-  osobno zaliczony także z UBSan. Wybór/zapis/anulowanie/odczyt ustawień,
+  `0f1c2dd`, w tym trzy wcześniejsze skórki. Review: 2643 sprawdzenia / 24 klatki.
+- Test Cyber Blue: **14445 sprawdzeń, 24 rzeczywiste klatki 320 × 480**;
+  osobno zaliczony także z UBSan. W tej liczbie jest 13440 porównań kanałów pikseli
+  z oryginalną maską A8 na czarnym tle: 24/32/48 px, przezroczystość, kolory
+  i ponowne kolorowanie; tolerancja obejmuje kwantyzację RGB565.
+  Wybór/zapis/anulowanie/odczyt ustawień,
   dialogi, klawiatury, dropdown, stany ON/OFF, PL/EN/DE, postęp OTA.
 - Dotyk powiększonej rolety: 0/50/100% trafiają do callbacku raz po puszczeniu,
   bez wysyłania podczas przeciągania i bez zastępowania potwierdzonego 84%.
   Sprawdzono także Otwórz/Zamknij/STOP. Callbacki/radio/magazyn/ADC to modele.
-- **80 zapisanych przełączeń:** 111184 → 111184 B wolnej pamięci LVGL po
-  rozgrzaniu; największy blok 69136 B. Pomiar na pustym, uspokojonym ekranie.
-- Pierwszy wybór na ekranie wyglądu: 100488 → 98904 B wolnych. Obejmuje to
+- **80 zapisanych przełączeń:** 111136 → 111136 B wolnej pamięci LVGL po
+  rozgrzaniu; największy blok 69176 B. Pomiar na pustym, uspokojonym ekranie.
+- Pierwszy wybór na ekranie wyglądu: 100488 → 98224 B wolnych. Obejmuje to
   leniwe cache widżetów i współdzielone style, nie tylko samą strukturę motywu.
-- **24 kafelki:** 7824 B wolnych, największy blok 7776 B, przy niezmienionej
-  puli LVGL **128 KiB**. V1 w swoim fixture miało 10256 B wolnych; Premium
-  ma mniejszy zapas. W tym teście wymagane są oba zapasy powyżej 4096 B.
-- Pełne odmalowanie tych samych 24 kafelków, średnia z 8 na hoście bez
-  sanitizerów: Premium **3,53 ms**, Grafit **3,13 ms**. To orientacyjny koszt
+- **24 kafelki:** 7720 B wolnych, największy blok 7664 B, przy niezmienionej
+  puli LVGL **128 KiB**. Premium przed integracją ikon miało 7824 B wolnych w tym fixture.
+  Nowa wersja pozostawia o 104 B mniej. W tym teście wymagane są oba zapasy powyżej 4096 B.
+- Pełne odmalowanie widoku pulpitu zawierającego 24 kafelki, średnia z 8 na hoście bez
+  sanitizerów: Premium **3,39 ms**, Grafit **3,12 ms**. To orientacyjny koszt
   rysowania na tym komputerze, **nie pomiar opóźnień ESP32 ani dotyku**.
 - `git diff --check`: poprawny. Oryginalne bitmapy i fonty firmware bez zmian.
 
 Odtworzenie renderów: `python3 tools/test_ui.py --case test_cyber_ui`.
 Niezmienione klatki wyjściowe są w `build-ui/native/screenshots/6*-cyber-*.ppm`.
+Klatka 625 to plansza testowa masek A8, a nie dodatkowy ekran firmware.
 PNG w dokumentacji to bezstratna konwersja tych klatek. Manifest zawiera ich
 sumy SHA256. Plansze jedynie zestawiają pełne obrazy obok siebie.
 
@@ -108,7 +147,8 @@ jest ograniczony dostępem do `/proc`; lokalny UBSan działa.
 ![Przegląd ekranów Premium](cyber-blue/overview.png)
 
 [Porównanie v1 i Premium](cyber-blue/comparison-v1-premium.png) obejmuje pulpit,
-roletę, BLU i aktualizację firmware. Dane BLU w nowym fixture mają potwierdzony
+roletę, BLU i aktualizację firmware. [Porównanie przed i po integracji ikon](cyber-blue/comparison-supplied-icons.png)
+pokazuje pulpit, BLU i OTA. Dane BLU w nowym fixture mają potwierdzony
 czas próbki; ta różnica tekstu nie wynika ze zmiany logiki produkcyjnej.
 
 W katalogu `cyber-blue` są PNG z rzeczywistego renderera LVGL 320 × 480.

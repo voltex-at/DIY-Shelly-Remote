@@ -67,7 +67,7 @@ static void show(void)
 {
  lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
- if(hud){lv_obj_t *power=dsr_sc_panel(root,12,86,296,158,DSR_SC_CARD,12);dsr_sc_icon(power,DSR_ICON_BATTERY,18,34,48,DSR_SC_BLUE);}
+ if(hud){lv_obj_t *power=dsr_sc_panel(root,12,86,296,158,DSR_SC_CARD,12);dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,18,34,48,DSR_SC_BLUE);}
  dsr_sc_text(root,"Napięcie wejścia BAT",hud?26:14,hud?98:90,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);
  value=dsr_sc_text(root,"— V",hud?90:14,hud?122:110,hud?202:292,&dsr_roboto_28,hud?DSR_SC_BLUE:DSR_SC_TEXT);
  status=dsr_sc_text(root,"Pomiar na żądanie",hud?26:14,hud?164:148,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);
@@ -75,6 +75,7 @@ static void show(void)
  dsr_sc_text(root,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",hud?26:14,hud?212:190,hud?268:292,hud?&dsr_roboto_11:&dsr_roboto_12,hud?0xffc107:DSR_SC_MUTED);
  lv_obj_t *card=dsr_sc_panel(root,12,hud?252:224,296,hud?98:126,DSR_SC_CARD,12);
  dsr_sc_text(card,"Pamięć i radio",12,8,272,&dsr_roboto_14,DSR_SC_TEXT);
+ if(hud)dsr_sc_icon(card,DSR_ICON_MEMORY,252,4,24,DSR_SC_BLUE);
  diag=dsr_sc_text(card,"…",12,hud?28:32,276,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
  if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);

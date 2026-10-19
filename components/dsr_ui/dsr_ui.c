@@ -68,14 +68,17 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_center(caption);
     if(!strncmp(text,"Usuń",strlen("Usuń"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
     else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!strcmp(text,"Zapisz")||!strcmp(text,"Dalej")||!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Zmierz napięcie")||!strcmp(text,"Odśwież stan")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")))dsr_ui_primary(obj);
-    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=220){
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=130){
      dsr_ui_icon_t icon=DSR_ICON_COUNT;
      if(!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")||!strcmp(text,"Odśwież stan"))icon=DSR_ICON_REFRESH;
-     else if(!strcmp(text,"Zmierz napięcie"))icon=DSR_ICON_BATTERY;
+     else if(!strcmp(text,"Zmierz napięcie"))icon=DSR_ICON_ACTIVITY;
+     else if(!strcmp(text,"Zapisz"))icon=DSR_ICON_SAVE;
+     else if(!strncmp(text,"Usuń",strlen("Usuń")))icon=DSR_ICON_TRASH;
      else if(!strcmp(text,"Wi-Fi setup"))icon=DSR_ICON_SETTINGS;
      else if(!strcmp(text,"Bluetooth LE • skan i setup"))icon=DSR_ICON_BLUETOOTH;
      else if(!strcmp(text,"Wi-Fi AP • dodaj Shelly"))icon=DSR_ICON_ROUTER;
      else if(!strcmp(text,"Wstecz")||!strcmp(text,"Back"))icon=DSR_ICON_BACK;
+     if(width<220&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
      if(icon!=DSR_ICON_COUNT){lv_obj_set_width(caption,width-58);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-8,0);dsr_sc_icon(obj,icon,14,10,28,icon==DSR_ICON_SETTINGS||icon==DSR_ICON_BLUETOOTH||icon==DSR_ICON_ROUTER?DSR_SC_BLUE:DSR_SC_TEXT);}
     }
     return obj;
@@ -344,13 +347,14 @@ static void menu(lv_event_t *event)
  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
  const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_GRID,DSR_ICON_DASHBOARD,DSR_ICON_BATTERY,DSR_ICON_HOME,DSR_ICON_SETTINGS};
+ const dsr_ui_icon_t cyber_icons[]={DSR_ICON_WIFI,DSR_ICON_PALETTE,DSR_ICON_DISPLAY,DSR_ICON_BATTERY,DSR_ICON_SHIELD,DSR_ICON_CPU};
  const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
  for(unsigned i=0;i<6;i++){
   lv_obj_t *button=row(body,names[i],(int)i*58,callbacks[i]);lv_obj_t *caption=lv_obj_get_child(button,0);
   bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
   lv_obj_set_width(caption,hud?214:236);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_LEFT,0);lv_obj_align(caption,LV_ALIGN_LEFT_MID,48,0);
-  if(hud){lv_obj_t *badge=dsr_sc_panel(button,5,5,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);dsr_sc_icon(button,DSR_ICON_CHEVRON,272,15,18,DSR_SC_MUTED);}
-  dsr_sc_icon(button,icons[i],12,13,22,DSR_SC_BLUE);
+  if(hud){lv_obj_t *badge=dsr_sc_panel(button,5,5,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);dsr_sc_icon(button,DSR_ICON_NEXT,266,12,24,DSR_SC_MUTED);}
+  dsr_sc_icon(button,hud?cyber_icons[i]:icons[i],hud?11:12,hud?12:13,hud?24:22,DSR_SC_BLUE);
  }
 }
 
