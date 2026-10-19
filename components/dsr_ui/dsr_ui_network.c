@@ -370,21 +370,23 @@ dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t 
     memset(&job, 0, sizeof(job)); return result;
 }
 
-void dsr_network_home(lv_event_t *event)
+void dsr_network_prepare_home(void)
 {
-    (void)event;
+    dsr_mobile_hide();
     dsr_ui_workspace_hide();
     dsr_network_reset_view(); view = VIEW_HOME;
-    render(); dsr_mobile_show(DSR_MOBILE_HOME, 0);
+    render();
 }
+void dsr_network_home(lv_event_t *event)
+{(void)event;dsr_network_prepare_home();dsr_mobile_show(DSR_MOBILE_HOME,0);}
 void dsr_network_rooms(void)
 {
-    dsr_network_home(NULL); /* Re-read the published shared configuration first. */
+    dsr_network_prepare_home(); /* Re-read the published shared configuration first. */
     dsr_mobile_show(DSR_MOBILE_ROOMS,0);
 }
 void dsr_network_room_context(uint32_t id)
 {
-    dsr_network_home(NULL); /* Re-read published IDs; never reuse a room index. */
+    dsr_network_prepare_home(); /* Re-read published IDs; never reuse a room index. */
     for(unsigned i=0;i<mobile_model.room_count;i++)if(mobile_model.rooms[i].id==id){dsr_mobile_show(DSR_MOBILE_ROOM,i);return;}
     dsr_mobile_show(DSR_MOBILE_ROOMS,0);
 }
@@ -394,7 +396,7 @@ void dsr_network_device_settings(uint32_t id)
     dsr_mobile_show_device_settings(id);
 }
 void dsr_network_device_control(uint32_t id)
-{dsr_network_home(NULL);dsr_mobile_return_device(id);}
+{dsr_network_prepare_home();dsr_mobile_return_device(id);}
 bool dsr_network_typed_device(uint32_t id,dsr_mobile_device_t *out)
 {for(unsigned i=0;i<mobile_model.device_count;i++)if(out&&id&&mobile_model.devices[i].id==id){*out=mobile_model.devices[i];return true;}return false;}
 
@@ -842,7 +844,7 @@ void dsr_network_start_view(void)
 void dsr_network_init(void)
 {
     (void)dsr_actions_init();
-    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
+    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.leave_actions=dsr_ui_actions_hide,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_dashboard,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

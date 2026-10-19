@@ -237,8 +237,12 @@ static void perf_dashboard(void)
  double same=(now_ms()-t)/N;unsigned long same_px=flushed/N;bool same_kept=find(lv_screen_active(),"Drzwi wejściowe")==other;
  t=now_ms();flushed=0;
  for(unsigned i=0;i<N;i++){m.devices[3].power_w=68.4+(double)(i%2);dsr_mobile_update(&m);lv_refr_now(display);}
+ double hidden=(now_ms()-t)/N;unsigned long hidden_px=flushed/N;CHECK(hidden_px==0);CHECK(find_part(lv_screen_active(),"69.4 W"));
+ t=now_ms();flushed=0;
+ for(unsigned i=0;i<N;i++){m.devices[0].power_w=18.6+(double)(i%2);dsr_mobile_update(&m);lv_refr_now(display);}
  double value=(now_ms()-t)/N;unsigned long value_px=flushed/N;bool value_kept=find(lv_screen_active(),"Drzwi wejściowe")==other;
- CHECK(find_part(lv_screen_active(),"69.4 W"));
+ CHECK(find_part(lv_screen_active(),"19.6 W"));CHECK(value_px>0&&value_px<20000);
+ printf("PERF offscreen value: %.2f ms/%lu px; visible value keeps control objects\n",hidden,hidden_px);
  t=now_ms();flushed=0;
  for(unsigned i=0;i<N;i++){m.devices[3].power_w=68.4+(double)(i%2);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_refr_now(display);}
  double full=(now_ms()-t)/N;unsigned long full_px=flushed/N;

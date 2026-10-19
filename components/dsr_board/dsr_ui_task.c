@@ -2,6 +2,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "esp_timer.h"
+#include "esp_log.h"
 #include <stdatomic.h>
 #include <stddef.h>
 
@@ -27,7 +29,11 @@ static void ui_task(void *argument)
          * still checking startup, or after a latched critical failure. */
         atomic_store(&in_handler, true);
         if (!ready()) { atomic_store(&in_handler, false); vTaskDelay(pdMS_TO_TICKS(20)); continue; }
+        int64_t began=esp_timer_get_time();
         uint32_t delay = lv_timer_handler();
+        int64_t elapsed=esp_timer_get_time()-began;
+        static int64_t last_report;
+        if(elapsed>200000&&began-last_report>5000000){last_report=began;ESP_LOGW("dsr_ui","Slow LVGL pass: %lu ms",(unsigned long)(elapsed/1000));}
         atomic_store(&in_handler, false);
         if (delay < 10) delay = 10;
         if (delay > 20) delay = 20;

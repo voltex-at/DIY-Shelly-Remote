@@ -8,6 +8,11 @@ Scena uruchamia po dotknięciu zapisane polecenia w ustalonej kolejności.
 Pilot musi być włączony i mieć dostęp do urządzeń w lokalnej sieci. Sceny nie
 są automatycznymi regułami działającymi w tle ani w chmurze.
 
+W kandydacie po 0.7.56-dev wybierz ikonę domu na dole, a następnie jedną
+z głównych zakładek **Pomieszczenia / Grupy / Sceny / Urządzenia**. Listy
+pozostają w tym samym układzie; po zapisie lub anulowaniu wrócisz do właściwej
+zakładki. Przycisk + na dolnym pasku dodaje wpis odpowiedniego typu.
+
 ## Utworzenie grupy
 
 1. Na stronie Grupy wybierz **+ Grupa** (WWW: **+ Nowa grupa**) i wpisz nazwę,

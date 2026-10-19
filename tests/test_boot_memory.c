@@ -1,4 +1,5 @@
 #include "dsr_ui_task.h"
+#include "dsr_touch_mailbox.h"
 #include "dsr_storage.h"
 #include "freertos/task.h"
 #include "esp_partition.h"
@@ -79,8 +80,27 @@ static void reset_storage(void)
     missing=nonempty=false; mount_error=ESP_FAIL; read_error=second_mount_error=ESP_OK;
     mount_calls=format_calls=read_calls=0; read_bytes=0; partition.size=0x3e0000;
 }
+static void touch_mailbox_test(void)
+{
+ dsr_touch_mailbox_t m={0};dsr_touch_sample_t s;
+ /* An entire 40 ms tap happens while a render is busy: latest-only loses it. */
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=120,.y=240},100);dsr_touch_push(&m,(dsr_touch_sample_t){0},100);
+ s=dsr_touch_pop(&m,100);CHECK(s.pressed&&s.x==120&&s.y==240);s=dsr_touch_pop(&m,100);CHECK(!s.pressed&&s.x==120&&s.y==240);CHECK(!dsr_touch_pop(&m,100).pressed);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=100,.y=100},100);s=dsr_touch_pop(&m,100);CHECK(s.pressed);
+ for(unsigned i=0;i<100;i++)dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=(uint16_t)(100+i),.y=150},100);
+ CHECK(!m.count);s=dsr_touch_pop(&m,100);CHECK(s.pressed&&s.x==199&&s.y==150);
+ dsr_touch_push(&m,(dsr_touch_sample_t){0},100);CHECK(!dsr_touch_pop(&m,100).pressed);
+ for(unsigned i=0;i<9;i++)dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=i%2==0,.x=12,.y=34},100);
+ CHECK(!m.count&&m.muted&&!dsr_touch_pop(&m,100).pressed);dsr_touch_push(&m,(dsr_touch_sample_t){0},100);CHECK(!m.muted);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=20,.y=30},100);CHECK(dsr_touch_pop(&m,100).pressed);
+ dsr_touch_push(&m,(dsr_touch_sample_t){0},100);s=dsr_touch_pop(&m,700);CHECK(!s.pressed&&s.cancelled&&!m.count);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=20,.y=30},1000);s=dsr_touch_pop(&m,1600);CHECK(!s.pressed&&s.cancelled&&m.muted);
+ dsr_touch_push(&m,(dsr_touch_sample_t){0},1700);CHECK(!m.muted&&!dsr_touch_pop(&m,1700).pressed);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=30,.y=40},UINT32_MAX-50);s=dsr_touch_pop(&m,25);CHECK(s.pressed&&!s.cancelled);
+}
 int main(void)
 {
+    touch_mailbox_test();
     /* Dynamic task creation is deliberately absent from this link: restoring
      * the 0.7.1 xTaskCreate path breaks the regression target at link time. */
     CHECK(dsr_ui_task_start(NULL) == ESP_ERR_INVALID_ARG && task_calls == 0);

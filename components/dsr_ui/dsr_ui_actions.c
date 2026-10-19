@@ -52,7 +52,7 @@ void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
  if(!browse_prepare())return;
  dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);char request[256];
  snprintf(request,sizeof(request),"{\"id\":%u,\"revision\":%u,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%08x%08x\"%s}",(unsigned)id,(unsigned)status.revision,(unsigned)status.boot_id,(unsigned)status.admission_generation,(unsigned)esp_random(),(unsigned)esp_random(),kind?"":on?",\"on\":true":",\"on\":false");
- uint32_t run=0;dsr_result_t accepted=dsr_actions_request(request,kind,1,&run);dsr_network_home(NULL);dsr_mobile_hide();active=true;page=3;admission=accepted;draw();
+ uint32_t run=0;dsr_result_t accepted=dsr_actions_request(request,kind,1,&run);dsr_network_prepare_home();active=true;page=3;admission=accepted;draw();
 }
 static void run(lv_event_t *event)
 {uintptr_t value=(uintptr_t)lv_event_get_user_data(event);dsr_ui_actions_execute((uint8_t)(value&1),(uint32_t)(value>>2),(value&2)!=0);}
@@ -109,14 +109,14 @@ static __attribute__((noinline)) int object_card(lv_obj_t *list,const cJSON *r,c
 static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 {
  lv_obj_t *add=button(root,page?"+ Scena":"+ Grupa",12,94,112,edit,0);dsr_ui_primary(add);
- browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,94);lv_obj_set_size(browse.search,176,40);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
+ browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,94);lv_obj_set_size(browse.search,176,44);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
  lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_FOCUSED,NULL);lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_CLICKED,NULL);
- lv_obj_t *list=body=dsr_sc_panel(root,12,190,296,224,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+ lv_obj_t *list=body=dsr_sc_panel(root,12,190,296,s->active?182:218,DSR_SC_BG,0);lv_obj_set_style_bg_opa(list,LV_OPA_TRANSP,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);char error[96];
  if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);dsr_sc_text(list,"Konfiguracja niedostępna",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);return;}
  char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Cały dom"));unsigned index=0,selected=0;const cJSON *v;
  cJSON_ArrayForEach(v,get(r,"rooms")){strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,text(v,"name"),sizeof(options)-strlen(options)-1);index++;if((uint32_t)number(v,"id")==browse.room)selected=index;}
- lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,142);lv_obj_set_size(filter,296,40);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
+ lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,142);lv_obj_set_size(filter,296,44);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
  unsigned i=0;int y=0;cJSON_ArrayForEach(v,get(r,page?"scenes":"groups")){
   if(browse.room&&browse.room!=(uint32_t)number(v,"room"))continue;
   if(!dsr_ui_search_match(text(v,"name"),browse.query))continue;
@@ -124,18 +124,18 @@ static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_s
  }
  if(!i){dsr_sc_icon(list,page?DSR_ICON_SCENES:DSR_ICON_GRID,116,24,48,DSR_SC_MUTED);dsr_sc_text(list,"Dodaj pierwszy wpis przyciskiem + u góry.",12,92,260,&dsr_roboto_16,DSR_SC_TEXT);}
  browse.revision=(uint32_t)number(r,"revision");cJSON_Delete(r);
- if(s->active)button(root,"Pokaż bieżące wykonanie",12,427,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,426,296,&dsr_roboto_12,DSR_SC_MUTED);
+ if(s->active)button(root,"Pokaż bieżące wykonanie",12,380,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,414,296,&dsr_roboto_11,DSR_SC_MUTED);
  browse.keyboard=lv_keyboard_create(root);dsr_ui_keyboard(browse.keyboard);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(browse.keyboard,LV_OBJ_FLAG_HIDDEN);
 }
 static void draw(void)
 {
  if(!active)return;
- int scroll=body?lv_obj_get_scroll_y(body):0;body=NULL;lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
- dsr_sc_header(root,page==0?"Grupy":page==1?"Sceny":"Wykonanie",false,dsr_wifi_connected(),back,NULL);
- /* LCD "Aktywność" removed in 0.7.51 (owner); groups and scenes only. */
- const char *tabs[]={"Grupy","Sceny"};for(unsigned i=0;i<2;i++){lv_obj_t *b=button(root,tabs[i],(int)i*162,45,158,choose,i);if(page==i){lv_obj_set_style_border_width(b,2,0);lv_obj_set_style_border_color(b,dsr_sc_color(DSR_SC_BLUE),0);}}
- dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=status_hash(&s);if(page==3)progress(root,&s);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);next_draw=lv_tick_get()+1000;
+ int scroll=body?lv_obj_get_scroll_y(body):0;body=NULL;lv_obj_t *root=lv_screen_active();
+ if(page<2)dsr_mobile_actions_shell(root,page);
+ else{lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_header(root,"Wykonanie",false,dsr_wifi_connected(),back,NULL);}
+ dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=page==3?status_hash(&s):(uint32_t)s.available*2u+s.active;if(page==3)progress(root,&s);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);next_draw=lv_tick_get()+1000;
 }
 void dsr_ui_actions_open(uint8_t kind)
-{dsr_network_home(NULL);if(!browse_prepare()){lv_obj_t *root=dsr_ui_screen("Konfiguracja niedostępna",false);dsr_sc_text(root,"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.",12,96,296,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);return;}dsr_mobile_hide();page=kind<2?kind:0;browse.query[0]=0;browse.room=0;admission=DSR_OK;active=true;draw();}
-void dsr_ui_actions_tick(void){if(!active)return;dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);if(!browse.typing&&(status_hash(&status)!=last_status||(page==3&&(int32_t)(lv_tick_get()-next_draw)>=0)||(page<2&&browse.revision!=dsr_workspace_revision())))draw();}
+{dsr_network_prepare_home();if(!browse_prepare()){lv_obj_t *root=dsr_ui_screen("Konfiguracja niedostępna",false);dsr_sc_text(root,"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.",12,96,296,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);return;}dsr_mobile_hide();page=kind<2?kind:0;browse.query[0]=0;browse.room=0;admission=DSR_OK;active=true;draw();}
+void dsr_ui_actions_tick(void){if(!active)return;dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);bool held=false;for(lv_indev_t *i=lv_indev_get_next(NULL);i;i=lv_indev_get_next(i))if(lv_indev_get_type(i)==LV_INDEV_TYPE_POINTER&&(lv_indev_get_state(i)==LV_INDEV_STATE_PRESSED||lv_indev_get_scroll_obj(i)))held=true;
+ if(!held&&!browse.typing&&((page==3?status_hash(&status):(uint32_t)status.available*2u+status.active)!=last_status||(page==3&&(int32_t)(lv_tick_get()-next_draw)>=0)||(page<2&&browse.revision!=dsr_workspace_revision())))draw();}

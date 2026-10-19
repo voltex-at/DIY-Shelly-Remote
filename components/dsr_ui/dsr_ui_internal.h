@@ -32,6 +32,7 @@ void dsr_ui_ble_settings(lv_event_t *event);
 void dsr_ui_config_appearance(lv_event_t *event);
 void dsr_ui_config_registry(lv_event_t *event);
 void dsr_network_init(void);
+void dsr_network_prepare_home(void);
 void dsr_network_start_view(void);
 void dsr_ui_ap_open(lv_event_t *event);
 void dsr_ui_ap_scan_open(lv_event_t *event);

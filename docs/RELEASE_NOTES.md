@@ -1,5 +1,17 @@
 0.7.56-dev: poprawki dotyku i UI, odczytu rolet, termostatu i OTA; prostsze sceny i grupy.
 
+Zmiany robocze po opublikowanym 0.7.56-dev (bez publikacji kolejnego OTA).
+
+- Główne zakładki Pomieszczenia / Grupy / Sceny / Urządzenia mają wspólny nagłówek i dolną nawigację. Edycja i powrót pozostają w kontekście danej listy. Nie zmieniono formatu zapisanych danych ani wykonania poleceń.
+- Zegar po lewej, za przyciskiem powrotu na szczegółach. Nazwa urządzenia nie uruchamia ciągłej animacji przewijania.
+- Modal informacji nie jest usuwany przez odczyty w tle. Podczas dotykania lub przewijania stabilnej listy odrysowanie czeka do puszczenia palca; zmiana tożsamości nadal unieważnia stary widok. Dane innego urządzenia nie przebudowują otwartych szczegółów.
+- Aktualizacja mocy/napięcia odświeża istniejącą etykietę zamiast całej karty z cieniem. Test 24 kafelków: widoczna zmiana około 0,7 ms / 2784 px, niewidoczna 0 px; pełna przebudowa około 119 ms / 153600 px. To pomiary hostowego LVGL, nie ES3C35P.
+- Dotyk ES3C35P: zachowanie obu zboczy krótkiego dotknięcia podczas długiego rysowania, scalanie ruchu, bezpieczne odrzucenie przepełnionego gestu oraz zdarzeń starszych niż 500 ms (bez odtwarzania dotknięć z ekranu startowego); odczyt LVGL co 10 ms. Log USB zgłasza przebiegi LVGL powyżej 200 ms (najwyżej raz na 5 s).
+- BLU TRV: ikony zaworu i baterii. Ustawienia rozróżniają temperaturę zadaną i natężenie światła — współdzielone pole modelu nie jest już formatowane jako lx. Prawdziwe lx czujnika kontaktowego pozostają widoczne.
+- Czujnik kontaktowy: grafika otwartego/zamkniętego okna; po wybraniu ikony Drzwi na lokalnej karcie — otwarte/zamknięte drzwi. Przy braku połączenia widok nie potwierdza zamknięcia.
+- Nagrania IMG_9761 i IMG_9762 oraz zdjęcia IMG_9755/9759 przeanalizowane. Testy sprzętowe płynności, opóźnienia i stanów czujników pozostają do wykonania na kandydacie.
+
+
 Zakres 0.7.56-dev. Testy fizyczne poprawek pozostają do wykonania; Stable: brak.
 
 - LCD: usunięty ogólny nagłówek domu we wszystkich językach i dodatkowa zakładka pulpitu; większy zegar, uporządkowane odstępy, bateria bez wystającego prostokąta. Powrót ma większe pole dotyku, a Bateria działa również z dolnego paska ustawień.

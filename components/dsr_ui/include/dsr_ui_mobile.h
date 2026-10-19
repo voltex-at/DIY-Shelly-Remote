@@ -7,7 +7,7 @@
 #define DSR_UI_MAX_DEVICES 16
 #define DSR_UI_MAX_ROOMS 8
 #define DSR_UI_NO_ROOM 255
-typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS,DSR_MOBILE_DEVICE_SETTINGS} dsr_mobile_page_t;
+typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS,DSR_MOBILE_DEVICE_SETTINGS,DSR_MOBILE_GROUPS,DSR_MOBILE_SCENES} dsr_mobile_page_t;
 typedef enum {DSR_DEVICE_LIGHT,DSR_DEVICE_PLUG,DSR_DEVICE_RELAY,DSR_DEVICE_COVER,DSR_DEVICE_CONTACT,DSR_DEVICE_SENSOR,DSR_DEVICE_RGB} dsr_mobile_kind_t;
 /* Confirmed Cover status only; zero means no status sample, never stopped. */
 typedef enum {DSR_COVER_UNKNOWN,DSR_COVER_OPENING,DSR_COVER_CLOSING,DSR_COVER_STOPPED,DSR_COVER_CALIBRATING} dsr_mobile_cover_state_t;
@@ -77,6 +77,7 @@ typedef struct {
     void (*open_usage)(uint32_t id);
     void (*open_battery)(void);
     void (*open_actions)(uint8_t kind);
+    void (*leave_actions)(void);
     void (*edit_action)(uint8_t kind,uint32_t id);
     void (*run_scene)(uint32_t id);
     void (*run_group)(uint32_t id,bool on);

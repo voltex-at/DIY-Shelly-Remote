@@ -366,6 +366,7 @@
 {"Czas ostatniego sygnału nieznany","Time of last signal unknown","Zeit des letzten Signals unbekannt"},
 {"Bramka: brak lub błędny klucz szyfrowania","Gateway: encryption key missing or wrong","Gateway: Schlüssel fehlt oder ist falsch"},
 {"Bramka: błąd danych BTHome","Gateway: BTHome data error","Gateway: BTHome-Datenfehler"},
+{"Dane z bramki Shelly","Data from Shelly gateway","Daten vom Shelly-Gateway"},
 {"Dane z bramki Shelly. Pilot nie łączy się z czujnikiem i niczym w nim nie steruje.","Data from the Shelly gateway. The remote does not connect to or control the sensor.","Daten vom Shelly-Gateway. Die Fernbedienung verbindet sich nicht mit dem Sensor und steuert ihn nicht."},
 {"Czujnik BLU","BLU sensor","BLU-Sensor"},
 {"Czujnik nie mierzy mocy","The sensor does not measure power","Der Sensor misst keine Leistung"},

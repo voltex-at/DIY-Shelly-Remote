@@ -1,6 +1,7 @@
 /* LCDWiki ES3C35P board port. See boards/lcdwiki-es3c35p/README.md. */
 #include "dsr_board.h"
 #include "dsr_ui_task.h"
+#include "dsr_touch_mailbox.h"
 #include "st77922_init.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -37,8 +38,7 @@ static uint8_t desired_brightness = 70;
 static uint16_t idle_seconds = 60;
 static esp_timer_handle_t tick_timer;
 static portMUX_TYPE touch_lock = portMUX_INITIALIZER_UNLOCKED;
-typedef struct { bool pressed; uint16_t x, y; } touch_sample_t;
-static touch_sample_t touch_sample;
+static dsr_touch_mailbox_t touch_mailbox;
 
 const char *dsr_board_hardware_id(void) { return "lcdwiki-es3c35p-n16r8"; }
 lv_display_t *dsr_board_display(void) { return display; }
@@ -115,7 +115,7 @@ static void touch_task(void *arg)
     (void)arg;
     bool previous = false;
     for (;;) {
-        touch_sample_t next = {0};
+        dsr_touch_sample_t next = {0};
         uint8_t info = 0;
         uint8_t bytes[TOUCH_POINTS * 7];
         if (read_touch_register(0x0010, &info, 1) == ESP_OK && (info & 0x08) &&
@@ -125,12 +125,12 @@ static void touch_task(void *arg)
                 if (!(point[0] & 0x80)) continue;
                 uint16_t x = ((uint16_t)(point[0] & 0x3f) << 8) | point[1];
                 uint16_t y = ((uint16_t)(point[2] & 0x3f) << 8) | point[3];
-                if (x < WIDTH && y < HEIGHT) next = (touch_sample_t){true, x, y};
+                if (x < WIDTH && y < HEIGHT) next = (dsr_touch_sample_t){.pressed=true,.x=x,.y=y};
                 break;
             }
         }
         portENTER_CRITICAL(&touch_lock);
-        touch_sample = next;
+        dsr_touch_push(&touch_mailbox,next,(uint32_t)(esp_timer_get_time()/1000));
         portEXIT_CRITICAL(&touch_lock);
         if (next.pressed && !previous) ESP_LOGI(TAG, "Touch x=%u y=%u", (unsigned)next.x, (unsigned)next.y);
         previous = next.pressed;
@@ -140,12 +140,12 @@ static void touch_task(void *arg)
 
 static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
-    (void)indev;
     static uint16_t last_x, last_y;
-    touch_sample_t sample;
+    dsr_touch_sample_t sample;
     portENTER_CRITICAL(&touch_lock);
-    sample = touch_sample;
+    sample = dsr_touch_pop(&touch_mailbox,(uint32_t)(esp_timer_get_time()/1000));
     portEXIT_CRITICAL(&touch_lock);
+    if(sample.cancelled)lv_indev_reset(indev,NULL);
     if (sample.pressed) { last_x = sample.x; last_y = sample.y; }
     data->point.x = last_x;
     data->point.y = last_y;
@@ -261,8 +261,8 @@ esp_err_t dsr_board_init(void)
         lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
         lv_indev_set_display(indev, display);
         lv_indev_set_read_cb(indev, touch_read);
-        /* 0.7.52: read every 16 ms instead of the 33 ms display refresh period. */
-        lv_timer_set_period(lv_indev_get_read_timer(indev), 16);
+        /* Match the 10 ms acquisition period; complete short taps survive a repaint. */
+        lv_timer_set_period(lv_indev_get_read_timer(indev), 10);
         ESP_LOGI(TAG, "ST77922 touch responding, max points=%u", (unsigned)max_points);
     } else {
         ESP_LOGW(TAG, "ST77922 touch not identified at 0x55; display remains available for diagnostics");

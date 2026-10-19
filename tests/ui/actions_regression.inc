@@ -44,7 +44,12 @@ static void actions_regression(void)
  cJSON *scene=cJSON_CreateObject();cJSON_AddNumberToObject(scene,"id",92);cJSON_AddStringToObject(scene,"name","Night fixture");cJSON *steps=cJSON_AddArrayToObject(scene,"actions");const char *commands[]={"on","off"};for(unsigned i=0;i<2;i++){cJSON *step=cJSON_CreateObject();cJSON_AddNumberToObject(step,"device",a);cJSON_AddStringToObject(step,"command",commands[i]);cJSON_AddItemToArray(steps,step);}cJSON_AddItemToArray(scenes,scene);
  cJSON *dashboard=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dashboard,"tiles");cJSON *tile=cJSON_Parse("{\"id\":991,\"type\":\"scene\",\"ref\":92,\"span\":2,\"height\":1,\"fields\":255}");cJSON_InsertItemInArray(tiles,0,tile);publish_document(r);tick();
  contextual_actions_regression();
- unsigned sets=job_counts[DSR_JOB_SET_OUTPUT];dsr_ui_actions_open(0);CHECK(find_label(lv_screen_active(),"All fixtures")&&find_label(lv_screen_active(),"Cały dom • każde urządzenie ma własny wynik."));screenshot("251-groups-lcd");CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);
+ unsigned sets=job_counts[DSR_JOB_SET_OUTPUT];dsr_ui_actions_open(0);
+ CHECK(dsr_mobile_page()==DSR_MOBILE_GROUPS&&find_label(lv_screen_active(),"Pomieszczenia")&&find_label(lv_screen_active(),"Urządzenia"));
+ lv_obj_update_layout(lv_screen_active());tap(184,65);CHECK(dsr_mobile_page()==DSR_MOBILE_SCENES&&find_label(lv_screen_active(),"Night fixture"));
+ tap(268,65);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICES&&dsr_mobile_active());tap(48,65);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(130,65);CHECK(dsr_mobile_page()==DSR_MOBILE_GROUPS);
+ CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);
+ CHECK(find_label(lv_screen_active(),"All fixtures")&&find_label(lv_screen_active(),"Cały dom • każde urządzenie ma własny wynik."));screenshot("251-groups-lcd");CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);
  /* Offline group reports a result per endpoint without any optimistic SET. */
  CHECK(!wifi.connected);click("Włącz grupę");for(unsigned i=0;i<4&&dsr_actions_active();i++)tick();dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);CHECK(!status.active&&status.count==2&&status.steps[0].outcome==DSR_ACTION_FAILED&&status.steps[1].outcome==DSR_ACTION_FAILED);CHECK(job_counts[DSR_JOB_SET_OUTPUT]==sets);screenshot("252-group-offline-partial");
  dsr_network_home(NULL);wifi.connected=true;tick();
@@ -75,8 +80,8 @@ static void actions_regression(void)
  CHECK(dsr_actions_publish_begin(dsr_workspace_revision(),true));dsr_actions_publish_at(&observed,true,false,DSR_OK,true);dsr_actions_publish_end();dsr_actions_log_clear();observed.device.online=false;
  CHECK(dsr_actions_publish_begin(dsr_workspace_revision(),true));dsr_actions_publish_at(&observed,true,false,DSR_OK,false);dsr_actions_publish_end();
  log=calloc(1,sizeof(*log));CHECK(log&&dsr_actions_log(0,0,32,log)&&log->count==1&&log->entries[0].kind==2&&log->entries[0].command!=DSR_ACTION_OFF&&log->entries[0].result!=DSR_OK);free(log);tick();
- dsr_ui_actions_open(0);tap(20,20);lv_refr_now(display);lv_mem_monitor_t before,after;lv_mem_monitor(&before);
- for(unsigned i=0;i<40;i++){dsr_ui_actions_open((uint8_t)(i%3));tap(20,20);}lv_refr_now(display);lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);
- for(unsigned locale=1;locale<=2;locale++){cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(locale==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);CHECK(dsr_sc_language()==locale);lv_obj_t *label=find_label(lv_screen_active(),"Włącz grupę");CHECK(label&&!strcmp(lv_label_get_text(label),locale==1?"Turn group on":"Gruppe einschalten"));screenshot(locale==1?"255-groups-english":"256-groups-german");tap(20,20);}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);wifi.connected=false;tick();
+ dsr_ui_actions_open(0);tap(48,65);lv_refr_now(display);lv_mem_monitor_t before,after;lv_mem_monitor(&before);
+ for(unsigned i=0;i<40;i++){dsr_ui_actions_open((uint8_t)(i%3));tap(48,65);}lv_refr_now(display);lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);
+ for(unsigned locale=1;locale<=2;locale++){cJSON *localized=room_document();cJSON_ReplaceItemInObjectCaseSensitive(localized,"language",cJSON_CreateString(locale==1?"en":"de"));publish_document(localized);dsr_ui_actions_open(0);CHECK(dsr_sc_language()==locale);lv_obj_t *label=find_label(lv_screen_active(),"Włącz grupę");CHECK(label&&!strcmp(lv_label_get_text(label),locale==1?"Turn group on":"Gruppe einschalten"));screenshot(locale==1?"255-groups-english":"256-groups-german");tap(48,65);}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(original,"revision"),dsr_workspace_revision());publish_document(original);wifi.connected=false;tick();
  printf("Actions LCD heap %u→%u;40 group/scene cycles, cardRUN/cancel and per-endpoint offline/auth partial results; actual actor with worker/radio/workspace MODEL\n",(unsigned)before.free_size,(unsigned)after.free_size);
 }

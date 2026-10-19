@@ -38,7 +38,7 @@ static void icons_regression(void)
  /* Status bar clock: HH:MM local time next to Wi-Fi and battery, empty without a plausible UTC. */
  dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_ROOMS,0);lv_obj_update_layout(lv_screen_active());
  bool clock=false;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);
-  if(lv_obj_check_type(o,&lv_label_class)&&lv_obj_get_x(o)==170){const char *t=lv_label_get_text(o);clock=lv_obj_get_style_text_font(o,0)==&dsr_roboto_22&&lv_obj_get_width(o)==68&&strlen(t)==5&&t[2]==':'&&t[0]>='0'&&t[0]<='2';}}
+  if(lv_obj_check_type(o,&lv_label_class)&&lv_obj_get_x(o)==12){const char *t=lv_label_get_text(o);clock=lv_obj_get_style_text_font(o,0)==&dsr_roboto_22&&lv_obj_get_width(o)==68&&strlen(t)==5&&t[2]==':'&&t[0]>='0'&&t[0]<='2';}}
  CHECK(clock);
  printf("PASS: device icon gallery (save/Auto/card), list scroll bar, status bar clock\n");
  dsr_network_home(NULL);

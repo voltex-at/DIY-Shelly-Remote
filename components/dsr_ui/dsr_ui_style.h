@@ -28,7 +28,7 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     /* Selectable device icons (0.7.51) */
     DSR_ICON_OUTLET, DSR_ICON_FAN, DSR_ICON_THERMOSTAT, DSR_ICON_TV, DSR_ICON_BOILER, DSR_ICON_GARAGE,
     DSR_ICON_DOOR, DSR_ICON_FLOOR_LAMP, DSR_ICON_WALL_LAMP, DSR_ICON_EV, DSR_ICON_KETTLE,
-    DSR_ICON_COFFEE, DSR_ICON_LAUNDRY, DSR_ICON_AC, DSR_ICON_SPEAKER, DSR_ICON_ROUTER, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_COFFEE, DSR_ICON_LAUNDRY, DSR_ICON_AC, DSR_ICON_SPEAKER, DSR_ICON_ROUTER, DSR_ICON_WINDOW_CLOSED, DSR_ICON_WINDOW_OPEN, DSR_ICON_DOOR_CLOSED, DSR_ICON_DOOR_OPEN, DSR_ICON_VALVE, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);
@@ -56,6 +56,7 @@ lv_color_t dsr_sc_text_color(uint32_t color);
 void dsr_sc_background(lv_obj_t *root);
 unsigned dsr_sc_language(void);
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
+void dsr_mobile_actions_shell(lv_obj_t *root,uint8_t kind);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
 /* Shelly Smart Control look (owner references 2026-10-18). */
@@ -67,6 +68,7 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
 /* Dark pill with values separated by thin dividers ("0 W | 231.6 V"). Returns its width. */
 int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color);
 /* Arc drawn as colour segments interpolated through stops (0xRRGGBB). Angles: LVGL degrees. */
+void dsr_sc_segments_update(lv_obj_t *pill,const char *const *texts,unsigned count,int max_width);
 void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int radius,int width,int start,int span,const uint32_t *stops,unsigned stop_count,unsigned segments,bool enabled);
 /* Built-in room photos (owner artwork, flash): 100x100 RGB565, content-addressed
  * like uploaded photos so the config keeps one 32-hex photo field. */

@@ -495,12 +495,31 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
 
 /* Apache-2.0 Material Symbols Rounded, pre-filtered to coverage masks.
  * No SVG parser, web font, or integer-grid line approximation at runtime. */
-extern const lv_image_dsc_t dsr_symbol_atlas[DSR_ICON_COUNT];
+extern const lv_image_dsc_t dsr_symbol_atlas[40];
+static void symbol_line(lv_layer_t *layer,const lv_area_t *a,int size,lv_color_t color,int x1,int y1,int x2,int y2)
+{
+ lv_draw_line_dsc_t line;lv_draw_line_dsc_init(&line);line.color=color;line.width=size>=48?3:2;line.round_start=line.round_end=1;
+ line.p1=(lv_point_precise_t){a->x1+x1*size/64,a->y1+y1*size/64};line.p2=(lv_point_precise_t){a->x1+x2*size/64,a->y1+y2*size/64};lv_draw_line(layer,&line);
+}
+static void state_symbol(lv_event_t *e,unsigned kind)
+{
+ lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);int size=lv_obj_get_width(o);lv_layer_t *layer=lv_event_get_layer(e);lv_color_t color=lv_obj_get_style_line_color(o,0);
+#define LINE(x1,y1,x2,y2) symbol_line(layer,&a,size,color,x1,y1,x2,y2)
+ if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
+ else{
+  bool door=kind==DSR_ICON_DOOR_CLOSED||kind==DSR_ICON_DOOR_OPEN;bool open=kind==DSR_ICON_DOOR_OPEN||kind==DSR_ICON_WINDOW_OPEN;
+  LINE(12,8,52,8);LINE(52,8,52,56);LINE(52,56,12,56);LINE(12,56,12,8);
+  if(open){LINE(17,12,37,20);LINE(37,20,37,60);LINE(37,60,17,52);LINE(17,52,17,12);LINE(32,34,32,38);if(!door){LINE(17,30,37,38);LINE(42,12,47,12);LINE(47,12,47,51);}}
+  else{LINE(18,14,46,14);LINE(46,14,46,50);LINE(46,50,18,50);LINE(18,50,18,14);if(door){LINE(39,33,39,36);}else{LINE(32,14,32,50);LINE(18,32,46,32);}}
+ }
+#undef LINE
+}
 static void icon_draw(lv_event_t *event)
 {
     lv_obj_t *obj=lv_event_get_target(event);
     unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
     if(kind>=DSR_ICON_COUNT)return;
+    if(kind>=DSR_ICON_WINDOW_CLOSED){state_symbol(event,kind);return;}
     lv_area_t area;lv_obj_get_coords(obj,&area);
     int size=lv_obj_get_width(obj);
     lv_draw_image_dsc_t draw;lv_draw_image_dsc_init(&draw);
@@ -543,11 +562,11 @@ void dsr_sc_clock_tick(void)
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
  if(back){lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,DSR_SC_TEXT);}
- lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+ lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
-  lv_obj_set_width(name,back?112:156);
-  clock_label=dsr_sc_text(root,"",170,8,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
+  lv_obj_set_x(name,back?140:92);lv_obj_set_width(name,back?98:146);
+  clock_label=dsr_sc_text(root,"",back?60:12,8,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_LEFT,0);
   lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();
   dsr_sc_icon(root,DSR_ICON_WIFI,246,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #ifndef DSR_UI_REVIEW_DEMO
@@ -618,7 +637,7 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
  if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
  return ring;
 }
-int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
+static int segments(lv_obj_t *pill,const char *const *texts,unsigned count,int max_width)
 {
  /* One pill + one recoloured label (separators inline): two objects per row.
   * 14 px since 0.7.51 (owner: larger, more readable values). */
@@ -630,11 +649,18 @@ int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int
  if(total>max_width){widths[0]=max_width;total=max_width;}
  char line[200];line[0]=0;
  for(unsigned i=0;i<count;i++){if(i)strncat(line,"  #5a6066 |#  ",sizeof(line)-strlen(line)-1);strncat(line,dsr_sc_tr(texts[i]),sizeof(line)-strlen(line)-1);}
- lv_obj_t *pill=dsr_sc_panel(parent,x,y,total,24,0x23272a,12);
- lv_obj_t *label=dsr_sc_text(pill,"",8,4,total-12,&dsr_roboto_14,color);lv_label_set_recolor(label,true);lv_label_set_text(label,line);
+ lv_obj_set_width(pill,total);lv_obj_t *label=lv_obj_get_child(pill,0);lv_obj_set_width(label,total-12);
+ lv_label_set_recolor(label,true);if(strcmp(lv_label_get_text(label),line))lv_label_set_text(label,line);
  lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
  return total;
 }
+int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
+{
+ lv_obj_t *pill=dsr_sc_panel(parent,x,y,1,24,0x23272a,12);dsr_sc_text(pill,"",8,4,1,&dsr_roboto_14,color);
+ return segments(pill,texts,count,max_width);
+}
+void dsr_sc_segments_update(lv_obj_t *pill,const char *const *texts,unsigned count,int max_width)
+{(void)segments(pill,texts,count,max_width);}
 void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int r,int width,int start,int span,const uint32_t *stops,unsigned n_stops,unsigned n,bool enabled)
 {
  for(unsigned i=0;i<n;i++){
