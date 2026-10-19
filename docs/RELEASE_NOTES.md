@@ -1,6 +1,6 @@
-0.7.56-dev: poprawki dotyku i UI, odczytu rolet, termostatu i OTA; prostsze sceny i grupy.
+0.7.57-dev: płynniejszy dotyk, wspólne zakładki grup/scen, grafiki BLU/TRV i poprawiony układ OTA.
 
-Zmiany robocze po opublikowanym 0.7.56-dev (bez publikacji kolejnego OTA).
+Zakres 0.7.57-dev. Odbiór fizyczny nowych poprawek pozostaje do wykonania.
 
 - OTA: przyciski Sprawdź aktualizacje i Zmień kanał podniesione o 36 px, a kod błędu kontroli wydania o 32 px. Oba pełne pola dotyku mieszczą się w początkowym widoku nad Wstecz; regresja PL/EN/DE obejmuje również naciśnięcie dolnej krawędzi Zmień kanał.
 

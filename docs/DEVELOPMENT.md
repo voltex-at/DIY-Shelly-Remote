@@ -121,10 +121,21 @@ Nie interpretować testów fixture jako pomiaru SMP/RF ani trwałości Flash na 
 ### Wydanie 0.7.56-dev
 
 Właściciel jawnie zlecił publikację OTA Dev 2026-10-19 (Europe/Vienna).
-`.github/dev-release-0.7.56.json`, `release.yml` i `DEV_REQUEST` dopuszczają
+`.github/dev-release-0.7.56.json`, `release.yml` i `DEV_REQUEST` dopuszczały
 wyłącznie nowy tag `dev-v0.7.56`, wersję `0.7.56-dev` i gałąź P0.
 Istniejące tagi i zasoby pozostają niezmienne. Gate czeka na CI 5/5 dokładnego
 commitu przed utworzeniem tagu. Podpis używa zatwierdzonego klucza w środowisku
 `release`; klucz nie jest odczytywany do workspace. Nie zmienia to main ani
 Stable. Zakres: uproszczone sceny/grupy i poprawki zgłoszeń LCD, Cover, TRV,
 priorytetu dotyku oraz postępu OTA. Odbiór fizyczny pozostaje osobnym krokiem.
+
+### Wydanie 0.7.57-dev
+
+Właściciel zlecił publikację OTA Dev 2026-10-19 (Europe/Vienna), po korekcie
+położenia głównych przycisków aktualizacji. `.github/dev-release-0.7.57.json`,
+`release.yml` i `DEV_REQUEST` dopuszczają wyłącznie nowy tag `dev-v0.7.57`,
+wersję `0.7.57-dev` i gałąź P0. Gate tworzy tag po CI 5/5 dokładnego commitu;
+podpis pozostaje w chronionym środowisku `release` z dotychczasowym kluczem.
+Poprzednie wydania są niezmienne. Zakres obejmuje również wcześniejsze poprawki
+dotyku, wspólnej nawigacji grup/scen i widoków BLU/TRV. Testy hostowe i audyty
+targetu nie potwierdzają fizycznej płynności ani szczytu pamięci SDK.

@@ -1,9 +1,10 @@
-# Matryca funkcji — 0.7.56-dev
+# Matryca funkcji — 0.7.57-dev
 
-Kandydat po publikacji 0.7.56-dev: wspólne zakładki grup/scen, zegar po lewej,
+W 0.7.57-dev: wspólne zakładki grup/scen, zegar po lewej,
 ograniczenie przebudowy UI podczas dotyku i odczytów w tle, grafiki kontaktów
 oraz rozdzielenie temperatury TRV od lx. Kod i regresje hostowe są wdrożone;
-nowe poprawki wymagają fizycznej weryfikacji. Publiczny OTA pozostaje 0.7.56-dev.
+nowe poprawki wymagają fizycznej weryfikacji. Układ głównych przycisków OTA
+sprawdzono również w PL/EN/DE, wraz z dolną krawędzią pola dotyku.
 
 Kolumny: **Kod** (zaimplementowane na `work/p0-spiffs-ota-brand`), **CI** (testy
 hostowe/LVGL/target dla dokładnego SHA), **ES3C35P** (fizyczne potwierdzenie
