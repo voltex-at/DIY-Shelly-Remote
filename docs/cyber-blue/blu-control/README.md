@@ -47,9 +47,9 @@ karty. Zachowuje się pozycję przewijania przy zmianie odczytu.
 ## Weryfikacja na hoście
 
 - `python3 tools/test_ui.py --jobs 1`: pełny zestaw rzeczywistych ekranów LVGL
-  przeszedł. Nowy przypadek: **891 kontroli, 169 renderów**, PL/EN/DE, stany,
+  przeszedł. Nowy przypadek: **894 kontrole, 169 renderów**, PL/EN/DE, stany,
   długie nazwy, dotyk, wciśnięcie przycisku, brak akcji przy blokadzie,
-  przewijanie palcem, zachowanie pozycji, zakładki i modal podczas odczytów.
+  przewijanie palcem, zachowanie pozycji, zakładki i modal podczas odczytów oraz usunięcia wybranego czujnika.
 - `python3 tools/test_ui.py --case test_blu_ui --jobs 1`: **258 kontroli**,
   istniejący LAN/BIND/typed gateway i PROBE, brak nowego SET. Odpowiedzi bramki
   przechodzą przez istniejący model do stanów Zamknięte, Otwarte, Brak danych.
@@ -76,7 +76,7 @@ karty. Zachowuje się pozycję przewijania przy zmianie odczytu.
 | Pomiar | Wynik |
 |---|---:|
 | Nowe statyczne maski A8 (31 sztuk) | 73 856 B danych źródłowych Flash + deskryptory |
-| BIN ESP32-S3 | **4 069 024 B**, +66 272 B względem 0.7.58-dev |
+| BIN ESP32-S3 (kod układu 7f64922) | **4 069 024 B**, +66 272 B względem 0.7.58-dev |
 | Wewnętrzny BSS / DIRAM | **81 792 / 212 967 B**, bez zmiany |
 | Zewnętrzny BSS | **152 376 B**, bez zmiany |
 | Wolne miejsce w partycji app 6 MiB | **35%** |
@@ -85,7 +85,7 @@ karty. Zachowuje się pozycję przewijania przy zmianie odczytu.
 | Stos UI | bez zmiany: 8192 B w pamięci wewnętrznej |
 | Wolne LVGL, ekran przed / po | 96 576 / 93 504 B |
 | Dodatkowe użycie istniejącej puli, host 64-bit | **3072 B** |
-| 80 otwarć/zamknięć, ten sam pusty punkt kontrolny | 111 328 → 111 328 B wolne |
+| 80 otwarć/zamknięć, ten sam pusty punkt kontrolny | 111 336 → 111 336 B wolne |
 | Największy blok po tych cyklach | 91 656 B |
 
 Porównanie przed/po używa tej samej konfiguracji LVGL, kompilatora, fixture i

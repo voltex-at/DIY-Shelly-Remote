@@ -160,7 +160,9 @@ static void dashboard_info(lv_event_t *event)
 static void refresh_info(void)
 {
  if(!info_overlay)return;
- if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&model.devices[selected].endpoint_kind==DSR_ENDPOINT_BLU)return;
+ /* The sensor modal owns a different child layout, even if its device is
+  * removed/rebound while it is open. Never route it through dashboard labels. */
+ if(lv_obj_get_user_data(info_overlay))return;
  lv_obj_t *panel=lv_obj_get_child(info_overlay,0);if(!panel)return;
  char text[96];unsigned online=0;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].online)online++;
  snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),model.device_count,online);lv_obj_t *count=lv_obj_get_child(panel,2);if(strcmp(lv_label_get_text(count),text))lv_label_set_text(count,text);
@@ -745,7 +747,7 @@ static uint32_t cyber_contact_color(const dsr_mobile_device_t *d)
 static void blu_info(lv_event_t *event)
 {
  (void)event;if(info_overlay||selected>=model.device_count)return;
- info_open=true;info_overlay=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);lv_obj_set_style_bg_opa(info_overlay,190,0);lv_obj_add_flag(info_overlay,LV_OBJ_FLAG_CLICKABLE);
+ info_open=true;info_overlay=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);lv_obj_set_user_data(info_overlay,(void *)(uintptr_t)1);lv_obj_set_style_bg_opa(info_overlay,190,0);lv_obj_add_flag(info_overlay,LV_OBJ_FLAG_CLICKABLE);
  lv_obj_t *p=dsr_sc_panel(info_overlay,12,110,296,248,DSR_SC_CARD,12);
  dsr_sc_text(p,"Informacje o czujniku",12,12,272,&dsr_roboto_18,DSR_SC_TEXT);
  lv_obj_t *name=dsr_sc_text(p,dsr_sc_name(model.devices[selected].name),12,46,272,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,42);

@@ -96,6 +96,9 @@ int main(int argc,char **argv)
  int saved=lv_obj_get_scroll_y(scroll);m.devices[0].battery_pct=91;dsr_mobile_update(&m);scroll=box(lv_screen_active(),304,334);CHECK(scroll&&lv_obj_get_scroll_y(scroll)>0);CHECK(saved>0);
  /* Help stays a local read-only modal during asynchronous snapshots. */
  m=sensor_model();show_sensor(&m);tap(300,20);CHECK(find_label(lv_screen_active(),"Informacje o czujniku"));m.devices[0].battery_pct=91;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Informacje o czujniku"));screenshot("native-863-blu-help");click("Zamknij");CHECK(!find_label(lv_screen_active(),"Informacje o czujniku"));
+ /* Removing the selected device during Help must not reinterpret its Close
+  * button as a dashboard counter label. Closing returns to the current home. */
+ m=sensor_model();show_sensor(&m);tap(300,20);m.device_count=0;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Informacje o czujniku"));click("Zamknij");CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
  m=sensor_model();show_sensor(&m);tap(162,64);CHECK(usage_hits==1);tap(266,64);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);tap(50,64);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
  /* Warm caches, then compare the same empty root after 80 open/close cycles. */
  for(unsigned i=0;i<8;i++){show_sensor(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);}
