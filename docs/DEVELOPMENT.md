@@ -155,3 +155,18 @@ Commit wydania z nowym numerem wersji przechodzi ponownie pełne CI i osobny
 build wydania. Wyniki LVGL i porównania znajdują się w
 [cyber-blue/stage3/README.md](cyber-blue/stage3/README.md).
 Odbiór fizyczny na ESP32-S3 pozostaje do wykonania przez właściciela.
+
+### Wydanie 0.7.59-dev — nowy ekran Sterowanie BLU w Cyber Blue
+
+Właściciel jawnie zlecił publikację Dev 2026-10-19 (Europe/Vienna), po
+zakończeniu przebudowy BLU i potwierdzeniu CI 5/5 dla `719edb0`
+(uruchomienie `39293997480`). `.github/dev-release-0.7.59.json`, `release.yml`
+i `DEV_REQUEST` dopuszczają wyłącznie `dev-v0.7.59`, `0.7.59-dev` oraz gałąź
+`work/shelly-hud-cyber-blue`. Pełne CI jest powtarzane dla dokładnego commitu
+wydania przed utworzeniem tagu. Podpis pozostaje w istniejącym chronionym
+środowisku `release`; klucz nie jest pobierany do workspace. Poprzednie
+tagi i zasoby są niezmienne, `main` i Stable pozostają bez zmian.
+
+Zakres i wyniki renderera LVGL: [cyber-blue/blu-control/README.md](cyber-blue/blu-control/README.md).
+Rzeczywiste odczyty radiowe i odbiór na fizycznym ESP32-S3 pozostają do
+wykonania przez właściciela; testy hosta i CI ich nie zastępują.
