@@ -146,7 +146,7 @@ static void show(void)
  }
  if(snapshot.state==DSR_NATIVE_FAILED){
   /* error/fetch/HTTP/manifest: what the owner reports from a failed check. */
-  lv_obj_t *code=dsr_sc_text(body,"",4,196,284,&dsr_roboto_12,DSR_SC_MUTED);
+  lv_obj_t *code=dsr_sc_text(body,"",4,snapshot.boot_selection_attempted?196:164,284,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_label_set_text_fmt(code,"Kod błędu: %d/%d/%d/%d",(int)snapshot.error,(int)snapshot.fetch_result,snapshot.http_status,(int)snapshot.manifest_result);
  }
  if(snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
@@ -157,7 +157,8 @@ static void show(void)
   return;
  }
  if(snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,270,296,restart,NULL);return;}
- int y=234;
+ /* Both main actions fit inside the initial 318 px viewport above Back. */
+ int y=198;
  if(snapshot.state==DSR_NATIVE_AVAILABLE){
   raw(body,snapshot.version,186);char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);raw(body,size,214);
   dsr_ui_primary(dsr_ui_button(body,"Zainstaluj",0,250,296,prompt,NULL));
@@ -168,7 +169,7 @@ static void show(void)
  }
  dsr_ui_button(body,"Sprawdź aktualizacje",0,y,296,check,NULL);
  dsr_ui_button(body,"Zmień kanał",0,y+58,296,channel_prompt,NULL);
- dsr_ui_button(body,"Zezwól na OTA • 2 minuty",0,y+116,296,dsr_ui_web_ota_open,NULL);
+ dsr_ui_button(body,"Zezwól na OTA • 2 minuty",0,y+130,296,dsr_ui_web_ota_open,NULL);
 }
 void dsr_ui_native_ota_open(lv_event_t *event)
 {(void)event;show();}

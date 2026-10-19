@@ -2,6 +2,8 @@
 
 Zmiany robocze po opublikowanym 0.7.56-dev (bez publikacji kolejnego OTA).
 
+- OTA: przyciski Sprawdź aktualizacje i Zmień kanał podniesione o 36 px, a kod błędu kontroli wydania o 32 px. Oba pełne pola dotyku mieszczą się w początkowym widoku nad Wstecz; regresja PL/EN/DE obejmuje również naciśnięcie dolnej krawędzi Zmień kanał.
+
 - Główne zakładki Pomieszczenia / Grupy / Sceny / Urządzenia mają wspólny nagłówek i dolną nawigację. Edycja i powrót pozostają w kontekście danej listy. Nie zmieniono formatu zapisanych danych ani wykonania poleceń.
 - Zegar po lewej, za przyciskiem powrotu na szczegółach. Nazwa urządzenia nie uruchamia ciągłej animacji przewijania.
 - Modal informacji nie jest usuwany przez odczyty w tle. Podczas dotykania lub przewijania stabilnej listy odrysowanie czeka do puszczenia palca; zmiana tożsamości nadal unieważnia stary widok. Dane innego urządzenia nie przebudowują otwartych szczegółów.
