@@ -58,7 +58,11 @@ for original, name in [("02-network-list", "20-fixture-wifi-list"), ("03-passwor
         assert size == b"320 480"
         png(out / (name + ".png"), 320, 480, rgb)
 for path in sorted(onboarding.glob('*.ppm')):
-    if int(path.name.split('-')[0])<30:continue
+    # Raw production BLU frames use native- so the test badge does not hide
+    # their compact header. Baseline-only heap comparison frames are separate.
+    if path.name.startswith('native-baseline-blu-'):continue
+    prefix=path.stem.removeprefix('native-').split('-')[0]
+    if int(prefix)<30:continue
     _,size,_,rgb=path.read_bytes().split(b'\n',3)
     assert size==b'320 480'
     png(out / (path.stem+'.png'),320,480,rgb)

@@ -65,13 +65,21 @@ karty. Zachowuje się pozycję przewijania przy zmianie odczytu.
   Nie jest liczona jako zaliczony lokalny LSan. Pełne ASan/LSan/UBSan oraz
   kompilację targetu wykonuje niezmieniony workflow
   [Firmware checks](https://github.com/voltex-at/DIY-Shelly-Remote/actions/workflows/ci.yml?query=branch%3Awork%2Fshelly-hud-cyber-blue).
-  Wynik dla konkretnego commitu i dane ELF należy odczytać z tego uruchomienia.
+  Testy LVGL z ASan/LSan/UBSan przeszły dla kodu UI `7f64922` (w tym 891
+  nowych kontroli). Następujący po testach eksport galerii ujawnił założenie
+  o wyłącznie numerycznych nazwach; konwerter rozszerzono o prefiks `native-`
+  i sprawdzono pełny eksport lokalnie. Zbiorczy wynik dla bieżącego commitu
+  jest w podlinkowanym workflow.
 
 ## Pamięć i wydajność
 
 | Pomiar | Wynik |
 |---|---:|
 | Nowe statyczne maski A8 (31 sztuk) | 73 856 B danych źródłowych Flash + deskryptory |
+| BIN ESP32-S3 | **4 069 024 B**, +66 272 B względem 0.7.58-dev |
+| Wewnętrzny BSS / DIRAM | **81 792 / 212 967 B**, bez zmiany |
+| Zewnętrzny BSS | **152 376 B**, bez zmiany |
+| Wolne miejsce w partycji app 6 MiB | **35%** |
 | Fonty | bez nowych fontów |
 | Pula LVGL | bez zmiany: 131 072 B w PSRAM |
 | Stos UI | bez zmiany: 8192 B w pamięci wewnętrznej |
@@ -84,7 +92,10 @@ Porównanie przed/po używa tej samej konfiguracji LVGL, kompilatora, fixture i
 rozgrzania cache. Wariant bazowy linkuje `dsr_ui_mobile.c` i mapper ikon z
 niezmiennego `dev-v0.7.58`. Reprodukcja: `python3 tools/measure_cyber_blu_heap.py`.
 Wyniki hosta uwzględniają wskaźniki 64-bit i nie są pomiarem heap ESP32.
-Całkowity przyrost obrazu Flash może być mniejszy od sumy nowych masek: linker
+Wyniki kompilacji: ESP-IDF 5.5.4 / LVGL 9.3.0,
+[job es3c35p dla kodu UI 7f64922](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/39291636619/job/118193485682).
+Obraz zmieścił się w dotychczasowej partycji. Całkowity przyrost Flash jest
+mniejszy od sumy nowych masek: linker
 może pominąć zastąpione, nieużywane warianty; ich pliki źródłowe zachowano.
 
 Brak nowego bufora grafiki, dekodera SVG/PNG, timera, animacji, blur lub cienia.
