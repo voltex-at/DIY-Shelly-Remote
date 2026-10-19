@@ -1,0 +1,205 @@
+{
+  "source": "code-native outlines based on supplied Window / Door reference pack",
+  "format": "LV_COLOR_FORMAT_A8; transparent runtime recoloring",
+  "svg_sha256": {
+    "window-closed": "2692dbb9cd0f77be41cb46dd481b438e5257e97b3734c1576ea096d7a61b4bf4",
+    "window-open": "df13045839c58d3f100327afcbd0bac40feae01a0d3f290d56292cb81646a450",
+    "window-tilted": "b1390cd7935f8897774947ade6ff226e3cbfc2e9bacde0d300a98cebd3edd795",
+    "window-no-data": "c4c598b85acb75f51b42b755d45fe7c3029ff748016223df1586d920140c93f4",
+    "door-closed": "7ccf92075f41a40bd623c709ce73466c6ed99b734731504a6c1b1901404f4ec9",
+    "door-open": "603abaef304802e6b362c1a4192c3f708117f6e51dcda61a0dd86d424cbef12d",
+    "door-no-data": "2dbf87bbabaae39c9efc6aef923b60f0543bda0e81b225f2f5f051e7bcdc24ff",
+    "illuminance": "59600457f0f3a579966f5f2cc8ff613291c002c93d716c566331694d53dd4de4",
+    "signal": "674df2dd326e58aae14623e770c6008033047650f66c437f7703e0e7d0f57204",
+    "clock": "07a73dd6e87de2bb5a46553c2c98c7fa07b60dfaa3da9b2e47e1562a72959b32"
+  },
+  "mask_bytes": 73856,
+  "assets": {
+    "shudb_window_closed_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "341c62f75a49fff02cd767545bc85f5d83af0f1d181cbf6ff1bf047419945b74",
+      "svg": "window-closed.svg"
+    },
+    "shudb_window_closed_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "be03bbbe6acff23d3fd37e006205996cda0d2102adbccef827e30cb0a6532b10",
+      "svg": "window-closed.svg"
+    },
+    "shudb_window_closed_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "fc04009c1788f201aa951afe51eb7530cd0844a2303688cf4e1a4c098c2f7a05",
+      "svg": "window-closed.svg"
+    },
+    "shudb_window_closed_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "9f2c678b1881d3e556440820b52a42a0a8907282fc8c09260446e1825eb17104",
+      "svg": "window-closed.svg"
+    },
+    "shudb_window_open_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "e28a17c310d8278c6ac302480d32b738d5d76ca8841053b87d68f3e7a0acf745",
+      "svg": "window-open.svg"
+    },
+    "shudb_window_open_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "caf412617d91b51d9b5d7d6e99e29109b72fbdc1b8e84635a831a1244e80c63f",
+      "svg": "window-open.svg"
+    },
+    "shudb_window_open_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "bcd5a55c4f8d578a7172891bec35a2890a95c656e62c19f7cfc47cc4176a01f5",
+      "svg": "window-open.svg"
+    },
+    "shudb_window_open_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "5fcc4fe599a77f27725aedba0f50c7a6de75f76e1a3a2aef22d35cb56d6bafb2",
+      "svg": "window-open.svg"
+    },
+    "shudb_window_tilted_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "af074d086e833a1c1c77b27340a4af8b204f32b8e0ff596060082fbf68005d04",
+      "svg": "window-tilted.svg"
+    },
+    "shudb_window_tilted_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "e9cfc3edd848990cbeb15ef232b9e8c6561c7357bf13852c9a2011dffc139546",
+      "svg": "window-tilted.svg"
+    },
+    "shudb_window_tilted_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "0f533f600aa682d5c45f6cfe469cb08e81e82cebdb5996eeb872aad8e090c230",
+      "svg": "window-tilted.svg"
+    },
+    "shudb_window_tilted_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "664b2a7cdf80afaa54f3d6f59475b65f9659e31b17014ff4a15332307264c83b",
+      "svg": "window-tilted.svg"
+    },
+    "shudb_window_no_data_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "f56883aabad93603a41290286041dd9ea2725cbba646156a618d0a0cb73de718",
+      "svg": "window-no-data.svg"
+    },
+    "shudb_window_no_data_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "369a8767665bf815ff3059e78293b476f39f85d59bc9c9cdd152f562980e5374",
+      "svg": "window-no-data.svg"
+    },
+    "shudb_window_no_data_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "b9019b3771faed3e5db3e6d3f26987a98a72339f7a698fbe80c48fcf2a301169",
+      "svg": "window-no-data.svg"
+    },
+    "shudb_window_no_data_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "d0e01967d10dde9a72f24eb788471d2a8494ac91b732b8595d4e23838de9221d",
+      "svg": "window-no-data.svg"
+    },
+    "shudb_door_closed_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "a7a535976ce8ffd4d041e4b85e773c296d348874022483ce19f7aae8c091f98d",
+      "svg": "door-closed.svg"
+    },
+    "shudb_door_closed_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "202ff4cd6ea1c8eb002989bb31fd9a7e3edaa51a8386fd6ebc19dcb719b71340",
+      "svg": "door-closed.svg"
+    },
+    "shudb_door_closed_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "b618014a19fb61de132356852318d39760a5c4c09b6211f64c694a52907a5120",
+      "svg": "door-closed.svg"
+    },
+    "shudb_door_closed_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "a8742dadfba76c380de67648df1cfdc0286b23762b0683e8a99f16a557fad7e9",
+      "svg": "door-closed.svg"
+    },
+    "shudb_door_open_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "d0d0fdd8c245d0e578f47f1476af026ac7b057604b5f02ae825ff87b0f74d2e1",
+      "svg": "door-open.svg"
+    },
+    "shudb_door_open_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "f1040f255aa783a3bb68c342e6b324de5d2b9cc2bef4fada82e91ba9c06f1a12",
+      "svg": "door-open.svg"
+    },
+    "shudb_door_open_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "3458c26017b4ce428fbdd55e042c889304b131685b6f24cb214f76e55e1d31e0",
+      "svg": "door-open.svg"
+    },
+    "shudb_door_open_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "6d8835f3655f1a0af3d4795456c19cce9c231b88a4445708686871f9fb388e5b",
+      "svg": "door-open.svg"
+    },
+    "shudb_door_no_data_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "5a4a3d0cb7bb2890fb308ae540ac4e3b17f9eb23f7063c42da17492bcd70c817",
+      "svg": "door-no-data.svg"
+    },
+    "shudb_door_no_data_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "72f93daf5ad9c75ad13eb11d3de5f8e74a25d8b3e58c7b6c1b939f0199ecb9c6",
+      "svg": "door-no-data.svg"
+    },
+    "shudb_door_no_data_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "7c1ae732f01730ebff68c63a55e6504f3e520d6a88438c09f8bca4e2165dcce3",
+      "svg": "door-no-data.svg"
+    },
+    "shudb_door_no_data_80": {
+      "size": 80,
+      "bytes": 6400,
+      "sha256": "9496041a4db646fc639f051ca431c4a2d8bb03a88df584438337d975aaae632e",
+      "svg": "door-no-data.svg"
+    },
+    "shudb_illuminance_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "1d627f43a489df5bcfcf0acd292a97f76f1d9fffc1fb56311cc7833fdfb683ba",
+      "svg": "illuminance.svg"
+    },
+    "shudb_signal_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "57bf7c6a37e359a6b0df7dc876ac95dc29c7f1bf87ed0daf4147f7f7744da3c5",
+      "svg": "signal.svg"
+    },
+    "shudb_clock_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "1171f4a0fd7cd3f5d05bd4f3178d306f3c2641232a06f22d3c78bec4cf1ea60b",
+      "svg": "clock.svg"
+    }
+  }
+}

@@ -31,7 +31,8 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     DSR_ICON_COFFEE, DSR_ICON_LAUNDRY, DSR_ICON_AC, DSR_ICON_SPEAKER, DSR_ICON_ROUTER, DSR_ICON_WINDOW_CLOSED, DSR_ICON_WINDOW_OPEN, DSR_ICON_DOOR_CLOSED, DSR_ICON_DOOR_OPEN, DSR_ICON_VALVE, DSR_ICON_BLUETOOTH, DSR_ICON_REFRESH,
     /* Cyber-only semantic roles; existing persistent IDs remain unchanged. */
     DSR_ICON_CPU, DSR_ICON_GIT_BRANCH, DSR_ICON_PALETTE, DSR_ICON_DISPLAY, DSR_ICON_SHIELD,
-    DSR_ICON_NEXT, DSR_ICON_STOP, DSR_ICON_SAVE, DSR_ICON_TRASH, DSR_ICON_WARNING, DSR_ICON_ACTIVITY, DSR_ICON_MEMORY, DSR_ICON_POWER_SUPPLY, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_NEXT, DSR_ICON_STOP, DSR_ICON_SAVE, DSR_ICON_TRASH, DSR_ICON_WARNING, DSR_ICON_ACTIVITY, DSR_ICON_MEMORY, DSR_ICON_POWER_SUPPLY, DSR_ICON_WINDOW_TILTED, DSR_ICON_WINDOW_NO_DATA, DSR_ICON_DOOR_NO_DATA,
+    DSR_ICON_ILLUMINANCE, DSR_ICON_SIGNAL, DSR_ICON_CLOCK, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);
@@ -61,6 +62,7 @@ void dsr_sc_background(lv_obj_t *root);
 unsigned dsr_sc_language(void);
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context);
 void dsr_mobile_actions_shell(lv_obj_t *root,uint8_t kind);
+void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context,lv_event_cb_t help);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
 /* Shelly Smart Control look (owner references 2026-10-18). */

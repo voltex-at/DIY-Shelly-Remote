@@ -610,6 +610,17 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
 #endif
  }
 }
+/* Compact Cyber BLU header: keep the shared clock and its delete lifetime. */
+void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context,lv_event_cb_t help)
+{
+ lv_obj_t *b=dsr_sc_button(root,0,0,40,42,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,DSR_SC_TEXT);
+ if(demo)dsr_sc_text(root,"DEMO",44,12,58,&dsr_roboto_14,0xffb52e);
+ else{clock_label=dsr_sc_text(root,"",45,9,57,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();}
+ dsr_sc_panel(root,104,9,1,25,DSR_SC_BLUE,0);
+ lv_obj_t *name=dsr_sc_text(root,title,111,12,130,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,20);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
+ dsr_sc_icon(root,DSR_ICON_WIFI,247,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
+ b=dsr_sc_button(root,280,0,40,42,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,DSR_SC_TEXT);
+}
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {
  lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);

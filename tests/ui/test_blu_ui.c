@@ -85,5 +85,16 @@ int main(int argc,char **argv)
  lv_dropdown_set_selected(gw_channel,option_index(gw_channel,"BLU Door/Window 0b11"));lv_obj_send_event(gw_channel,LV_EVENT_VALUE_CHANGED,NULL);
  CHECK(!strcmp(lv_textarea_get_text(find_type(lv_screen_active(),&lv_textarea_class)),"BLU Door/Window 0b11"));screenshot("364-blu-gateway-labels");
  dsr_ui_lan_reset();
+ /* Cyber layout uses the same bound gateway, cid and read-only PROBE. */
+ doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString("cyber_blue"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString("pl"));publish_document(doc);dsr_network_home(NULL);dsr_network_device_control(id);tick();
+ if(in_flight){blu_response(false,true);tick();}
+ CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);
+ unsigned probes=job_counts[DSR_JOB_PROBE],sets=job_counts[DSR_JOB_SET_OUTPUT];
+ click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_BLU&&submitted.connection.device.channel==3);
+ response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_illuminance=true,.illuminance_lux=4,.has_blu_battery=true,.blu_battery_pct=100,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_HAS_RSSI,.rssi=-58}}};strcpy(response.device.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);tick();
+ CHECK(find_label(lv_screen_active(),"Zamknięte")&&find_label(lv_screen_active(),"4 lx")&&find_label(lv_screen_active(),"-58 dBm"));screenshot("native-860-blu-gateway-closed");
+ click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device=submitted.connection.device;response.device.online=true;response.telemetry.blu.flags|=DSR_BLU_OPEN;deliver(DSR_OK,DSR_WIFI_IDLE);tick();CHECK(find_label(lv_screen_active(),"Otwarte"));
+ click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device=submitted.connection.device;response.device.online=true;response.telemetry.blu.errors=DSR_BLU_ERROR_DECRYPT;deliver(DSR_OK,DSR_WIFI_IDLE);tick();CHECK(find_label(lv_screen_active(),"Brak danych")&&!find_label(lv_screen_active(),"Otwarte")&&!find_label(lv_screen_active(),"Zamknięte"));
+ CHECK(job_counts[DSR_JOB_PROBE]>=probes+3&&job_counts[DSR_JOB_SET_OUTPUT]==sets);
  printf("PASS: %u actual BLU LCD checks; %u frames; LAN gateway choice/typed BIND/read-only probe/offline/PL EN; heap %lu→%lu; SDK/storage MODEL\n",checks,screenshots,(unsigned long)m1.free_size,(unsigned long)m2.free_size);lv_deinit();return 0;
 }

@@ -13,7 +13,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
 p.add_argument("--jobs", type=int, default=6, help="Parallel compiler processes (use 1 on constrained hosts)")
-p.add_argument("--case", choices=["test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui"], help="Run one focused regression after compiling production UI")
+p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -49,6 +49,7 @@ sources += [ROOT / "components/dsr_platform/dsr_actions.c", ROOT / "components/d
 sources += [ROOT / name for name in ["components/dsr_ui/dsr_ui_config.c","components/dsr_ui/dsr_ui_preview.c","components/dsr_config/dsr_config.c","components/dsr_core/dsr_core.c","components/dsr_platform/dsr_discovery_model.c","tests/ui/workspace_fixture.c"]]
 sources += sorted((ROOT / "components/dsr_ui/fonts").glob("*.c"))
 sources.append(ROOT / "components/dsr_ui/cyber_icons/shelly_hud_extra.c")
+sources.append(ROOT / "components/dsr_ui/cyber_icons/shelly_hud_blu.c")
 # Owner brand artwork: same bytes the firmware embeds via EMBED_FILES.
 brand_dir = Path(tempfile.mkdtemp(prefix="dsr-brand-"))
 for asset in sorted((ROOT / "components/dsr_ui/brand").glob("*.rgb565")):
@@ -61,7 +62,7 @@ sources.append(ROOT / "components/dsr_ui/dsr_ui_brand.c")
 if not args.review:
     sources += [ROOT / "components/dsr_platform/dsr_config_health.c"]
 if args.review:
-    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_cyber.c","dsr_ui_cyber_icons.c","shelly_hud_icons.c","shelly_hud_extra.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
+    sources = [s for s in sources if s.is_relative_to(lvgl) or s.name.startswith("dsr_roboto_") or s.name.startswith("room_") or s.name in ["test_ui_review.c","dsr_ui_style.c","dsr_ui_cyber.c","dsr_ui_cyber_icons.c","shelly_hud_icons.c","shelly_hud_extra.c","shelly_hud_blu.c","dsr_ui_mobile.c","dsr_ui_room_photos.c","dsr_ui_icons.c","dsr_ui_config.c","dsr_config.c","dsr_core.c","dsr_activity.c"]]
 config_hash = hashlib.sha256((ROOT / "tests/ui/lv_conf.h").read_bytes() + repr(flags).encode()).hexdigest()
 def compile_source(source):
     obj = build / (hashlib.sha256(str(source).encode()).hexdigest()[:20] + ".o")
@@ -122,7 +123,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))

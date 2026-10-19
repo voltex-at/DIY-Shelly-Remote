@@ -4,6 +4,7 @@
 #include "dsr_ui_cyber_icons.h"
 #include "cyber_icons/shelly_hud_icons.h"
 #include "cyber_icons/shelly_hud_extra.h"
+#include "cyber_icons/shelly_hud_blu.h"
 
 
 const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
@@ -34,8 +35,8 @@ const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
  case DSR_ICON_DOOR:return size>=29?&shud_door_32:&shud_door_24;
  case DSR_ICON_AC:return size>=29?&shud_snowflake_32:&shud_snowflake_24;
  case DSR_ICON_ROUTER:return size>=29?&shud_access_point_32:&shud_access_point_24;
- case DSR_ICON_WINDOW_CLOSED:return size>=48?&shud_window_closed_48:&shud_window_closed_24;
- case DSR_ICON_WINDOW_OPEN:return size>=48?&shud_window_open_48:&shud_window_open_24;
+ case DSR_ICON_WINDOW_CLOSED:return size>=64?&shudb_window_closed_80:size>=40?&shudb_window_closed_48:size>=29?&shudb_window_closed_32:&shudb_window_closed_24;
+ case DSR_ICON_WINDOW_OPEN:return size>=64?&shudb_window_open_80:size>=40?&shudb_window_open_48:size>=29?&shudb_window_open_32:&shudb_window_open_24;
  case DSR_ICON_BLUETOOTH:return &shud_bluetooth_24;
  case DSR_ICON_REFRESH:return &shud_refresh_24;
  case DSR_ICON_CPU:return size>=29?&shud_cpu_32:&shud_cpu_24;
@@ -65,9 +66,15 @@ const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
  case DSR_ICON_COFFEE:return size>=48?&shudx_coffee_machine_48:size>=29?&shudx_coffee_machine_32:&shudx_coffee_machine_24;
  case DSR_ICON_LAUNDRY:return size>=48?&shudx_washing_machine_48:size>=29?&shudx_washing_machine_32:&shudx_washing_machine_24;
  case DSR_ICON_SPEAKER:return size>=48?&shudx_speaker_48:size>=29?&shudx_speaker_32:&shudx_speaker_24;
- case DSR_ICON_DOOR_CLOSED:return size>=48?&shudx_door_closed_48:size>=29?&shudx_door_closed_32:&shudx_door_closed_24;
- case DSR_ICON_DOOR_OPEN:return size>=48?&shudx_door_open_48:size>=29?&shudx_door_open_32:&shudx_door_open_24;
+ case DSR_ICON_DOOR_CLOSED:return size>=64?&shudb_door_closed_80:size>=40?&shudb_door_closed_48:size>=29?&shudb_door_closed_32:&shudb_door_closed_24;
+ case DSR_ICON_DOOR_OPEN:return size>=64?&shudb_door_open_80:size>=40?&shudb_door_open_48:size>=29?&shudb_door_open_32:&shudb_door_open_24;
  case DSR_ICON_VALVE:return size>=48?&shudx_valve_48:size>=29?&shudx_valve_32:&shudx_valve_24;
+ case DSR_ICON_WINDOW_TILTED:return size>=64?&shudb_window_tilted_80:size>=40?&shudb_window_tilted_48:size>=29?&shudb_window_tilted_32:&shudb_window_tilted_24;
+ case DSR_ICON_WINDOW_NO_DATA:return size>=64?&shudb_window_no_data_80:size>=40?&shudb_window_no_data_48:size>=29?&shudb_window_no_data_32:&shudb_window_no_data_24;
+ case DSR_ICON_DOOR_NO_DATA:return size>=64?&shudb_door_no_data_80:size>=40?&shudb_door_no_data_48:size>=29?&shudb_door_no_data_32:&shudb_door_no_data_24;
+ case DSR_ICON_ILLUMINANCE:return &shudb_illuminance_24;
+ case DSR_ICON_SIGNAL:return &shudb_signal_24;
+ case DSR_ICON_CLOCK:return &shudb_clock_24;
  default:return NULL;
  }
 }

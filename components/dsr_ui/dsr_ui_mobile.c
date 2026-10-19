@@ -160,6 +160,7 @@ static void dashboard_info(lv_event_t *event)
 static void refresh_info(void)
 {
  if(!info_overlay)return;
+ if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&model.devices[selected].endpoint_kind==DSR_ENDPOINT_BLU)return;
  lv_obj_t *panel=lv_obj_get_child(info_overlay,0);if(!panel)return;
  char text[96];unsigned online=0;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].online)online++;
  snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),model.device_count,online);lv_obj_t *count=lv_obj_get_child(panel,2);if(strcmp(lv_label_get_text(count),text))lv_label_set_text(count,text);
@@ -237,6 +238,11 @@ static lv_obj_t *power_button(lv_obj_t *parent,unsigned index,int x,int y,int si
 }
 static dsr_ui_icon_t kind_icon(dsr_mobile_kind_t kind);
 static dsr_ui_icon_t contact_icon(const dsr_mobile_device_t *d,bool open);
+static bool cyber_blu(const dsr_mobile_device_t *d);
+static bool cyber_contact(const dsr_mobile_device_t *d);
+static bool cyber_blu_live(const dsr_mobile_device_t *d);
+static dsr_ui_icon_t cyber_contact_icon(const dsr_mobile_device_t *d);
+static uint32_t cyber_contact_color(const dsr_mobile_device_t *d);
 /* Owner-chosen icon (Shelly app "Standardbilder"), otherwise by type. */
 static dsr_ui_icon_t device_icon(const dsr_mobile_device_t *d)
 {return d->icon&&d->icon<=DSR_SC_DEVICE_ICONS?dsr_sc_device_icons[d->icon-1]:kind_icon(d->kind);}
@@ -274,6 +280,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     edge(card,on?DSR_SC_GLOW:0x3a3f44,on?2:1);
     if(hud)dsr_ui_cyber_device(card,on,d->error!=DSR_OK||unbound(d)||!d->online);else dsr_sc_glow(card,on);
     const char *state=unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak połączenia":d->busy&&!(sensor&&d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
+    if(hud&&cyber_blu(d)&&cyber_contact(d)&&(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))&&d->error==DSR_OK&&!unbound(d))state="Brak danych";
     char subtitle[96];snprintf(subtitle,sizeof(subtitle),"%s • %s",d->room<model.room_count?room_name(d):dsr_sc_tr(room_name(d)),dsr_sc_tr(state));
     bool warn=d->error!=DSR_OK||unbound(d)||!d->online;
     int body=hud?height/2+10:height/2-(on?2:1);
@@ -282,7 +289,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),hud?66:12,hud?body-24:3,hud?width-66-right:width-24,&dsr_roboto_12,warn?0xffc18c:hud&&on?DSR_SC_BLUE:DSR_SC_MUTED);truncate(status,18);
     lv_obj_t *thumb=dsr_sc_panel(card,8,body-25,50,50,0x17191c,LV_RADIUS_CIRCLE);
     if(hud)dsr_ui_cyber_inset(thumb);
-    dsr_sc_icon_centered(thumb,device_icon(d),hud?32:30,d->online?(on?DSR_SC_GLOW:DSR_SC_TEXT):DSR_SC_OFF);
+    dsr_sc_icon_centered(thumb,hud&&cyber_blu(d)&&cyber_contact(d)?cyber_contact_icon(d):device_icon(d),hud?32:30,hud&&cyber_blu(d)&&cyber_contact(d)?cyber_contact_color(d):d->online?(on?DSR_SC_GLOW:DSR_SC_TEXT):DSR_SC_OFF);
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),hud?12:66,hud?3:body-20,hud?width-24:width-66-right,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,hud?20:22);
     if(cover){
      /* Pill with two white round arrows, as in the app. */
@@ -300,10 +307,10 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
      center(dsr_sc_text(pill,t,40,4,34,&dsr_roboto_14,DSR_SC_TEXT));center(dsr_sc_text(pill,"°C",40,24,34,&dsr_roboto_12,DSR_SC_TEXT));
     }else if(state_box){
      /* Read-only state tile ("Geschlossen" in the app). */
-     const char *what=d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_MOTION)?"Ruch":"Brak ruchu";
+     const char *what=hud&&cyber_blu(d)&&cyber_contact(d)&&(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))?"Brak danych":d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_MOTION)?"Ruch":"Brak ruchu";
      bool alert=d->has_contact?d->contact_open:(d->blu.flags&DSR_BLU_MOTION)!=0;
      lv_obj_t *box=dsr_sc_panel(card,width-98,body-26,90,52,0x1d2124,12);if(alert)edge(box,0xf0a020,2);
-     dsr_sc_icon(box,d->has_contact?contact_icon(d,d->contact_open):DSR_ICON_CONTACT,35,4,20,alert?0xf0a020:DSR_SC_TEXT);center(dsr_sc_text(box,what,2,28,86,&dsr_roboto_12,DSR_SC_TEXT));
+     dsr_sc_icon(box,d->has_contact?(hud&&cyber_blu(d)?cyber_contact_icon(d):contact_icon(d,d->contact_open)):DSR_ICON_CONTACT,35,4,20,hud&&cyber_blu(d)&&cyber_contact(d)?cyber_contact_color(d):alert?0xf0a020:DSR_SC_TEXT);center(dsr_sc_text(box,what,2,28,86,&dsr_roboto_12,DSR_SC_TEXT));
     }else if(!sensor){
      bool valid=d->online&&!d->busy&&d->can_switch;
      dsr_sc_power_button(card,width-64,body-28,56,on,valid,DSR_ICON_POWER,DSR_SC_GLOW,control,(void *)(uintptr_t)i);
@@ -719,9 +726,88 @@ static void trv_details(lv_obj_t *root)
 }
 static dsr_ui_icon_t contact_icon(const dsr_mobile_device_t *d,bool open)
 {return device_icon(d)==DSR_ICON_DOOR?(open?DSR_ICON_DOOR_OPEN:DSR_ICON_DOOR_CLOSED):(open?DSR_ICON_WINDOW_OPEN:DSR_ICON_WINDOW_CLOSED);}
+/* Cyber-only presentation. Flags and readings remain gateway-owned; there
+ * is no tilt/alarm inference and no change to the refresh transport. */
+static bool cyber_blu(const dsr_mobile_device_t *d)
+{return dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&d->endpoint_kind==DSR_ENDPOINT_BLU&&!trv_device(d);}
+static bool cyber_contact(const dsr_mobile_device_t *d)
+{return d->kind==DSR_DEVICE_CONTACT||device_icon(d)==DSR_ICON_DOOR||(d->icon&&device_icon(d)==DSR_ICON_CONTACT)||(d->blu.flags&DSR_BLU_HAS_OPEN);}
+static bool cyber_blu_live(const dsr_mobile_device_t *d)
+{return d->online&&d->error==DSR_OK&&(d->blu.flags&DSR_BLU_VALID)&&!(d->blu.errors&DSR_BLU_ERROR_MASK);}
+static dsr_ui_icon_t cyber_contact_icon(const dsr_mobile_device_t *d)
+{
+ bool door=device_icon(d)==DSR_ICON_DOOR;
+ if(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))return door?DSR_ICON_DOOR_NO_DATA:DSR_ICON_WINDOW_NO_DATA;
+ return contact_icon(d,(d->blu.flags&DSR_BLU_OPEN)!=0);
+}
+static uint32_t cyber_contact_color(const dsr_mobile_device_t *d)
+{return !cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN)?0x8295ab:(d->blu.flags&DSR_BLU_OPEN)?0xffb52e:0x00cfff;}
+static void blu_info(lv_event_t *event)
+{
+ (void)event;if(info_overlay||selected>=model.device_count)return;
+ info_open=true;info_overlay=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);lv_obj_set_style_bg_opa(info_overlay,190,0);lv_obj_add_flag(info_overlay,LV_OBJ_FLAG_CLICKABLE);
+ lv_obj_t *p=dsr_sc_panel(info_overlay,12,110,296,248,DSR_SC_CARD,12);
+ dsr_sc_text(p,"Informacje o czujniku",12,12,272,&dsr_roboto_18,DSR_SC_TEXT);
+ lv_obj_t *name=dsr_sc_text(p,dsr_sc_name(model.devices[selected].name),12,46,272,&dsr_roboto_16,DSR_SC_TEXT);truncate(name,42);
+ dsr_sc_text(p,"Dane czujnika są odczytywane przez bramkę Shelly. Odświeżanie sprawdza bramkę; nie wymusza nowego sygnału czujnika.",12,96,272,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_t *close=dsr_sc_button(p,12,192,272,44,DSR_SC_PANEL,8,close_info,NULL);center(dsr_sc_text(close,"Zamknij",4,12,264,&dsr_roboto_16,DSR_SC_TEXT));
+}
+static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
+{
+ const dsr_blu_status_t *b=&d->blu;bool live=cyber_blu_live(d),contact=cyber_contact(d);char text[96];
+ uint32_t state_color=contact?cyber_contact_color(d):live?0x00cfff:0x8295ab;
+ content=dsr_sc_panel(root,8,90,304,334,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
+ lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
+ lv_obj_t *panel=dsr_sc_panel(content,0,0,304,202,DSR_SC_CARD,12);edge(panel,DSR_SC_BLUE,1);
+ dsr_sc_icon(panel,contact?cyber_contact_icon(d):DSR_ICON_CONTACT,112,3,80,state_color);
+ const char *main_text=!live?"Brak danych":contact?((b->flags&DSR_BLU_HAS_OPEN)?((b->flags&DSR_BLU_OPEN)?"Otwarte":"Zamknięte"):"Brak danych"):(b->flags&DSR_BLU_HAS_MOTION)?((b->flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):NULL;
+ if(!main_text){if(d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Brak danych"));main_text=dsr_sc_user(text);}
+ lv_obj_t *well=dsr_sc_panel(panel,16,86,272,38,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);edge(well,state_color,1);
+ lv_obj_t *label=dsr_sc_text(well,main_text,2,2,268,&dsr_roboto_28,state_color);center(label);truncate(label,34);
+ dsr_sc_panel(panel,12,130,280,1,DSR_SC_EDGE,0);dsr_sc_panel(panel,147,138,1,35,DSR_SC_EDGE,0);
+ dsr_sc_icon(panel,d->has_illuminance||contact?DSR_ICON_ILLUMINANCE:DSR_ICON_THERMOSTAT,16,141,24,live?0x00cfff:0x8295ab);
+ if(live&&d->has_illuminance)snprintf(text,sizeof(text),"%.0f lx",d->illuminance_lux);
+ else if(live&&d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"—");
+ label=dsr_sc_text(panel,text,46,143,96,&dsr_roboto_18,DSR_SC_TEXT);truncate(label,25);
+ dsr_sc_icon(panel,DSR_ICON_BATTERY,160,136,20,live?0x00cfff:0x8295ab);
+ if(live&&d->has_battery)snprintf(text,sizeof(text),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);else snprintf(text,sizeof(text),"%s —",dsr_sc_tr("Bateria"));
+ label=dsr_sc_text(panel,dsr_sc_user(text),184,136,110,&dsr_roboto_14,DSR_SC_TEXT);truncate(label,18);
+ dsr_sc_icon(panel,DSR_ICON_SIGNAL,160,156,20,live?0x00cfff:0x8295ab);
+ if(live&&(b->flags&DSR_BLU_HAS_RSSI))snprintf(text,sizeof(text),"%d dBm",(int)b->rssi);else snprintf(text,sizeof(text),"— dBm");
+ dsr_sc_text(panel,text,184,157,110,&dsr_roboto_14,DSR_SC_TEXT);
+ dsr_sc_panel(panel,12,177,280,1,DSR_SC_EDGE,0);dsr_sc_icon(panel,DSR_ICON_CLOCK,12,182,16,DSR_SC_MUTED);
+ if(live&&d->blu_age_s>=0){unsigned age=(unsigned)d->blu_age_s;
+  if(age<120)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),age);else if(age<7200)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u min temu"),age/60);else snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u h temu"),age/3600);}
+ else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Czas ostatniego sygnału nieznany"));
+ label=dsr_sc_text(panel,dsr_sc_user(text),34,182,256,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_update_layout(label);
+ int panel_height=182+lv_obj_get_height(label)+5;
+ /* Non-contact BLU models retain their additional measurements, on demand in
+  * the same bounded scroll area, instead of losing them in a clipped block. */
+ if(live&&(d->has_humidity||(b->flags&DSR_BLU_HAS_BUTTON)||(d->has_temperature&&d->has_illuminance))){
+  text[0]=0;if(d->has_temperature&&d->has_illuminance)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);
+  if(d->has_humidity)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%.0f%% RH",text[0]?" • ":"",d->humidity_pct);
+  if(b->flags&DSR_BLU_HAS_BUTTON)snprintf(text+strlen(text),sizeof(text)-strlen(text),"%s%s %u",text[0]?" • ":"",dsr_sc_tr("Przycisk"),(unsigned)b->button);
+  label=dsr_sc_text(panel,dsr_sc_user(text),12,panel_height,280,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_update_layout(label);panel_height+=lv_obj_get_height(label)+6;
+ }
+ if(panel_height<202)panel_height=202;
+ lv_obj_set_height(panel,panel_height);
+ int gateway_y=panel_height+8;
+ lv_obj_t *gateway=dsr_sc_panel(content,0,gateway_y,304,68,DSR_SC_CARD,10);dsr_sc_icon(gateway,DSR_ICON_ROUTER,10,16,32,DSR_SC_BLUE);dsr_sc_panel(gateway,48,10,1,48,DSR_SC_EDGE,0);
+ dsr_sc_text(gateway,"Shelly BLU • przez bramkę",58,5,234,&dsr_roboto_14,DSR_SC_TEXT);
+ const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):(b->errors&DSR_BLU_ERROR_MASK)?((b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome"):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
+ label=dsr_sc_text(gateway,state,58,25,234,&dsr_roboto_12,d->online&&d->error==DSR_OK&&!(b->errors&DSR_BLU_ERROR_MASK)?0x00cfff:0xffb52e);lv_obj_update_layout(label);
+ int age_y=25+lv_obj_get_height(label)+4;
+ sample_age=dsr_sc_text(gateway,"",58,age_y,234,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();lv_obj_update_layout(sample_age);
+ int gateway_height=age_y+lv_obj_get_height(sample_age)+6;if(gateway_height<68)gateway_height=68;lv_obj_set_height(gateway,gateway_height);
+ lv_obj_t *button=dsr_sc_button(content,0,gateway_y+gateway_height+8,304,48,DSR_SC_BLUE,10,refresh,NULL);dsr_ui_cyber_panel(button,true);
+ dsr_sc_icon(button,DSR_ICON_REFRESH,16,12,24,DSR_SC_TEXT);dsr_sc_panel(button,52,10,1,28,DSR_SC_EDGE,0);
+ center(dsr_sc_text(button,d->busy?"Odczyt stanu…":"Odśwież status",62,14,228,&dsr_roboto_16,DSR_SC_TEXT));
+ if(d->busy||!d->can_refresh||!actions.refresh||model.demo)lv_obj_add_state(button,LV_STATE_DISABLED);
+}
 static void blu_details(lv_obj_t *root)
 {
  const dsr_mobile_device_t *d=&model.devices[selected];char text[96];const dsr_blu_status_t *b=&d->blu;
+ if(cyber_blu(d)){cyber_blu_details(root,d);return;}
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,hud?208:246,DSR_SC_CARD,10);
  lv_obj_t *gateway=panel;
@@ -835,11 +921,12 @@ static void render(void)
     static const char fallback_title[]="Mój dom";
     const char *title=(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS)&&selected<model.device_count?model.devices[selected].name:
         page==DSR_MOBILE_ROOM&&selected<model.room_count?model.rooms[selected].name:fallback_title;
-    if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)cover_header(root,title);
+    if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&cyber_blu(&model.devices[selected]))dsr_sc_blu_header(root,dsr_sc_name(title),model.demo,model.wifi,navigate,(void *)(uintptr_t)98,blu_info);
+    else if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)cover_header(root,title);
     else header(root,title==fallback_title?"":dsr_sc_name(title),page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||page==DSR_MOBILE_ROOM);
     tabs(root);
     if(page==DSR_MOBILE_DEVICE_SETTINGS){device_settings(root);if(content)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);}
-    else if(page==DSR_MOBILE_DETAILS)details(root);
+    else if(page==DSR_MOBILE_DETAILS){details(root);if(content)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);}
     else {
         toolbar(root,page==DSR_MOBILE_HOME?(model.dashboard_name[0]?dsr_sc_name(model.dashboard_name):"Mój pulpit"):page==DSR_MOBILE_ROOMS?"Pomieszczenia":"Urządzenia");
         content=dsr_sc_panel(root,12,page==DSR_MOBILE_HOME?98:146,296,page==DSR_MOBILE_HOME?318:270,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
