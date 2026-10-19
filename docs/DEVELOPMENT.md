@@ -133,9 +133,25 @@ priorytetu dotyku oraz postępu OTA. Odbiór fizyczny pozostaje osobnym krokiem.
 
 Właściciel zlecił publikację OTA Dev 2026-10-19 (Europe/Vienna), po korekcie
 położenia głównych przycisków aktualizacji. `.github/dev-release-0.7.57.json`,
-`release.yml` i `DEV_REQUEST` dopuszczają wyłącznie nowy tag `dev-v0.7.57`,
+`release.yml` i `DEV_REQUEST` dopuszczały wyłącznie nowy tag `dev-v0.7.57`,
 wersję `0.7.57-dev` i gałąź P0. Gate tworzy tag po CI 5/5 dokładnego commitu;
 podpis pozostaje w chronionym środowisku `release` z dotychczasowym kluczem.
 Poprzednie wydania są niezmienne. Zakres obejmuje również wcześniejsze poprawki
 dotyku, wspólnej nawigacji grup/scen i widoków BLU/TRV. Testy hostowe i audyty
 targetu nie potwierdzają fizycznej płynności ani szczytu pamięci SDK.
+
+### Wydanie 0.7.58-dev — Cyber Blue Premium, etap 3
+
+Właściciel jawnie zlecił publikację Dev 2026-10-19 po zakończeniu etapu 3.
+`.github/dev-release-0.7.58.json`, `release.yml` i `DEV_REQUEST` dopuszczają
+wyłącznie tag `dev-v0.7.58`, wersję `0.7.58-dev` i gałąź
+`work/shelly-hud-cyber-blue`. To aktualizacja istniejącego mechanizmu żądania
+wydania, z pełnym CI 5/5 dla dokładnego SHA przed utworzeniem niezmiennego tagu.
+Podpis pozostaje w chronionym środowisku `release`; klucz nie jest pobierany
+do workspace. Poprzednie tagi/zasoby, `main` i ścieżka Stable pozostają bez zmian.
+
+Kod etapu 3 (`e2687d6`) przeszedł CI 5/5 w uruchomieniu `39234794754`.
+Commit wydania z nowym numerem wersji przechodzi ponownie pełne CI i osobny
+build wydania. Wyniki LVGL i porównania znajdują się w
+[cyber-blue/stage3/README.md](cyber-blue/stage3/README.md).
+Odbiór fizyczny na ESP32-S3 pozostaje do wykonania przez właściciela.

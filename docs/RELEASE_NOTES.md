@@ -1,3 +1,12 @@
+0.7.58-dev: opcjonalny Cyber Blue Premium, czytelniejsze dane, formularze i klawiatura oraz nowe ikony.
+
+- Nowa skórka Shelly HUD — Cyber Blue jest dodatkową opcją w istniejących ustawieniach wyglądu. Grafitowy, Nocny i Jasny zachowują wygląd, identyfikatory i zapisane ustawienia; wybrany motyw nie zmienia się automatycznie.
+- Cyber Blue Premium: ciemne metaliczne panele, lekkie gradienty, turkusowe stany aktywne, dedykowane ikony i spójne formularze, dialogi oraz klawiatura. Etap 3 poprawia hierarchię pulpitu, rolety, BLU, baterii/diagnostyki, OTA, Wi-Fi i edytorów. Nazwy, główne wartości i statusy są większe; długie teksty mają ograniczenia lub przewijanie. Stopka pozostaje dostępna przy otwartej klawiaturze.
+- Edycja pomieszczeń i pulpitów: czytelne pola, podgląd zdjęcia, wybór symbolu, osobne Zapisz/Wstecz i czerwone usuwanie z potwierdzeniem nazwy. Zintegrowano 17 dodatkowych ikon konturowych w trzech rozmiarach A8. Nie zmieniono protokołów Shelly, logiki sterowania, formatu konfiguracji ani mechanizmu OTA i partycji.
+- Weryfikacja etapu 3: rzeczywiste rendery LVGL 9.3.0 320×480, PL/EN/DE, długie nazwy, formularze, klawiatura, zapis/anulowanie/usuwanie, wielokrotne otwieranie i przełączanie skórek. 344 obrazy trzech wcześniejszych skórek pozostają identyczne bajtowo. Wyniki i porównania przed/po: [docs/cyber-blue/stage3/README.md](cyber-blue/stage3/README.md).
+- Koszt etapu 3 względem etapu 2: obraz aplikacji +70 324 B, wewnętrzny BSS +32 B. Pula LVGL 131 072 B w PSRAM i stos UI 8192 B bez zmian. W porównawczym teście hostowym ekran baterii zajmuje dodatkowe 4824 B w istniejącej puli; cykle otwierania i przełączania nie wykazały narastania. To wyniki kompilacji i symulatora, nie pomiar szczytu pamięci ESP32-S3.
+- Odbiór na fizycznym ES3C35P pozostaje do wykonania przez właściciela: dotyk, czytelność LCD, komunikacja z urządzeniami, pamięć SDK i aktualizacja/rollback OTA. Do aktualizacji z zachowaniem danych służy OTA lub UPDATE-APP-ONLY zgodnie z instrukcją. Wydanie Dev nie jest wydaniem Stable.
+
 0.7.57-dev: płynniejszy dotyk, wspólne zakładki grup/scen, grafiki BLU/TRV i poprawiony układ OTA.
 
 Zakres 0.7.57-dev. Odbiór fizyczny nowych poprawek pozostaje do wykonania.
