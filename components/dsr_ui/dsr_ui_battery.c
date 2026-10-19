@@ -8,12 +8,14 @@ static dsr_result_t result=DSR_IO;
 static bool attempted,pending,active,rejected,from_home;
 static uint32_t measured;
 static lv_obj_t *header_value,*value,*status,*age,*measure,*diag;
+/* Only pointers; the five visible values are owned/freed by their screen. */
+static lv_obj_t *memory_values[5],*memory_detail;
 static uint32_t diag_at;
 static void header_deleted(lv_event_t *event)
 {if(lv_event_get_target(event)==header_value)header_value=NULL;}
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
-void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=NULL;}
+void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=memory_detail=NULL;memset(memory_values,0,sizeof(memory_values));}
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
@@ -39,18 +41,24 @@ void dsr_ui_battery_tick(void)
  else snprintf(text,sizeof(text),"— V");
  label(value,text);
  label(status,pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":"Napięcie BAT • dzielnik nominalny 2:1");
+ if(status&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)lv_obj_set_style_text_color(status,dsr_sc_color(pending?DSR_SC_BLUE:rejected||(attempted&&(!valid||elapsed>=30000))?0xffc107:DSR_SC_TEXT),0);
  if(attempted){snprintf(text,sizeof(text),dsr_sc_tr("Ostatni odczyt: %lu s temu"),(unsigned long)(elapsed/1000));label(age,text);}
  else label(age,"Brak pomiaru");
  /* Responsiveness counters (0.7.52), refreshed once per second. */
- if(diag&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
+ if((diag||memory_values[0])&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
   diag_at=lv_tick_get();dsr_system_info_t info;dsr_system_info_snapshot(&info);dsr_system_runtime_t run;dsr_system_runtime(&run);lv_mem_monitor_t mem;lv_mem_monitor(&mem);
   char lines[256];
-  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)snprintf(lines,sizeof(lines),"RAM: %lu KB | min %lu KB | %s %lu KB\nPSRAM: %lu KB\n%s: %lu KB   |   %s %lu B\nBLE: %s",
-   (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),dsr_sc_tr("Blok"),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),dsr_sc_tr("Grafika"),(unsigned long)(mem.free_size/1024),dsr_sc_tr("Stos"),(unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
-  else snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
+  if(memory_values[0]){
+   const unsigned long values[]={(unsigned long)(info.internal_free/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),(unsigned long)run.ui_stack_free};
+   for(unsigned i=0;i<4;i++){snprintf(text,sizeof(text),"%lu %s",values[i],i==3?"B":"KB");label(memory_values[i],text);}
+   label(memory_values[4],run.ble_active?"włączone":"wyłączone");
+   snprintf(lines,sizeof(lines),"RAM min: %lu KB\n%s: %lu KB",(unsigned long)(run.internal_min_free/1024),dsr_sc_tr("Blok"),(unsigned long)(info.internal_largest/1024));label(memory_detail,lines);
+  }else{
+   snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
    (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),
    (unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
-  if(strcmp(lv_label_get_text(diag),lines))lv_label_set_text(diag,lines);
+   if(strcmp(lv_label_get_text(diag),lines))lv_label_set_text(diag,lines);
+  }
  }
 }
 void dsr_ui_battery_result(const dsr_event_t *event)
@@ -67,7 +75,32 @@ static void show(void)
 {
  lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
- if(hud){lv_obj_t *power=dsr_sc_panel(root,12,86,296,158,DSR_SC_CARD,12);dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,18,34,48,DSR_SC_BLUE);}
+ if(hud){
+  lv_obj_t *body=dsr_sc_panel(root,12,86,296,322,DSR_SC_BG,0);
+  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+  lv_obj_t *power=dsr_sc_panel(body,0,0,296,182,DSR_SC_CARD,12);
+  dsr_sc_text(power,"Napięcie wejścia BAT",12,10,272,&dsr_roboto_14,DSR_SC_MUTED);
+  dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,14,34,48,DSR_SC_BLUE);
+  value=dsr_sc_text(power,"— V",76,39,208,&dsr_roboto_28,DSR_SC_BLUE);
+  status=dsr_sc_text(power,"Pomiar na żądanie",12,80,272,&dsr_roboto_14,DSR_SC_TEXT);
+  age=dsr_sc_text(power,"Brak pomiaru",12,132,272,&dsr_roboto_12,DSR_SC_MUTED);
+  dsr_sc_text(power,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",12,150,272,&dsr_roboto_12,0xffc107);
+  lv_obj_t *card=dsr_sc_panel(body,0,192,296,258,DSR_SC_CARD,12);
+  dsr_sc_text(card,"Pamięć i radio",12,10,236,&dsr_roboto_16,DSR_SC_TEXT);
+  dsr_sc_icon(card,DSR_ICON_MEMORY,254,8,24,DSR_SC_BLUE);
+  const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
+  for(unsigned i=0;i<5;i++){
+   int y=42+(int)i*34;
+   dsr_sc_text(card,names[i],12,y,134,&dsr_roboto_14,DSR_SC_MUTED);
+   memory_values[i]=dsr_sc_text(card,"—",150,y-1,134,&dsr_roboto_16,DSR_SC_TEXT);
+   lv_obj_set_style_text_align(memory_values[i],LV_TEXT_ALIGN_RIGHT,0);
+   dsr_sc_panel(card,12,y+25,272,1,DSR_SC_EDGE,0);
+  }
+  memory_detail=dsr_sc_text(card,"",12,218,272,&dsr_roboto_12,DSR_SC_MUTED);
+  dsr_ui_button(root,"Wstecz",12,420,140,back,NULL);
+  measure=dsr_ui_button(root,"Zmierz napięcie",168,420,140,request,NULL);
+  diag_at=lv_tick_get()-1000;if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);dsr_ui_battery_tick();return;
+ }
  dsr_sc_text(root,"Napięcie wejścia BAT",hud?26:14,hud?98:90,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);
  value=dsr_sc_text(root,"— V",hud?90:14,hud?122:110,hud?202:292,&dsr_roboto_28,hud?DSR_SC_BLUE:DSR_SC_TEXT);
  status=dsr_sc_text(root,"Pomiar na żądanie",hud?26:14,hud?164:148,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);

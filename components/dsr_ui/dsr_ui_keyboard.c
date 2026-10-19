@@ -59,8 +59,24 @@ void dsr_ui_keyboard(lv_obj_t *kb)
 }
 void dsr_ui_keyboard_focus(lv_obj_t *kb,lv_obj_t *field)
 {
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  lv_obj_t *previous=lv_keyboard_get_textarea(kb);
+  if(previous&&previous!=field)lv_obj_remove_state(previous,LV_STATE_FOCUSED);
+  lv_obj_add_state(field,LV_STATE_FOCUSED);
+ }
  const char *accepted=lv_textarea_get_accepted_chars(field);
  bool number=accepted&&accepted[0]&&strspn(accepted,"0123456789.")==strlen(accepted);
  lv_keyboard_set_mode(kb,number?LV_KEYBOARD_MODE_NUMBER:LV_KEYBOARD_MODE_TEXT_LOWER);
  lv_keyboard_set_textarea(kb,field);lv_obj_remove_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_obj_move_foreground(kb);
+}
+void dsr_ui_keyboard_editor(lv_obj_t *kb,lv_obj_t *viewport)
+{
+ if(dsr_sc_style()!=DSR_SC_STYLE_CYBER_BLUE)return;
+ /* Five 40 px key rows, no overlay on Back/Save/Next. The viewport scrolls
+  * its focused 44 px field above the keyboard; no credential copies. */
+ lv_obj_set_align(kb,LV_ALIGN_TOP_LEFT);lv_obj_set_size(kb,320,224);lv_obj_set_pos(kb,0,192);
+ lv_obj_set_height(viewport,192-lv_obj_get_y(viewport)-6);
+ lv_obj_update_layout(viewport);
+ lv_obj_t *field=lv_keyboard_get_textarea(kb);
+ if(field)lv_obj_scroll_to_view(field,LV_ANIM_OFF);
 }

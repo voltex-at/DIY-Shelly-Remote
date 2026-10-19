@@ -69,6 +69,8 @@
 {"Grafitowy\nNocny\nJasny","Graphite\nMidnight\nLight","Graphit\nNacht\nHell"},
 {"Grafitowy\nNocny\nJasny\nShelly HUD — Cyber Blue","Graphite\nMidnight\nLight\nShelly HUD — Cyber Blue","Graphit\nNacht\nHell\nShelly HUD — Cyber Blue"},
 {"Blok","block","Block"},{"Grafika","Graphics","Grafik"},{"Stos","Stack","Stack"},
+{"Stos ekranu","Screen stack","UI-Stack"},
+{"Adres IP urządzenia","Device IP address","Geräte-IP-Adresse"},
 {"Pokój","Room","Raum"},{"urz.","devices","Geräte"},
 {"Offline • odczyty niedostępne","Offline • readings unavailable","Offline • keine Messwerte"},
 {"Scena • %u działań","Scene • %u actions","Szene • %u Aktionen"},

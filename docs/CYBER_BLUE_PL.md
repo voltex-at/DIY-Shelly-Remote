@@ -4,6 +4,10 @@ Opcjonalna czwarta skórka istniejącego systemu wyglądu. Baza implementacji:
 `e6e2359` (`work/p0-spiffs-ota-brand`, 0.7.57-dev), ESP-IDF 5.5.4,
 LVGL 9.3.0 (`c033a98afddd65aaafeebea625382a94020fe4a7`), ES3C35P 320 × 480.
 
+Aktualne dopracowanie czytelności, edytorów i 17 brakujących ikon opisano w
+[etapie 3](cyber-blue/stage3/README.md), wraz z rzeczywistymi renderami i
+porównaniem przed/po. Poniższe liczby integracji bazowej opisują etap 2.
+
 ## Wybór i zachowanie danych
 
 Ustawienia → Wygląd i język → Motyw → **Shelly HUD — Cyber Blue** → Zapisz.
@@ -78,9 +82,9 @@ Import nie przerysowuje SVG, nie przetwarza PNG i nie wprowadza fontów.
 Zachowano aktualną funkcję trzeciego przycisku dolnej nawigacji: otwiera baterię,
 więc jego ikoną pozostaje bateria. Symbol baterii z błyskawicą na karcie napięcia
 nie dodaje danych o ładowaniu: dotychczasowy komunikat o braku wiarygodnych danych
-pozostaje. Specjalistyczne symbole nieobecne w paczce, np. zawór, meble,
-wybrane sprzęty i osobne stany drzwi, nadal używają wcześniejszego atlasu lub
-geometrii. Nie zastąpiono ich symbolami o innym znaczeniu.
+pozostaje. W etapie 3 brakujące meble, sprzęty, zawór oraz osobne stany drzwi
+otrzymały 17 dedykowanych ikon konturowych i stałe maski A8. Oryginalna paczka
+i atlas pozostałych skórek pozostają niezmienione.
 
 Wspólny komponent ikon przełącza źródło wyłącznie dla Cyber Blue. Stosuje natywne
 24 px w kompaktowych kontrolkach, 32 px w kafelkach i 48 px w dużych wskaźnikach;

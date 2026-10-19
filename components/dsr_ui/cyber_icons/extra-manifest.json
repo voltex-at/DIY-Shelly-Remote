@@ -1,0 +1,333 @@
+{
+  "source": "assets/cyber-icons/svg (outline interpretation of supplied missing-icon references)",
+  "generator": "CairoSVG 2.8.2; Pillow 13.0.0; 384 px supersampling; Lanczos",
+  "format": "LV_COLOR_FORMAT_A8; transparent monochrome coverage; runtime recoloring",
+  "svg_sha256": {
+    "bathroom": "5607c5c7b130af7f0a1f3589c8a7417e8048a25a6b938616b166a820043bd81d",
+    "bed": "6eb0ace5f9ec73a9a4357f41b759ececccacc89249026b858c18bd76cac7ad01",
+    "boiler": "46fcd9768f16dd660be6465298b588fac6303b38281cc04a3c1030e91a4f148a",
+    "coffee-machine": "cc3613f56f09bf5bbc8d72e1048f189c1bf3aa7cf7aec233613d9346609cf0ec",
+    "door-closed": "402bb7cd1ec67c838033a069b8582bbc49529881ac75dcebc1b927013a604271",
+    "door-open": "8e27fe42d8a64c0268a9cc0318f11f3b9488dfe973bfcb7de8bb9fff9ed06ca2",
+    "ev-charger": "554044be69667efb7f495500b1582dd1d18dc53036ee2a9ae5490afea8158597",
+    "fan": "390cecc95f52207718f0985728240a34685d80ede9ecad86210889521c884e1a",
+    "floor-lamp": "d29ebd95871d07969222f86707c6d4b0b32919123ac99e9f5724485cddd491da",
+    "garage": "cbf4db8b786e986cd0129062d602542bd6a4afb7ccb9e588482ed0e73f32b709",
+    "kettle": "4298536ad59c35c98b5971154e9761a39b54232a065a92d2289fe3a97c088281",
+    "kitchen": "fda14b1e418fc9c2c5a52597e053fa2da65b0876ba488d7bc4d51eaddb9f94e9",
+    "sofa": "0d6e1212bbd8c00969dfa0f4354ee4d52051f6422758c00d83712f5c75e08dd8",
+    "speaker": "d13e83a712ae6b6db0d70c37ed747c2d2402ff62c3f94d6b460369edf4b2db25",
+    "valve": "133be985773b7b945a72b482f4d88d64d2db3cd864f27b4fed578e7d26d025fe",
+    "wall-lamp": "87e212f27c55454b6826e2c8fa4f6c7c73dd94e4e9a85f35dbc425991f133cdf",
+    "washing-machine": "70d96f4b52f293677fe3006ebbb2b639ec6288cb47bc6ce240b0926ecb23e876"
+  },
+  "mask_bytes": 66368,
+  "assets": {
+    "shudx_bathroom_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "80f076bff2a54e020d03e9a21c319b48b9c5c057ff44f13de648036acde4f7df",
+      "svg": "bathroom.svg"
+    },
+    "shudx_bathroom_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "e872f9e3a305612c53f45755a105222169452610386312458054f36d6f9bb293",
+      "svg": "bathroom.svg"
+    },
+    "shudx_bathroom_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "943ad8f266f68010d7f1c63564ffb2ac4740aa7745815170a349a9e2527e1840",
+      "svg": "bathroom.svg"
+    },
+    "shudx_bed_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "eef2913bf96d514d6fbee8b223f89bc4a3020b919eaa18dc3271446e9c8754ff",
+      "svg": "bed.svg"
+    },
+    "shudx_bed_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "8e4ac3d17525d51d06bffabb5a92119c114962be0cd690098d0d8c54314706c1",
+      "svg": "bed.svg"
+    },
+    "shudx_bed_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "a674b2888dd69f14dd246fe21c54d1ce8e3da0ed450751528ff0b8fe918b6f65",
+      "svg": "bed.svg"
+    },
+    "shudx_boiler_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "4ca138c38f2d81ae8f4ad94e293867a1c844ca2d63a5aa1fb45341441431e99d",
+      "svg": "boiler.svg"
+    },
+    "shudx_boiler_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "67e11cc78815f0705dcdcf40723e136e92870ef3e70490d838cad36c54096455",
+      "svg": "boiler.svg"
+    },
+    "shudx_boiler_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "f1e5160bd2893bc63a667b41dacf9f4fdf757533ee42a78743b10083ff20e5b9",
+      "svg": "boiler.svg"
+    },
+    "shudx_coffee_machine_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "c99e0e5d9d34fac3e3805634d013246528d3ee1e6503ce3f601ffebeb2952801",
+      "svg": "coffee-machine.svg"
+    },
+    "shudx_coffee_machine_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "8caea4d211e273f23af245c5a01fb56bbbeb71894fb1be4d02b096e8d22c39cb",
+      "svg": "coffee-machine.svg"
+    },
+    "shudx_coffee_machine_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "f0a01ccb9a9fef6f8bee62e58722024251afca47105ebc495ca4de6c027c8121",
+      "svg": "coffee-machine.svg"
+    },
+    "shudx_door_closed_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "c7b09bee6f1f3de081b0c8e844b77db0d72f8583f0bc7b28641f37a5bf81c49c",
+      "svg": "door-closed.svg"
+    },
+    "shudx_door_closed_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "29a8c2589a0856059cb5d475f9951ba0f1be20642733a608a971e6a91e4c7088",
+      "svg": "door-closed.svg"
+    },
+    "shudx_door_closed_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "6891d3f7f540e15b177270f60feb9ad9586c4256b690db773f1b242f982f24e2",
+      "svg": "door-closed.svg"
+    },
+    "shudx_door_open_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "734e776064e25cf848af5d241081ddcf16be8d11ed27c4974a66a1fc19a27563",
+      "svg": "door-open.svg"
+    },
+    "shudx_door_open_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "d4e235c77c38adbab1e6f5baa4013de0a7aef1e17b7547c60f5e72896321f51b",
+      "svg": "door-open.svg"
+    },
+    "shudx_door_open_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "2bf103e62ad48c734ff5ff31ab33f5fb009f917c3adab2bea72874751a73f71c",
+      "svg": "door-open.svg"
+    },
+    "shudx_ev_charger_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "575a82a367dde905228ca55a428ace416b958a498e2ba0928c5c81ee0623b5b4",
+      "svg": "ev-charger.svg"
+    },
+    "shudx_ev_charger_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "aa9e88cbdd70c30a5160cafa58a66d454a52321d37458ebd5ee4ea3a3a0e31a8",
+      "svg": "ev-charger.svg"
+    },
+    "shudx_ev_charger_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "af6ad1239442c03478a9241fa0c7b7e0236b40a8b24c8414fd2fb6c43839f061",
+      "svg": "ev-charger.svg"
+    },
+    "shudx_fan_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "25b82a9bf952148c3d5e07f00505a86ca0313909bd551796483d9054de5d03aa",
+      "svg": "fan.svg"
+    },
+    "shudx_fan_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "94b6c0eedaffce168064bb61dd113f23fdfd15cad0879f657a727fab0190bddd",
+      "svg": "fan.svg"
+    },
+    "shudx_fan_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "c1ec51dba92981e2a7e252c5257fc3bddb11cc9116d0de1f6698d7193fed89c0",
+      "svg": "fan.svg"
+    },
+    "shudx_floor_lamp_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "df9b0727fb780f102b7bf9588122973f51bbabdd49833f4a26ee1b1ff79ae93e",
+      "svg": "floor-lamp.svg"
+    },
+    "shudx_floor_lamp_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "07d8c25b1a0ae3804d820ae5e82beb5a6b3f9ca0dd8b5d1409ffc4636d872674",
+      "svg": "floor-lamp.svg"
+    },
+    "shudx_floor_lamp_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "0a4385e5a3f53117f7e27dad089fc4cd4a88825a479a104f180d0efb3d51c751",
+      "svg": "floor-lamp.svg"
+    },
+    "shudx_garage_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "efa614d7793d414ef2637f711f593e9636ddfb2c1e073c00d737f1bf81493ac2",
+      "svg": "garage.svg"
+    },
+    "shudx_garage_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "9e1de3a4f6a861eb54dfdcda83ffff15bdca9e98efd752a06cf19257497f0920",
+      "svg": "garage.svg"
+    },
+    "shudx_garage_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "bf05010628f24882680b384a45154867fa62329f0a392515738faa678cda7e14",
+      "svg": "garage.svg"
+    },
+    "shudx_kettle_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "b8cd1793098322090691c12be28429f44985f2445875be76d0f6d034dab9a56f",
+      "svg": "kettle.svg"
+    },
+    "shudx_kettle_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "8f1b47af095ca84e2c6c07d4d13ef061081134af320026d8ffdbcd7490d0e6d8",
+      "svg": "kettle.svg"
+    },
+    "shudx_kettle_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "a0531da46c64a4f7a515e95dfe2ba55d673f0d77884de2cec8fa413a54833ddc",
+      "svg": "kettle.svg"
+    },
+    "shudx_kitchen_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "bffc47e69f7fbf364850d5080de7ef9b385ef9208e67915ea1898f72ac24d76f",
+      "svg": "kitchen.svg"
+    },
+    "shudx_kitchen_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "2d1e02630a748ab91eed0e9c54a5c97fbe79b8ac9d0a8d09b216ad1c19433900",
+      "svg": "kitchen.svg"
+    },
+    "shudx_kitchen_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "d845dbd8fe764730313feb38239224917282bd5ec3d82f8ac4d964dbe327790f",
+      "svg": "kitchen.svg"
+    },
+    "shudx_sofa_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "741f9492c0f41d213e2fd1dd2b4fc528ec15e6005cce702f6cc77a4f63d5444f",
+      "svg": "sofa.svg"
+    },
+    "shudx_sofa_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "0388dd706598da3130637fabc84d2d0b7ea00c007d0bbf20f1a94c9f66d1fead",
+      "svg": "sofa.svg"
+    },
+    "shudx_sofa_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "f4b5e9f97b728ae5a288b2ba79473473eec44db1687762ee3f901f750ea50181",
+      "svg": "sofa.svg"
+    },
+    "shudx_speaker_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "9c6cda8bda29fd3ce17f9bb1196e64feba6fcc92ecb366e16c3134a264880bd7",
+      "svg": "speaker.svg"
+    },
+    "shudx_speaker_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "825b45ab789f444eb9a763594703893f412142307b429358bf7cc00d087f7ac9",
+      "svg": "speaker.svg"
+    },
+    "shudx_speaker_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "3234fc14f88e4aaec35ff88cda741225bcae6c29d28f1af4c6fa56b8f4bb42fd",
+      "svg": "speaker.svg"
+    },
+    "shudx_valve_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "975d2fb199dfee311fb3d49f7a0ac00f5a2a6150fb5f238eeda054584d8c7e47",
+      "svg": "valve.svg"
+    },
+    "shudx_valve_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "3ae925866fcb3f9ce1c511e6cedaffedc65f1d824ad632e744f216640d69dab6",
+      "svg": "valve.svg"
+    },
+    "shudx_valve_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "7d73cc695e73c6dc734c27ebd04d922adb8b4a2d6babb8f9c3b9cc1ff4ac6317",
+      "svg": "valve.svg"
+    },
+    "shudx_wall_lamp_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "2d177c576c9d533750940a292192b509028d111858ccaa5e2423e09fbd6cb8bf",
+      "svg": "wall-lamp.svg"
+    },
+    "shudx_wall_lamp_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "fe9e98984db9b4a9c997d2b95825c7aa4513bc5d66f27e71b77b593dcb3aea3b",
+      "svg": "wall-lamp.svg"
+    },
+    "shudx_wall_lamp_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "3a07a37e497c339627fd6551b15ac30f285dd33e07090f4503287ba212ed246a",
+      "svg": "wall-lamp.svg"
+    },
+    "shudx_washing_machine_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "c1bdc9a001fbcc5837e9aa5bcf73b0f1f2e1b2b9f2f286b3af6fc9930328676c",
+      "svg": "washing-machine.svg"
+    },
+    "shudx_washing_machine_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "052fc687a7a1db4878f3ad28351c8e53632203e9316c0341d616554195f25d2d",
+      "svg": "washing-machine.svg"
+    },
+    "shudx_washing_machine_48": {
+      "size": 48,
+      "bytes": 2304,
+      "sha256": "7755f7ba162927cdd61e4176b5181592a447028cc21d0704ecdacc71b33aae95",
+      "svg": "washing-machine.svg"
+    }
+  }
+}

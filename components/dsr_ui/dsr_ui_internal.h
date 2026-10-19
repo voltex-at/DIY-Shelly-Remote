@@ -14,6 +14,8 @@ void dsr_ui_primary(lv_obj_t *obj);
 void dsr_ui_textarea(lv_obj_t *obj);
 void dsr_ui_keyboard(lv_obj_t *obj);
 void dsr_ui_keyboard_focus(lv_obj_t *keyboard,lv_obj_t *field);
+/* Cyber editor keyboard leaves the fixed y=420 action bar usable. */
+void dsr_ui_keyboard_editor(lv_obj_t *keyboard,lv_obj_t *viewport);
 void dsr_ui_home(lv_event_t *event);
 void dsr_ui_open_settings(void);
 bool dsr_ui_settings_can_open(void);

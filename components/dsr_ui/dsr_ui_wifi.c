@@ -74,7 +74,9 @@ static void join(lv_event_t *event)
 static void show_password(const char *error)
 {
     lv_obj_t *root = dsr_ui_screen("Connect to Wi-Fi", false); page = PASSWORD;
+    bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
     lv_obj_t *ssid = dsr_ui_label(root, selected.ssid, 16, 81, 288);
+    if(hud)lv_obj_set_style_text_font(ssid,&dsr_roboto_16,0);
     lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, 20);
     if (selected.security == DSR_WIFI_OPEN) {
         dsr_ui_label(root, "Open network\nNo password is required.", 16, 140, 288);
@@ -90,12 +92,15 @@ static void show_password(const char *error)
     lv_obj_set_pos(password, 16, 130); lv_obj_set_size(password, 288, 44);
     lv_textarea_set_one_line(password, true); lv_textarea_set_max_length(password, 64);
     lv_textarea_set_password_mode(password, true); lv_textarea_set_text(password, candidate.password);
-    notice = dsr_sc_text(root,error ? error : "",16,177,288,&dsr_roboto_12,0xffc077);
-    lv_obj_set_height(notice, 18);lv_label_set_long_mode(notice,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
-    lv_obj_t *back = dsr_ui_button(root, "Back", 16, 196, 136, back_to_list, NULL);
-    lv_obj_t *connect = dsr_ui_button(root, "Connect", 168, 196, 136, join, NULL);
+    lv_obj_t *notice_parent=root;
+    if(hud){notice_parent=dsr_sc_panel(root,16,177,288,28,DSR_SC_BG,0);lv_obj_add_flag(notice_parent,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(notice_parent,LV_DIR_VER);dsr_sc_scrollbar(notice_parent);lv_obj_add_state(password,LV_STATE_FOCUSED);}
+    notice = dsr_sc_text(notice_parent,error ? error : "",hud?0:16,hud?0:177,288,&dsr_roboto_12,0xffc077);
+    if(!hud){lv_obj_set_height(notice, 18);lv_label_set_long_mode(notice,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);}
+    lv_obj_t *back = dsr_ui_button(root, "Back", 16, hud?210:196, 136, back_to_list, NULL);
+    lv_obj_t *connect = dsr_ui_button(root, "Connect", 168, hud?210:196, 136, join, NULL);
     lv_obj_set_height(back, 44); lv_obj_set_height(connect, 44); dsr_ui_primary(connect);
     lv_obj_t *keyboard = lv_keyboard_create(root); dsr_ui_keyboard(keyboard);
+    if(hud)lv_obj_set_height(keyboard,224);
     lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER); lv_keyboard_set_textarea(keyboard, password);
     lv_obj_add_event_cb(keyboard, join, LV_EVENT_READY, NULL);
@@ -134,8 +139,8 @@ static void show_networks(void)
         lv_obj_set_height(row, hud?64:70); lv_obj_set_style_pad_all(row, 0, 0); lv_obj_clean(row);
         if(hud){lv_obj_t *badge=dsr_sc_panel(row,10,11,40,40,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);dsr_sc_icon_centered(badge,DSR_ICON_WIFI,30,DSR_SC_BLUE);}
         lv_obj_t *ssid = dsr_ui_label(row, ap->ssid, hud?60:12, 10, hud?184:218);
-        if(hud)lv_obj_set_style_text_font(ssid,&dsr_roboto_16,0);
-        lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, 20);
+        if(hud)lv_obj_set_style_text_font(ssid,&dsr_roboto_18,0);
+        lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, hud?24:20);
         lv_obj_t *details = dsr_ui_label(row, "", hud?60:12, hud?36:39, hud?210:254);
         dsr_sc_label_set_text_fmt(details, "%s  |  %d dBm", dsr_sc_tr(security_name(ap->security)), ap->rssi);
         lv_obj_set_style_text_color(details, dsr_sc_color(0xa8bbd3), 0);

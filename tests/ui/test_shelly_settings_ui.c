@@ -41,15 +41,16 @@ static void check_keyboard_layout(void)
  }
 }
 static void frame(const char *prefix,unsigned locale)
-{check_keyboard_layout();char name[64];snprintf(name,sizeof(name),"%s-%u",prefix,locale);screenshot(name);}
+{check_keyboard_layout();char name[64];snprintf(name,sizeof(name),"%s%s-%u",dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?"7":"",prefix,locale);screenshot(name);}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();dsr_sc_appearance(DSR_SC_BLUE,0,0);uint32_t id=add_relay();
  const char *languages[]={"pl","en","de"};
- for(unsigned l=0;l<3;l++){
-  cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(languages[l]));publish_document(doc);tick();test_settings_enable(true);
+ for(unsigned pass=0;pass<6;pass++){
+  unsigned l=pass%3;bool hud=pass>=3;
+  cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(languages[l]));cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(hud?"cyber_blue":"graphite"));publish_document(doc);if(hud)dsr_network_home(NULL);tick();test_settings_enable(true);
   open_editor(id);frame("380-shelly-groups",l);select_group("Przekaźnik");CHECK(find_label(lv_screen_active(),"Opóźnienie wyłączenia (s)"));frame("381-shelly-fields",l);
   click("Opóźnienie wyłączenia (s)");lv_obj_t *input=find_type(lv_screen_active(),&lv_textarea_class);CHECK(input);lv_textarea_set_text(input,"120");frame("382-shelly-number",l);click("Dalej");CHECK(test_settings_writes()==0);click("Wstecz");CHECK(test_settings_writes()==0);
   click("Opóźnienie wyłączenia (s)");lv_textarea_set_text(find_type(lv_screen_active(),&lv_textarea_class),"120");click("Dalej");frame("383-shelly-confirm",l);click("Zapisz w Shelly");finish_settings();CHECK(test_settings_writes()==1&&find_label(lv_screen_active(),"120"));

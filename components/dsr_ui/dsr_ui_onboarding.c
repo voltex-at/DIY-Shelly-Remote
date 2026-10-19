@@ -77,7 +77,7 @@ void dsr_onboarding_keyboard(lv_obj_t *root,bool shown)
 {
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
   lv_obj_t *child=lv_obj_get_child(root,(int)i);if(lv_obj_get_user_data(child)!=(void *)&footer_tag)continue;
-  if(shown)lv_obj_add_flag(child,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(child,LV_OBJ_FLAG_HIDDEN);
+  if(shown&&dsr_sc_style()!=DSR_SC_STYLE_CYBER_BLUE)lv_obj_add_flag(child,LV_OBJ_FLAG_HIDDEN);else lv_obj_remove_flag(child,LV_OBJ_FLAG_HIDDEN);
  }
 }
 lv_obj_t *dsr_onboarding_result(lv_obj_t *list,int y,dsr_ui_icon_t icon,const char *title,const char *detail,const char *status,bool verified,lv_event_cb_t callback,void *context)

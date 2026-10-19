@@ -490,6 +490,7 @@ static void hide_keyboard(lv_event_t *event)
 {
     (void)event;
     if (!keyboard || !form) return;
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_t *field=lv_keyboard_get_textarea(keyboard);if(field)lv_obj_remove_state(field,LV_STATE_FOCUSED);}
     lv_keyboard_set_textarea(keyboard, NULL);
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
     lv_obj_set_height(form, 268);dsr_onboarding_keyboard(lv_screen_active(),false);
@@ -501,6 +502,7 @@ static void focus_field(lv_event_t *event)
     if (!keyboard || !form) return;
     lv_obj_set_height(form, 96);dsr_onboarding_keyboard(lv_screen_active(),true);
     dsr_ui_keyboard_focus(keyboard,field);
+    dsr_ui_keyboard_editor(keyboard,form);
     lv_obj_scroll_to_view(field, LV_ANIM_OFF);
 }
 
@@ -527,6 +529,7 @@ static void form_start(const char *title)
     message = dsr_ui_label(root, "Enter the device address and login.", 16, 91, 288);
     form = lv_obj_create(root); lv_obj_set_pos(form, 12, 134); lv_obj_set_size(form, 296, 268);
     lv_obj_set_style_pad_all(form, 8, 0); lv_obj_set_style_border_width(form, 0, 0);
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_set_y(form,128);lv_obj_set_style_pad_all(form,4,0);}
     lv_obj_set_style_bg_color(form, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_style_text_color(form, dsr_sc_color(0xf0f4fb), 0);
     keyboard = lv_keyboard_create(root); lv_obj_set_size(keyboard, 320, 210);
@@ -568,7 +571,7 @@ static void bind_device(lv_event_t *event)
 
 static void manual_device(lv_event_t *event)
 {
-    (void)event; form_start("Zaawansowane • adres IP"); view = VIEW_DEVICE;
+    (void)event; form_start(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?"Adres IP urządzenia":"Zaawansowane • adres IP"); view = VIEW_DEVICE;
     char channel[4]="0";
     lv_obj_t *ip = field(0, "IPv4 address (same LAN)", "", 15, false);
     lv_textarea_set_accepted_chars(ip, "0123456789.");

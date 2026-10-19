@@ -19,7 +19,8 @@ static void select_skin(unsigned s)
  CHECK(dsr_sc_style()==s&&style_hint==s);
  cJSON *doc=room_document();CHECK(dsr_sc_style_from_name(cJSON_GetObjectItemCaseSensitive(doc,"theme")->valuestring)==s);cJSON_Delete(doc);
 }
-static unsigned hits,cover_hits,stop_hits,position_hits,last_position;
+static unsigned hits,cover_hits,stop_hits,position_hits,last_position,refresh_hits;
+static void refresh_hit(uint32_t id){CHECK(id==3);refresh_hits++;}
 static void output_hit(unsigned index,bool on){CHECK(index==0&&!on);hits++;}
 static void cover_hit(unsigned index,int direction){CHECK(index==1&&(direction==1||direction==-1));cover_hits++;}
 static void stop_hit(unsigned index){CHECK(index==1);stop_hits++;}
@@ -70,6 +71,14 @@ static void icon_gallery(void)
  for(unsigned i=0;i<sizeof(grid)/sizeof(grid[0]);i++)dsr_sc_icon(root,grid[i],26+(int)(i%6)*48,220+(int)(i/6)*52,24,DSR_SC_BLUE);
  dsr_sc_text(root,"24 / 32 / 48 px • A8 • CC0",12,402,296,&dsr_roboto_14,DSR_SC_MUTED);
  screenshot("625-cyber-icons-a8");
+ /* Every supplementary mask: independent alpha oracle, native dimensions,
+  * transparent interior and three runtime colors, without an image decoder. */
+ const dsr_ui_icon_t extra[]={DSR_ICON_SOFA,DSR_ICON_BED,DSR_ICON_KITCHEN,DSR_ICON_BATH,DSR_ICON_FAN,DSR_ICON_BOILER,DSR_ICON_GARAGE,DSR_ICON_FLOOR_LAMP,DSR_ICON_WALL_LAMP,DSR_ICON_EV,DSR_ICON_KETTLE,DSR_ICON_COFFEE,DSR_ICON_LAUNDRY,DSR_ICON_SPEAKER,DSR_ICON_DOOR_CLOSED,DSR_ICON_DOOR_OPEN,DSR_ICON_VALVE};
+ lv_obj_clean(well);
+ for(unsigned i=0;i<17;i++)for(unsigned s=0;s<3;s++){
+  lv_obj_t *icon=dsr_sc_icon(well,extra[i],16,10,(int)sizes[s],colors[s]);lv_obj_update_layout(root);lv_refr_now(display);
+  mask_pixels(icon,dsr_ui_cyber_icon(extra[i],sizes[s]),colors[s]);lv_obj_delete(icon);
+ }
 }
 static void gallery(void)
 {
@@ -78,11 +87,11 @@ static void gallery(void)
   .rooms={{.name="Salon",.id=1}},.devices={
   {.id=1,.name="Shelly Plus 1PM",.kind=DSR_DEVICE_RELAY,.online=true,.output=true,.can_switch=true,.has_power=true,.has_voltage=true,.power_w=18.6,.voltage_v=232.9},
   {.id=2,.name="SPSH-002PE16EU",.kind=DSR_DEVICE_COVER,.online=true,.has_position=true,.position_pct=84,.can_cover=true,.can_stop_cover=true,.cover_state=DSR_COVER_STOPPED,.has_power=true,.has_voltage=true,.power_w=0,.voltage_v=232.9},
-  {.id=3,.name="BLU Window",.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.has_battery=true,.battery_pct=92,.has_illuminance=true,.illuminance_lux=18,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}},
+  {.id=3,.name="BLU Window",.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.can_refresh=true,.has_contact=true,.has_battery=true,.battery_pct=92,.has_illuminance=true,.illuminance_lux=18,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_HAS_RSSI,.rssi=-69}},
   {.id=4,.name="Shelly Plug S",.kind=DSR_DEVICE_PLUG,.online=false}}};
  m.devices[1].can_position=true;
  m.devices[2].has_sample_time=true;m.devices[2].sample_ms=lv_tick_get();m.devices[2].blu_age_s=4;
- const dsr_mobile_actions_t a={.set_output=output_hit,.set_cover=cover_hit,.stop_cover=stop_hit,.set_position=position_hit};
+ const dsr_mobile_actions_t a={.set_output=output_hit,.set_cover=cover_hit,.stop_cover=stop_hit,.set_position=position_hit,.refresh=refresh_hit};
  for(unsigned i=0;i<m.device_count;i++)snprintf(m.devices[i].identity,sizeof(m.devices[i].identity),"skin-fixture-%u",i);
  dsr_mobile_bind(&a);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);screenshot("600-cyber-home");
  m.devices[0].output=false;dsr_mobile_update(&m);screenshot("624-cyber-home-off");m.devices[0].output=true;dsr_mobile_update(&m);
@@ -99,6 +108,7 @@ static void gallery(void)
  }
  tap(80,390);tap(235,390);tap(272,275);CHECK(cover_hits==2&&stop_hits==1);
  dsr_mobile_show(DSR_MOBILE_DETAILS,2);CHECK(find_label(lv_screen_active(),"Zamknięte"));screenshot("603-cyber-blu-closed");
+ tap(160,400);CHECK(refresh_hits==1);
  m.devices[2].contact_open=true;m.devices[2].blu.flags|=DSR_BLU_OPEN;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Otwarte"));screenshot("604-cyber-blu-open");
  for(unsigned lang=1;lang<=2;lang++){
   dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,lang);dsr_ui_apply_theme();
@@ -107,6 +117,13 @@ static void gallery(void)
   screenshot(lang==1?"620-cyber-blu-en":"621-cyber-blu-de");
  }
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();
+ dsr_mobile_device_t saved_sensor=m.devices[2];
+ m.devices[2].online=false;m.devices[2].error=DSR_OFFLINE;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);CHECK(find_label(lv_screen_active(),"Bramka nie odpowiada"));screenshot("640-cyber-blu-offline");
+ m.devices[2].online=true;m.devices[2].error=DSR_OK;m.devices[2].blu.errors=DSR_BLU_ERROR_KEY;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Bramka: brak lub błędny klucz szyfrowania"));screenshot("641-cyber-blu-gateway-error");m.devices[2].blu.errors=0;
+ m.devices[2].blu.flags=0;m.devices[2].has_contact=false;m.devices[2].has_battery=false;m.devices[2].has_illuminance=false;m.devices[2].blu_age_s=-1;m.devices[2].has_sample_time=false;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Czas ostatniego sygnału nieznany"));screenshot("642-cyber-blu-no-data");
+ snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Lampy Łódź Küche — bardzo długa nazwa");dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);screenshot("643-cyber-home-long-name");
+ snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Shelly Plus 1PM");
+ m.devices[2]=saved_sensor;
  m.configured_layout=true;m.tile_count=24;
  for(unsigned i=0;i<24;i++)m.tiles[i]=(dsr_mobile_tile_t){.type=0,.index=i%4,.span=2,.height=1,.fields=255};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_refr_now(display);
@@ -157,7 +174,7 @@ int main(int argc,char **argv)
  /* Re-enter from the saved document, as startup does (no device reboot). */
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_LIGHT,0);dsr_ui_apply_theme();dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);
  /* Fill LVGL's lazy style/font caches for both directions before measuring. */
- for(unsigned warm=0;warm<3;warm++)for(unsigned i=0;i<4;i++)select_skin(i);
+ for(unsigned warm=0;warm<10;warm++)for(unsigned i=0;i<4;i++)select_skin(i);
  /* Compare quiescent empty roots: retained allocation slack in a live screen
   * varies with TLSF fragmentation when the parent LVGL theme is rebuilt. */
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
