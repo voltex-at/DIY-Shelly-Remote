@@ -2,6 +2,8 @@
 #include "dsr_board.h"
 #include "dsr_ui_task.h"
 #include "dsr_touch_mailbox.h"
+#include "dsr_touch_filter.h"
+#include "dsr_touch_lvgl.h"
 #include "st77922_init.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -39,6 +41,8 @@ static uint16_t idle_seconds = 60;
 static esp_timer_handle_t tick_timer;
 static portMUX_TYPE touch_lock = portMUX_INITIALIZER_UNLOCKED;
 static dsr_touch_mailbox_t touch_mailbox;
+static dsr_touch_filter_t touch_filter;
+static dsr_touch_lvgl_t touch_input;
 
 const char *dsr_board_hardware_id(void) { return "lcdwiki-es3c35p-n16r8"; }
 lv_display_t *dsr_board_display(void) { return display; }
@@ -115,23 +119,32 @@ static void touch_task(void *arg)
     (void)arg;
     bool previous = false;
     for (;;) {
-        dsr_touch_sample_t next = {0};
+        dsr_touch_sample_t next = {0},filtered;
+        bool valid=false;
         uint8_t info = 0;
         uint8_t bytes[TOUCH_POINTS * 7];
-        if (read_touch_register(0x0010, &info, 1) == ESP_OK && (info & 0x08) &&
-            read_touch_register(0x0014, bytes, touch_max_points * 7) == ESP_OK) {
+        if (read_touch_register(0x0010, &info, 1) == ESP_OK) {
+          valid=!(info&0x08);
+          if((info&0x08)&&read_touch_register(0x0014,bytes,touch_max_points*7)==ESP_OK){
+            valid=true;unsigned contacts=0;
             for (unsigned i = 0; i < touch_max_points; i++) {
                 const uint8_t *point = &bytes[i * 7];
                 if (!(point[0] & 0x80)) continue;
                 uint16_t x = ((uint16_t)(point[0] & 0x3f) << 8) | point[1];
                 uint16_t y = ((uint16_t)(point[2] & 0x3f) << 8) | point[3];
+                contacts++;
                 if (x < WIDTH && y < HEIGHT) next = (dsr_touch_sample_t){.pressed=true,.x=x,.y=y};
-                break;
+                else valid=false;
             }
+            if(contacts>1)next=(dsr_touch_sample_t){.cancelled=true};
+          }
         }
-        portENTER_CRITICAL(&touch_lock);
-        dsr_touch_push(&touch_mailbox,next,(uint32_t)(esp_timer_get_time()/1000));
-        portEXIT_CRITICAL(&touch_lock);
+        uint32_t now=(uint32_t)(esp_timer_get_time()/1000);
+        if(dsr_touch_filter(&touch_filter,next,valid,now,&filtered)){
+         portENTER_CRITICAL(&touch_lock);
+         dsr_touch_push(&touch_mailbox,filtered,now);
+         portEXIT_CRITICAL(&touch_lock);
+        }
         if (next.pressed && !previous) ESP_LOGI(TAG, "Touch x=%u y=%u", (unsigned)next.x, (unsigned)next.y);
         previous = next.pressed;
         vTaskDelay(pdMS_TO_TICKS(10)); /* 0.7.52: was 20 ms */
@@ -140,15 +153,13 @@ static void touch_task(void *arg)
 
 static void touch_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
-    static uint16_t last_x, last_y;
-    dsr_touch_sample_t sample;
+    dsr_touch_sample_t sample;bool more;
+    uint32_t now=(uint32_t)(esp_timer_get_time()/1000);
     portENTER_CRITICAL(&touch_lock);
-    sample = dsr_touch_pop(&touch_mailbox,(uint32_t)(esp_timer_get_time()/1000));
+    sample = dsr_touch_pop(&touch_mailbox,now);
+    more=touch_mailbox.count!=0;
     portEXIT_CRITICAL(&touch_lock);
-    if(sample.cancelled)lv_indev_reset(indev,NULL);
-    if (sample.pressed) { last_x = sample.x; last_y = sample.y; }
-    data->point.x = last_x;
-    data->point.y = last_y;
+    dsr_touch_lvgl_sample(indev,data,&touch_input,sample,more);
     data->state = LV_INDEV_STATE_RELEASED;
     if (sleeping && sample.pressed) {
         if (dsr_board_restore_backlight() != ESP_OK) return;
@@ -261,6 +272,8 @@ esp_err_t dsr_board_init(void)
         lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
         lv_indev_set_display(indev, display);
         lv_indev_set_read_cb(indev, touch_read);
+        lv_indev_add_event_cb(indev,dsr_touch_lvgl_guard,LV_EVENT_ALL,&touch_input);
+        lv_indev_set_scroll_limit(indev,DSR_TOUCH_DRAG_LIMIT);
         /* Match the 10 ms acquisition period; complete short taps survive a repaint. */
         lv_timer_set_period(lv_indev_get_read_timer(indev), 10);
         ESP_LOGI(TAG, "ST77922 touch responding, max points=%u", (unsigned)max_points);

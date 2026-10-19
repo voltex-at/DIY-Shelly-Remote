@@ -1,4 +1,10 @@
-# Matryca funkcji — 0.7.57-dev
+# Matryca funkcji — 0.7.60-dev
+
+W 0.7.60-dev na `work/shelly-hud-cyber-blue`: skórka Cyber Blue i nowy ekran
+BLU z 0.7.59 oraz wspólna poprawka dotyku (zaniki kontaktu, ruch zachowany
+podczas rysowania, brak kliknięcia po przeciągnięciu). OTA kontynuuje ten sam
+strumień po przejściowym EAGAIN i rozróżnia diagnostykę sieci/SDK.
+Regresje hostowe nie zastępują odbioru dotyku i OTA na fizycznym pilocie.
 
 W 0.7.57-dev: wspólne zakładki grup/scen, zegar po lewej,
 ograniczenie przebudowy UI podczas dotyku i odczytów w tle, grafiki kontaktów

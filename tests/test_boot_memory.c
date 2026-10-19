@@ -1,5 +1,6 @@
 #include "dsr_ui_task.h"
 #include "dsr_touch_mailbox.h"
+#include "dsr_touch_filter.h"
 #include "dsr_storage.h"
 #include "freertos/task.h"
 #include "esp_partition.h"
@@ -88,7 +89,7 @@ static void touch_mailbox_test(void)
  s=dsr_touch_pop(&m,100);CHECK(s.pressed&&s.x==120&&s.y==240);s=dsr_touch_pop(&m,100);CHECK(!s.pressed&&s.x==120&&s.y==240);CHECK(!dsr_touch_pop(&m,100).pressed);
  dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=100,.y=100},100);s=dsr_touch_pop(&m,100);CHECK(s.pressed);
  for(unsigned i=0;i<100;i++)dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=(uint16_t)(100+i),.y=150},100);
- CHECK(!m.count);s=dsr_touch_pop(&m,100);CHECK(s.pressed&&s.x==199&&s.y==150);
+ CHECK(m.count==1);s=dsr_touch_pop(&m,100);CHECK(s.pressed&&s.x==199&&s.y==150&&s.dragged);
  dsr_touch_push(&m,(dsr_touch_sample_t){0},100);CHECK(!dsr_touch_pop(&m,100).pressed);
  for(unsigned i=0;i<9;i++)dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=i%2==0,.x=12,.y=34},100);
  CHECK(!m.count&&m.muted&&!dsr_touch_pop(&m,100).pressed);dsr_touch_push(&m,(dsr_touch_sample_t){0},100);CHECK(!m.muted);
@@ -97,10 +98,47 @@ static void touch_mailbox_test(void)
  dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=20,.y=30},1000);s=dsr_touch_pop(&m,1600);CHECK(!s.pressed&&s.cancelled&&m.muted);
  dsr_touch_push(&m,(dsr_touch_sample_t){0},1700);CHECK(!m.muted&&!dsr_touch_pop(&m,1700).pressed);
  dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=30,.y=40},UINT32_MAX-50);s=dsr_touch_pop(&m,25);CHECK(s.pressed&&!s.cancelled);
+ /* A whole swipe between two display polls retains movement before release. */
+ m=(dsr_touch_mailbox_t){0};
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=100,.y=200},10);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=100,.y=120},20);
+ dsr_touch_push(&m,(dsr_touch_sample_t){0},30);
+ uint32_t captured;s=dsr_touch_pop_at(&m,40,&captured);CHECK(s.pressed&&s.y==200&&!s.dragged&&captured==10);
+ s=dsr_touch_pop_at(&m,40,&captured);CHECK(s.pressed&&s.y==120&&s.dragged&&captured==20);
+ s=dsr_touch_pop_at(&m,40,&captured);CHECK(!s.pressed&&s.dragged&&captured==30&&!m.count);
+ /* Movement does not grow the queue; out-and-back keeps its drag evidence. */
+ m=(dsr_touch_mailbox_t){0};dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=20,.y=30},1);
+ for(unsigned i=0;i<1000;i++)dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=(uint16_t)(20+i%50),.y=30},2);
+ dsr_touch_push(&m,(dsr_touch_sample_t){.pressed=true,.x=20,.y=30},3);CHECK(m.count==2);
+ (void)dsr_touch_pop(&m,4);s=dsr_touch_pop(&m,4);CHECK(s.pressed&&s.x==20&&s.dragged);
+}
+static void contact_filter_test(void)
+{
+ dsr_touch_filter_t f={0};dsr_touch_sample_t s,p={.pressed=true,.x=20,.y=30},up={0};
+ CHECK(dsr_touch_filter(&f,p,true,10,&s)&&s.pressed); /* no delay on press */
+ CHECK(dsr_touch_filter(&f,up,true,20,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,p,true,30,&s)&&s.pressed); /* 10 ms dropout */
+ CHECK(dsr_touch_filter(&f,up,false,40,&s)&&s.pressed&&!s.cancelled);
+ CHECK(dsr_touch_filter(&f,p,true,50,&s)&&s.pressed);
+ for(unsigned i=0;i<3;i++)CHECK(dsr_touch_filter(&f,up,true,60+i*10,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,up,true,90,&s)&&!s.pressed&&!s.cancelled&&s.x==20);
+ CHECK(dsr_touch_filter(&f,p,true,100,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,up,false,199,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,up,false,200,&s)&&!s.pressed&&s.cancelled);
+ CHECK(!dsr_touch_filter(&f,p,true,210,&s)); /* reconnect cannot click */
+ CHECK(!dsr_touch_filter(&f,up,true,220,&s));
+ CHECK(dsr_touch_filter(&f,up,true,250,&s)&&!s.pressed&&!s.cancelled);
+ CHECK(dsr_touch_filter(&f,p,true,260,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,(dsr_touch_sample_t){.cancelled=true},true,270,&s)&&s.cancelled);
+ CHECK(!dsr_touch_filter(&f,p,true,280,&s));
+ f=(dsr_touch_filter_t){0};CHECK(dsr_touch_filter(&f,p,true,UINT32_MAX-20,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,up,true,UINT32_MAX-10,&s)&&s.pressed);
+ CHECK(dsr_touch_filter(&f,up,true,25,&s)&&!s.pressed);
 }
 int main(void)
 {
     touch_mailbox_test();
+    contact_filter_test();
     /* Dynamic task creation is deliberately absent from this link: restoring
      * the 0.7.1 xTaskCreate path breaks the regression target at link time. */
     CHECK(dsr_ui_task_start(NULL) == ESP_ERR_INVALID_ARG && task_calls == 0);

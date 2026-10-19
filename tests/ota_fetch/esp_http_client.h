@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "esp_err.h"
+#define ESP_ERR_HTTP_EAGAIN 0x7007 /* ESP-IDF v5.5.4 public constant */
 typedef void *esp_http_client_handle_t;
 typedef enum {HTTP_EVENT_ERROR,HTTP_EVENT_ON_CONNECTED,HTTP_EVENT_HEADERS_SENT,HTTP_EVENT_ON_HEADER,HTTP_EVENT_ON_DATA,HTTP_EVENT_ON_FINISH,HTTP_EVENT_DISCONNECTED,HTTP_EVENT_REDIRECT} esp_http_client_event_id_t;
 typedef struct {esp_http_client_event_id_t event_id;esp_http_client_handle_t client;void *data;int data_len;void *user_data;char *header_key,*header_value;} esp_http_client_event_t;

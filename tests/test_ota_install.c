@@ -135,7 +135,14 @@ static void failures(void)
  fixture();hops[1].complete=false;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&sdk_aborts==1&&!sdk_ends);clean_install();
  fixture();fail_read=(unsigned)manifest_lengths[0]+3;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&sdk_aborts==1&&!sdk_ends&&!sdk_boots);clean_install();
  fixture();fail_open=2;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&!sdk_begins&&!sdk_aborts);clean_install();
- fixture();hops[1].status=500;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&!sdk_begins&&!sdk_aborts);clean_install();
+ fixture();hops[1].status=500;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&details.http_status==500&&!sdk_begins&&!sdk_aborts);clean_install();
+ /* Transient reads cannot replay writes or restart the signed response. */
+ fixture();again_at=3;again_left=2;cancel_phase=DSR_INSTALL_VERIFYING;
+ CHECK(invoke(&v,true)==DSR_INSTALL_CANCELLED&&again_calls==2&&initialized==2&&sdk_begins==1&&sdk_written==image_length&&!memcmp(sdk_bytes,image,image_length)&&details.http_status==200&&details.io_result==0&&sdk_aborts==1&&!sdk_ends&&!sdk_boots);clean_install();
+ fixture();again_at=3;again_left=100;
+ CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&details.fetch_result==DSR_FETCH_TIMEOUT&&details.http_status==200&&details.io_result==-ESP_ERR_HTTP_EAGAIN&&again_calls==6&&sdk_aborts==1&&!sdk_ends&&!sdk_boots);clean_install();
+ fixture();again_at=3;again_left=100;cancel_app_read=4;
+ CHECK(invoke(&v,true)==DSR_INSTALL_CANCELLED&&again_calls==2&&sdk_aborts==1&&!sdk_ends&&!sdk_boots);clean_install();
  fixture();hops[1].chunked=true;hops[1].headers[0]=(header_t){"Transfer-Encoding","chunked"};hops[1].length++;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&sdk_aborts==1&&!sdk_ends);clean_install();
  fixture();fail_close=2;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&sdk_aborts==1&&!sdk_ends);clean_install();
  fixture();fail_cleanup=2;CHECK(invoke(&v,true)==DSR_INSTALL_FETCH&&sdk_aborts==1&&!sdk_ends);clean_install();

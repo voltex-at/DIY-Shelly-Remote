@@ -151,7 +151,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
  dsr_ota_image_t *image,dsr_image_result_t *image_why,
  unsigned char *metadata,size_t *metadata_length,size_t expected_manifest_size,
- const dsr_ota_stream_sink_t *sink,bool discovery,int *http_status)
+ const dsr_ota_stream_sink_t *sink,bool discovery,dsr_ota_fetch_diagnostic_t *diagnostic)
 {
  bool release=metadata!=NULL;
  if(why)*why=DSR_MANIFEST_INVALID;
@@ -168,6 +168,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
  s->control=control;s->started=s->progress=esp_timer_get_time();s->budget=image?DSR_OTA_IMAGE_BUDGET_US:DSR_OTA_FETCH_BUDGET_US;strcpy(s->url,url);
  for(unsigned hop=0;hop<2;hop++){
   if(stopped(s))break;
+  if(diagnostic)*diagnostic=(dsr_ota_fetch_diagnostic_t){0};
   s->used=s->headers=s->count=0;s->declared=0;
   s->length_seen=s->transfer_seen=s->encoding_seen=s->location_seen=false;s->location[0]=0;
   memset(&s->config,0,sizeof(s->config));
@@ -183,13 +184,16 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
   if(!stopped(s)&&esp_http_client_set_header(client,"Accept-Encoding","identity")!=ESP_OK)s->result=DSR_FETCH_IO;
   if(!stopped(s)&&esp_http_client_set_header(client,"Accept",release?"application/vnd.github+json":image?"application/octet-stream":"application/json")!=ESP_OK)s->result=DSR_FETCH_IO;
   if(release&&!stopped(s)&&esp_http_client_set_header(client,"X-GitHub-Api-Version","2022-11-28")!=ESP_OK)s->result=DSR_FETCH_IO;
-  if(!stopped(s)&&esp_http_client_open(client,0)!=ESP_OK&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
+  if(!stopped(s)){
+   esp_err_t opened=esp_http_client_open(client,0);
+   if(opened!=ESP_OK){if(diagnostic)diagnostic->io_result=opened;if(s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;}
+  }
   if(!stopped(s)){
    int64_t length=esp_http_client_fetch_headers(client);
-   if(http_status)*http_status=esp_http_client_get_status_code(client);
+   if(diagnostic)diagnostic->http_status=esp_http_client_get_status_code(client);
    if(!stopped(s)){
     int status=esp_http_client_get_status_code(client);
-    if(length<0)s->result=DSR_FETCH_IO;
+    if(length<0){s->result=DSR_FETCH_IO;if(diagnostic)diagnostic->io_result=(int)length;}
     else if(status==301||status==302||status==303||status==307||status==308){
      if(release||hop||!s->location_seen||!asset_url(s->location))s->result=DSR_FETCH_REDIRECT;
      else redirect=true;
@@ -208,8 +212,15 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
       if(wanted>1024)wanted=1024;
       char *buffer=release?(char *)metadata+s->used:(char *)s->body+(image?0:s->used);
       int n=esp_http_client_read(client,buffer,(int)wanted);
+      if(diagnostic&&n<0)diagnostic->io_result=n;
       if(stopped(s))break;
+      /* ESP-IDF 5.5.4: no bytes ready within this read timeout. Continue the
+       * SAME response; no reopening, replayed Flash writes or relaxed hash.
+       * stopped() still enforces cancellation, 30 s without progress and the
+       * absolute transfer limit. Real transport/EOF errors remain terminal. */
+      if(n==-ESP_ERR_HTTP_EAGAIN)continue;
       if(n<0){s->result=DSR_FETCH_IO;break;}
+      if(diagnostic)diagnostic->io_result=0;
       if((size_t)n>wanted){s->result=DSR_FETCH_SIZE;break;}
       if(!n){
        if(!esp_http_client_is_complete_data_received(client)||(s->length_seen&&s->used!=s->declared))s->result=DSR_FETCH_INCOMPLETE;
@@ -230,7 +241,7 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
    }
   }
   esp_err_t closed=esp_http_client_close(client),cleaned=esp_http_client_cleanup(client);
-  if((closed!=ESP_OK||cleaned!=ESP_OK)&&s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;
+  if((closed!=ESP_OK||cleaned!=ESP_OK)&&s->result==DSR_FETCH_OK){s->result=DSR_FETCH_IO;if(diagnostic)diagnostic->io_result=closed!=ESP_OK?closed:cleaned;}
   if(stopped(s))break;
   if(redirect){strcpy(s->url,s->location);continue;}
   /* SDK-visible chunk trailers arrive after the initial header checks.
@@ -274,8 +285,11 @@ dsr_ota_fetch_result_t dsr_ota_fetch_discovery_page(dsr_ota_channel_t channel,un
  if(http_status)*http_status=0;
  if(!body||!length||(channel!=DSR_OTA_STABLE&&channel!=DSR_OTA_DEV))return DSR_FETCH_ARGUMENT;
  if(page<1||page>(channel==DSR_OTA_STABLE?1u:DSR_OTA_DEV_PAGES))return DSR_FETCH_ARGUMENT;
- return fetch(channel==DSR_OTA_STABLE?stable_discovery:dev_discovery[page-1],NULL,control,
-  NULL,NULL,NULL,NULL,body,length,0,NULL,true,http_status);
+ dsr_ota_fetch_diagnostic_t diagnostic={0};
+ dsr_ota_fetch_result_t result=fetch(channel==DSR_OTA_STABLE?stable_discovery:dev_discovery[page-1],NULL,control,
+  NULL,NULL,NULL,NULL,body,length,0,NULL,true,&diagnostic);
+ if(http_status)*http_status=diagnostic.http_status;
+ return result;
 }
 
 typedef struct {dsr_ota_verified_t verified;dsr_ota_image_t *image;} app_chain_t;
@@ -289,15 +303,16 @@ static bool same_consent(const dsr_ota_verified_t *a,const dsr_ota_verified_t *b
 static dsr_ota_fetch_result_t app_chain_run(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
  dsr_image_result_t *image_why,size_t expected_manifest_size,
- const dsr_ota_verified_t *consent,const dsr_ota_stream_sink_t *sink,bool *consent_changed)
+ const dsr_ota_verified_t *consent,const dsr_ota_stream_sink_t *sink,bool *consent_changed,dsr_ota_fetch_diagnostic_t *diagnostic)
 {
+ if(diagnostic)*diagnostic=(dsr_ota_fetch_diagnostic_t){0};
  if(consent_changed)*consent_changed=false;
  if(why)*why=DSR_MANIFEST_INVALID;
  if(image_why)*image_why=DSR_IMAGE_STATE;
  if(!out)return DSR_FETCH_ARGUMENT;
  memset(out,0,sizeof(*out));
  app_chain_t *chain=calloc(1,sizeof(*chain));if(!chain)return DSR_FETCH_NOMEM;
- dsr_ota_fetch_result_t result=fetch(url,policy,control,&chain->verified,why,NULL,NULL,NULL,NULL,expected_manifest_size,NULL,false,NULL);
+ dsr_ota_fetch_result_t result=fetch(url,policy,control,&chain->verified,why,NULL,NULL,NULL,NULL,expected_manifest_size,NULL,false,diagnostic);
  if(result==DSR_FETCH_OK&&consent&&!same_consent(consent,&chain->verified)){
   if(consent_changed)*consent_changed=true;
   result=DSR_FETCH_ARGUMENT;
@@ -306,7 +321,7 @@ static dsr_ota_fetch_result_t app_chain_run(const char *url,const dsr_ota_policy
   dsr_image_result_t created=dsr_ota_image_create(&chain->verified,&chain->image);
   if(image_why)*image_why=created;
   if(created!=DSR_IMAGE_OK)result=DSR_FETCH_IMAGE;
-  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why,NULL,NULL,0,sink,false,NULL);
+  else result=fetch(chain->verified.url,policy,control,&chain->verified,NULL,chain->image,image_why,NULL,NULL,0,sink,false,diagnostic);
  }
  dsr_ota_image_destroy(chain->image);
  if(result==DSR_FETCH_OK)*out=chain->verified;
@@ -315,15 +330,16 @@ static dsr_ota_fetch_result_t app_chain_run(const char *url,const dsr_ota_policy
 dsr_ota_fetch_result_t dsr_ota_fetch_app_sized(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
  dsr_image_result_t *image_why,size_t expected_manifest_size)
-{return app_chain_run(url,policy,control,out,why,image_why,expected_manifest_size,NULL,NULL,NULL);}
+{return app_chain_run(url,policy,control,out,why,image_why,expected_manifest_size,NULL,NULL,NULL,NULL);}
 dsr_ota_fetch_result_t dsr_ota_fetch_stream_app(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_verified_t *consent,const dsr_ota_fetch_control_t *control,
  const dsr_ota_stream_sink_t *sink,dsr_ota_verified_t *out,dsr_manifest_result_t *why,
- dsr_image_result_t *image_why,bool *consent_changed)
+ dsr_image_result_t *image_why,bool *consent_changed,dsr_ota_fetch_diagnostic_t *diagnostic)
 {
+ if(diagnostic)*diagnostic=(dsr_ota_fetch_diagnostic_t){0};
  if(consent_changed)*consent_changed=false;
  if(!consent||!sink||!sink->write){if(out)memset(out,0,sizeof(*out));if(why)*why=DSR_MANIFEST_INVALID;if(image_why)*image_why=DSR_IMAGE_STATE;return DSR_FETCH_ARGUMENT;}
- return app_chain_run(url,policy,control,out,why,image_why,0,consent,sink,consent_changed);
+ return app_chain_run(url,policy,control,out,why,image_why,0,consent,sink,consent_changed,diagnostic);
 }
 dsr_ota_fetch_result_t dsr_ota_fetch_app(const char *url,const dsr_ota_policy_t *policy,
  const dsr_ota_fetch_control_t *control,dsr_ota_verified_t *out,dsr_manifest_result_t *why,

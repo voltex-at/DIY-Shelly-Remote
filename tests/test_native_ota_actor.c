@@ -26,6 +26,7 @@ static unsigned clock_calls,catalogue_calls,manifest_calls,install_calls;
 static unsigned cancel_at; /* 1 clock, 2 catalogue, 3 manifest, 4 install boot */
 static bool boot_attempted,probe_running;
 static int catalogue_status=200;
+static int installed_http,installed_io;static esp_err_t installed_sdk;
 static uint32_t next_id=100,current_id;
 static dsr_job_kind_t current_kind;
 static dsr_ota_channel_t expected_channel=DSR_OTA_STABLE;
@@ -81,6 +82,7 @@ dsr_ota_install_result_t dsr_ota_install(const char *source,const dsr_ota_policy
  CHECK(!strcmp(consent->version,"1.2.4")&&!strcmp(consent->url,app_url)&&consent->size==8192&&consent->channel==expected_channel);
  for(unsigned i=0;i<32;i++)CHECK(consent->sha256[i]==0xa5);
  *report=(dsr_ota_install_report_t){.fetch_result=DSR_FETCH_OK,.manifest_result=DSR_MANIFEST_OK,.image_result=DSR_IMAGE_OK,.bytes_written=8192,.boot_selection_attempted=boot_attempted,.boot_selected=install_result==DSR_INSTALL_OK};
+ report->http_status=installed_http;report->io_result=installed_io;report->sdk_error=installed_sdk;
  control->progress(control->context,DSR_INSTALL_DOWNLOADING,4096,8192);CHECK(snapshot().received==4096);
  if(cancel_at==4)dsr_native_ota_cancel();
  if(install_result==DSR_INSTALL_OK)stage=DSR_OTA_STAGE_STAGED;else if(boot_attempted)stage=DSR_OTA_STAGE_UNCERTAIN;
@@ -91,6 +93,7 @@ static void defaults(void)
  no_memory=false;boot=connected=true;temporary=false;readiness=install_result=DSR_INSTALL_OK;
  clock_result=catalogue_result=manifest_result=DSR_FETCH_OK;manifest_why=DSR_MANIFEST_OK;catalogue_why=DSR_RELEASE_OK;
  cancel_at=0;boot_attempted=false;probe_running=true;catalogue_status=200;
+ installed_http=installed_io=installed_sdk=0;
  clock_calls=catalogue_calls=manifest_calls=install_calls=0;
 }
 static dsr_result_t prepare(dsr_job_kind_t kind,dsr_ota_channel_t channel,bool power)
@@ -148,6 +151,12 @@ static void lifecycle(void)
   CHECK(snapshot().state==(failure?DSR_NATIVE_FAILED:DSR_NATIVE_CANCELLED));
   CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_STABLE,true)==DSR_INVALID&&install_calls==1);
  }
+ available(DSR_OTA_DEV);install_result=DSR_INSTALL_FETCH;installed_http=200;installed_io=-0x7007;
+ CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,true)==DSR_OK);CHECK(execute().result==DSR_IO);
+ view=snapshot();CHECK(view.state==DSR_NATIVE_FAILED&&view.install_result==DSR_INSTALL_FETCH&&view.http_status==200&&view.io_result==-0x7007&&view.sdk_error==0);
+ CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_DEV,false)==DSR_OK&&snapshot().io_result==0&&snapshot().sdk_error==0&&snapshot().http_status==0);CHECK(execute().result==DSR_OK);
+ install_result=DSR_INSTALL_SDK;installed_sdk=ESP_ERR_NO_MEM;
+ CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,true)==DSR_OK);CHECK(execute().result==DSR_IO);CHECK(snapshot().sdk_error==ESP_ERR_NO_MEM&&snapshot().install_result==DSR_INSTALL_SDK);
  available(DSR_OTA_STABLE);stage=DSR_OTA_STAGE_HELD;CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_STABLE,true)==DSR_BUSY&&!install_calls);stage=DSR_OTA_STAGE_UNCERTAIN;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_STABLE,false)==DSR_BUSY&&!install_calls);stage=DSR_OTA_STAGE_IDLE;dsr_native_ota_cancel();
 }
 int main(int argc,char **argv)

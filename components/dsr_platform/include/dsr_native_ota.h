@@ -26,6 +26,8 @@ typedef struct {
  dsr_ota_install_result_t install_result;
  uint32_t operation_id,received,total;
  int http_status;
+ esp_err_t sdk_error;
+ int io_result;
  char installed[32],version[32],notes[DSR_OTA_NATIVE_NOTES_MAX+1];
  bool boot_selection_attempted;
 } dsr_native_ota_snapshot_t;

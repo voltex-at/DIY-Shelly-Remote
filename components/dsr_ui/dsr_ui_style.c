@@ -193,6 +193,8 @@ const char *dsr_sc_tr(const char *text)
  {"Brak pamięci. Spróbuj ponownie później.","Out of memory. Try again later.","Nicht genügend Speicher. Später erneut versuchen."},
  {"Nie rozpoznano lokalnej wersji firmware.","Local firmware version is not recognized.","Lokale Firmware-Version nicht erkannt."},
  {"Nie ukończono instalacji. Zachowano bieżący firmware.","Installation did not complete. Current firmware retained.","Installation nicht abgeschlossen. Bisherige Firmware bleibt erhalten."},
+ {"Przerwano pobieranie. Sprawdź Wi-Fi i spróbuj ponownie.","Download interrupted. Check Wi-Fi and try again.","Download unterbrochen. WLAN prüfen und erneut versuchen."},
+ {"Nie udało się zapisać firmware. Bieżąca wersja pozostaje aktywna.","Firmware could not be written. Current version remains active.","Firmware konnte nicht gespeichert werden. Bisherige Version bleibt aktiv."},
  {"Nie pobrano poprawnego katalogu wydań. Sprawdź internet i spróbuj ponownie.","Could not fetch a valid release catalogue. Check internet and retry.","Kein gültiger Versionskatalog geladen. Internet prüfen und erneut versuchen."},
  {"Sprawdź dostępne podpisane wydanie.","Check for an available signed release.","Nach einer signierten Version suchen."},
  {"Zainstalować podpisane wydanie?","Install the signed release?","Signierte Version installieren?"},

@@ -93,8 +93,10 @@ dsr_ota_install_result_t dsr_ota_install(const char *manifest_url,
  if(cancelled(s))goto done;
  progress(s,DSR_INSTALL_MANIFEST);
  dsr_ota_fetch_control_t fetch_control={cancelled,s};dsr_ota_stream_sink_t sink={sink_write,s};bool changed=false;
+ dsr_ota_fetch_diagnostic_t diagnostic={0};
  report->fetch_result=dsr_ota_fetch_stream_app(manifest_url,policy,consent,&fetch_control,&sink,
-  &s->verified,&report->manifest_result,&report->image_result,&changed);
+  &s->verified,&report->manifest_result,&report->image_result,&changed,&diagnostic);
+ report->http_status=diagnostic.http_status;report->io_result=diagnostic.io_result;
  if(report->fetch_result!=DSR_FETCH_OK){
   result=changed?DSR_INSTALL_CONSENT_CHANGED:report->sdk_error!=ESP_OK?DSR_INSTALL_SDK:
    report->fetch_result==DSR_FETCH_CANCELLED||cancelled(s)?DSR_INSTALL_CANCELLED:DSR_INSTALL_FETCH;goto done;

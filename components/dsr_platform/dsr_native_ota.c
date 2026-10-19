@@ -70,7 +70,7 @@ dsr_result_t dsr_native_ota_prepare(uint32_t id,dsr_job_kind_t kind,dsr_ota_chan
  actor.kind=kind;actor.queued=true;actor.power=power;actor.view.operation_id=id;actor.view.channel=channel;
  actor.view.state=kind==DSR_JOB_OTA_CHECK?DSR_NATIVE_CHECKING:DSR_NATIVE_INSTALLING;
  actor.view.error=DSR_NATIVE_ERROR_NONE;actor.view.received=0;actor.view.phase=DSR_INSTALL_MANIFEST;
- actor.view.fetch_result=DSR_FETCH_ARGUMENT;actor.view.manifest_result=DSR_MANIFEST_INVALID;actor.view.install_result=DSR_INSTALL_ARGUMENT;actor.view.http_status=0;actor.view.boot_selection_attempted=false;memset(&actor.report,0,sizeof(actor.report));
+ actor.view.fetch_result=DSR_FETCH_ARGUMENT;actor.view.manifest_result=DSR_MANIFEST_INVALID;actor.view.install_result=DSR_INSTALL_ARGUMENT;actor.view.http_status=actor.view.sdk_error=actor.view.io_result=0;actor.view.boot_selection_attempted=false;memset(&actor.report,0,sizeof(actor.report));
  atomic_store(&cancellation,false);result=DSR_OK;
 done:unlock();return result;
 }
@@ -135,12 +135,14 @@ void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event)
   dsr_ota_install_control_t install_control={cancelled,progress,NULL};
   installed=dsr_ota_install(actor.discovery.candidate.manifest_url,&policy,&actor.verified,&install_control,actor.power,&actor.report);
   fetch=actor.report.fetch_result;manifest=actor.report.manifest_result;
+  http_status=actor.report.http_status;
   success=installed==DSR_INSTALL_OK;
   if(!success)error=installed==DSR_INSTALL_CONSENT_CHANGED?DSR_NATIVE_ERROR_CHANGED:DSR_NATIVE_ERROR_INSTALL;
  }
 finish:
  if(!lock())return;
  actor.running=false;actor.view.fetch_result=fetch;actor.view.manifest_result=manifest;actor.view.install_result=installed;actor.view.http_status=http_status;
+ actor.view.sdk_error=actor.report.sdk_error;actor.view.io_result=actor.report.io_result;
  actor.view.boot_selection_attempted=job->kind==DSR_JOB_OTA_INSTALL&&actor.report.boot_selection_attempted;
  if(success&&job->kind==DSR_JOB_OTA_INSTALL){actor.view.state=DSR_NATIVE_STAGED;actor.view.phase=DSR_INSTALL_STAGED;event->result=DSR_OK;}
  else if(actor.view.boot_selection_attempted){forget_candidate();actor.view.state=DSR_NATIVE_FAILED;actor.view.error=DSR_NATIVE_ERROR_INSTALL;event->result=DSR_IO;}
@@ -150,8 +152,9 @@ finish:
   memcpy(actor.view.version,actor.verified.version,sizeof(actor.view.version));memcpy(actor.view.notes,actor.discovery.notes,sizeof(actor.view.notes));event->result=DSR_OK;
  }else {forget_candidate();actor.view.state=DSR_NATIVE_FAILED;actor.view.error=error;event->result=DSR_IO;}
  dsr_native_ota_state_t state=actor.view.state;dsr_ota_channel_t channel=actor.view.channel;
+ esp_err_t sdk_error=actor.report.sdk_error;int io_result=actor.report.io_result;uint32_t bytes_written=actor.report.bytes_written;
  unlock();
  /* One line per failed operation for the USB log: stage and raw results. */
- if(state==DSR_NATIVE_FAILED)ESP_LOGW(TAG,"%s %s failed: error=%d fetch=%d http=%d manifest=%d install=%d",
-  job->kind==DSR_JOB_OTA_CHECK?"check":"install",channel==DSR_OTA_DEV?"dev":"stable",(int)error,(int)fetch,http_status,(int)manifest,(int)installed);
+ if(state==DSR_NATIVE_FAILED)ESP_LOGW(TAG,"%s %s failed: error=%d fetch=%d http=%d manifest=%d install=%d sdk=0x%x io=%d bytes=%lu",
+  job->kind==DSR_JOB_OTA_CHECK?"check":"install",channel==DSR_OTA_DEV?"dev":"stable",(int)error,(int)fetch,http_status,(int)manifest,(int)installed,(unsigned)sdk_error,io_result,(unsigned long)bytes_written);
 }

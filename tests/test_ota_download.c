@@ -25,6 +25,7 @@ static unsigned fail_init,fail_open,fail_read,fail_close,fail_cleanup,cancel_app
 static bool cancel_flag,early_complete,oversize_return,app_trailer_location;
 static int64_t monotonic,app_delay,app_first_delay;
 static size_t app_chunk;
+static unsigned again_at,again_left,again_calls;
 static time_t wall;
 static unsigned char manifests[5][2049],*image,*changed;static size_t manifest_lengths[5],image_length;
 static const char initial[]="https://github.com/voltex-at/DIY-Shelly-Remote/releases/download/v1.2.4/manifest.json";
@@ -62,7 +63,7 @@ int esp_http_client_get_status_code(esp_http_client_handle_t c){return hop(c)->s
 int64_t esp_http_client_get_content_length(esp_http_client_handle_t c){hop_t *h=hop(c);return h->chunked?-1:h->declared;}
 bool esp_http_client_is_chunked_response(esp_http_client_handle_t c){return hop(c)->chunked;}
 int esp_http_client_read(esp_http_client_handle_t c,char *out,int capacity)
-{hop_t *h=hop(c);CHECK(capacity>0&&capacity<=(h->manifest?1:1024));h->reads++;read_calls++;if(!h->manifest){monotonic+=app_delay;if(h->reads==1)monotonic+=app_first_delay;if(h->reads==cancel_app_read)cancel_flag=true;}if(read_calls==fail_read)return -1;if(oversize_return&&!h->manifest)return capacity+1;size_t n=h->length-h->offset;if(n>(size_t)capacity)n=(size_t)capacity;if(!h->manifest&&n>app_chunk)n=app_chunk;memcpy(out,h->body+h->offset,n);h->offset+=n;if(!n&&!h->manifest&&app_trailer_location){esp_http_client_event_t e={.event_id=HTTP_EVENT_ON_HEADER,.client=c,.user_data=h->config.user_data,.header_key="Location",.header_value="https://release-assets.githubusercontent.com/late"};(void)h->config.event_handler(&e);}return (int)n;}
+{hop_t *h=hop(c);CHECK(capacity>0&&capacity<=(h->manifest?1:1024));h->reads++;read_calls++;if(!h->manifest){monotonic+=app_delay;if(h->reads==1)monotonic+=app_first_delay;if(h->reads==cancel_app_read)cancel_flag=true;if(again_at&&h->reads>=again_at&&again_left){again_left--;again_calls++;monotonic+=5000000;return -ESP_ERR_HTTP_EAGAIN;}}if(read_calls==fail_read)return -1;if(oversize_return&&!h->manifest)return capacity+1;size_t n=h->length-h->offset;if(n>(size_t)capacity)n=(size_t)capacity;if(!h->manifest&&n>app_chunk)n=app_chunk;memcpy(out,h->body+h->offset,n);h->offset+=n;if(!n&&!h->manifest&&app_trailer_location){esp_http_client_event_t e={.event_id=HTTP_EVENT_ON_HEADER,.client=c,.user_data=h->config.user_data,.header_key="Location",.header_value="https://release-assets.githubusercontent.com/late"};(void)h->config.event_handler(&e);}return (int)n;}
 bool esp_http_client_is_complete_data_received(esp_http_client_handle_t c){hop_t *h=hop(c);return early_complete||(h->complete&&h->offset==h->length);}
 esp_err_t esp_http_client_close(esp_http_client_handle_t c){hop_t *h=hop(c);CHECK(!h->closed);h->closed=true;close_calls++;return close_calls==fail_close?ESP_FAIL:ESP_OK;}
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c){hop_t *h=hop(c);CHECK(h->closed);h->cleaned=true;cleanup_calls++;return cleanup_calls==fail_cleanup?ESP_FAIL:ESP_OK;}
@@ -72,7 +73,7 @@ static void content(unsigned index,bool manifest,const unsigned char *data,size_
 static void redirect(unsigned index,bool manifest,const char *url)
 {content(index,manifest,NULL,0);hops[index].status=302;hops[index].headers[0]=(header_t){"Location",url};hops[index].count=1;}
 static void reset(void)
-{CHECK(!owned&&!dsr_test_sha_live());memset(hops,0,sizeof(hops));content(0,true,manifests[0],manifest_lengths[0]);content(1,false,image,image_length);initialized=app_requests=read_calls=close_calls=cleanup_calls=0;fail_init=fail_open=fail_read=fail_close=fail_cleanup=cancel_app_read=trust_fault=post_finish=0;cancel_flag=early_complete=oversize_return=app_trailer_location=false;monotonic=app_delay=app_first_delay=0;wall=1767225600;app_chunk=1024;allocations=fail_allocation=0;dsr_test_sha_fault(0);}
+{CHECK(!owned&&!dsr_test_sha_live());memset(hops,0,sizeof(hops));content(0,true,manifests[0],manifest_lengths[0]);content(1,false,image,image_length);initialized=app_requests=read_calls=close_calls=cleanup_calls=0;fail_init=fail_open=fail_read=fail_close=fail_cleanup=cancel_app_read=trust_fault=post_finish=0;again_at=again_left=again_calls=0;cancel_flag=early_complete=oversize_return=app_trailer_location=false;monotonic=app_delay=app_first_delay=0;wall=1767225600;app_chunk=1024;allocations=fail_allocation=0;dsr_test_sha_fault(0);}
 static bool zero(const dsr_ota_verified_t *v){const unsigned char *p=(const unsigned char *)v;for(size_t i=0;i<sizeof(*v);i++)if(p[i])return false;return true;}
 static dsr_ota_fetch_result_t run(int expected,int manifest_expected,int image_expected)
 {
@@ -101,6 +102,14 @@ int main(int argc,char **argv)
  reset();run(DSR_FETCH_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);unsigned successful_allocations=allocations;
  const size_t chunks[]={1,7,41,42,43,127,511,512,513,1024};
  for(unsigned i=0;i<sizeof(chunks)/sizeof(chunks[0]);i++){reset();app_chunk=chunks[i];run(DSR_FETCH_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);}
+ /* IDF returns -0x7007 for a recoverable read timeout on this connection. */
+#ifdef DSR_DOWNLOAD_HOST_TEST_TRUST
+ reset();again_at=3;again_left=2;run(DSR_FETCH_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);CHECK(again_calls==2&&initialized==2);
+ reset();again_at=1;again_left=100;run(DSR_FETCH_TIMEOUT,DSR_MANIFEST_OK,DSR_IMAGE_OK);CHECK(again_calls==6&&initialized==2);
+ reset();again_at=1;again_left=2;cancel_app_read=2;run(DSR_FETCH_CANCELLED,DSR_MANIFEST_OK,DSR_IMAGE_OK);CHECK(again_calls==2&&initialized==2);
+#else
+ reset();again_at=1;again_left=100;run(DSR_FETCH_MANIFEST,DSR_MANIFEST_UNTRUSTED_KEY,DSR_IMAGE_STATE);CHECK(!again_calls&&!app_requests);
+#endif
  reset();redirect(0,true,manifest_cdn);content(1,true,manifests[0],manifest_lengths[0]);redirect(2,false,app_cdn);content(3,false,image,image_length);run(DSR_FETCH_OK,DSR_MANIFEST_OK,DSR_IMAGE_OK);
  reset();redirect(1,false,app_cdn);redirect(2,false,app_cdn);run(DSR_FETCH_REDIRECT,DSR_MANIFEST_OK,DSR_IMAGE_OK);
  reset();redirect(1,false,"https://evil.example/app");run(DSR_FETCH_REDIRECT,DSR_MANIFEST_OK,DSR_IMAGE_OK);

@@ -14,6 +14,7 @@ void test_native_ota_notes(const char *text){snprintf(view.notes,sizeof(view.not
 void test_native_ota_progress(size_t received,size_t total){view.received=received;view.total=total;}
 unsigned test_native_ota_cancels(void){return cancellations;}
 void test_native_ota_detail(dsr_ota_channel_t channel,dsr_ota_fetch_result_t fetch,int http){view.channel=channel;view.fetch_result=fetch;view.http_status=http;}
+void test_native_ota_install_detail(dsr_ota_install_result_t result,int sdk,int io){view.install_result=result;view.sdk_error=sdk;view.io_result=io;}
 dsr_result_t dsr_native_ota_prepare(uint32_t id,dsr_job_kind_t kind,dsr_ota_channel_t channel,bool power)
 {if(kind==DSR_JOB_OTA_INSTALL&&(view.state!=DSR_NATIVE_AVAILABLE||!power||view.channel!=channel))return DSR_INVALID;view.state=kind==DSR_JOB_OTA_CHECK?DSR_NATIVE_CHECKING:DSR_NATIVE_INSTALLING;view.operation_id=id;view.channel=channel;view.error=DSR_NATIVE_ERROR_NONE;return DSR_OK;}
 void dsr_native_ota_reject(uint32_t id){if(view.operation_id==id){view.state=DSR_NATIVE_FAILED;view.error=DSR_NATIVE_ERROR_BUSY;}}

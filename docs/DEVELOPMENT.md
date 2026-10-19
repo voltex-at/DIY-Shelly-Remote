@@ -161,7 +161,7 @@ Odbiór fizyczny na ESP32-S3 pozostaje do wykonania przez właściciela.
 Właściciel jawnie zlecił publikację Dev 2026-10-19 (Europe/Vienna), po
 zakończeniu przebudowy BLU i potwierdzeniu CI 5/5 dla `719edb0`
 (uruchomienie `39293997480`). `.github/dev-release-0.7.59.json`, `release.yml`
-i `DEV_REQUEST` dopuszczają wyłącznie `dev-v0.7.59`, `0.7.59-dev` oraz gałąź
+i ówczesny `DEV_REQUEST` dopuszczały wyłącznie `dev-v0.7.59`, `0.7.59-dev` oraz gałąź
 `work/shelly-hud-cyber-blue`. Pełne CI jest powtarzane dla dokładnego commitu
 wydania przed utworzeniem tagu. Podpis pozostaje w istniejącym chronionym
 środowisku `release`; klucz nie jest pobierany do workspace. Poprzednie
@@ -170,3 +170,19 @@ tagi i zasoby są niezmienne, `main` i Stable pozostają bez zmian.
 Zakres i wyniki renderera LVGL: [cyber-blue/blu-control/README.md](cyber-blue/blu-control/README.md).
 Rzeczywiste odczyty radiowe i odbiór na fizycznym ESP32-S3 pozostają do
 wykonania przez właściciela; testy hosta i CI ich nie zastępują.
+
+### Wydanie 0.7.60-dev — dotyk i pobieranie OTA
+
+Właściciel 2026-10-19 jawnie zlecił poprawkę dotyku, sprawdzenie błędu OTA
+ze zdjęcia i publikację Dev. `.github/dev-release-0.7.60.json`, `release.yml`
+i `DEV_REQUEST` dopuszczają wyłącznie `dev-v0.7.60`, `0.7.60-dev` oraz gałąź
+`work/shelly-hud-cyber-blue`. Tag powstaje po CI 5/5 dokładnego commitu.
+Podpis korzysta z dotychczasowego chronionego środowiska `release`.
+
+Lokalne sprawdzenie: `python3 tools/test_ui.py --ubsan-only --case test_touch_ui`
+oraz testy `tools/test.py`, `tools/test_ota_download.py` i `tools/test_ota_install.py`.
+CI uruchamia pełny zestaw z ASan/UBSan, prawdziwy renderer LVGL, panel WWW
+oraz buildy ESP32/ESP32-S3/ES3C35P. Surowy błąd ze zdjęcia nie zastępuje
+logu fizycznego urządzenia. Do krótkiego odbioru: pojedyncze i mocniejsze
+naciśnięcia, długie przytrzymanie, przewijanie kart w obu kierunkach,
+przeciąganie rolety/termostatu i aktualizacja przez Dev przy stabilnym USB.

@@ -29,9 +29,11 @@ typedef struct {
  bool (*write)(void *context,const void *data,size_t length,bool header_ready);
  void *context;
 } dsr_ota_stream_sink_t;
+/* Numeric diagnostics only. Never retain a signed CDN URL, body or TLS data. */
+typedef struct {int http_status,io_result;} dsr_ota_fetch_diagnostic_t;
 dsr_ota_fetch_result_t dsr_ota_fetch_stream_app(const char *url,
  const dsr_ota_policy_t *policy,const dsr_ota_verified_t *consent,
  const dsr_ota_fetch_control_t *control,const dsr_ota_stream_sink_t *sink,
  dsr_ota_verified_t *out,dsr_manifest_result_t *why,
- dsr_image_result_t *image_why,bool *consent_changed);
+ dsr_image_result_t *image_why,bool *consent_changed,dsr_ota_fetch_diagnostic_t *diagnostic);
 #endif

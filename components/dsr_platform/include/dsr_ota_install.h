@@ -23,6 +23,7 @@ typedef struct {
  dsr_manifest_result_t manifest_result;
  dsr_image_result_t image_result;
  esp_err_t sdk_error;
+ int http_status,io_result;
  uint32_t bytes_written;
  bool boot_selection_attempted,boot_selected;
 } dsr_ota_install_report_t;

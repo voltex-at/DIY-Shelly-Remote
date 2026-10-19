@@ -67,7 +67,10 @@ static const char *status_text(void)
   case DSR_NATIVE_ERROR_CHANGED:return "Wydanie zmieniło się po potwierdzeniu. Sprawdź je ponownie.";
   case DSR_NATIVE_ERROR_MEMORY:return "Brak pamięci. Spróbuj ponownie później.";
   case DSR_NATIVE_ERROR_LOCAL_VERSION:return "Nie rozpoznano lokalnej wersji firmware.";
-  case DSR_NATIVE_ERROR_INSTALL:return "Nie ukończono instalacji. Zachowano bieżący firmware.";
+  case DSR_NATIVE_ERROR_INSTALL:
+   if(snapshot.install_result==DSR_INSTALL_SDK)return "Nie udało się zapisać firmware. Bieżąca wersja pozostaje aktywna.";
+   if(snapshot.fetch_result==DSR_FETCH_IO||snapshot.fetch_result==DSR_FETCH_TIMEOUT||snapshot.fetch_result==DSR_FETCH_INCOMPLETE)return "Przerwano pobieranie. Sprawdź Wi-Fi i spróbuj ponownie.";
+   return "Nie ukończono instalacji. Zachowano bieżący firmware.";
   default:return "Nie pobrano poprawnego katalogu wydań. Sprawdź internet i spróbuj ponownie.";
   }
  default:return "Sprawdź dostępne podpisane wydanie.";
@@ -176,6 +179,9 @@ static void show(void)
   if(hud){lv_obj_update_layout(local_notice);y=lv_obj_get_height(local_notice)+12;}
   lv_obj_t *code=dsr_sc_text(hud?notice_box:body,"",hud?12:4,y,hud?272:284,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_label_set_text_fmt(code,"Kod błędu: %d/%d/%d/%d",(int)snapshot.error,(int)snapshot.fetch_result,snapshot.http_status,(int)snapshot.manifest_result);
+  if(snapshot.error==DSR_NATIVE_ERROR_INSTALL){
+   char detail[72];snprintf(detail,sizeof(detail),"\nOTA %d • SDK 0x%x • I/O %d",(int)snapshot.install_result,(unsigned)snapshot.sdk_error,snapshot.io_result);lv_label_ins_text(code,LV_LABEL_POS_LAST,detail);
+  }
   if(hud)lv_obj_add_event_cb(local_notice,notice_resized,LV_EVENT_SIZE_CHANGED,code);
  }
  if(snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
