@@ -469,6 +469,7 @@ lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int ra
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
      lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
     if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&w>=80&&h>=40)dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
+    if(style==DSR_SC_STYLE_CYBER_BLUE&&color==DSR_SC_BG&&radius==0&&w>=280&&h>60)lv_obj_set_style_bg_opa(o,LV_OPA_TRANSP,0);
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
@@ -485,7 +486,8 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     lv_obj_t *o=dsr_sc_panel(p,x,y,w,h,color,radius);
     lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);
     lv_style_t *pressed=shared(SHARED_PRESSED,hex(dsr_sc_color(0x344f71)),0),*disabled=shared(SHARED_DISABLED,hex(dsr_sc_color(0x30373d)),0);
-    if(pressed)lv_obj_add_style(o,pressed,LV_STATE_PRESSED);else lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
+    if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_button(o);
+    else if(pressed)lv_obj_add_style(o,pressed,LV_STATE_PRESSED);else lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
     if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
     /* Consistent outlines distinguish controls from the background in all themes. */
@@ -512,7 +514,13 @@ static void state_symbol(lv_event_t *e,unsigned kind)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);int size=lv_obj_get_width(o);lv_layer_t *layer=lv_event_get_layer(e);lv_color_t color=lv_obj_get_style_line_color(o,0);
 #define LINE(x1,y1,x2,y2) symbol_line(layer,&a,size,color,x1,y1,x2,y2)
- if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
+ if(kind==DSR_ICON_BATTERY){LINE(20,14,44,14);LINE(44,14,44,58);LINE(44,58,20,58);LINE(20,58,20,14);LINE(26,14,26,6);LINE(26,6,38,6);LINE(38,6,38,14);LINE(36,22,27,38);LINE(27,38,35,38);LINE(35,38,29,50);}
+ else if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
+ else if(kind==DSR_ICON_BLUETOOTH){LINE(31,6,31,58);LINE(31,6,46,19);LINE(46,19,16,45);LINE(16,19,46,45);LINE(46,45,31,58);}
+ else if(kind==DSR_ICON_REFRESH){
+  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){a.x1+size/2,a.y1+size/2};arc.radius=(uint16_t)(size*23/64);arc.width=size>=40?3:2;arc.color=color;arc.start_angle=30;arc.end_angle=300;lv_draw_arc(layer,&arc);
+  LINE(43,6,44,19);LINE(44,19,31,18);
+ }
  else{
   bool door=kind==DSR_ICON_DOOR_CLOSED||kind==DSR_ICON_DOOR_OPEN;bool open=kind==DSR_ICON_DOOR_OPEN||kind==DSR_ICON_WINDOW_OPEN;
   LINE(12,8,52,8);LINE(52,8,52,56);LINE(52,56,12,56);LINE(12,56,12,8);
@@ -526,7 +534,7 @@ static void icon_draw(lv_event_t *event)
     lv_obj_t *obj=lv_event_get_target(event);
     unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
     if(kind>=DSR_ICON_COUNT)return;
-    if(kind>=DSR_ICON_WINDOW_CLOSED){state_symbol(event,kind);return;}
+    if(kind>=DSR_ICON_WINDOW_CLOSED||(style==DSR_SC_STYLE_CYBER_BLUE&&kind==DSR_ICON_BATTERY)){state_symbol(event,kind);return;}
     lv_area_t area;lv_obj_get_coords(obj,&area);
     int size=lv_obj_get_width(obj);
     lv_draw_image_dsc_t draw;lv_draw_image_dsc_init(&draw);
@@ -584,6 +592,7 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {
  lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);
+ if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_navigation(bar,current);
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
  lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
@@ -591,7 +600,7 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  for(unsigned i=0;i<5;i++){
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
   if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
-  else dsr_sc_icon_centered(b,icons[i],26,i==current?DSR_SC_TEXT:DSR_SC_MUTED);
+  else dsr_sc_icon_centered(b,icons[i],26,i==current?(style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_BLUE:DSR_SC_TEXT):DSR_SC_MUTED);
   if(!(enabled&(1u<<i)))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
 }
@@ -636,6 +645,13 @@ void dsr_sc_glow(lv_obj_t *o,bool on)
 }
 lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool enabled,dsr_ui_icon_t icon,uint32_t icon_color,lv_event_cb_t cb,void *context)
 {
+ if(style==DSR_SC_STYLE_CYBER_BLUE){
+  lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,DSR_SC_PANEL,LV_RADIUS_CIRCLE,cb,context);
+  dsr_ui_cyber_power(ring,on,enabled);
+  dsr_sc_icon_centered(ring,icon,(size-10)*52/100,enabled?(on?DSR_SC_TEXT:0x163653):0x71879e);
+  if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
+  return ring;
+ }
  /* One object: light face, thick ring as its border (blue + glow when on).
   * Two objects per row button matter: a 24-tile dashboard shares 128 KB LVGL heap. */
  lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,enabled?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,cb,context);
@@ -665,6 +681,7 @@ static int segments(lv_obj_t *pill,const char *const *texts,unsigned count,int m
 int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
 {
  lv_obj_t *pill=dsr_sc_panel(parent,x,y,1,24,0x23272a,12);dsr_sc_text(pill,"",8,4,1,&dsr_roboto_14,color);
+ if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_inset(pill);
  return segments(pill,texts,count,max_width);
 }
 void dsr_sc_segments_update(lv_obj_t *pill,const char *const *texts,unsigned count,int max_width)

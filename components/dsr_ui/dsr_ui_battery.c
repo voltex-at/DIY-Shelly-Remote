@@ -44,7 +44,10 @@ void dsr_ui_battery_tick(void)
  /* Responsiveness counters (0.7.52), refreshed once per second. */
  if(diag&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
   diag_at=lv_tick_get();dsr_system_info_t info;dsr_system_info_snapshot(&info);dsr_system_runtime_t run;dsr_system_runtime(&run);lv_mem_monitor_t mem;lv_mem_monitor(&mem);
-  char lines[256];snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
+  char lines[256];
+  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)snprintf(lines,sizeof(lines),"RAM: %lu KB | min %lu KB | %s %lu KB\nPSRAM: %lu KB\n%s: %lu KB   |   %s %lu B\nBLE: %s",
+   (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),dsr_sc_tr("Blok"),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),dsr_sc_tr("Grafika"),(unsigned long)(mem.free_size/1024),dsr_sc_tr("Stos"),(unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
+  else snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
    (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),
    (unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
   if(strcmp(lv_label_get_text(diag),lines))lv_label_set_text(diag,lines);
@@ -63,14 +66,16 @@ void dsr_ui_battery_show(void){from_home=true;show();}
 static void show(void)
 {
  lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
- dsr_sc_text(root,"Napięcie wejścia BAT",14,90,292,&dsr_roboto_14,DSR_SC_MUTED);
- value=dsr_sc_text(root,"— V",14,110,292,&dsr_roboto_28,DSR_SC_TEXT);
- status=dsr_sc_text(root,"Pomiar na żądanie",14,148,292,&dsr_roboto_14,DSR_SC_TEXT);
- age=dsr_sc_text(root,"Brak pomiaru",14,170,292,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(root,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",14,190,292,&dsr_roboto_12,DSR_SC_MUTED);
- lv_obj_t *card=dsr_sc_panel(root,12,224,296,126,DSR_SC_CARD,12);
+ bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
+ if(hud){lv_obj_t *power=dsr_sc_panel(root,12,86,296,158,DSR_SC_CARD,12);dsr_sc_icon(power,DSR_ICON_BATTERY,18,34,48,DSR_SC_BLUE);}
+ dsr_sc_text(root,"Napięcie wejścia BAT",hud?26:14,hud?98:90,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);
+ value=dsr_sc_text(root,"— V",hud?90:14,hud?122:110,hud?202:292,&dsr_roboto_28,hud?DSR_SC_BLUE:DSR_SC_TEXT);
+ status=dsr_sc_text(root,"Pomiar na żądanie",hud?26:14,hud?164:148,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);
+ age=dsr_sc_text(root,"Brak pomiaru",hud?26:14,hud?194:170,hud?268:292,hud?&dsr_roboto_11:&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(root,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",hud?26:14,hud?212:190,hud?268:292,hud?&dsr_roboto_11:&dsr_roboto_12,hud?0xffc107:DSR_SC_MUTED);
+ lv_obj_t *card=dsr_sc_panel(root,12,hud?252:224,296,hud?98:126,DSR_SC_CARD,12);
  dsr_sc_text(card,"Pamięć i radio",12,8,272,&dsr_roboto_14,DSR_SC_TEXT);
- diag=dsr_sc_text(card,"…",12,32,276,&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
+ diag=dsr_sc_text(card,"…",12,hud?28:32,276,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
  if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
  dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);dsr_ui_battery_tick();

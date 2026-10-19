@@ -1,0 +1,30 @@
+{
+  "renderer": "Production C screen code, real LVGL 9.3.0 software draw, RGB565, 320x480. Data/radio/storage/ADC fixtures; not hardware evidence.",
+  "lvgl_commit": "c033a98afddd65aaafeebea625382a94020fe4a7",
+  "frames": {
+    "600-cyber-home.png": "430fd5d703e2a4f140749a604d13bec88e38d5b125c2f48664dc126f0e3c9f95",
+    "601-cyber-relay.png": "4a2d53aef91d25c362937661831de096c1c953e7d7a453966f8c2021707bdc1d",
+    "602-cyber-cover.png": "a313b2932bccfcd6a0cdd6ef56a018afed02eef2af29d70b0b2b9218593b56d6",
+    "603-cyber-blu-closed.png": "1781c218597d683daeb0576021533a5453d5c634a5a105392feffa1452d52dab",
+    "604-cyber-blu-open.png": "ae9d82af9ac59bb17f3079d2f0b0236e70bec4f509c6addf999950b1d7469955",
+    "605-cyber-settings.png": "baf0773835eb568424aa09b9d1dbacad6e58817c823c609250322b3a9029903a",
+    "606-cyber-firmware-error.png": "cde4f5c9d8ce1fd938438582c9d3fd053d38d3eb0bbb1581b5d57129673a47e3",
+    "607-cyber-diagnostics.png": "921e9f504f52825fe79bf02fe82ddf48a64681ce6cf7e0b28a9b5e4ebd33a0aa",
+    "608-cyber-onboarding.png": "4f780606da3f194de6b4e319c9dc63ec088a0adac0d3bdec78b659ec545a5911",
+    "609-cyber-form.png": "26be401f3837a2692f1735fb57a4c10481505d276d387d24444f8789ebb5699f",
+    "610-cyber-room-editor.png": "9551dedf97d3ec752f78d8d4c51cc95caaa1fcb8eb66bbf70621fb4a29fce499",
+    "611-cyber-delete-confirmation.png": "6d4156a24270160a209b1c964bc2b39adbbe64d76f300f8e368169b6833df27b",
+    "612-cyber-keyboard.png": "564afd396fc8bde5596cb4d514101edaba1b7ad493bffbb775402e95230babe7",
+    "613-cyber-dropdown.png": "8d9ed498c357d6ccffaf1aa8434090a9a4306cbd02e80739a40397c799b4ef9f",
+    "614-cyber-native-message.png": "f246a382fd03f1a2440b8b2982c5e20388ac6993b1cb48320a4f7669b5020c56",
+    "615-cyber-24-tiles.png": "430fd5d703e2a4f140749a604d13bec88e38d5b125c2f48664dc126f0e3c9f95",
+    "616-cyber-network-settings.png": "0504caf548f00faca27e220316860e7c27a774e4c72257745844082c3f16e1c0",
+    "617-cyber-wifi-networks.png": "fba0378fe15c0ca9b1cbe420537778f0d815f7f792ea9058d2d3c7e910c3edb3",
+    "618-cyber-wifi-password.png": "fc00f62ac66fe9f010a73fb3693e0d2276a1f13b0d1704fec6661052138375ed",
+    "619-cyber-firmware-progress.png": "9ed0d090317831bdae846bc16edb322e26a38b513106382af12da37254eb8d5d",
+    "620-cyber-blu-en.png": "9d8fb228d6760061b67e4554369fe69ba57d86fe042a99b2c7bba5de7664c98a",
+    "621-cyber-blu-de.png": "e93c46cb2efe593f1079c5fe13dfd16e17286ee55d1effe5a1a0181f05df288a",
+    "624-cyber-home-off.png": "c65f05e9f17210736a14a2ccd14bb5fb9692d406ee15e2545db3dc3e07684531"
+  },
+  "hash_format": "SHA256 of original untouched PPM file. PNGs are lossless conversions; overview/comparison only place full frames beside each other."
+}

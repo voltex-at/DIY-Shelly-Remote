@@ -28,7 +28,7 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     /* Selectable device icons (0.7.51) */
     DSR_ICON_OUTLET, DSR_ICON_FAN, DSR_ICON_THERMOSTAT, DSR_ICON_TV, DSR_ICON_BOILER, DSR_ICON_GARAGE,
     DSR_ICON_DOOR, DSR_ICON_FLOOR_LAMP, DSR_ICON_WALL_LAMP, DSR_ICON_EV, DSR_ICON_KETTLE,
-    DSR_ICON_COFFEE, DSR_ICON_LAUNDRY, DSR_ICON_AC, DSR_ICON_SPEAKER, DSR_ICON_ROUTER, DSR_ICON_WINDOW_CLOSED, DSR_ICON_WINDOW_OPEN, DSR_ICON_DOOR_CLOSED, DSR_ICON_DOOR_OPEN, DSR_ICON_VALVE, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_COFFEE, DSR_ICON_LAUNDRY, DSR_ICON_AC, DSR_ICON_SPEAKER, DSR_ICON_ROUTER, DSR_ICON_WINDOW_CLOSED, DSR_ICON_WINDOW_OPEN, DSR_ICON_DOOR_CLOSED, DSR_ICON_DOOR_OPEN, DSR_ICON_VALVE, DSR_ICON_BLUETOOTH, DSR_ICON_REFRESH, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);

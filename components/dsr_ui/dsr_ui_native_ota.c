@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include "dsr_native_ota.h"
 #include "dsr_restart.h"
 #include <stdio.h>
@@ -134,9 +135,18 @@ static void progress(void)
 static void show(void)
 {
  dsr_native_ota_snapshot(&snapshot);shown=snapshot;confirming=false;lv_obj_t *body=screen();
- dsr_sc_text(body,"Current version",4,4,284,&dsr_roboto_12,DSR_SC_MUTED);raw(body,snapshot.installed,30);
- dsr_sc_text(body,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",4,64,284,&dsr_roboto_14,DSR_SC_TEXT);
- local_notice=dsr_sc_text(body,status_text(),4,104,284,&dsr_roboto_14,DSR_SC_TEXT);
+ bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
+ if(hud){
+  lv_obj_t *version=dsr_sc_panel(body,0,0,296,56,DSR_SC_CARD,10);dsr_sc_icon(version,DSR_ICON_GRID,12,12,30,DSR_SC_BLUE);
+  lv_obj_t *channel=dsr_sc_panel(body,0,64,296,38,DSR_SC_CARD,10);dsr_sc_icon(channel,DSR_ICON_SETTINGS,12,7,24,DSR_SC_BLUE);
+  lv_obj_t *message=dsr_sc_panel(body,0,108,296,snapshot.state==DSR_NATIVE_AVAILABLE?64:82,DSR_SC_PANEL,10);
+  if(snapshot.state==DSR_NATIVE_FAILED)dsr_ui_cyber_warning(message,false);
+ }
+ dsr_sc_text(body,"Current version",hud?54:4,hud?6:4,hud?230:284,hud?&dsr_roboto_11:&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *installed=raw(body,snapshot.installed,hud?26:30);
+ if(hud){lv_obj_set_x(installed,54);lv_obj_set_width(installed,230);lv_obj_set_style_text_font(installed,&dsr_roboto_22,0);}
+ dsr_sc_text(body,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",hud?48:4,hud?74:64,hud?236:284,&dsr_roboto_14,DSR_SC_TEXT);
+ local_notice=dsr_sc_text(body,status_text(),hud?12:4,hud?114:104,hud?272:284,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);
  bool running=snapshot.state==DSR_NATIVE_CHECKING||snapshot.state==DSR_NATIVE_INSTALLING;
  if(running){
   lv_obj_set_height(body,260);lv_obj_set_height(local_notice,84);lv_label_set_long_mode(local_notice,LV_LABEL_LONG_MODE_DOTS);

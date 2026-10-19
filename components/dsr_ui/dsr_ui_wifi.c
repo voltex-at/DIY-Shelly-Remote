@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -116,6 +117,7 @@ static void choose_network(lv_event_t *event)
 static void show_networks(void)
 {
     lv_obj_t *root = dsr_ui_screen("Wi-Fi networks", false); page = NETWORKS;
+    bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
     dsr_wifi_info_t info; dsr_wifi_get_info(&info);
     lv_obj_t *caption = dsr_ui_label(root, info.connected ? info.ssid : "Select your 2.4 GHz network", 16, 81, 288);
     lv_label_set_long_mode(caption, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(caption, 20);
@@ -123,18 +125,21 @@ static void show_networks(void)
     lv_obj_t *list = lv_obj_create(root); lv_obj_set_pos(list, 12, 115); lv_obj_set_size(list, 296, 287);
     lv_obj_set_style_pad_all(list, 0, 0); lv_obj_set_style_border_width(list, 0, 0);
     lv_obj_set_style_bg_color(list, dsr_sc_color(DSR_SC_BG), 0);
+    if(hud)lv_obj_set_style_bg_opa(list,LV_OPA_TRANSP,0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER); dsr_sc_scrollbar(list);
     if (!networks.count) dsr_ui_label(list, "No networks found.\nTap Refresh to scan again.\nOnly 2.4 GHz Wi-Fi is supported.", 8, 40, 272);
     for (unsigned i = 0; i < networks.count; i++) {
         dsr_wifi_ap_t *ap = &networks.items[i];
-        lv_obj_t *row = dsr_ui_button(list, "", 2, (int)i * 78, 280, choose_network, (void *)(uintptr_t)i);
-        lv_obj_set_height(row, 70); lv_obj_set_style_pad_all(row, 0, 0); lv_obj_clean(row);
-        lv_obj_t *ssid = dsr_ui_label(row, ap->ssid, 12, 10, 218);
+        lv_obj_t *row = dsr_ui_button(list, "", hud?4:2, (int)i * (hud?70:78), hud?286:280, choose_network, (void *)(uintptr_t)i);
+        lv_obj_set_height(row, hud?64:70); lv_obj_set_style_pad_all(row, 0, 0); lv_obj_clean(row);
+        if(hud){lv_obj_t *badge=dsr_sc_panel(row,10,11,40,40,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);dsr_sc_icon_centered(badge,DSR_ICON_WIFI,30,DSR_SC_BLUE);}
+        lv_obj_t *ssid = dsr_ui_label(row, ap->ssid, hud?60:12, 10, hud?184:218);
+        if(hud)lv_obj_set_style_text_font(ssid,&dsr_roboto_16,0);
         lv_label_set_long_mode(ssid, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(ssid, 20);
-        lv_obj_t *details = dsr_ui_label(row, "", 12, 39, 254);
+        lv_obj_t *details = dsr_ui_label(row, "", hud?60:12, hud?36:39, hud?210:254);
         dsr_sc_label_set_text_fmt(details, "%s  |  %d dBm", dsr_sc_tr(security_name(ap->security)), ap->rssi);
         lv_obj_set_style_text_color(details, dsr_sc_color(0xa8bbd3), 0);
-        dsr_sc_icon(row,DSR_ICON_WIFI,246,11,22,DSR_SC_MUTED);
+        dsr_sc_icon(row,DSR_ICON_WIFI,hud?256:246,hud?16:11,22,hud&&ap->rssi>=-75?DSR_SC_BLUE:DSR_SC_MUTED);
         if (ap->security == DSR_WIFI_UNSUPPORTED) lv_obj_add_state(row, LV_STATE_DISABLED);
     }
     dsr_ui_button(root, "Refresh", 12, 420, 140, dsr_network_wifi, NULL);
