@@ -1,3 +1,15 @@
+0.7.63-dev: pełny Cyber Blue i atlas 434 ekranów i stanów.
+
+- Cyber Blue: wspólny układ wszystkich 13 wykrytych grup ustawień Shelly, list pól, edytorów i potwierdzeń. Dostępne pola nadal wynikają z odpowiedzi urządzenia; wartości poufne pozostają ukryte. RGB i RGBW mają osobne nazwy.
+- Dimmer/RGB: osobne pomiary W/V/A, wskaźnik jasności, przyciski -/+ po 5 punktów oraz suwak wysyłający zmianę dopiero przy puszczeniu. RGB ma podgląd koloru, trzy kolorowe kanały i jawne Zastosuj; wyświetlana wartość potwierdzona czeka na odczyt urządzenia. Nie dodano nieobsługiwanego kanału White ani scen.
+- H&T: osobne karty temperatury i wilgotności, bateria, zasilanie zewnętrzne, odświeżanie i przewijana informacja o uśpieniu. Offline i błąd nie pokazują poprzednich pomiarów jako bieżących.
+- Zużycie: turkusowy wskaźnik zakresu, oddzielne karty kWh/V/A i informacja o aktualności danych. Bez arbitralnych progów alarmowych i historii energii. Ustawienia wyświetlacza mają grupowane sekcje, a unieważnienie parowania otrzymało wyróżnienie akcji destrukcyjnej.
+- Zachowano zaakceptowane sterowanie przekaźnikiem, termostatem, BLU i animację rolety oraz poprawki zakończenia BLE/restartu z 0.7.62-dev. Format danych, partycje, protokoły i zaufanie OTA pozostają zgodne z bazą.
+- Pełny atlas z produkcyjnego LVGL 9.3.0: 434 odrębne klatki 320×480, także ekran startowy, formularze, przewinięcia, błędy i warianty PL/EN/DE. Eksporter scala tylko identyczne piksele, zachowuje aliasy i SHA-256; tworzy PNG, 37-stronicowy PDF, galerię HTML i ZIP. CI publikuje komplet w artefakcie real-lvgl-ui-review-NOT-FIRMWARE. Inwentarz, zakres i odtwarzanie: [cyber-blue/COMPLETE_AUDIT.md](cyber-blue/COMPLETE_AUDIT.md).
+- Implementacja przeszła testy hosta ASan/UBSan, 1510 sprawdzeń atlasu, 44 testy panelu WWW i 2763 kontrole słowników. 60 cykli jasność/kolor/powrót nie zwiększa zużycia puli LVGL hosta. Publikacja wymaga ponownego CI 5/5 dla dokładnego commita wydania, audytów rzeczywistego ELF i podpisu w chronionym środowisku release.
+- Dane renderów, zegar i numery wersji na ekranach testowych pochodzą z fixture'ów. Testy hosta i statyczny układ pamięci ELF nie zastępują odbioru fizycznego LCD, dotyku, BLE RF, runtime RAM/PSRAM i OTA na ES3C35P.
+- Aktualizacja zachowująca dane: kanał Dev OTA lub UPDATE-APP-ONLY. FACTORY-CLEAN-16MB jest wariantem czystej instalacji usuwającym dane. Wydanie pozostaje Dev; bez publikacji Stable i scalania do main.
+
 0.7.62-dev: dodawanie BLE kończy operację po błędzie; restart nie pozostaje zablokowany przez brak potwierdzenia rozłączenia.
 
 - BLU oraz konfiguracja Wi-Fi przez BLE RPC: usunięte nieskończone pętle rozłączenia. Sprzątanie czeka do 4 s. Brak zdarzenia GAP kończy operację błędem, zwalnia globalną blokadę i izoluje stary host Bluetooth. Asynchroniczny reset hosta nie usuwa bondów. Nowe BLE jest blokowane do pełnego stop/deinit; restart oraz inne operacje nie dziedziczą wiszącej blokady. Późne callbacki starej sesji są ignorowane.

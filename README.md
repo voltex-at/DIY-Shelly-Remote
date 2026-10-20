@@ -4,7 +4,7 @@ Unofficial open-source touchscreen remote for Shelly devices on the
 **LCDWiki ES3C35P N16R8** (ESP32-S3, 320×480). Fully local: Wi-Fi LAN and
 Bluetooth LE, no cloud, no CDN. Not affiliated with or endorsed by Shelly.
 
-Development version: `0.7.62-dev` (branch `work/shelly-hud-cyber-blue`).
+Development version: `0.7.63-dev` (branch `work/cyber-blue-complete`).
 There is no Stable release yet; `main` holds an older baseline.
 
 ## Status

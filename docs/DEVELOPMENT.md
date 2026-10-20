@@ -1,5 +1,17 @@
 # Development
 
+## 0.7.63-dev — pełny Cyber Blue i kompletny atlas
+
+Wydanie na żądanie właściciela z `work/cyber-blue-complete`.
+`DEV_REQUEST`, `.github/dev-release-0.7.63.json` i `release.yml` wskazują
+wyłącznie `dev-v0.7.63`, `0.7.63-dev` i tę gałąź. Tag powstaje dopiero
+po CI 5/5 dla dokładnego commita. Build, audyty ELF, pakowanie i podpis
+pozostają w istniejącym procesie; nie zmieniono kluczy ani bramki Stable.
+
+Pełny atlas 434 klatek, zakres i odtwarzanie:
+[cyber-blue/COMPLETE_AUDIT.md](cyber-blue/COMPLETE_AUDIT.md).
+Fizyczny odbiór nowego UI, dotyku i OTA pozostaje oddzielnym etapem.
+
 ## 0.7.62-dev — zakończenie BLE i restart
 
 Zgłoszenie właściciela: skan zwraca błąd, a kolejne połączenie może utknąć

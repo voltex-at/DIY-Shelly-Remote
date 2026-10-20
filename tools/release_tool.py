@@ -40,8 +40,8 @@ def channel(tag):
 
 # One owner-requested DEV publication (2026-10-20), not a general branch release.
 # It cannot select another tag, Stable, branch or CMake version.
-DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.62', 'version': '0.7.62-dev',
-               'branch': 'refs/heads/work/shelly-hud-cyber-blue'}
+DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.63', 'version': '0.7.63-dev',
+               'branch': 'refs/heads/work/cyber-blue-complete'}
 
 
 def dev_request_allowed(tag, request, ref, cmake):
