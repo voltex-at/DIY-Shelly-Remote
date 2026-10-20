@@ -50,18 +50,24 @@ int main(int argc,char **argv)
 
  /* BLU TRV (owner reference: Shelly Smart Control): value chips, 4..30 C dial, -/+ send 1.2 s after the last tap. */
  click("Odśwież status");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(20.0f,28,DSR_OK);tick();
- CHECK(find_label(lv_screen_active(),"21.5 °C")&&find_label(lv_screen_active(),"zawór 28%")&&find_label(lv_screen_active(),"Bateria 100%")&&find_label(lv_screen_active(),"Temperatura")&&find_label(lv_screen_active(),"20.0 °C"));
- CHECK(find_label(lv_screen_active(),"4 °C")&&find_label(lv_screen_active(),"30 °C")&&!find_label(lv_screen_active(),"Przycisk 0")&&!find_label(lv_screen_active(),"317 lx"));screenshot("366-trv-thermostat");
+#ifdef DSR_TEST_CYBER_TRV
+ doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString("cyber_blue"));publish_document(doc);tick();
+ const bool cyber=true;
+#else
+ const bool cyber=false;
+#endif
+ CHECK(find_label(lv_screen_active(),"21.5 °C")&&find_label(lv_screen_active(),cyber?"28%":"zawór 28%")&&find_label(lv_screen_active(),cyber?"100%":"Bateria 100%")&&find_label(lv_screen_active(),cyber?"Temperatura zmierzona":"Temperatura")&&find_label(lv_screen_active(),"20.0 °C"));
+ CHECK(find_label(lv_screen_active(),cyber?"4.0 °C":"4 °C")&&find_label(lv_screen_active(),cyber?"30.0 °C":"30 °C")&&!find_label(lv_screen_active(),"Przycisk 0")&&!find_label(lv_screen_active(),"317 lx"));screenshot(cyber?"native-recovered-trv-actor":"366-trv-thermostat");
  dsr_mobile_device_t trv_typed;CHECK(dsr_network_typed_device(id,&trv_typed)&&trv_typed.has_trv_target&&trv_typed.trv_target_c==20.0&&trv_typed.has_temperature&&trv_typed.temperature_c==21.5); /* has_illuminance shares has_trv_target: the screen check above proves no lux */
- unsigned trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"20.5 °C")&&find_label(lv_screen_active(),"Wysyłanie do termostatu przez bramkę…")&&requests==trv_before&&!in_flight);
+ unsigned trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"20.5 °C")&&find_label(lv_screen_active(),cyber?"Nastawa • oczekuje":"Wysyłanie do termostatu przez bramkę…")&&requests==trv_before&&!in_flight);
  click("+");CHECK(find_label(lv_screen_active(),"21.0 °C"));lv_tick_inc(1000);lv_timer_handler();CHECK(!in_flight&&requests==trv_before); /* still within 1.2 s of the last tap */
  lv_tick_inc(300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.command==DSR_TRV_SET_TARGET&&submitted.trv.half_c==42&&submitted.connection.device.endpoint_kind==DSR_ENDPOINT_BLU);
- trv_response(21.0f,40,DSR_OK);tick();CHECK(find_label(lv_screen_active(),"Nastawa")&&find_label(lv_screen_active(),"zawór 40%")&&find_label(lv_screen_active(),"21.0 °C"));screenshot("367-trv-target-set");
+ trv_response(21.0f,40,DSR_OK);tick();CHECK(find_label(lv_screen_active(),cyber?"Nastawa temperatury":"Nastawa")&&find_label(lv_screen_active(),cyber?"40%":"zawór 40%")&&find_label(lv_screen_active(),"21.0 °C"));screenshot("367-trv-target-set");
  for(unsigned i=0;i<40;i++){click("-");}
  CHECK(find_label(lv_screen_active(),"4.0 °C"));
  for(unsigned i=0;i<60;i++){click("+");}
  CHECK(find_label(lv_screen_active(),"30.0 °C"));lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==60);trv_response(21.0f,40,DSR_BAD_RESPONSE);tick();
- CHECK(!in_flight&&find_label(lv_screen_active(),"Temperatura"));
+ CHECK(!in_flight&&find_label(lv_screen_active(),cyber?"Temperatura zmierzona":"Temperatura"));
  /* Room list: TRV row has the Shelly pill (-, target, +) and sends the same way. Polls are automatic (no refresh button, as in the app). */
  lv_tick_inc(31000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.0f,40,DSR_OK);tick(); /* after a failed write the poll backs off to 30 s */
  dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.0")&&find_label(lv_screen_active(),"°C"));screenshot("368-trv-list-pill");

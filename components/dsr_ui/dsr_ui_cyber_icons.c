@@ -75,6 +75,9 @@ const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
  case DSR_ICON_ILLUMINANCE:return &shudb_illuminance_24;
  case DSR_ICON_SIGNAL:return &shudb_signal_24;
  case DSR_ICON_CLOCK:return &shudb_clock_24;
+ case DSR_ICON_ECO:return &shudx_eco_32;
+ case DSR_ICON_LOCATION:return &shudx_location_32;
+ case DSR_ICON_TRV_VALVE:return &shudx_trv_valve_32;
  default:return NULL;
  }
 }

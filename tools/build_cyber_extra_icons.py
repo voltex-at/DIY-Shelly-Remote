@@ -21,6 +21,8 @@ folder = ROOT / "assets/cyber-icons"
 target = ROOT / "components/dsr_ui/cyber_icons"
 mapping = (target.parent / "dsr_ui_cyber_icons.c").read_text()
 used = set(re.findall(r"&(shudx_\w+_(?:24|32|48))\b", mapping))
+# Keep previously shipped descriptors when a role moves to the BLU atlas.
+used.update(re.findall(r"\b(shudx_\w+_(?:24|32|48))\b", (target / "shelly_hud_extra.h").read_text()))
 assert used, "Register the supplementary icons before building"
 blocks, records, sources = [], {}, {}
 for svg in sorted((folder / "svg").glob("*.svg")):

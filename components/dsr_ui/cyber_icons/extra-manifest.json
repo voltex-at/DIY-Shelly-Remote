@@ -9,19 +9,22 @@
     "coffee-machine": "cc3613f56f09bf5bbc8d72e1048f189c1bf3aa7cf7aec233613d9346609cf0ec",
     "door-closed": "402bb7cd1ec67c838033a069b8582bbc49529881ac75dcebc1b927013a604271",
     "door-open": "8e27fe42d8a64c0268a9cc0318f11f3b9488dfe973bfcb7de8bb9fff9ed06ca2",
+    "eco": "a9356bdc7a9449a0b78839d1e3135a3f1e570dcafec0f2f3b7ebd3badb683afc",
     "ev-charger": "554044be69667efb7f495500b1582dd1d18dc53036ee2a9ae5490afea8158597",
     "fan": "390cecc95f52207718f0985728240a34685d80ede9ecad86210889521c884e1a",
     "floor-lamp": "d29ebd95871d07969222f86707c6d4b0b32919123ac99e9f5724485cddd491da",
     "garage": "cbf4db8b786e986cd0129062d602542bd6a4afb7ccb9e588482ed0e73f32b709",
     "kettle": "4298536ad59c35c98b5971154e9761a39b54232a065a92d2289fe3a97c088281",
     "kitchen": "fda14b1e418fc9c2c5a52597e053fa2da65b0876ba488d7bc4d51eaddb9f94e9",
+    "location": "e4e750b5ac9443fef53440400af92b1ea6e74b191221f9716f17e1e84b4df218",
     "sofa": "0d6e1212bbd8c00969dfa0f4354ee4d52051f6422758c00d83712f5c75e08dd8",
     "speaker": "d13e83a712ae6b6db0d70c37ed747c2d2402ff62c3f94d6b460369edf4b2db25",
+    "trv-valve": "ed4150d8378952a1b9a9ca938e83d0edda97d080ecde28808e06651ab248b1d8",
     "valve": "133be985773b7b945a72b482f4d88d64d2db3cd864f27b4fed578e7d26d025fe",
     "wall-lamp": "87e212f27c55454b6826e2c8fa4f6c7c73dd94e4e9a85f35dbc425991f133cdf",
     "washing-machine": "70d96f4b52f293677fe3006ebbb2b639ec6288cb47bc6ce240b0926ecb23e876"
   },
-  "mask_bytes": 66368,
+  "mask_bytes": 69440,
   "assets": {
     "shudx_bathroom_24": {
       "size": 24,
@@ -131,6 +134,12 @@
       "sha256": "2bf103e62ad48c734ff5ff31ab33f5fb009f917c3adab2bea72874751a73f71c",
       "svg": "door-open.svg"
     },
+    "shudx_eco_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "e83d3342613269d3b33034b20c57e30503d7c353043630e969f0ee5dbe473b9e",
+      "svg": "eco.svg"
+    },
     "shudx_ev_charger_24": {
       "size": 24,
       "bytes": 576,
@@ -239,6 +248,12 @@
       "sha256": "d845dbd8fe764730313feb38239224917282bd5ec3d82f8ac4d964dbe327790f",
       "svg": "kitchen.svg"
     },
+    "shudx_location_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "6b228c735966d06b4e537e7eb054168ebc4154e0e6aad39e0bfe3fc24864074c",
+      "svg": "location.svg"
+    },
     "shudx_sofa_24": {
       "size": 24,
       "bytes": 576,
@@ -274,6 +289,12 @@
       "bytes": 2304,
       "sha256": "3234fc14f88e4aaec35ff88cda741225bcae6c29d28f1af4c6fa56b8f4bb42fd",
       "svg": "speaker.svg"
+    },
+    "shudx_trv_valve_32": {
+      "size": 32,
+      "bytes": 1024,
+      "sha256": "7434fd27e89c8c2567ce1daa77cec69b4eba4728c3f79fb8fa9f3e581e54bb1b",
+      "svg": "trv-valve.svg"
     },
     "shudx_valve_24": {
       "size": 24,

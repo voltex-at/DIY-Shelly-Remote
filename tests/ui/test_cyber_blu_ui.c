@@ -99,7 +99,7 @@ int main(int argc,char **argv)
  /* Removing the selected device during Help must not reinterpret its Close
   * button as a dashboard counter label. Closing returns to the current home. */
  m=sensor_model();show_sensor(&m);tap(300,20);m.device_count=0;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Informacje o czujniku"));click("Zamknij");CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
- m=sensor_model();show_sensor(&m);tap(162,64);CHECK(usage_hits==1);tap(266,64);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);tap(50,64);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
+ m=sensor_model();show_sensor(&m);CHECK(!find_label(lv_screen_active(),"Zużycie"));tap(266,64);CHECK(usage_hits==0&&dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);tap(50,64);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS);
  /* Warm caches, then compare the same empty root after 80 open/close cycles. */
  for(unsigned i=0;i<8;i++){show_sensor(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);}
  dsr_mobile_hide();lv_obj_clean(lv_screen_active());lv_refr_now(display);lv_mem_monitor_t a_mem,b_mem;lv_mem_monitor(&a_mem);

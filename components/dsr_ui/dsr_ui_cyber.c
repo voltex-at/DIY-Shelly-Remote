@@ -213,21 +213,42 @@ void dsr_ui_cyber_inset(lv_obj_t *o){init();lv_obj_add_style(o,&hud.inset,0);}
 void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger)lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);}
 /* Touch buttons share one state style; native fields retain their focus style. */
 void dsr_ui_cyber_button(lv_obj_t *o){init();lv_obj_add_style(o,&hud.press_edge,LV_STATE_PRESSED);}
+typedef struct {lv_obj_t *well;int open;bool known;} shutter_t;
+static void shutter_frame(void *data,int32_t open)
+{shutter_t *s=data;s->open=open;lv_obj_invalidate(s->well);}
+static void shutter_delete(lv_event_t *e)
+{shutter_t *s=lv_event_get_user_data(e);lv_anim_delete(s,shutter_frame);lv_free(s);}
 static void cover_draw(lv_event_t *e)
 {
- lv_obj_t *o=lv_event_get_target(e);unsigned encoded=(unsigned)(uintptr_t)lv_event_get_user_data(e);if(!encoded)return;
- lv_area_t a;lv_obj_get_coords(o,&a);int percent=(int)encoded-1,h=lv_area_get_height(&a)-6,w=lv_area_get_width(&a)-6;
- int fill=(h*percent+50)/100;if(fill<=0)return;
- lv_area_t b={a.x1+3,a.y2-2-fill,a.x1+2+w,a.y2-3};
- lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.radius=7;d.bg_color=lv_color_hex(0x00bfff);d.bg_opa=LV_OPA_COVER;
- d.bg_grad.dir=LV_GRAD_DIR_VER;d.bg_grad.stops_count=2;d.bg_grad.stops[0].color=lv_color_hex(0x00c7ff);d.bg_grad.stops[0].opa=LV_OPA_COVER;d.bg_grad.stops[0].frac=0;
- d.bg_grad.stops[1].color=lv_color_hex(0x0049bc);d.bg_grad.stops[1].opa=LV_OPA_COVER;d.bg_grad.stops[1].frac=255;
- d.border_width=1;d.border_color=lv_color_hex(DSR_CYBER_CYAN);lv_draw_rect(lv_event_get_layer(e),&d,&b);
- for(int y=b.y1+10;y<b.y2-3;y+=12)line(lv_event_get_layer(e),b.x1+4,y,b.x2-4,y,0x267fca);
- if(percent>5)line(lv_event_get_layer(e),b.x1+w/3,b.y1+2,b.x2-w/3,b.y1+2,0xffffff);
+ shutter_t *s=lv_event_get_user_data(e);lv_area_t a;lv_obj_get_coords(s->well,&a);lv_layer_t *layer=lv_event_get_layer(e);
+ int top=a.y1+12,bottom=a.y2-4,height=bottom-top;
+ /* 100% open: all slats in the cassette. 0%: curtain reaches the sill. */
+ int edge=top+height*(10000-s->open)/10000;
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(0x102e46);d.bg_opa=LV_OPA_COVER;d.border_color=lv_color_hex(0x26749e);d.border_width=1;d.radius=2;
+ lv_area_t cassette={a.x1+3,a.y1+2,a.x2-3,top};lv_draw_rect(layer,&d,&cassette);
+ line(layer,a.x1+5,top,a.x1+5,bottom,DSR_CYBER_CYAN);line(layer,a.x2-5,top,a.x2-5,bottom,DSR_CYBER_CYAN);
+ if(!s->known)return;
+ if(edge>top){
+  d.radius=0;d.bg_color=lv_color_hex(0x1871a6);d.bg_grad.dir=LV_GRAD_DIR_VER;d.bg_grad.stops_count=2;
+  d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(0x184967),.opa=LV_OPA_COVER,.frac=0};d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(0x28b6e1),.opa=LV_OPA_COVER,.frac=255};
+  lv_area_t curtain={a.x1+7,top+1,a.x2-7,edge};lv_draw_rect(layer,&d,&curtain);
+  /* Slat seams move with the bottom rail, disappearing into the cassette. */
+  for(int y=edge-10;y>top+1;y-=10){line(layer,a.x1+8,y,a.x2-8,y,0x072b43);if(y+1<edge)line(layer,a.x1+9,y+1,a.x2-9,y+1,0x509cbc);}
+ }
+ d.bg_grad.dir=LV_GRAD_DIR_NONE;d.bg_color=lv_color_hex(0x83d8ec);d.border_color=lv_color_hex(DSR_CYBER_CYAN);d.radius=1;
+ lv_area_t rail={a.x1+6,edge>top?edge-2:top,a.x2-6,edge>top?edge+1:top+2};lv_draw_rect(layer,&d,&rail);
+}
+void dsr_ui_cyber_cover_transition(lv_obj_t *o,int from,int percent,bool known,bool moving)
+{
+ if(percent<0)percent=0;
+ if(percent>100)percent=100;
+ if(from<0||from>100)from=percent;
+ shutter_t *s=lv_malloc(sizeof(*s));if(!s)return;*s=(shutter_t){.well=o,.open=(moving?from:percent)*100,.known=known};
+ lv_obj_add_event_cb(o,cover_draw,LV_EVENT_DRAW_MAIN_END,s);lv_obj_add_event_cb(o,shutter_delete,LV_EVENT_DELETE,s);
+ if(known&&moving&&from!=percent){lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,s);lv_anim_set_exec_cb(&a,shutter_frame);lv_anim_set_values(&a,from*100,percent*100);lv_anim_set_duration(&a,300);lv_anim_set_path_cb(&a,lv_anim_path_linear);lv_anim_start(&a);}
 }
 void dsr_ui_cyber_cover(lv_obj_t *o,int percent,bool known)
-{lv_obj_add_event_cb(o,cover_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(known?percent+1:0));}
+{dsr_ui_cyber_cover_transition(o,percent,percent,known,false);}
 static void navigation_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);unsigned selected=(unsigned)(uintptr_t)lv_event_get_user_data(e);

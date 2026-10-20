@@ -90,6 +90,7 @@ static void gallery(void)
   {.id=3,.name="BLU Window",.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.can_refresh=true,.has_contact=true,.has_battery=true,.battery_pct=92,.has_illuminance=true,.illuminance_lux=18,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_HAS_RSSI,.rssi=-69}},
   {.id=4,.name="Shelly Plug S",.kind=DSR_DEVICE_PLUG,.online=false}}};
  m.devices[1].can_position=true;
+ m.devices[0].has_sample_time=true;m.devices[0].sample_ms=lv_tick_get();
  m.devices[2].has_sample_time=true;m.devices[2].sample_ms=lv_tick_get();m.devices[2].blu_age_s=4;
  const dsr_mobile_actions_t a={.set_output=output_hit,.set_cover=cover_hit,.stop_cover=stop_hit,.set_position=position_hit,.refresh=refresh_hit};
  for(unsigned i=0;i<m.device_count;i++)snprintf(m.devices[i].identity,sizeof(m.devices[i].identity),"skin-fixture-%u",i);
@@ -174,14 +175,15 @@ int main(int argc,char **argv)
  /* Re-enter from the saved document, as startup does (no device reboot). */
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_LIGHT,0);dsr_ui_apply_theme();dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);
  /* Fill LVGL's lazy style/font caches for both directions before measuring. */
- for(unsigned warm=0;warm<10;warm++)for(unsigned i=0;i<4;i++)select_skin(i);
+ /* Settle allocator splits as well as lazy caches with the two-tab layout. */
+ for(unsigned warm=0;warm<40;warm++)for(unsigned i=0;i<4;i++)select_skin(i);
  /* Compare quiescent empty roots: retained allocation slack in a live screen
   * varies with TLSF fragmentation when the parent LVGL theme is rebuilt. */
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
  lv_mem_monitor_t a,b;lv_mem_monitor(&a);
  for(unsigned cycle=0;cycle<20;cycle++)for(unsigned s=0;s<4;s++)select_skin(s);
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
- lv_mem_monitor(&b);fprintf(stderr,"skin cycle memory: %lu -> %lu, largest %lu\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size);CHECK(b.free_size>=a.free_size);CHECK(b.free_biggest_size>32000);
+ lv_mem_monitor(&b);fprintf(stderr,"skin cycle memory: %lu -> %lu, largest %lu; used blocks %u -> %u\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size,(unsigned)a.used_cnt,(unsigned)b.used_cnt);CHECK(b.free_size>=a.free_size);CHECK(b.used_cnt==a.used_cnt);CHECK(b.free_biggest_size>32000);
  printf("Cyber Blue LVGL heap after warmup: %lu -> %lu bytes free; largest %lu; 80 saved skin switches, no growth; 128 KiB pool\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size);
  select_skin(0);CHECK(dsr_ui_brand_background()==background&&rgb(dsr_sc_color(DSR_SC_BG))==DSR_SC_BG);
  CHECK(!job_counts[DSR_JOB_SET_OUTPUT]&&!job_counts[DSR_JOB_COVER]&&!restart_requests);

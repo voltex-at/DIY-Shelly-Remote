@@ -409,6 +409,12 @@
  {"Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly.","Pair the sensor, adjust its settings and select a Shelly gateway.","Sensor koppeln, Einstellungen anpassen und ein Shelly-Gateway wählen."},
 
 {"Nastawa","Target","Solltemperatur"},
+{"Nastawa temperatury","Target temperature","Solltemperatur"},
+{"Nastawa • oczekuje","Target • pending","Sollwert • ausstehend"},
+{"Temperatura zmierzona","Measured temperature","Gemessene Temperatur"},
+{"Otwórz ustawienia Shelly","Open Shelly settings","Shelly-Einstellungen öffnen"},
+{"Wersja firmware","Firmware version","Firmware-Version"},
+{"Kanał","Channel","Kanal"},
 
 {"Usuń urządzenie","Delete device","Gerät löschen"},
 

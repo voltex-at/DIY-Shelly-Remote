@@ -32,7 +32,8 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     /* Cyber-only semantic roles; existing persistent IDs remain unchanged. */
     DSR_ICON_CPU, DSR_ICON_GIT_BRANCH, DSR_ICON_PALETTE, DSR_ICON_DISPLAY, DSR_ICON_SHIELD,
     DSR_ICON_NEXT, DSR_ICON_STOP, DSR_ICON_SAVE, DSR_ICON_TRASH, DSR_ICON_WARNING, DSR_ICON_ACTIVITY, DSR_ICON_MEMORY, DSR_ICON_POWER_SUPPLY, DSR_ICON_WINDOW_TILTED, DSR_ICON_WINDOW_NO_DATA, DSR_ICON_DOOR_NO_DATA,
-    DSR_ICON_ILLUMINANCE, DSR_ICON_SIGNAL, DSR_ICON_CLOCK, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_ILLUMINANCE, DSR_ICON_SIGNAL, DSR_ICON_CLOCK,
+    DSR_ICON_ECO, DSR_ICON_LOCATION, DSR_ICON_TRV_VALVE, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);

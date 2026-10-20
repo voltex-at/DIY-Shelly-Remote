@@ -32,7 +32,7 @@ static uint32_t add_relay(void)
 static void select_group(const char *name)
 {char text[96];snprintf(text,sizeof(text),"%s • 0",dsr_sc_tr(name));click(text);finish_settings();}
 static void open_editor(uint32_t id)
-{dsr_network_device_settings(id);CHECK(find_label(lv_screen_active(),"Ustawienia Shelly"));click("Ustawienia Shelly");finish_settings();CHECK(dsr_ui_device_settings_active()&&dsr_device_settings_sensitive());}
+{dsr_network_device_settings(id);CHECK(find_label(lv_screen_active(),"Ustawienia Shelly"));click(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?"Otwórz ustawienia Shelly":"Ustawienia Shelly");finish_settings();CHECK(dsr_ui_device_settings_active()&&dsr_device_settings_sensitive());}
 static void check_keyboard_layout(void)
 {
  lv_obj_t *root=lv_screen_active(),*keyboard=find_type(root,&lv_keyboard_class);if(!keyboard)return;lv_obj_update_layout(root);lv_area_t keys;lv_obj_get_coords(keyboard,&keys);CHECK(keys.y1==240);

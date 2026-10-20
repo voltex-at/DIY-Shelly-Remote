@@ -38,9 +38,9 @@ def channel(tag):
     return 'dev' if tag.startswith('dev-') else 'stable'
 
 
-# One owner-requested DEV publication (2026-10-19), not a general branch release.
+# One owner-requested DEV publication (2026-10-20), not a general branch release.
 # It cannot select another tag, Stable, branch or CMake version.
-DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.60', 'version': '0.7.60-dev',
+DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.61', 'version': '0.7.61-dev',
                'branch': 'refs/heads/work/shelly-hud-cyber-blue'}
 
 

@@ -171,6 +171,25 @@ Zakres i wyniki renderera LVGL: [cyber-blue/blu-control/README.md](cyber-blue/bl
 Rzeczywiste odczyty radiowe i odbiór na fizycznym ESP32-S3 pozostają do
 wykonania przez właściciela; testy hosta i CI ich nie zastępują.
 
+### Wydanie 0.7.61-dev — integracja referencji Cyber Blue
+
+Właściciel 2026-10-20 dostarczył `Text.txt`, `Text2.txt`, `Text1(1).txt`,
+pełny plik edytora „Ogólne” i sześć renderów. Zlecił stworzenie nowego Dev
+i porównanie renderów. Same opisy zawierały wyniki dawnych sesji, bez ich
+większości źródeł; obecna integracja ma własne testy, a nie przejęte liczniki.
+Włączono załączony edytor oraz odtworzono przekaźnik, TRV i ustawienia
+na istniejącym modelu/aktorze. Powstał komponent rzeczywistego pancerza rolety.
+`DEV_REQUEST`, `.github/dev-release-0.7.61.json` i workflow wskazują tylko
+`dev-v0.7.61`, `0.7.61-dev`, `work/shelly-hud-cyber-blue`.
+Publikacja czeka na 5/5 CI tego samego commitu. Klucz pozostaje w chronionym
+środowisku `release`. Nie scala się do `main` ani nie publikuje Stable.
+
+Test: `python3 tools/test_ui.py --case test_cyber_recovered_ui` i pełne UI;
+`python3 tools/render_recovered.py` eksportuje niezmienione piksele LVGL.
+Większy przycisk powrotu z 0.7.60 pozostaje, a dwie zakładki zastępują starszą
+referencję przekaźnika z trzema. Wybrane testowe identyfikatory w eksporcie
+są przykładowe. Raport i klatki: `docs/cyber-blue/recovered/`.
+
 ### Wydanie 0.7.60-dev — dotyk i pobieranie OTA
 
 Właściciel 2026-10-19 jawnie zlecił poprawkę dotyku, sprawdzenie błędu OTA

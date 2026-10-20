@@ -1,4 +1,11 @@
-# Matryca funkcji — 0.7.60-dev
+# Matryca funkcji — 0.7.61-dev
+
+W 0.7.61-dev: scalone referencyjne ekrany Cyber Blue przekaźnika, TRV,
+ustawień urządzenia i „Ogólne”; dwie zakładki w czterech motywach.
+Roleta pokazuje pancerz wysuwany z górnej kasety i wygładza tylko przejścia
+między potwierdzonymi odczytami ruchu. Nowa kompozycja nie zmienia transportu,
+walidacji ustawień ani potwierdzeń zapisu. Rendery i testy hostowe:
+[Cyber Blue — integracja](cyber-blue/recovered/README.md). Odbiór fizyczny: oczekuje.
 
 W 0.7.60-dev na `work/shelly-hud-cyber-blue`: skórka Cyber Blue i nowy ekran
 BLU z 0.7.59 oraz wspólna poprawka dotyku (zaniki kontaktu, ruch zachowany

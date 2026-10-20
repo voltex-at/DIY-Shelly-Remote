@@ -1,3 +1,13 @@
+0.7.61-dev: zintegrowane ekrany Cyber Blue — termostat, przekaźnik, ustawienia i rzeczywista wizualizacja rolety.
+
+- Integracja zaakceptowanych referencji oraz załączonego edytora `dsr_ui_device_settings.c`. Termostat: segmentowy pierścień, większe wartości, natywny dotyk po okręgu, symetryczne −/+ i karty zaworu/baterii. Zmiana nastawy aktualizuje istniejące obiekty; zapis nadal następuje raz po 1200 ms. Szkic jest oznaczony jako oczekujący; potwierdzone dane pozostają własnością bramki. Offline/błąd nie pokazuje starych temperatur jako bieżących.
+- Przekaźnik: panel mocy, wyśrodkowany przycisk, odświeżanie i osobne karty napięcia/prądu. Brak potwierdzonego odczytu oznacza `— W/V/A` i blokadę sterowania; liczby nie są zastępowane pozornym zerem.
+- Ustawienia urządzenia: sześć wierszy rzeczywistych metadanych oraz widoczna akcja otwierająca istniejący edytor Shelly. „Ogólne” ma karty nazwy, ECO, strefy czasowej, współrzędnych i serwera czasu, tylko gdy odpowiedź urządzenia udostępnia te pola. Formularze, potwierdzenie, walidacja i odczyt kontrolny korzystają z dotychczasowego aktora.
+- Dwie zakładki „Sterowanie” / „Ustawienia” w czterech motywach, zgodnie z późniejszą instrukcją z przekazanego opisu. Wewnętrzny miernik pozostaje testowany osobno. Starsze referencje przekaźnika zawierają jeszcze trzecią zakładkę; jest to zamierzona różnica.
+- Roleta Cyber Blue: pancerz wychodzi z kasety u góry; 0% oznacza zamknięcie, 100% odsłonięcie okna. Wygładzanie LVGL trwa 300 ms pomiędzy potwierdzonymi odczytami ruchu. STOP natychmiast pokazuje potwierdzoną pozycję, błąd zatrzymuje animację. Cel pod palcem pozostaje osobnym podglądem. Nie ma ekstrapolacji osiągnięcia celu ani automatycznego powtarzania komendy ruchu.
+- Zintegrowane poprawki dotyku i pobierania OTA z 0.7.60 pozostają w tej wersji. Partycje i magazyny danych nie zmieniają się. Aktualizacja przez Dev OTA lub UPDATE-APP-ONLY zachowuje konfigurację.
+- Porównanie z załączonymi referencjami i rzeczywiste klatki LVGL: [cyber-blue/recovered/README.md](cyber-blue/recovered/README.md). Dane renderów są testowe; odbiór czytelności, dotyku, komunikacji z rzeczywistą bramką i OTA na fizycznym ES3C35P pozostaje do wykonania.
+
 0.7.60-dev: stabilniejszy dotyk, przewijanie bez przypadkowych kliknięć i poprawki pobierania OTA.
 
 - Wszystkie cztery motywy: natychmiastowe naciśnięcie, potwierdzone puszczenie po 30 ms poprawnych odczytów bez kontaktu. Pojedynczy zanik sygnału nie tworzy drugiego kliknięcia. Nieudany odczyt I2C nie oznacza puszczenia; po 100 ms awarii gest jest anulowany i wymaga czystego puszczenia. Wiele kontaktów również anuluje gest.
