@@ -69,6 +69,8 @@
 {"Grafitowy\nNocny\nJasny","Graphite\nMidnight\nLight","Graphit\nNacht\nHell"},
 {"Grafitowy\nNocny\nJasny\nShelly HUD — Cyber Blue","Graphite\nMidnight\nLight\nShelly HUD — Cyber Blue","Graphit\nNacht\nHell\nShelly HUD — Cyber Blue"},
 {"Blok","block","Block"},{"Grafika","Graphics","Grafik"},{"Stos","Stack","Stack"},
+{"Największy blok","Largest block","Größter Block"},
+{"Sterowanie zablokowane","Controls blocked","Steuerung gesperrt"},
 {"Stos ekranu","Screen stack","UI-Stack"},
 {"Adres IP urządzenia","Device IP address","Geräte-IP-Adresse"},
 {"Pokój","Room","Raum"},{"urz.","devices","Geräte"},

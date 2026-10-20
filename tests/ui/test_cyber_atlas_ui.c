@@ -87,6 +87,13 @@ static void lighting_routes(void)
  press("+");CHECK(level_writes==2&&last_level==80&&find_label(lv_screen_active(),"75%"));
  press("-");CHECK(level_writes==3&&last_level==70&&find_label(lv_screen_active(),"75%"));
  d->online=false;dsr_mobile_update(&m);route("dimmer-offline");CHECK(lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));
+ d->online=true;d->can_light=false;
+ for(unsigned lang=0;lang<3;lang++){
+  dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);
+  CHECK(find_label(lv_screen_active(),"Sterowanie zablokowane"));CHECK(lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));
+  CHECK(!find_label(lv_screen_active(),"Główne sterowanie"));char name[48];snprintf(name,sizeof(name),"dimmer-blocked-%u",lang);route(name);
+ }
+ d->can_light=true;
  d->online=true;d->endpoint_kind=DSR_ENDPOINT_RGB;d->kind=DSR_DEVICE_RGB;d->can_rgb=true;d->rgb=(dsr_rgb_status_t){.r=0,.g=180,.b=255,.brightness=78,.flags=DSR_RGB_VALID};strcpy(d->name,"Shelly RGB");
  for(unsigned lang=0;lang<3;lang++){
   dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);char name[64];snprintf(name,sizeof(name),"rgb-brightness-%u",lang);route(name);press("Kolor RGB");snprintf(name,sizeof(name),"rgb-color-%u",lang);route(name);

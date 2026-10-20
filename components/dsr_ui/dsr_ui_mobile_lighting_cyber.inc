@@ -10,9 +10,10 @@ static void cyber_light_step(lv_event_t *event)
 static void cyber_light_status(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
  bool live=d->online&&d->error==DSR_OK;
- const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!live?"Brak aktualnego odczytu":d->busy?"Wysyłanie polecenia…":d->output?"Włączone":"Wyłączone";
+ bool blocked=!(d->endpoint_kind==DSR_ENDPOINT_RGB&&rgb_color_view?d->can_rgb:d->can_light);
+ const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!live?"Brak aktualnego odczytu":d->busy?"Wysyłanie polecenia…":blocked?"Sterowanie zablokowane":d->output?"Włączone":"Wyłączone";
  dsr_sc_badge(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,live?"Online":"Offline",12,94,104,live?DSR_SC_GLOW:0xffc65b);
- dsr_sc_badge(root,DSR_ICON_POWER,state,124,94,184,live?DSR_SC_TEXT:0xffc65b);
+ dsr_sc_badge(root,blocked?DSR_ICON_WARNING:DSR_ICON_POWER,state,124,94,184,live&&!blocked?DSR_SC_TEXT:0xffc65b);
 }
 static void cyber_light_details(lv_obj_t *root)
 {
