@@ -4,6 +4,7 @@
 static dsr_blu_snapshot_t snapshot;
 static bool pin_required;
 static unsigned writes;
+void test_blu_phase(dsr_blu_phase_t phase,bool active){snapshot.phase=phase;snapshot.active=active;snapshot.result=active?DSR_BUSY:DSR_IO;snapshot.serial++;}
 void test_blu_pin_required(bool pin){pin_required=pin;writes=0;}
 unsigned test_blu_writes(void){return writes;}
 dsr_result_t dsr_blu_start(const dsr_ble_device_t *c)

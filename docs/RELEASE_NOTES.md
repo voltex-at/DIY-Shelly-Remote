@@ -1,3 +1,12 @@
+0.7.62-dev: dodawanie BLE kończy operację po błędzie; restart nie pozostaje zablokowany przez brak potwierdzenia rozłączenia.
+
+- BLU oraz konfiguracja Wi-Fi przez BLE RPC: usunięte nieskończone pętle rozłączenia. Sprzątanie czeka do 4 s. Brak zdarzenia GAP kończy operację błędem, zwalnia globalną blokadę i izoluje stary host Bluetooth. Asynchroniczny reset hosta nie usuwa bondów. Nowe BLE jest blokowane do pełnego stop/deinit; restart oraz inne operacje nie dziedziczą wiszącej blokady. Późne callbacki starej sesji są ignorowane.
+- BLU ma dodatkowo 120 s limitu całej operacji od przyjęcia zlecenia. Anulowanie przed uruchomieniem nie inicjuje połączenia. Wynik nieudanej sesji nie udostępnia klucza do rejestracji bramki. Nie ma ponawiania zapisów Wi-Fi ani ustawień.
+- LCD: jedno potwierdzenie restartu anuluje pozostałe BLE i automatycznie ponawia żądanie restartu po zwolnieniu admisji. Oczekiwanie jest ograniczone do 10 s i można je anulować. Aktywny zapis lub OTA nadal chroni globalna bramka; nie dodano wymuszonego restartu.
+- Komunikaty PL/EN/DE rozróżniają skan, zamykanie do 4 s i zakończony błąd BLE. Usunięto nakaz nierestartowania przy samym skanie/odczycie.
+- OTA: obsługa `-ESP_ERR_HTTP_EAGAIN` również przy odbieraniu nagłówków, z zachowaniem częściowego parsera, jednego połączenia, 30 s budżetu, anulowania i walidacji podpisu/SHA/rozmiaru. Zdjęcie `5/4/-1/1` oznacza brak zakończonej odpowiedzi katalogu; samo zdjęcie nie rozstrzyga błędu DNS/TLS ani wpływu współdzielenia radia.
+- Testy: brak callbacku rozłączenia i anulowania, nieistniejące już połączenie, późne zdarzenia, izolacja/reinicjalizacja hosta, globalny limit, brak zapisu po anulowaniu; rzeczywisty LVGL dla restartu w 4 motywach i 3 językach. Transport, radio i fizyczny przycisk czujnika pozostają do odbioru na urządzeniu. Partycje i zapisane dane bez zmian; użyć OTA lub UPDATE-APP-ONLY.
+
 0.7.61-dev: zintegrowane ekrany Cyber Blue — termostat, przekaźnik, ustawienia i rzeczywista wizualizacja rolety.
 
 - Integracja zaakceptowanych referencji oraz załączonego edytora `dsr_ui_device_settings.c`. Termostat: segmentowy pierścień, większe wartości, natywny dotyk po okręgu, symetryczne −/+ i karty zaworu/baterii. Zmiana nastawy aktualizuje istniejące obiekty; zapis nadal następuje raz po 1200 ms. Szkic jest oznaczony jako oczekujący; potwierdzone dane pozostają własnością bramki. Offline/błąd nie pokazuje starych temperatur jako bieżących.

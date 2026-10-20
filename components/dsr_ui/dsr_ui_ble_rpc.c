@@ -48,7 +48,7 @@ static void message(const char *title,const char *text)
 static void failed(dsr_result_t result)
 {
  phase=ERROR;
- const char *text=result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane.":
+ const char *text=session.phase==DSR_BLE_RPC_QUARANTINED?"Połączenie BLE nie zakończyło się prawidłowo. Ponów po chwili lub uruchom pilot ponownie.":result==DSR_BUSY?"Operacja w toku. Poczekaj.":result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane.":
   result==DSR_AUTH_REQUIRED?"Urządzenie wymaga zabezpieczonego BLE lub logowania. Ten kreator obsługuje otwarte okno konfiguracji.":
   result==DSR_UNSUPPORTED?"Wymagany obsługiwany Gen2+ lub H&T Gen3 w otwartym setup oraz HTTP w LAN. Bonding i fabryczne HTTPS 2.0 nie są obsługiwane.":
   "Nie potwierdzono urządzenia w domowej sieci. Zapis Wi-Fi mógł dotrzeć; nie zostanie automatycznie ponowiony.";
@@ -141,7 +141,7 @@ void dsr_ui_ble_rpc_tick(void)
   if(current.serial==observed)return;
   session=current;observed=current.serial;
   if(current.phase==DSR_BLE_RPC_CONFIRM){if(phase!=DISCLOSE)disclose();return;}
-  if(current.active){if(current.phase==DSR_BLE_RPC_QUARANTINED)message("Bluetooth • kończenie","Brak potwierdzenia rozłączenia. Nowe sesje i restart są wstrzymane. Nie ponawiamy zapisu Wi-Fi.");return;}
+  if(current.active)return;
   if(current.phase!=DSR_BLE_RPC_LAN_READY){failed(current.result);return;}
   phase=FIND;deadline=now+45000;next_scan=now;lan_started=false;observed=0;
   message("Sprawdź w domowej sieci","Szukanie tej samej tożsamości oraz odczyt SSID i IP przez HTTP w LAN. Sam zapis Wi-Fi nie oznacza dodania.");

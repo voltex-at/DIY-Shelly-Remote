@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #define BLE_HS_EDONE 14
+#define BLE_HS_ENOTCONN 7
 #define BLE_HS_ATT_ERR(x) (0x100+(x))
 #define BLE_ATT_ERR_INSUFFICIENT_AUTHEN 5
 #define BLE_ATT_ERR_INSUFFICIENT_ENC 15

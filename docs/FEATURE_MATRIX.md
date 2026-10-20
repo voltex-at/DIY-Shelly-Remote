@@ -1,4 +1,13 @@
-# Matryca funkcji — 0.7.61-dev
+# Matryca funkcji — 0.7.62-dev
+
+W 0.7.62-dev: BLU i konfiguracja BLE RPC kończą zamykanie po maks. 4 s.
+Brak callbacku izoluje stary host BLE, zwalnia globalną blokadę aktywności
+i pozwala na restart. Nowe BLE czeka na pełny stop/deinit starego hosta.
+LCD po jednym potwierdzeniu restartu anuluje BLE i czeka na zwolnienie
+admisji, do 10 s, bez wymuszania restartu podczas zapisu Flash.
+OTA kontynuuje także częściowy odczyt nagłówków po SDK EAGAIN.
+Regresje obejmują brak zdarzeń GAP, późne callbacki i UI w 4 motywach/3 językach.
+Odbiór fizyczny parowania i OTA po błędzie BLE nadal oczekuje.
 
 W 0.7.61-dev: scalone referencyjne ekrany Cyber Blue przekaźnika, TRV,
 ustawień urządzenia i „Ogólne”; dwie zakładki w czterech motywach.

@@ -87,7 +87,7 @@ static int attribute_cb(uint16_t handle,const struct ble_gatt_error *error,struc
 static int gap_cb(struct ble_gap_event *event,void *arg)
 {
  uint32_t generation=(uint32_t)(uintptr_t)arg;lock();
- if(generation!=state.generation||!atomic_load(&active)){unlock();return 0;}
+ if(generation!=state.generation||!atomic_load(&active)){unlock();return event->type==BLE_GAP_EVENT_REPEAT_PAIRING?BLE_GAP_REPEAT_PAIRING_IGNORE:0;}
  if(event->type==BLE_GAP_EVENT_CONNECT){connecting=false;if(event->connect.status==0){connection=event->connect.conn_handle;connected=true;}else io_result=DSR_OFFLINE;}
  else if(event->type==BLE_GAP_EVENT_DISCONNECT&&event->disconnect.conn.conn_handle==connection){connected=false;io_pending=false;io_done=true;io_result=DSR_OFFLINE;if(stream.step<DSR_RPC_DONE)dsr_rpc_stream_cancel(&stream);}
  else if(event->type==BLE_GAP_EVENT_ENC_CHANGE&&event->enc_change.conn_handle==connection){/* This B1 deliberately supports only the open setup window. */atomic_store(&security_refused,true);atomic_store(&cancelled,true);io_result=DSR_AUTH_REQUIRED;}
@@ -162,18 +162,18 @@ static dsr_result_t inspect(uint32_t *id,const char *client,dsr_rpc_identity_t *
  if(result==DSR_OK)*identity=observed;
  cJSON_Delete(info);cJSON_Delete(system);cJSON_Delete(methods);cJSON_Delete(status);return result;
 }
-static void disconnect_peer(void)
+static bool disconnect_peer(void)
 {
  publish(DSR_BLE_RPC_CLOSING,DSR_BUSY);lock();closing=true;bool pending=connecting,has_connection=connected;uint16_t handle=connection;unlock();
  if(pending)(void)ble_gap_conn_cancel();
  if(has_connection)(void)ble_gap_terminate(handle,BLE_ERR_REM_USER_CONN_TERM);
- uint32_t started=now_ms();bool quarantined=false;
+ uint32_t started=now_ms();
  for(;;){lock();pending=connecting;has_connection=connected;handle=connection;unlock();if(!pending&&!has_connection)break;
-  if(has_connection){(void)ble_gap_terminate(handle,BLE_ERR_REM_USER_CONN_TERM);}
-  if(!quarantined&&now_ms()-started>=4000){quarantined=true;publish(DSR_BLE_RPC_QUARANTINED,DSR_IO);}
+  if(has_connection&&ble_gap_terminate(handle,BLE_ERR_REM_USER_CONN_TERM)==BLE_HS_ENOTCONN){lock();if(connection==handle)connected=false;unlock();continue;}
+  if(now_ms()-started>=DSR_BLE_CLOSE_MS){dsr_ble_manager_quarantine();lock();io_pending=false;memset(&stream,0,sizeof(stream));unlock();return false;}
   vTaskDelay(pdMS_TO_TICKS(100));
  }
- lock();closing=false;io_pending=false;memset(&stream,0,sizeof(stream));unlock();
+ lock();closing=false;io_pending=false;memset(&stream,0,sizeof(stream));unlock();return true;
 }
 static void run(bool host_ready)
 {
@@ -190,7 +190,7 @@ static void run(bool host_ready)
  if(result==DSR_OK){cJSON *written=NULL;result=transact(DSR_RPC_WIFI_SET,++request_id,client,identity.device.id,&home,&written);if(result==DSR_OK){const cJSON *restart=cJSON_GetObjectItemCaseSensitive(written,"restart_required");if(!cJSON_IsFalse(restart))result=DSR_UNSUPPORTED;}cJSON_Delete(written);}
  if(result==DSR_OK){publish(DSR_BLE_RPC_VERIFYING,DSR_BUSY);uint32_t started=now_ms();do{cJSON *station=NULL;result=transact(DSR_RPC_WIFI_STATUS,++request_id,client,identity.device.id,NULL,&station);if(result==DSR_OK)result=dsr_rpc_station(station,&home,identity.device.host);cJSON_Delete(station);if(result==DSR_OK||atomic_load(&cancelled))break;if(result==DSR_BAD_RESPONSE)vTaskDelay(pdMS_TO_TICKS(1000));else break;}while(now_ms()-started<45000);}
  volatile unsigned char *secret=(volatile unsigned char *)&home;for(size_t i=0;i<sizeof(home);i++)secret[i]=0;
- disconnect_peer();if(atomic_load(&security_refused))result=DSR_AUTH_REQUIRED;lock();bool uncertain=state.write_possible&&(result==DSR_OFFLINE||result==DSR_BAD_RESPONSE);if(result==DSR_OK||uncertain)state.device=identity.device;state.result=result;state.phase=atomic_load(&security_refused)?DSR_BLE_RPC_ERROR:!atomic_load(&cancelled)&&(result==DSR_OK||uncertain)?DSR_BLE_RPC_LAN_READY:atomic_load(&cancelled)||result==DSR_BUSY?DSR_BLE_RPC_CANCELLED:DSR_BLE_RPC_ERROR;state.serial++;atomic_store(&active,false);unlock();dsr_activity_end();
+ bool closed=disconnect_peer();if(!closed)result=DSR_IO;if(atomic_load(&security_refused))result=DSR_AUTH_REQUIRED;lock();bool uncertain=state.write_possible&&(result==DSR_OFFLINE||result==DSR_BAD_RESPONSE);if(result==DSR_OK||uncertain)state.device=identity.device;state.result=result;state.phase=!closed?DSR_BLE_RPC_QUARANTINED:atomic_load(&security_refused)?DSR_BLE_RPC_ERROR:!atomic_load(&cancelled)&&(result==DSR_OK||uncertain)?DSR_BLE_RPC_LAN_READY:atomic_load(&cancelled)||result==DSR_BUSY?DSR_BLE_RPC_CANCELLED:DSR_BLE_RPC_ERROR;state.serial++;atomic_store(&active,false);unlock();dsr_activity_end();
 }
 dsr_result_t dsr_ble_rpc_start(const dsr_ble_device_t *candidate)
 {

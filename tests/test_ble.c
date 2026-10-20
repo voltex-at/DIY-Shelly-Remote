@@ -64,6 +64,9 @@ void vTaskDelay(TickType_t ticks)
 }
 static void run_worker(void){if(!setjmp(idle))worker(NULL);}
 static unsigned rpc_calls;
+static void quarantine_operation(bool ready)
+{CHECK(ready);dsr_ble_manager_quarantine();CHECK(!dsr_ble_host_healthy()&&!dsr_ble_scan());}
+void ble_hs_sched_reset(int reason){CHECK(reason==BLE_HS_EUNKNOWN);ble_hs_cfg.reset_cb(reason);ble_hs_cfg.sync_cb();}
 static void rpc_operation(bool ready)
 {CHECK(ready&&dsr_ble_host_healthy());CHECK(!dsr_ble_scan());dsr_ble_snapshot_t snapshot;dsr_ble_snapshot(&snapshot);CHECK(!snapshot.busy&&snapshot.phase!=DSR_BLE_SCANNING);rpc_calls++;}
 static void parser_tests(void)
@@ -136,6 +139,13 @@ int main(void)
  mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(init_calls==inits+1&&deinit_calls==2&&!dsr_ble_host_active());
  CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(rpc_calls==2&&init_calls==inits+2&&deinit_calls==3);
  dsr_ble_snapshot(&s);CHECK(!s.busy);idle_release=false;
+ /* A missing disconnect must block only the old BLE host, not restart or
+  * other activity. A late sync is not proof that its old callbacks drained. */
+ CHECK(dsr_ble_manager_rpc(quarantine_operation));run_worker();CHECK(!dsr_ble_host_healthy());
+ CHECK(!dsr_ble_scan()&&!dsr_ble_manager_rpc(rpc_operation));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ CHECK(dsr_activity_begin());dsr_activity_end(); /* Wi-Fi/OTA admission remains open. */
+ idle_release=true;run_worker();CHECK(!dsr_ble_host_active());
+ mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(!dsr_ble_host_active());
  CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u BLE checks; idle host release/re-init; real parser + scanner adapter, bounded AD, merge/dedupe/cap, 20s timeout, 10 cancel cycles, host reset, retry, late events; host radio fixture only\n",checks);return 0;
 }

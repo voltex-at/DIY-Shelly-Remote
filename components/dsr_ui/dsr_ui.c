@@ -11,6 +11,7 @@
 #include "dsr_workspace.h"
 #include "dsr_system_info.h"
 #include "dsr_restart.h"
+#include "dsr_blu.h"
 #include "dsr_panel_pairing.h"
 #include "lvgl.h"
 #include <stdio.h>
@@ -26,16 +27,20 @@ static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
 /* Accepted is process-lifetime state, not a screen state. Navigating away must
  * neither cancel backend admission nor submit a second request on reopening. */
 static bool restart_accepted;
+static bool restart_waiting;
+static uint32_t restart_wait_started,restart_wait_tick;
+static void restart_confirm(lv_event_t *event);
 static lv_obj_t *revoke_state_label,*revoke_status,*revoke_confirm_button,*revoke_cancel_button;
 static lv_obj_t *web_pairing_state,*web_pairing_generate;
 static bool revoke_pending;
 static const char *revoke_message="Potwierdź unieważnienie przyciskiem poniżej.";
 void dsr_ui_settings_hide(void)
-{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
+{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;restart_waiting=false;
  revoke_state_label=revoke_status=revoke_confirm_button=revoke_cancel_button=NULL;
  web_pairing_state=web_pairing_generate=NULL;}
 void dsr_ui_settings_tick(void)
 {
+ if(restart_waiting&&restart_status&&(uint32_t)(lv_tick_get()-restart_wait_tick)>=100){restart_wait_tick=lv_tick_get();restart_confirm(NULL);}
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
   dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");expiry_label=NULL;
  }
@@ -297,12 +302,20 @@ static void restart_cancel(lv_event_t *event)
 static void restart_confirm(lv_event_t *event)
 {
  (void)event;if(restart_accepted||!restart_status||!restart_confirm_button||!restart_cancel_button)return;
+ if(!restart_waiting)dsr_ble_cancel();
  dsr_restart_result_t result=dsr_restart_request();
  const char *text="Restart jest niedostępny. Spróbuj później.";
  if(result==DSR_RESTART_ACCEPTED){
-  restart_accepted=true;text="Przyjęto żądanie restartu.";
+  restart_waiting=false;restart_accepted=true;text="Przyjęto żądanie restartu.";
   lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);
- }else if(result==DSR_RESTART_BUSY)text="Pilot jest zajęty. Spróbuj ponownie.";
+ }else if(result==DSR_RESTART_BUSY){
+  if(!restart_waiting&&(dsr_blu_active()||dsr_ble_rpc_active()||dsr_ui_ble_rpc_active())){
+   dsr_ble_rpc_snapshot_t rpc;dsr_ble_rpc_snapshot(&rpc);dsr_ble_rpc_cancel(rpc.generation);dsr_blu_close();dsr_ble_cancel();
+   restart_waiting=true;restart_wait_started=restart_wait_tick=lv_tick_get();
+  }
+  if(restart_waiting&&(uint32_t)(lv_tick_get()-restart_wait_started)<10000){text="Kończenie Bluetooth przed restartem…";lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);}
+  else {restart_waiting=false;text="Pilot jest zajęty. Spróbuj ponownie.";lv_obj_remove_state(restart_confirm_button,LV_STATE_DISABLED);}
+ }else {restart_waiting=false;lv_obj_remove_state(restart_confirm_button,LV_STATE_DISABLED);}
  dsr_sc_label_set_text(restart_status,text);
 }
 static void restart_screen(lv_event_t *event)

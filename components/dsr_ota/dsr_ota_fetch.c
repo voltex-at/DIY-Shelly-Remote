@@ -189,7 +189,14 @@ static dsr_ota_fetch_result_t fetch(const char *url,const dsr_ota_policy_t *poli
    if(opened!=ESP_OK){if(diagnostic)diagnostic->io_result=opened;if(s->result==DSR_FETCH_OK)s->result=DSR_FETCH_IO;}
   }
   if(!stopped(s)){
-   int64_t length=esp_http_client_fetch_headers(client);
+   int64_t length;
+   do {
+    length=esp_http_client_fetch_headers(client);
+    if(diagnostic)diagnostic->io_result=length<0?(int)length:0;
+    /* IDF 5.5.4 also returns EAGAIN while receiving headers. Its parser
+     * retains partial headers. Continue on this client, keeping framing
+     * counters and the original cancellation/30 s deadline. */
+   }while(length==-ESP_ERR_HTTP_EAGAIN&&!stopped(s));
    if(diagnostic)diagnostic->http_status=esp_http_client_get_status_code(client);
    if(!stopped(s)){
     int status=esp_http_client_get_status_code(client);

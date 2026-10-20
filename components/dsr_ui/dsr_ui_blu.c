@@ -93,8 +93,8 @@ static void draw(void)
  lv_obj_t *root=screen(ui->page==SETTINGS||ui->page==EDIT||ui->page==CONFIRM?"Ustawienia BLU":"Dodaj urządzenie BLU");
  if(ui->page==INTRO){dsr_sc_text(ui->body,"Potwierdź na urządzeniu",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_t *instructions=dsr_sc_text(ui->body,"Pierwsze parowanie: BLU TRV — krótko naciśnij Reset. Pozostałe BLU — przytrzymaj przycisk ponad 10 s, do niebieskiej diody. Uruchom skan.",8,58,280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_update_layout(instructions);dsr_sc_text(ui->body,"Już sparowane: naciśnij krótko przycisk, aby obudzić urządzenie. Pilot zachowa istniejący PIN i szyfrowanie.",8,58+lv_obj_get_height(instructions)+16,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Skanuj i połącz",166,412,142,start,NULL));return;}
  if(ui->page==SCANNING||ui->page==PAIRING||ui->page==LAN_SCAN||ui->page==REGISTER){
-  const char *text=ui->page==SCANNING?"Skan Bluetooth • do 20 s":ui->page==LAN_SCAN?"Wyszukiwanie bramek w sieci":ui->page==REGISTER?"Dodawanie czujnika do bramki…":ui->snapshot.phase==DSR_BLU_QUARANTINED?"Zamykanie połączenia. Poczekaj.":ui->snapshot.phase==DSR_BLU_WRITING?"Zapisywanie i sprawdzanie ustawienia…":"Łączenie i sprawdzanie urządzenia…";
-  dsr_sc_text(ui->body,text,8,36,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,ui->page==REGISTER&&ui->snapshot.model==8?"Naciśnij krótko Reset wybranego TRV. Tylko ta głowica powinna być w trybie parowania.":"Operacja trwa. Nie restartuj pilota.",8,150,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Anuluj",12,412,296,back,NULL);return;
+  const char *text=ui->page==SCANNING?"Skan Bluetooth • do 20 s":ui->page==LAN_SCAN?"Wyszukiwanie bramek w sieci":ui->page==REGISTER?"Dodawanie czujnika do bramki…":ui->snapshot.phase==DSR_BLU_CLOSING?"Zamykanie połączenia BLE • do 4 s":ui->snapshot.phase==DSR_BLU_WRITING?"Zapisywanie i sprawdzanie ustawienia…":"Łączenie i sprawdzanie urządzenia…";
+  dsr_sc_text(ui->body,text,8,36,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,ui->page==REGISTER&&ui->snapshot.model==8?"Naciśnij krótko Reset wybranego TRV. Tylko ta głowica powinna być w trybie parowania.":ui->page==REGISTER?"Operacja trwa. Nie restartuj pilota.":"Możesz anulować. Pilot zakończy połączenie.",8,150,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Anuluj",12,412,296,back,NULL);return;
  }
  if(ui->page==ASSOCIATION){dsr_sc_text(ui->body,"Parowanie TRV z bramką",8,8,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Bramka szuka głowic przez 30 s. Włącz tryb parowania tylko w wybranym TRV. Po rozpoczęciu krótko naciśnij jego przycisk Reset.",8,65,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Rozpocznij",166,412,142,association_ready,NULL));return;}
  if(ui->page==SETTINGS){
@@ -105,7 +105,7 @@ static void draw(void)
  if(ui->page==GATEWAYS){int y=0;for(unsigned i=0;i<ui->lan.count;i++){const dsr_lan_device_t *g=&ui->lan.devices[i];if(g->generation<2||g->generation>4)continue;char title[96];snprintf(title,sizeof(title),"%s · %s",g->name[0]?g->name:g->id,g->host);button(ui->body,dsr_sc_user(title),y,choose_gateway,i);y+=58;}if(!y)dsr_sc_text(ui->body,"Nie znaleziono zgodnej bramki w sieci",8,24,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Ponów wyszukiwanie",12,412,296,gateway_scan,NULL);return;}
  if(ui->page==RESULT){
   if(ui->gateway_state.blu_registered){dsr_sc_text(ui->body,ui->gateway_state.blu_receiving?"Czujnik dodany. Bramka odbiera pomiary.":"Czujnik zapisany na bramce. Odbiór pomiarów niepotwierdzony.",8,16,280,&dsr_roboto_18,DSR_SC_TEXT);if(ui->error!=DSR_OK)dsr_sc_text(ui->body,"Część konfiguracji wymaga ponownego sprawdzenia. Ponowne dodanie użyje istniejącego czujnika.",8,150,280,&dsr_roboto_14,0xffc18c);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Zapisz kartę",166,412,142,add_card,NULL));}
-  else{dsr_sc_text(ui->body,ui->snapshot.uncertain?"Zapis mógł dotrzeć. Wynik niepotwierdzony; odczytaj ustawienia ponownie.":failure(ui->error),8,24,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Ponów odczyt",166,412,142,start,NULL);}return;
+  else{dsr_sc_text(ui->body,ui->snapshot.phase==DSR_BLU_QUARANTINED?"Połączenie BLE nie zakończyło się prawidłowo. Ponów po chwili lub uruchom pilot ponownie.":ui->snapshot.uncertain?"Zapis mógł dotrzeć. Wynik niepotwierdzony; odczytaj ustawienia ponownie.":failure(ui->error),8,24,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Ponów odczyt",166,412,142,start,NULL);}return;
  }
  if(ui->page==FORGET){dsr_sc_text(ui->body,"Usunąć powiązanie Bluetooth tego urządzenia z pilotem?",8,16,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Karta i konfiguracja bramki pozostaną. Ponowne połączenie będzie wymagało parowania.",8,140,280,&dsr_roboto_14,DSR_SC_MUTED);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_button(root,"Zapomnij",166,412,142,forget,NULL);return;}
  if(ui->page==CONFIRM){const dsr_blu_setting_t *f=dsr_blu_setting(ui->field);char text[96],value[24];dsr_blu_value_format(ui->field,ui->value,value,sizeof(value));snprintf(text,sizeof(text),"%s: %s",f?dsr_sc_tr(f->label):"",value);dsr_sc_text(ui->body,dsr_sc_user(text),8,16,280,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_text(ui->body,"Zapisać ustawienie w czujniku BLU?",8,120,280,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Zapisz",166,412,142,save,NULL));return;}
@@ -143,7 +143,12 @@ void dsr_ui_blu_tick(void)
 {
  if(!ui||!ui->active)return;
  if(ui->page==SCANNING){
-  dsr_ble_snapshot(&ui->scan);if(ui->scan.busy||ui->scan.phase==DSR_BLE_SCANNING||ui->scan.phase==DSR_BLE_STARTING)return;
+  dsr_ble_snapshot(&ui->scan);if(ui->scan.busy||ui->scan.phase==DSR_BLE_SCANNING||ui->scan.phase==DSR_BLE_STARTING){
+   /* 4 s host startup + 20 s scan + UI margin. Even a stuck SDK stop/queue
+    * cannot leave this screen spinning forever. Cancel, never fake RF idle. */
+   if(lv_tick_get()-ui->started<25000)return;
+   dsr_ble_cancel();ui->scanning=false;ui->error=DSR_OFFLINE;ui->page=RESULT;draw();return;
+  }
   ui->scanning=false;bool found=false;for(unsigned i=0;i<ui->scan.count;i++)if(target_matches(&ui->scan.devices[i])){ui->candidate=ui->scan.devices[i];found=true;break;}
   if(!found){ui->error=DSR_OFFLINE;ui->page=RESULT;draw();return;}
   dsr_result_t r=dsr_blu_start(&ui->candidate);if(r==DSR_BUSY&&lv_tick_get()-ui->started<25000)return;

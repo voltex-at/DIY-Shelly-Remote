@@ -21,7 +21,7 @@
 static SemaphoreHandle_t mutex;
 static QueueHandle_t queue;
 static dsr_ble_snapshot_t state;
-static atomic_bool cancelled,synced,host_failed;
+static atomic_bool cancelled,synced,host_failed,quarantined;
 static bool initialized,busy;
 static atomic_bool host_on;
 static void (*rpc_operation)(bool host_ready);
@@ -47,7 +47,15 @@ static int gap_event(struct ble_gap_event *event,void *arg)
  }
  return 0;
 }
-bool dsr_ble_host_healthy(void){return atomic_load(&synced)&&!atomic_load(&host_failed);}
+bool dsr_ble_host_healthy(void){return atomic_load(&synced)&&!atomic_load(&host_failed)&&!atomic_load(&quarantined);}
+void dsr_ble_manager_quarantine(void)
+{
+ atomic_store(&quarantined,true);
+ /* Schedule on the host task; do not destroy a live host or its callback data.
+  * Its later sync cannot reopen admission before a complete deinit. */
+ ble_hs_sched_reset(BLE_HS_EUNKNOWN);
+ memory_log("quarantined");
+}
 static bool prepare_host(void)
 {
  if(!initialized){
@@ -99,14 +107,15 @@ static void release_host(void)
  if(!initialized)return;
  xSemaphoreTake(mutex,portMAX_DELAY);bool idle=!busy;xSemaphoreGive(mutex);if(!idle)return;
  if(nimble_port_stop()!=0){memory_log("stop_failed");return;}
- (void)nimble_port_deinit();initialized=false;atomic_store(&host_on,false);atomic_store(&synced,false);atomic_store(&host_failed,false);memory_log("released");
+ if(nimble_port_deinit()!=ESP_OK){atomic_store(&quarantined,true);memory_log("deinit_failed");return;}
+ initialized=false;atomic_store(&host_on,false);atomic_store(&synced,false);atomic_store(&host_failed,false);atomic_store(&quarantined,false);memory_log("released");
 }
 static void scanner_task(void *arg)
 {(void)arg;uint32_t id;for(;;)if(xQueueReceive(queue,&id,initialized?pdMS_TO_TICKS(DSR_BLE_IDLE_RELEASE_MS):portMAX_DELAY)!=pdTRUE)release_host();else{xSemaphoreTake(mutex,portMAX_DELAY);void (*operation)(bool)=rpc_operation;xSemaphoreGive(mutex);if(operation)operation(prepare_host());else scan_once(id);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;state.serial++;xSemaphoreGive(mutex);memory_log("idle");}}
 bool dsr_ble_manager_rpc(void (*operation)(bool))
 {
  if(!mutex||!queue||!operation)return false;
- xSemaphoreTake(mutex,portMAX_DELAY);if(busy){xSemaphoreGive(mutex);return false;}busy=true;rpc_operation=operation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
+ xSemaphoreTake(mutex,portMAX_DELAY);if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);return false;}busy=true;rpc_operation=operation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
  uint32_t token=0;if(xQueueSend(queue,&token,0)==pdTRUE)return true;
  xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;xSemaphoreGive(mutex);return false;
 }
@@ -122,7 +131,7 @@ bool dsr_ble_scan(void)
 {
  if(!mutex||!queue)return false;
  xSemaphoreTake(mutex,portMAX_DELAY);
- if(busy){xSemaphoreGive(mutex);return false;}
+ if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);return false;}
  busy=true;dsr_ble_begin(&state,now_ms());uint32_t id=state.generation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
  if(xQueueSend(queue,&id,0)!=pdTRUE){finish(id,DSR_BLE_UNAVAILABLE);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;xSemaphoreGive(mutex);return false;}
  return true;
@@ -160,7 +169,7 @@ bool dsr_ble_handoff_request(uint32_t serial,unsigned index)
 {
  if(!mutex||!dsr_activity_begin())return false;
  xSemaphoreTake(mutex,portMAX_DELAY);uint32_t now=now_ms();expire_handoff(now);
- bool accepted=handoff_available&&!handoff_active&&!busy&&handoff!=DSR_BLE_HANDOFF_REQUESTED&&serial==state.serial&&index<state.count;
+ bool accepted=handoff_available&&!handoff_active&&!busy&&!atomic_load(&quarantined)&&handoff!=DSR_BLE_HANDOFF_REQUESTED&&serial==state.serial&&index<state.count;
  if(accepted){const dsr_ble_device_t *d=&state.devices[index];accepted=d->kind==DSR_BLE_SHELLY_RPC&&(d->evidence&DSR_BLE_RPC)&&now-d->seen_ms<=30000;
   if(accepted){handoff_candidate=*d;handoff_requested=now;handoff=DSR_BLE_HANDOFF_REQUESTED;}}
  xSemaphoreGive(mutex);dsr_activity_end();return accepted;
@@ -169,7 +178,7 @@ bool dsr_ble_handoff_take(dsr_ble_device_t *candidate,uint32_t now)
 {
  if(!mutex||!candidate||!dsr_activity_begin())return false;
  xSemaphoreTake(mutex,portMAX_DELAY);expire_handoff(now);
- bool accepted=handoff_available&&!handoff_active&&!busy&&handoff==DSR_BLE_HANDOFF_REQUESTED;
+ bool accepted=handoff_available&&!handoff_active&&!busy&&!atomic_load(&quarantined)&&handoff==DSR_BLE_HANDOFF_REQUESTED;
  if(accepted){*candidate=handoff_candidate;handoff_active=true;handoff=DSR_BLE_HANDOFF_ACTIVE;}
  xSemaphoreGive(mutex);dsr_activity_end();return accepted;
 }

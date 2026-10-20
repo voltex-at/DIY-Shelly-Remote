@@ -12,7 +12,7 @@
 #include <string.h>
 static unsigned checks;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
-enum {HAPPY,CANCEL_CONSENT,CHANGED_ID,LOCKED,ENHANCED,MISSING_CHAR,DUPLICATE_CHAR,AUTH,WRITE_TIMEOUT,STALE_ACK,WRONG_ATTRIBUTE,SECURITY,CANCEL_CONNECT,LATE_CLOSE,LOAD_ERROR,OOM_RESPONSE,REPEAT_SECURITY,PASSKEY_SECURITY};
+enum {HAPPY,CANCEL_CONSENT,CHANGED_ID,LOCKED,ENHANCED,MISSING_CHAR,DUPLICATE_CHAR,AUTH,WRITE_TIMEOUT,STALE_ACK,WRONG_ATTRIBUTE,SECURITY,CANCEL_CONNECT,LATE_CLOSE,LOAD_ERROR,OOM_RESPONSE,REPEAT_SECURITY,PASSKEY_SECURITY,NEVER_CLOSE,NEVER_CANCEL,VANISHED_PEER};
 static unsigned mode,sets,info_reads,consents,api_calls,terminated;
 static unsigned response_allocations;
 static bool watch_request_free,request_wiped,secret_at_free;
@@ -39,7 +39,8 @@ void __wrap_free(void *p)
  __real_free(p);
 }
 static uint32_t clock_ms;
-static bool healthy=true,queued,connected,connecting,refuse_schedule;
+static bool healthy=true,queued,connected,connecting,refuse_schedule,quarantined;
+static unsigned quarantines;
 static void (*operation)(bool);
 static int (*gap_callback)(struct ble_gap_event *,void *);
 static void *gap_arg,*old_gap_arg;
@@ -54,8 +55,9 @@ int xSemaphoreTake(SemaphoreHandle_t m,TickType_t timeout){(void)timeout;CHECK(m
 int xSemaphoreGive(SemaphoreHandle_t m){CHECK(m==(void *)1&&locked_mutex);locked_mutex=false;return 1;}
 int64_t esp_timer_get_time(void){return (int64_t)clock_ms*1000;}
 uint32_t esp_random(void){return 0x12345678;}
-bool dsr_ble_host_healthy(void){return healthy;}
-bool dsr_ble_manager_rpc(void (*fn)(bool)){if(refuse_schedule)return false;CHECK(!queued);queued=true;operation=fn;return true;}
+bool dsr_ble_host_healthy(void){return healthy&&!quarantined;}
+void dsr_ble_manager_quarantine(void){CHECK(!locked_mutex);quarantined=true;quarantines++;}
+bool dsr_ble_manager_rpc(void (*fn)(bool)){if(refuse_schedule||quarantined)return false;CHECK(!queued);queued=true;operation=fn;return true;}
 bool dsr_wifi_connected(void){return true;}
 bool dsr_wifi_temporary_active(void){return false;}
 bool dsr_ap_sensitive(void){return false;}
@@ -65,9 +67,9 @@ int ble_hs_id_infer_auto(int privacy,uint8_t *type){CHECK(!privacy);*type=0;retu
 static void gap(int event,int status,void *arg)
 {struct ble_gap_event e={.type=event};if(event==BLE_GAP_EVENT_CONNECT){e.connect.status=status;e.connect.conn_handle=7;}else if(event==BLE_GAP_EVENT_DISCONNECT)e.disconnect.conn.conn_handle=7;else e.enc_change.conn_handle=7;int result=gap_callback(&e,arg);if(event==BLE_GAP_EVENT_REPEAT_PAIRING)CHECK(result==BLE_GAP_REPEAT_PAIRING_IGNORE);}
 int ble_gap_connect(uint8_t own,const ble_addr_t *peer,int32_t timeout,const struct ble_gap_conn_params *params,int (*cb)(struct ble_gap_event *,void *),void *arg)
-{CHECK(!own&&timeout==10000&&!params&&!memcmp(peer->val,candidate.address,6));api_calls++;gap_callback=cb;gap_arg=arg;connecting=true;if(old_gap_arg)gap(BLE_GAP_EVENT_CONNECT,0,old_gap_arg);if(mode!=CANCEL_CONNECT){connecting=false;connected=true;gap(BLE_GAP_EVENT_CONNECT,0,arg);}return 0;}
-int ble_gap_conn_cancel(void){CHECK(connecting);connecting=false;gap(BLE_GAP_EVENT_CONNECT,1,gap_arg);return 0;}
-int ble_gap_terminate(uint16_t handle,uint8_t reason){CHECK(handle==7&&reason==BLE_ERR_REM_USER_CONN_TERM);terminated++;if(mode==LATE_CLOSE&&!close_started){close_started=clock_ms;return 0;}if(mode!=LATE_CLOSE||clock_ms-close_started>5000){connected=false;gap(BLE_GAP_EVENT_DISCONNECT,0,gap_arg);}return 0;}
+{CHECK(!own&&timeout==10000&&!params&&!memcmp(peer->val,candidate.address,6));api_calls++;gap_callback=cb;gap_arg=arg;connecting=true;if(old_gap_arg)gap(BLE_GAP_EVENT_CONNECT,0,old_gap_arg);if(mode!=CANCEL_CONNECT&&mode!=NEVER_CANCEL){connecting=false;connected=true;gap(BLE_GAP_EVENT_CONNECT,0,arg);}return 0;}
+int ble_gap_conn_cancel(void){CHECK(connecting);if(!close_started)close_started=clock_ms;if(mode==NEVER_CANCEL)return 0;connecting=false;gap(BLE_GAP_EVENT_CONNECT,1,gap_arg);return 0;}
+int ble_gap_terminate(uint16_t handle,uint8_t reason){CHECK(handle==7&&reason==BLE_ERR_REM_USER_CONN_TERM);terminated++;if(!close_started)close_started=clock_ms;if(mode==NEVER_CLOSE)return 0;if(mode==VANISHED_PEER){connected=false;return BLE_HS_ENOTCONN;}if(mode!=LATE_CLOSE||clock_ms-close_started>3000){connected=false;gap(BLE_GAP_EVENT_DISCONNECT,0,gap_arg);}return 0;}
 uint16_t ble_att_mtu(uint16_t handle){CHECK(handle==7);return 23;}
 int ble_uuid_from_str(ble_uuid_any_t *uuid,const char *text){CHECK(strlen(text)==36);uuid->u.type=128;strcpy(uuid->u.text,text);return 0;}
 int ble_uuid_cmp(const ble_uuid_t *a,const ble_uuid_t *b){return strcmp(a->text,b->text);}
@@ -104,17 +106,21 @@ int os_mbuf_copydata(const struct os_mbuf *b,int offset,int length,void *out)
 {CHECK(offset==0&&length>=0);uint8_t *p=out;for(;b&&length;b=b->next){unsigned n=b->length;if(n>(unsigned)length)n=(unsigned)length;memcpy(p,b->data,n);p+=n;length-=(int)n;}return length?-1:0;}
 void vTaskDelay(TickType_t ticks)
 {
- CHECK(!locked_mutex);clock_ms+=ticks;dsr_ble_rpc_snapshot_t snapshot;dsr_ble_rpc_snapshot(&snapshot);
+ CHECK(!locked_mutex);clock_ms+=ticks;CHECK(clock_ms<1000000);dsr_ble_rpc_snapshot_t snapshot;dsr_ble_rpc_snapshot(&snapshot);
  if(snapshot.phase==DSR_BLE_RPC_CONFIRM){CHECK(!sets);if(mode==CANCEL_CONSENT)dsr_ble_rpc_cancel(snapshot.generation);else if(mode==SECURITY||mode==REPEAT_SECURITY||mode==PASSKEY_SECURITY)gap(mode==SECURITY?BLE_GAP_EVENT_ENC_CHANGE:mode==REPEAT_SECURITY?BLE_GAP_EVENT_REPEAT_PAIRING:BLE_GAP_EVENT_PASSKEY_ACTION,0,gap_arg);else{CHECK(dsr_ble_rpc_confirm(snapshot.generation,saved.ssid)==DSR_OK);consents++;CHECK(dsr_ble_rpc_confirm(snapshot.generation,saved.ssid)==DSR_BUSY);}}
- if(mode==CANCEL_CONNECT&&connecting)dsr_ble_rpc_cancel(snapshot.generation);
- if(snapshot.phase==DSR_BLE_RPC_QUARANTINED){CHECK(dsr_ble_rpc_active()&&!dsr_activity_restart_reserve());candidate.seen_ms=clock_ms;CHECK(dsr_ble_rpc_start(&candidate)==DSR_BUSY);}
+ if((mode==CANCEL_CONNECT||mode==NEVER_CANCEL)&&connecting)dsr_ble_rpc_cancel(snapshot.generation);
 }
 static void scenario(unsigned test)
 {
- mode=test;sets=info_reads=consents=api_calls=terminated=0;response_allocations=0;watch_request_free=request_wiped=secret_at_free=false;close_started=0;candidate.seen_ms=clock_ms;dsr_settings_t before=saved;
+ mode=test;sets=info_reads=consents=api_calls=terminated=quarantines=0;quarantined=connected=connecting=false;response_allocations=0;watch_request_free=request_wiped=secret_at_free=false;close_started=0;candidate.seen_ms=clock_ms;dsr_settings_t before=saved;
  CHECK(dsr_ble_rpc_start(&candidate)==DSR_OK&&queued&&dsr_ble_rpc_active()&&!dsr_activity_restart_reserve());queued=false;operation(healthy);
- dsr_ble_rpc_snapshot_t snapshot;dsr_ble_rpc_snapshot(&snapshot);CHECK(!snapshot.active&&!dsr_ble_rpc_active()&&!connected&&!connecting);CHECK(!memcmp(&saved,&before,sizeof(saved)));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();old_gap_arg=gap_arg;
- if(test==HAPPY||test==STALE_ACK||test==LATE_CLOSE){CHECK(snapshot.phase==DSR_BLE_RPC_LAN_READY&&snapshot.result==DSR_OK&&snapshot.write_possible&&sets==1&&!strcmp(snapshot.device.host,"192.168.1.90"));}
+ dsr_ble_rpc_snapshot_t snapshot;dsr_ble_rpc_snapshot(&snapshot);CHECK(!snapshot.active&&!dsr_ble_rpc_active()&&((!connected&&!connecting)||quarantined));CHECK(!memcmp(&saved,&before,sizeof(saved)));CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();old_gap_arg=gap_arg;
+ if(test==NEVER_CLOSE||test==NEVER_CANCEL){
+  CHECK(quarantines==1&&snapshot.phase==DSR_BLE_RPC_QUARANTINED&&snapshot.result!=DSR_OK&&sets==(test==NEVER_CLOSE?1u:0u)&&clock_ms-close_started<=DSR_BLE_CLOSE_MS+100);
+  dsr_ble_rpc_snapshot_t before_late=snapshot;gap(BLE_GAP_EVENT_DISCONNECT,0,gap_arg);gap(BLE_GAP_EVENT_CONNECT,0,gap_arg);dsr_ble_rpc_snapshot(&snapshot);CHECK(!memcmp(&before_late,&snapshot,sizeof(snapshot)));
+  candidate.seen_ms=clock_ms;CHECK(dsr_ble_rpc_start(&candidate)==DSR_BUSY);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ }
+ else if(test==HAPPY||test==STALE_ACK||test==LATE_CLOSE||test==VANISHED_PEER){CHECK(snapshot.phase==DSR_BLE_RPC_LAN_READY&&snapshot.result==DSR_OK&&snapshot.write_possible&&sets==1&&!strcmp(snapshot.device.host,"192.168.1.90"));}
  else if(test==WRITE_TIMEOUT){CHECK(snapshot.phase==DSR_BLE_RPC_LAN_READY&&snapshot.result==DSR_OFFLINE&&snapshot.write_possible&&sets==1);}
  else{CHECK(snapshot.phase==DSR_BLE_RPC_ERROR||snapshot.phase==DSR_BLE_RPC_CANCELLED);CHECK(!sets&&!snapshot.write_possible);}
  if(test==SECURITY||test==REPEAT_SECURITY||test==PASSKEY_SECURITY)CHECK(snapshot.result==DSR_AUTH_REQUIRED);
@@ -122,7 +128,7 @@ static void scenario(unsigned test)
 }
 int main(void)
 {
- for(unsigned i=0;i<=PASSKEY_SECURITY;i++)scenario(i);
+ for(unsigned i=0;i<=VANISHED_PEER;i++)scenario(i);
  mode=HAPPY;sets=api_calls=0;candidate.seen_ms=clock_ms;CHECK(dsr_ble_rpc_start(&candidate)==DSR_OK);dsr_ble_rpc_snapshot_t cancelled;dsr_ble_rpc_snapshot(&cancelled);dsr_ble_rpc_cancel(cancelled.generation);queued=false;operation(true);dsr_ble_rpc_snapshot(&cancelled);CHECK(cancelled.phase==DSR_BLE_RPC_CANCELLED&&!api_calls&&!sets&&!cancelled.active);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  refuse_schedule=true;candidate.seen_ms=clock_ms;CHECK(dsr_ble_rpc_start(&candidate)==DSR_BUSY&&!dsr_ble_rpc_active()&&dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u actual GATT client checks; both consents/preflight/fragment ACK/no replay/stale callbacks/cleanup; SDK and radio MODEL\n",checks);return 0;

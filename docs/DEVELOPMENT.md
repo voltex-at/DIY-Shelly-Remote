@@ -1,5 +1,32 @@
 # Development
 
+## 0.7.62-dev — zakończenie BLE i restart
+
+Zgłoszenie właściciela: skan zwraca błąd, a kolejne połączenie może utknąć
+na „Zamykanie połączenia”; restart pozostaje zajęty. Potwierdzona przyczyna
+w kodzie: nieograniczone pętle `disconnect_peer()` w BLU i BLE RPC,
+utrzymujące `dsr_activity_begin()` do nadejścia callbacku GAP.
+
+Zamykanie ma 4 s limitu oczekiwania. `BLE_HS_ENOTCONN` jest potwierdzeniem,
+że połączenia już nie ma. Brak potwierdzenia izoluje stary host w managerze
+i zleca asynchroniczny `ble_hs_sched_reset()`; terminalny błąd zwalnia
+aktywność. Nie wolno otworzyć nowej sesji, dopóki stop/deinit starego hosta
+nie zakończy się poprawnie. Spóźniony sync nie znosi tej blokady. Stop SDK
+może czekać na swój task; odbywa się po zwolnieniu aktywności i nie blokuje
+admisji restartu. Nie niszczymy taska ani pamięci nadal używanej przez SDK.
+
+BLU ma 120 s budżetu operacji; restart LCD anuluje BLE i czeka do 10 s na
+normalną admisję, bez obchodzenia blokady Flash/OTA. Testy `test_blu.py`,
+`test_ble_rpc.py`, scanner w `test.py` i `test_ble_cleanup_ui` obejmują brak
+callbacków, anulowanie, późne zdarzenia i ponowne otwarcie po deinit.
+`test_ota_fetch.py` obejmuje SDK EAGAIN przed i pomiędzy nagłówkami,
+kontynuację tego samego klienta, timeout i anulowanie. Nie jest to odbiór RF.
+
+Dokładny request Dev: `.github/dev-release-0.7.62.json`, `DEV_REQUEST`
+i workflow dopuszczają tylko `dev-v0.7.62`, `0.7.62-dev` oraz
+`work/shelly-hud-cyber-blue`, po CI 5/5 dla publikowanego SHA. Main i Stable
+pozostają poza tą publikacją. Partycje i zapisane dane bez zmian.
+
 ## Layout
 
 | Path | Contents |

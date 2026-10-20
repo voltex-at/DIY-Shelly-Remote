@@ -23,7 +23,7 @@ typedef struct {
  dsr_blu_snapshot_t view;
  dsr_ble_device_t candidate;
  ble_addr_t identity;
- uint32_t connection_token,io_token,pin,value,expected;
+ uint32_t connection_token,io_token,pin,value,expected,started;
  uint16_t connection,service_first,service_last,handles[DSR_BLU_SETTINGS],key_handle,pending_handle;
  uint8_t data[32],length,pin_action,action,field;
  bool connecting,connected,closing,cancelled,pin_ready,secured,io_pending,io_done,duplicate,have_identity,discard;
@@ -113,7 +113,7 @@ static int attribute(uint16_t handle,const struct ble_gatt_error *error,struct b
  }unlock();return 0;
 }
 static bool alive(void)
-{if(!lock())return false;bool ok=blu&&blu->view.active&&!blu->cancelled&&!blu->closing;unlock();return ok&&dsr_ble_host_healthy();}
+{if(!lock())return false;bool ok=blu&&blu->view.active&&!blu->cancelled&&!blu->closing&&now_ms()-blu->started<DSR_BLU_OPERATION_MS;unlock();return ok&&dsr_ble_host_healthy();}
 static void pin_tick(void)
 {
  if(!lock())return;
@@ -141,7 +141,7 @@ static dsr_result_t discover(void)
  return wait_io(ble_gattc_disc_all_chrs(blu->connection,blu->service_first,blu->service_last,characteristic,(void *)(uintptr_t)token));
 }
 static dsr_result_t read_handle(uint16_t handle)
-{uint32_t token=begin_io();if(!token||!handle)return DSR_UNSUPPORTED;lock();blu->pending_handle=handle;unlock();return wait_io(ble_gattc_read(blu->connection,handle,attribute,(void *)(uintptr_t)token));}
+{if(!alive())return DSR_OFFLINE;uint32_t token=begin_io();if(!token||!handle)return DSR_UNSUPPORTED;lock();blu->pending_handle=handle;unlock();return wait_io(ble_gattc_read(blu->connection,handle,attribute,(void *)(uintptr_t)token));}
 static dsr_result_t read_fields(void)
 {
  publish(DSR_BLU_READING,DSR_BUSY);uint32_t available=0;uint32_t values[DSR_BLU_SETTINGS]={0};
@@ -158,6 +158,7 @@ static dsr_result_t read_fields(void)
 }
 static dsr_result_t secure_connect(void)
 {
+ if(!alive())return DSR_OFFLINE;
  uint8_t own;if(ble_hs_id_infer_auto(0,&own))return DSR_IO;
  lock();blu->connecting=true;blu->io_result=DSR_BUSY;ble_addr_t peer={.type=blu->candidate.address_type};memcpy(peer.val,blu->candidate.address,6);uint32_t token=blu->connection_token;unlock();
  int rc=ble_gap_connect(own,&peer,10000,NULL,gap,(void *)(uintptr_t)token);if(rc){lock();blu->connecting=false;unlock();return status(rc);}
@@ -178,20 +179,20 @@ static dsr_result_t secure_connect(void)
  while(alive()&&now_ms()-started<60000){pin_tick();lock();bool secured=blu->secured;dsr_result_t r=blu->io_result;unlock();if(secured)return DSR_OK;if(r!=DSR_BUSY&&r!=DSR_OK)return r;vTaskDelay(pdMS_TO_TICKS(20));}
  return DSR_AUTH_REQUIRED;
 }
-static void disconnect_peer(void)
+static bool disconnect_peer(void)
 {
  publish(DSR_BLU_CLOSING,DSR_BUSY);lock();blu->closing=true;blu->io_pending=false;bool connecting=blu->connecting;unlock();if(connecting)(void)ble_gap_conn_cancel();
- uint32_t started=now_ms();bool quarantined=false;
+ uint32_t started=now_ms();
  for(;;){lock();bool connected=blu->connected;connecting=blu->connecting;uint16_t handle=blu->connection;unlock();if(!connected&&!connecting)break;
-  if(connected)(void)ble_gap_terminate(handle,BLE_ERR_REM_USER_CONN_TERM);
-  if(!quarantined&&now_ms()-started>=4000){quarantined=true;publish(DSR_BLU_QUARANTINED,DSR_IO);}
+  if(connected&&ble_gap_terminate(handle,BLE_ERR_REM_USER_CONN_TERM)==BLE_HS_ENOTCONN){lock();if(blu->connection==handle)blu->connected=false;unlock();continue;}
+  if(now_ms()-started>=DSR_BLE_CLOSE_MS){dsr_ble_manager_quarantine();return false;}
   vTaskDelay(pdMS_TO_TICKS(100));
  }
- lock();blu->closing=false;unlock();
+ lock();blu->closing=false;unlock();return true;
 }
 static void run(bool host_ready)
 {
- dsr_result_t r=host_ready?DSR_OK:DSR_OFFLINE;
+ dsr_result_t r=host_ready&&alive()?DSR_OK:DSR_OFFLINE;bool closed=true;
  if(r==DSR_OK&&blu->action==2){
   if(!blu->have_identity)r=DSR_INVALID;
   else {r=status(ble_store_util_delete_peer(&blu->identity));if(r==DSR_OK){ble_addr_t peers[16];int count=0;if(ble_store_util_bonded_peers(peers,&count,16))r=DSR_IO;for(int i=0;i<count;i++)if(peers[i].type==blu->identity.type&&!memcmp(peers[i].val,blu->identity.val,6))r=DSR_IO;}}
@@ -214,15 +215,15 @@ static void run(bool host_ready)
     if(alive()&&linked){r=read_fields();if(r==DSR_OK&&blu->view.values[field]!=blu->value)r=DSR_BAD_RESPONSE;if(r==DSR_OK){lock();blu->view.uncertain=false;unlock();}}
    }
   }
-  disconnect_peer();
+  closed=disconnect_peer();if(!closed)r=DSR_IO;
  }
- lock();bool cancelled=blu->cancelled;if(cancelled&&blu->io_result==DSR_AUTH_REQUIRED)r=DSR_AUTH_REQUIRED;blu->view.active=false;blu->view.result=r;blu->view.phase=r==DSR_OK?DSR_BLU_DONE:cancelled&&r!=DSR_AUTH_REQUIRED?DSR_BLU_CANCELLED:DSR_BLU_FAILED;blu->view.serial++;blu->pin=0;blu->pin_ready=false;wipe(blu->data,sizeof(blu->data));
+ lock();bool cancelled=blu->cancelled;if(cancelled&&blu->io_result==DSR_AUTH_REQUIRED)r=DSR_AUTH_REQUIRED;blu->view.active=false;blu->view.result=r;blu->view.phase=!closed?DSR_BLU_QUARANTINED:r==DSR_OK?DSR_BLU_DONE:cancelled&&r!=DSR_AUTH_REQUIRED?DSR_BLU_CANCELLED:DSR_BLU_FAILED;blu->view.serial++;blu->pin=0;blu->pin_ready=false;wipe(blu->data,sizeof(blu->data));
  if(blu->discard){wipe(blu,sizeof(*blu));free(blu);blu=NULL;}unlock();dsr_activity_end();
 }
 static dsr_result_t queue_operation(void)
 {
  if(!next_token(&blu->connection_token)||!dsr_activity_begin())return DSR_BUSY;
- blu->view.active=true;blu->view.phase=DSR_BLU_CONNECTING;blu->view.result=DSR_BUSY;blu->view.serial++;blu->cancelled=blu->discard=blu->secured=blu->io_done=blu->io_pending=blu->duplicate=false;blu->connecting=blu->connected=blu->closing=false;blu->connection=UINT16_MAX;blu->service_first=blu->service_last=blu->key_handle=0;memset(blu->handles,0,sizeof(blu->handles));
+ blu->started=now_ms();blu->view.active=true;blu->view.phase=DSR_BLU_CONNECTING;blu->view.result=DSR_BUSY;blu->view.serial++;blu->cancelled=blu->discard=blu->secured=blu->io_done=blu->io_pending=blu->duplicate=false;blu->connecting=blu->connected=blu->closing=false;blu->connection=UINT16_MAX;blu->service_first=blu->service_last=blu->key_handle=0;memset(blu->handles,0,sizeof(blu->handles));
  unlock();bool queued=dsr_ble_manager_rpc(run);lock();
  if(!queued){blu->view.active=false;blu->view.result=DSR_BUSY;blu->view.phase=DSR_BLU_FAILED;dsr_activity_end();return DSR_BUSY;}return DSR_OK;
 }
@@ -274,6 +275,6 @@ void dsr_blu_close(void)
 bool dsr_blu_gateway_key(uint32_t generation,char address[18],char key[33])
 {
  if(!address||!key||!lock())return false;
- bool ok=blu&&!blu->view.active&&blu->view.generation==generation&&blu->view.bonded&&blu->have_identity&&(!blu->candidate.encrypted||blu->view.key_available);
+ bool ok=blu&&!blu->view.active&&blu->view.phase==DSR_BLU_DONE&&blu->view.result==DSR_OK&&blu->view.generation==generation&&blu->view.bonded&&blu->have_identity&&(!blu->candidate.encrypted||blu->view.key_available);
  if(ok){const uint8_t *a=blu->identity.val;snprintf(address,18,"%02x:%02x:%02x:%02x:%02x:%02x",a[5],a[4],a[3],a[2],a[1],a[0]);key[0]=0;if(blu->candidate.encrypted)for(unsigned i=0;i<16;i++)snprintf(key+i*2,3,"%02x",blu->key[i]);}unlock();return ok;
 }

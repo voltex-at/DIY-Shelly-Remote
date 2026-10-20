@@ -29,6 +29,8 @@ typedef struct {const char *key,*value;} header_t;
 typedef struct {header_t headers[80];unsigned count;int status;int64_t declared;bool chunked,complete;const unsigned char *body;size_t length,offset;esp_http_client_config_t config;char url[2049];unsigned reads,closed,cleaned,sets;} hop_t;
 static hop_t hops[2];static unsigned initialized,opens,header_fetches,close_count,cleanup_count,read_count;
 static unsigned fail_init,fail_set,fail_open,fail_headers,fail_read,fail_close,fail_cleanup;
+static unsigned headers_again;
+static bool headers_partial,headers_cancel,headers_waiting;
 static size_t read_chunk;
 static bool overread,cancel_flag,complete_early,cancel_after_init,cancel_on_open;
 static unsigned cancel_calls,cancel_after,cancel_on_read;
@@ -65,8 +67,13 @@ esp_err_t esp_http_client_set_header(esp_http_client_handle_t c,const char *key,
 esp_err_t esp_http_client_open(esp_http_client_handle_t c,int write_length)
 {hop_t *h=hop(c);CHECK(!write_length);opens++;delay();if(cancel_on_open){cancel_flag=true;esp_http_client_event_t e={.event_id=HTTP_EVENT_ON_CONNECTED,.client=c,.user_data=h->config.user_data};(void)h->config.event_handler(&e);}return opens==fail_open?ESP_FAIL:ESP_OK;}
 int64_t esp_http_client_fetch_headers(esp_http_client_handle_t c)
-{hop_t *h=hop(c);header_fetches++;delay();if(header_fetches==fail_headers)return -1;for(unsigned i=0;i<h->count;i++){esp_http_client_event_t e={.event_id=HTTP_EVENT_ON_HEADER,.client=c,.user_data=h->config.user_data,.header_key=(char *)h->headers[i].key,.header_value=(char *)h->headers[i].value};(void)h->config.event_handler(&e);}return h->chunked?0:h->declared;}
-int esp_http_client_get_status_code(esp_http_client_handle_t c){return hop(c)->status;}
+{hop_t *h=hop(c);header_fetches++;delay();if(header_fetches==fail_headers)return -1;
+ unsigned first=headers_partial&&header_fetches>1?1u:0u,last=h->count;
+ headers_waiting=headers_again>0;
+ if(headers_waiting){headers_again--;monotonic+=5000000;if(headers_cancel)cancel_flag=true;last=headers_partial&&header_fetches==1?1u:0u;}
+ for(unsigned i=first;i<last;i++){esp_http_client_event_t e={.event_id=HTTP_EVENT_ON_HEADER,.client=c,.user_data=h->config.user_data,.header_key=(char *)h->headers[i].key,.header_value=(char *)h->headers[i].value};(void)h->config.event_handler(&e);}
+ return headers_waiting?-ESP_ERR_HTTP_EAGAIN:h->chunked?0:h->declared;}
+int esp_http_client_get_status_code(esp_http_client_handle_t c){return headers_waiting?-1:hop(c)->status;}
 int64_t esp_http_client_get_content_length(esp_http_client_handle_t c){hop_t *h=hop(c);return h->chunked?-1:h->declared;}
 bool esp_http_client_is_chunked_response(esp_http_client_handle_t c){return hop(c)->chunked;}
 int esp_http_client_read(esp_http_client_handle_t c,char *out,int capacity)
@@ -80,7 +87,7 @@ static char lengths[2][32];
 static void content(unsigned index,const unsigned char *data,size_t length)
 {hop_t *h=&hops[index];h->body=data;h->length=length;h->declared=(int64_t)length;snprintf(lengths[index],sizeof(lengths[index]),"%lu",(unsigned long)length);h->count=0;add(index,"Content-Length",lengths[index]);}
 static void reset(void)
-{CHECK(!owned);memset(hops,0,sizeof(hops));for(unsigned i=0;i<2;i++){hops[i].status=200;hops[i].complete=true;content(i,fixture[0],fixture_length[0]);}initialized=opens=header_fetches=close_count=cleanup_count=read_count=0;fail_init=fail_set=fail_open=fail_headers=fail_read=fail_close=fail_cleanup=0;read_chunk=2049;overread=cancel_flag=complete_early=cancel_after_init=cancel_on_open=false;cancel_calls=cancel_after=cancel_on_read=0;monotonic=operation_delay=0;wall=1767225600;allocations=fail_allocation=0;}
+{CHECK(!owned);memset(hops,0,sizeof(hops));for(unsigned i=0;i<2;i++){hops[i].status=200;hops[i].complete=true;content(i,fixture[0],fixture_length[0]);}initialized=opens=header_fetches=close_count=cleanup_count=read_count=0;fail_init=fail_set=fail_open=fail_headers=fail_read=fail_close=fail_cleanup=0;headers_again=0;headers_partial=headers_cancel=headers_waiting=false;read_chunk=2049;overread=cancel_flag=complete_early=cancel_after_init=cancel_on_open=false;cancel_calls=cancel_after=cancel_on_read=0;monotonic=operation_delay=0;wall=1767225600;allocations=fail_allocation=0;}
 static bool zero(const dsr_ota_verified_t *out){const unsigned char *b=(const unsigned char *)out;for(size_t i=0;i<sizeof(*out);i++)if(b[i])return false;return true;}
 static dsr_ota_fetch_result_t run(const char *url,int expectation,dsr_manifest_result_t why_expected)
 {
@@ -104,6 +111,10 @@ int main(int argc,char **argv)
  CHECK(argc==2);FILE *f=fopen(argv[1],"rb");CHECK(f);for(unsigned i=0;i<3;i++){fixture_length[i]=integer(f);CHECK(fixture_length[i]<=2048&&fread(fixture[i],1,fixture_length[i],f)==fixture_length[i]);}fclose(f);
  cJSON_Hooks hooks={__wrap_malloc,__wrap_free};cJSON_InitHooks(&hooks);
  reset();run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==1&&hops[0].offset==fixture_length[0]);unsigned allocations_success=allocations;
+ reset();headers_again=2;run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==1&&opens==1&&header_fetches==3);
+ reset();headers_again=2;headers_partial=true;run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==1&&opens==1&&header_fetches==3);
+ reset();headers_again=10;run(initial,DSR_FETCH_TIMEOUT,DSR_MANIFEST_INVALID);CHECK(initialized==1&&opens==1&&header_fetches==6&&!read_count);
+ reset();headers_again=2;headers_cancel=true;run(initial,DSR_FETCH_CANCELLED,DSR_MANIFEST_INVALID);CHECK(initialized==1&&opens==1&&header_fetches==1&&!read_count);
  for(size_t n=1;n<=64;n++){reset();read_chunk=n;run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(hops[0].offset==fixture_length[0]);}
  reset();content(0,fixture[1],fixture_length[1]);run(initial,DSR_FETCH_MANIFEST,DSR_MANIFEST_BAD_SIGNATURE);
  reset();content(0,fixture[2],fixture_length[2]);run(initial,DSR_FETCH_MANIFEST,DSR_MANIFEST_UNTRUSTED_KEY);

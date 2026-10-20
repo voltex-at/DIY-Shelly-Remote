@@ -3,6 +3,8 @@
 #define BLE_GAP_EVENT_DISC 1
 #define BLE_GAP_EVENT_DISC_COMPLETE 2
 #define BLE_HS_ETIMEOUT 13
+#define BLE_HS_EUNKNOWN 17
+void ble_hs_sched_reset(int reason);
 typedef struct {uint8_t type,val[6];} ble_addr_t;
 struct ble_gap_disc_desc {ble_addr_t addr;int8_t rssi;uint8_t length_data;const uint8_t *data;};
 struct ble_gap_event {int type;union {struct ble_gap_disc_desc disc;struct {int reason;} disc_complete;};};
