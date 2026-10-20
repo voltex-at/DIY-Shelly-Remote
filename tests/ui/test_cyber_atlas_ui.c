@@ -5,6 +5,7 @@
 #undef main
 #include "dsr_device_settings.h"
 #include "../../components/dsr_ui/dsr_ui_provision.h"
+#include "../../components/dsr_ui/dsr_ui_brand.h"
 void test_settings_enable(bool enabled);
 void test_settings_complete(bool enabled);
 static unsigned level_writes,color_writes;
@@ -153,6 +154,7 @@ int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
+ style_hint=DSR_SC_STYLE_CYBER_BLUE;dsr_ui_splash_begin();CHECK(dsr_ui_splash_visible()&&provision_gate&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);route("boot-splash");dsr_ui_splash_end();CHECK(!provision_gate);dsr_ui_splash_release();
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();setup();global_routes();editing_routes();lighting_routes();discovery_routes();settings_routes();
  CHECK(!job_counts[DSR_JOB_SET_OUTPUT]&&!job_counts[DSR_JOB_OTA_INSTALL]&&!restart_requests);
  printf("PASS: %u full atlas checks; %u genuine LVGL frames, including all scroll viewports; host providers only\n",checks,screenshots);lv_deinit();return 0;

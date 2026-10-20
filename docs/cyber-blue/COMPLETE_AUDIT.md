@@ -41,7 +41,7 @@ these include shared helpers and are not a count of distinct screens.
 | Shelly | Sys, WiFi, BLE, Cloud, MQTT, Switch, Input, Cover, Light, RGB, RGBW, Temperature, Humidity; field lists and scrolls; text/number/bool/enum/secret forms and confirmations |
 | Editors | Room create/edit/photo/delete/keyboard, device card/icons, dashboard tiles/fields/reorder, registry, groups/scenes and their name/select/review forms |
 | Network | WiFi list/password/validation, add method/manual IP, LAN scan/results/auth/components/offline, factory AP scan/connect/disclosure, BLE scan/results/details/cancel/empty/unavailable, BLE RPC disclosure/cleanup, BLU pairing/PIN/settings/forget |
-| System | Appearance/dropdowns, comfort/display, battery/read/error/stale/memory, HTTPS/pair/expiry/revoke, diagnostics/configuration errors, restart confirmation, touch/color tools, OTA errors/progress/warnings, first-storage preparation/resume/failure |
+| System | Boot splash, appearance/dropdowns, comfort/display, battery/read/error/stale/memory, HTTPS/pair/expiry/revoke, diagnostics/configuration errors, restart confirmation, touch/color tools, OTA errors/progress/warnings, first-storage preparation/resume/failure |
 
 Frames are tagged while the actual production theme is Cyber, before any test
 badge is drawn. The exporter includes every tagged capture, merges only exact
