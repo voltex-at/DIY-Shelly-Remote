@@ -13,6 +13,8 @@ Gałąź: `work/cyber-blue-reference-refinements`. LVGL 9.3.0, ES3C35P 320 × 48
 - System ma osobne pola ikon, większe podpisy i ramki. Testy sprzętu mają
   kartę opisu i rzeczywistego stanu kontrolera dotyku, dwie duże akcje
   z ikonami i strzałkami oraz kartę identyfikacji wyświetlacza.
+  Długie nagłówki, np. niemiecka nazwa baterii, dobierają czcionkę 22/18 px
+  do dostępnej szerokości, aby cały tekst pozostał widoczny.
 - Pierwsza karta baterii ma 114 px: duża wartość z ikoną, opis i oddzielony
   wiek odczytu. Ostrzeżenie ma żółtą ramkę. Pamięć ma większe nazwy i wartości
   oraz osobne wiersze RAM, PSRAM, grafiki, stosu i BLE. Dalsze wiersze można

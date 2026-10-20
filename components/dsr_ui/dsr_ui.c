@@ -152,7 +152,9 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     dsr_ui_icon_t icon=!strcmp(title,"System")||!strcmp(title,"Diagnostyka konfiguracji")?DSR_ICON_CPU:!strcmp(title,"Bateria i zasilanie")?DSR_ICON_BATTERY:section_icon(title);
     bool marked=hud&&icon!=DSR_ICON_COUNT;
     if(marked)dsr_sc_icon(root,icon,12,47,24,DSR_SC_GLOW);
-    lv_obj_t *heading=dsr_sc_text(root,title,marked?44:12,46,marked?264:296,hud?&dsr_roboto_22:&dsr_roboto_18,DSR_SC_TEXT);
+    int heading_width=marked?264:296;const lv_font_t *heading_font=hud?&dsr_roboto_22:&dsr_roboto_18;
+    if(hud){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(title),heading_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>heading_width)heading_font=&dsr_roboto_18;}
+    lv_obj_t *heading=dsr_sc_text(root,title,marked?44:12,46,heading_width,heading_font,DSR_SC_TEXT);
     lv_obj_set_height(heading,hud?27:24);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
     dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
     if(navigation)dsr_sc_navigation(root,3,31,shell_navigation);

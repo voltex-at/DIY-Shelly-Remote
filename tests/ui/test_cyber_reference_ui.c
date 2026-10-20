@@ -51,7 +51,12 @@ static void hardware_pages(unsigned lang)
 }
 static void battery_page(unsigned lang)
 {
- dsr_ui_battery_open(NULL);dsr_event_t e={.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=4120}};dsr_ui_battery_result(&e);
+ dsr_ui_battery_open(NULL);tick();dsr_event_t e={.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=4120}};
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *heading=find_label(lv_screen_active(),"Bateria i zasilanie");if(!heading)snap("battery-heading-missing",lang);CHECK(heading);lv_point_t size;lv_text_get_size(&size,lv_label_get_text(heading),lv_obj_get_style_text_font(heading,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(size.x<=lv_obj_get_width(heading));
+ /* Use the real request/completion path: a previous locale's busy rejection
+  * must not be inherited by a supposedly healthy test capture. */
+ next_submit_result=DSR_OK;press_ref("Zmierz napięcie");CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);CHECK(find_label(lv_screen_active(),"Odczyt napięcia…"));snap("battery-reading",lang);
+ response.battery=e.battery;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Napięcie BAT • dzielnik nominalny 2:1"));
  lv_obj_t *back=lv_obj_get_parent(find_label(lv_screen_active(),"Wstecz")),*measure=lv_obj_get_parent(find_label(lv_screen_active(),"Zmierz napięcie"));
  lv_area_t a=ref_box(back),b=ref_box(measure);CHECK(a.x2<b.x1&&a.y1==420&&b.y1==420);contained(back);contained(measure);
  lv_obj_t *power=lv_obj_get_parent(find_label(lv_screen_active(),"4.120 V"));contained(power);CHECK(lv_obj_get_height(power)<=114);snap("battery-voltage",lang);
@@ -104,7 +109,7 @@ int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
- test_workspace_enable();dsr_ui_init();tick();
+ strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  for(unsigned lang=0;lang<3;lang++){locale(lang);hardware_pages(lang);battery_page(lang);diagnostic_pages(lang);dashboard(lang);thermostat(lang);}
  printf("PASS: %u reference refinement checks, %u native frames; PL/EN/DE; no physical acceptance\n",checks,screenshots);lv_deinit();return 0;
 }
