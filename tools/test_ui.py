@@ -13,7 +13,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
 p.add_argument("--jobs", type=int, default=6, help="Parallel compiler processes (use 1 on constrained hosts)")
-p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui"], help="Run one focused regression after compiling production UI")
+p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -26,7 +26,7 @@ build.mkdir(parents=True, exist_ok=True)
 screens = build / "screenshots"
 screens.mkdir(exist_ok=True)
 cc = os.environ.get("CC", "cc")
-flags = ["-std=c11", "-O1", "-g", "-DLV_KCONFIG_IGNORE", "-DDSR_BOARD_ES3C35P=1",
+flags = ["-std=c11", "-O1", "-g", "-pipe", "-DLV_KCONFIG_IGNORE", "-DDSR_BOARD_ES3C35P=1",
          f'-DDSR_TEST_PHOTO_DIR="{ROOT / "tests/ui/photos"}"',
          f'-DLV_CONF_PATH="{ROOT / "tests/ui/lv_conf.h"}"']
 if args.review:
@@ -71,8 +71,15 @@ def compile_source(source):
     if obj.exists() and stamp.exists() and stamp.read_text() == fingerprint and source.is_relative_to(lvgl):
         return obj
     warnings = [] if source.is_relative_to(lvgl) else ["-Wall", "-Wextra", "-Werror", "-Wpedantic"]
-    subprocess.run([cc, *flags, *warnings, "-c", str(source), "-o", str(obj)], check=True,
-                   env=dict(os.environ, TMPDIR=str(build)))
+    # Private compiler temporaries and atomic objects also permit independent
+    # focused runs without truncating another run's linker inputs.
+    with tempfile.TemporaryDirectory(prefix="compile-", dir=build) as temporary:
+        compiled = Path(temporary) / "source.o"
+        subprocess.run([cc, *flags, *warnings, "-c", str(source), "-o", str(compiled)], check=True,
+                       env=dict(os.environ, TMPDIR=temporary))
+        if not compiled.read_bytes().startswith(b"\x7fELF"):
+            raise RuntimeError(f"Compiler produced an incomplete object for {source}")
+        os.replace(compiled, obj)
     stamp.write_text(fingerprint)
     return obj
 with ThreadPoolExecutor(max_workers=args.jobs) as pool:
@@ -123,7 +130,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))

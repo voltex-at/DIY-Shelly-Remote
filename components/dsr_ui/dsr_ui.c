@@ -71,7 +71,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
     lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
-    if(!strncmp(text,"Usuń",strlen("Usuń"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
+    if(!strncmp(text,"Usuń",strlen("Usuń"))||(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&!strcmp(text,"Unieważnij parowanie"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
     else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!strcmp(text,"Zapisz")||!strcmp(text,"Dalej")||!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Zmierz napięcie")||!strcmp(text,"Odśwież stan")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")))dsr_ui_primary(obj);
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=130){
      dsr_ui_icon_t icon=DSR_ICON_COUNT;

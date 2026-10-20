@@ -1,6 +1,7 @@
 /* "Zużycie" (Verbrauch): live power gauge of one device. Energy history,
  * its storage and the Energie overview were removed in 0.7.51 (owner). */
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,10 +45,12 @@ static void gauge_value(double watts,double scale,char *value,size_t vsize,char 
  snprintf(value,vsize,kw?"%.2f":"%.1f",shown);snprintf(unit,usize,"%s",kw?"kW":"W");
  if(kw)snprintf(top,tsize,"%g",scale/1000.0);else snprintf(top,tsize,"%.0f",scale);
 }
+#include "dsr_ui_usage_cyber.inc"
 static void detail(lv_obj_t *root)
 {
  dsr_mobile_device_t d={0};bool exists=dsr_network_typed_device(selected,&d);
  usage_header(root,exists?d.name:"Zużycie");
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_usage(root,&d,exists);return;}
  button(root,"Sterowanie",0,44,159,back,0,false);button(root,"Ustawienia",161,44,159,settings,0,false);
  lv_obj_t *card=dsr_sc_panel(root,12,96,296,300,0x2b2f33,18);lv_obj_set_style_border_width(card,1,0);lv_obj_set_style_border_color(card,dsr_sc_color(0x3a3f44),0);
  lv_obj_t *chip=dsr_sc_panel(card,88,12,120,32,0x1d2124,16);dsr_sc_icon(chip,DSR_ICON_ENERGY,10,6,20,0xe5322d);dsr_sc_text(chip,"Zużycie",36,8,80,&dsr_roboto_14,DSR_SC_TEXT);

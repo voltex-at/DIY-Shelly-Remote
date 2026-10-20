@@ -25,18 +25,20 @@ typedef struct {
 static editor_t *editor;
 enum {GROUPS,FIELDS,EDIT,CONFIRM,WAITING,RESULT};
 static void draw(void);
-/* Only the already-supported Sys editor receives the new composition. */
-static bool cyber_general(void)
-{return editor&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&editor->page!=GROUPS&&editor->snapshot.ready&&editor->snapshot.selected<editor->snapshot.group_count&&!strcmp(editor->snapshot.groups[editor->snapshot.selected].component,"Sys");}
-static void general_help(lv_event_t *event)
+/* The same composition covers every capability discovered from this Shelly. */
+static bool cyber_settings(void)
+{return editor&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;}
+static dsr_ui_icon_t component_icon(const char *component)
+{return !strcmp(component,"Sys")?DSR_ICON_SETTINGS:!strcmp(component,"WiFi")?DSR_ICON_WIFI:!strcmp(component,"BLE")?DSR_ICON_BLUETOOTH:!strcmp(component,"Cloud")?DSR_ICON_ROUTER:!strcmp(component,"Input")?DSR_ICON_NEXT:!strcmp(component,"Switch")?DSR_ICON_POWER:!strcmp(component,"Cover")?DSR_ICON_COVER:!strcmp(component,"Temperature")?DSR_ICON_THERMOSTAT:!strcmp(component,"Humidity")?DSR_ICON_ILLUMINANCE:!strcmp(component,"MQTT")?DSR_ICON_GIT_BRANCH:DSR_ICON_LIGHT;}
+static void settings_help(lv_event_t *event)
 {
  (void)event;lv_obj_t *box=lv_msgbox_create(NULL);lv_obj_set_width(box,296);
- lv_msgbox_add_title(box,dsr_sc_tr("Ogólne"));lv_msgbox_add_close_button(box);
+ lv_msgbox_add_title(box,dsr_sc_tr("Ustawienia Shelly"));lv_msgbox_add_close_button(box);
  lv_msgbox_add_text(box,dsr_sc_tr("Zmiana zostanie zapisana w urządzeniu Shelly."));
  lv_msgbox_add_text(box,dsr_sc_tr("Zapis jest wykonywany jeden raz. Po utracie odpowiedzi pilot sprawdzi wynik."));
 }
-static dsr_ui_icon_t general_icon(const dsr_setting_field_t *f)
-{return !strcmp(f->path,"device.name")?DSR_ICON_TV:!strcmp(f->path,"device.eco_mode")?DSR_ICON_ECO:!strncmp(f->path,"location.t",10)||!strcmp(f->path,"sntp.server")?DSR_ICON_CLOCK:DSR_ICON_LOCATION;}
+static dsr_ui_icon_t setting_icon(const dsr_setting_field_t *f)
+{return strcmp(f->component,"Sys")?component_icon(f->component):!strcmp(f->path,"device.name")?DSR_ICON_TV:!strcmp(f->path,"device.eco_mode")?DSR_ICON_ECO:!strncmp(f->path,"location.t",10)||!strcmp(f->path,"sntp.server")?DSR_ICON_CLOCK:DSR_ICON_LOCATION;}
 static void general_text(lv_obj_t *parent,const char *text,int x,int y,int w,int h,const lv_font_t *font,uint32_t color)
 {lv_obj_t *label=dsr_sc_text(parent,text,x,y,w,font,color);lv_obj_set_height(label,h);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);}
 static bool network_field(const dsr_setting_field_t *f)
@@ -48,7 +50,7 @@ void dsr_ui_device_settings_hide(void)
 static const char *error_text(dsr_result_t r)
 {return r==DSR_AUTH_REQUIRED?"Sprawdź dane logowania Shelly":r==DSR_CONFLICT?"Ustawienia zmieniły się. Odczytaj ponownie.":r==DSR_IDENTITY_MISMATCH?"Inne urządzenie pod tym adresem":r==DSR_UNSUPPORTED?"Ustawienie niedostępne w tym firmware":r==DSR_BUSY?"Operacja w toku. Poczekaj.":r==DSR_OFFLINE?"Brak połączenia z Shelly":r==DSR_INVALID?"Sprawdź wartość i dozwolony zakres":"Nie potwierdzono ustawienia";}
 static const char *group_name(const char *name)
-{return !strcmp(name,"Sys")?"Ogólne":!strcmp(name,"WiFi")?"Sieć Wi-Fi":!strcmp(name,"BLE")?"Bluetooth":!strcmp(name,"Cloud")?"Shelly Cloud":!strcmp(name,"MQTT")?"MQTT":!strcmp(name,"Switch")?"Przekaźnik":!strcmp(name,"Input")?"Wejście":!strcmp(name,"Cover")?"Roleta":!strcmp(name,"Temperature")?"Temperatura":!strcmp(name,"Humidity")?"Wilgotność":"Oświetlenie";}
+{return !strcmp(name,"Sys")?"Ogólne":!strcmp(name,"WiFi")?"Sieć Wi-Fi":!strcmp(name,"BLE")?"Bluetooth":!strcmp(name,"Cloud")?"Shelly Cloud":!strcmp(name,"MQTT")?"MQTT":!strcmp(name,"Switch")?"Przekaźnik":!strcmp(name,"Input")?"Wejście":!strcmp(name,"Cover")?"Roleta":!strcmp(name,"Temperature")?"Temperatura":!strcmp(name,"Humidity")?"Wilgotność":!strcmp(name,"RGB")?"RGB":!strcmp(name,"RGBW")?"RGBW":"Oświetlenie";}
 static void back(lv_event_t *event)
 {
  (void)event;if(!editor)return;
@@ -60,8 +62,8 @@ static void back(lv_event_t *event)
 static lv_obj_t *screen(void)
 {
  lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
- bool hud=cyber_general();
- if(hud)dsr_sc_blu_header(root,"Ustawienia Shelly",false,dsr_wifi_connected(),back,NULL,general_help);
+ bool hud=cyber_settings();
+ if(hud)dsr_sc_blu_header(root,"Ustawienia Shelly",false,dsr_wifi_connected(),back,NULL,settings_help);
  else dsr_sc_header(root,"Ustawienia Shelly",false,dsr_wifi_connected(),back,NULL);
  dsr_mobile_device_t device;if(dsr_network_typed_device(editor->id,&device)){char target[96];size_t n=strlen(device.identity);snprintf(target,sizeof(target),"%s • %.12s",device.name,n>12?device.identity+n-12:device.identity);lv_obj_t *label=dsr_sc_text(root,dsr_sc_user(target),hud?12:20,hud?54:64,hud?296:280,hud?&dsr_roboto_14:&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_height(label,hud?20:17);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);}
  if(hud)dsr_sc_panel(root,12,77,296,1,DSR_SC_BLUE,0);
@@ -84,7 +86,7 @@ static void reload(lv_event_t *event)
 {(void)event;if(editor)request(DSR_SETTINGS_LOAD,0,NULL);}
 static void select_field(lv_event_t *event)
 {if(!editor)return;editor->field=(unsigned)(uintptr_t)lv_event_get_user_data(event);editor->network_step=false;editor->page=EDIT;draw();}
-static void general_fields(lv_obj_t *root)
+static void cyber_fields(lv_obj_t *root)
 {
  unsigned row=0;
  for(unsigned i=0;i<editor->snapshot.field_count;i++){
@@ -94,9 +96,9 @@ static void general_fields(lv_obj_t *root)
   lv_obj_set_style_border_color(card,lv_color_hex(0x00cfff),0);lv_obj_set_style_border_width(card,1,0);
   lv_obj_t *well=dsr_sc_panel(card,8,9,44,46,0x071628,8);
   lv_obj_set_style_border_color(well,lv_color_hex(0x315a83),0);lv_obj_set_style_border_width(well,1,0);
-  dsr_sc_icon_centered(well,general_icon(f),32,DSR_SC_GLOW);
+  dsr_sc_icon_centered(well,setting_icon(f),32,DSR_SC_GLOW);
   general_text(card,f->label,62,9,200,22,&dsr_roboto_16,DSR_SC_TEXT);
-  const char *shown=!value[0]?"—":!strcmp(value,"true")?"Włączone":!strcmp(value,"false")?"Wyłączone":dsr_sc_user(value);
+  const char *shown=f->type==DSR_SETTING_SECRET?"Zmień hasło":!value[0]?"—":!strcmp(value,"true")?"Włączone":!strcmp(value,"false")?"Wyłączone":dsr_sc_user(value);
   general_text(card,shown,62,37,200,19,&dsr_roboto_14,0xa5cdeb);
   dsr_sc_icon(card,DSR_ICON_NEXT,266,20,24,DSR_SC_TEXT);
  }
@@ -125,12 +127,20 @@ static void draw(void)
  if(!editor)return;
  lv_obj_t *root=screen();
  if(editor->page==GROUPS){
-  for(unsigned i=0;i<editor->snapshot.group_count;i++){const dsr_setting_group_t *g=&editor->snapshot.groups[i];char title[96];if(g->singleton)snprintf(title,sizeof(title),"%s",dsr_sc_tr(group_name(g->component)));else snprintf(title,sizeof(title),"%s • %u",dsr_sc_tr(group_name(g->component)),g->id);button(editor->body,dsr_sc_user(title),(int)i*58,choose_group,i);}
+  for(unsigned i=0;i<editor->snapshot.group_count;i++){
+   const dsr_setting_group_t *g=&editor->snapshot.groups[i];char title[96];if(g->singleton)snprintf(title,sizeof(title),"%s",dsr_sc_tr(group_name(g->component)));else snprintf(title,sizeof(title),"%s • %u",dsr_sc_tr(group_name(g->component)),g->id);
+   if(cyber_settings()){
+    lv_obj_t *card=dsr_sc_button(editor->body,0,(int)i*66,296,58,DSR_SC_CARD,10,choose_group,(void *)(uintptr_t)i);
+    dsr_sc_icon(card,component_icon(g->component),12,12,32,DSR_SC_GLOW);
+    general_text(card,dsr_sc_user(title),58,18,204,22,&dsr_roboto_16,DSR_SC_TEXT);
+    dsr_sc_icon(card,DSR_ICON_NEXT,266,18,24,DSR_SC_TEXT);
+   }else button(editor->body,dsr_sc_user(title),(int)i*58,choose_group,i);
+  }
   if(!editor->snapshot.group_count)dsr_sc_text(editor->body,"Brak dostępnych ustawień",8,24,280,&dsr_roboto_16,DSR_SC_MUTED);
   dsr_ui_button(root,"Odczytaj ponownie",12,412,296,reload,NULL);return;
  }
  if(editor->page==FIELDS){
-  if(cyber_general()){general_fields(root);return;}
+  if(cyber_settings()){cyber_fields(root);return;}
   for(unsigned i=0;i<editor->snapshot.field_count;i++){unsigned index=editor->snapshot.fields[i];const dsr_setting_field_t *f=dsr_setting_field(index);if(!f)continue;char value[129];if(!dsr_device_settings_value(index,value,sizeof(value)))continue;
    lv_obj_t *b=dsr_sc_button(editor->body,0,(int)i*76,296,68,DSR_SC_CARD,10,select_field,(void *)(uintptr_t)index);dsr_sc_text(b,f->label,10,10,276,&dsr_roboto_14,DSR_SC_TEXT);
    dsr_sc_text(b,f->type==DSR_SETTING_SECRET?"Zmień hasło":!strcmp(value,"true")?"Włączone":!strcmp(value,"false")?"Wyłączone":dsr_sc_user(value),10,39,276,&dsr_roboto_12,DSR_SC_MUTED);
@@ -146,8 +156,8 @@ static void draw(void)
   dsr_ui_button(root,"Odczytaj ponownie",12,350,296,reload,NULL);dsr_ui_button(root,"Wstecz",12,412,296,back,NULL);return;
  }
  const dsr_setting_field_t *f=dsr_setting_field(editor->field);if(!f)return;
- bool hud=cyber_general();
- if(hud){dsr_ui_cyber_panel(editor->body,false);lv_obj_set_style_bg_color(editor->body,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_COVER,0);lv_obj_set_style_radius(editor->body,10,0);lv_obj_set_style_border_color(editor->body,lv_color_hex(0x00cfff),0);dsr_sc_icon(editor->body,general_icon(f),8,7,24,DSR_SC_GLOW);}
+ bool hud=cyber_settings();
+ if(hud){dsr_ui_cyber_panel(editor->body,false);lv_obj_set_style_bg_color(editor->body,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_COVER,0);lv_obj_set_style_radius(editor->body,10,0);lv_obj_set_style_border_color(editor->body,lv_color_hex(0x00cfff),0);dsr_sc_icon(editor->body,setting_icon(f),8,7,24,DSR_SC_GLOW);}
  lv_obj_t *caption=dsr_sc_text(editor->body,network_field(f)&&editor->network_step?"Hasło Wi-Fi":f->label,hud?42:8,8,hud?246:280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(caption,22);lv_label_set_long_mode(caption,LV_LABEL_LONG_DOT);
  if(editor->page==CONFIRM){
   dsr_sc_text(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);
@@ -161,7 +171,7 @@ static void draw(void)
   editor->open_network=lv_checkbox_create(editor->body);lv_checkbox_set_text(editor->open_network,dsr_sc_tr("Bez hasła"));lv_obj_set_pos(editor->open_network,8,82);lv_obj_set_style_text_font(editor->open_network,&dsr_roboto_12,0);
   editor->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(editor->keyboard);lv_obj_align(editor->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(editor->keyboard,editor->input);lv_obj_add_event_cb(editor->keyboard,confirm,LV_EVENT_READY,NULL);dsr_ui_button(root,"Wstecz",12,190,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Dalej",166,190,142,confirm,NULL));return;
  }
- if(f->type==DSR_SETTING_BOOL){editor->choice=lv_switch_create(editor->body);lv_obj_set_pos(editor->choice,12,88);lv_obj_set_size(editor->choice,70,38);if(!strcmp(current,"true"))lv_obj_add_state(editor->choice,LV_STATE_CHECKED);}
+ if(f->type==DSR_SETTING_BOOL){editor->choice=lv_switch_create(editor->body);lv_obj_set_pos(editor->choice,12,88);lv_obj_set_size(editor->choice,70,38);if(hud)lv_obj_set_ext_click_area(editor->choice,4);if(!strcmp(current,"true"))lv_obj_add_state(editor->choice,LV_STATE_CHECKED);}
  else if(f->type==DSR_SETTING_ENUM){editor->choice=lv_dropdown_create(editor->body);lv_obj_set_pos(editor->choice,8,70);lv_obj_set_size(editor->choice,280,48);lv_dropdown_set_options(editor->choice,f->choices);unsigned i=0;const char *p=f->choices;while(p&&*p){const char *end=strchr(p,'\n');size_t n=end?(size_t)(end-p):strlen(p);if(strlen(current)==n&&!memcmp(current,p,n)){lv_dropdown_set_selected(editor->choice,i);break;}p=end?end+1:NULL;i++;}}
  else {
   lv_obj_set_height(editor->body,100);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,36);lv_obj_set_size(editor->input,280,44);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_max_length(editor->input,f->type==DSR_SETTING_NUMBER?32:f->max_length);lv_textarea_set_text(editor->input,current);lv_textarea_set_password_mode(editor->input,f->type==DSR_SETTING_SECRET);

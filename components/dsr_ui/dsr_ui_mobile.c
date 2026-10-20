@@ -532,9 +532,11 @@ static void light_drag_event(lv_event_t *event)
  }
 }
 static void rgb_view(lv_event_t *event);
+static void cyber_light_details(lv_obj_t *root);
 static void light_details(lv_obj_t *root)
 {
  const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK;char text[80];
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_light_details(root);return;}
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
  dsr_sc_text(panel,d->endpoint_kind==DSR_ENDPOINT_RGB?"Jasność • RGB RPC":"Jasność • Light RPC",12,12,272,&dsr_roboto_16,DSR_SC_TEXT);
  const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?"Wysyłanie polecenia…":(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_ERROR)!=0:d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":d->output?"Włączone • Online":"Wyłączone • Online";
@@ -581,10 +583,12 @@ static void rgb_apply(lv_event_t *event)
  (void)event;if(!rgb_dirty||selected>=model.device_count||rgb_draft_id!=model.devices[selected].id||!rgb_enabled(&model.devices[selected]))return;
  uint8_t r=rgb_draft[0],g=rgb_draft[1],b=rgb_draft[2];rgb_dirty=false;actions.set_rgb(selected,r,g,b);
 }
+#include "dsr_ui_mobile_lighting_cyber.inc"
 static void rgb_details(lv_obj_t *root)
 {
  const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK&&(d->rgb.flags&DSR_RGB_VALID);
  rgb_draft[0]=readable?d->rgb.r:0;rgb_draft[1]=readable?d->rgb.g:0;rgb_draft[2]=readable?d->rgb.b:0;rgb_draft_id=d->id;
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_rgb_details(root);return;}
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
  dsr_sc_text(panel,"Kolor • RGB RPC",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
  rgb_swatch=dsr_sc_panel(panel,12,40,272,24,0,6);
@@ -601,6 +605,26 @@ static void rgb_details(lv_obj_t *root)
 static void ht_details(lv_obj_t *root)
 {
  const dsr_mobile_device_t *d=&model.devices[selected];char text[80];
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  bool fresh=d->online&&d->error==DSR_OK;
+  lv_obj_t *status=dsr_sc_panel(root,12,92,296,60,DSR_SC_CARD,10);
+  dsr_sc_icon(status,DSR_ICON_SIGNAL,12,16,28,fresh?DSR_SC_GLOW:DSR_SC_OFF);
+  dsr_sc_text(status,d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):fresh?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie",50,12,234,&dsr_roboto_14,fresh?DSR_SC_TEXT:DSR_SC_MUTED);
+  const dsr_ui_icon_t icons[]={DSR_ICON_THERMOSTAT,DSR_ICON_ILLUMINANCE};const char *names[]={"Temperatura","Wilgotność"};
+  for(unsigned i=0;i<2;i++){
+   lv_obj_t *card=dsr_sc_panel(root,12+(int)i*152,154,144,102,DSR_SC_CARD,10);dsr_sc_icon(card,icons[i],12,10,28,DSR_SC_GLOW);
+   dsr_sc_text(card,names[i],10,45,124,&dsr_roboto_14,DSR_SC_MUTED);
+   if(fresh&&(i?d->has_humidity:d->has_temperature))snprintf(text,sizeof(text),i?"%.1f%%":"%.1f °C",i?d->humidity_pct:d->temperature_c);else snprintf(text,sizeof(text),i?"— %%":"— °C");
+   dsr_sc_text(card,dsr_sc_user(text),10,69,124,&dsr_roboto_22,DSR_SC_TEXT);
+  }
+  lv_obj_t *battery=dsr_sc_panel(root,12,264,296,60,DSR_SC_CARD,10);dsr_sc_icon(battery,DSR_ICON_BATTERY,12,18,28,DSR_SC_GLOW);
+  if(fresh&&d->has_battery)snprintf(text,sizeof(text),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);else snprintf(text,sizeof(text),"%s —",dsr_sc_tr("Bateria"));
+  dsr_sc_text(battery,dsr_sc_user(text),52,10,232,&dsr_roboto_18,DSR_SC_TEXT);
+  dsr_sc_text(battery,!fresh||!(d->ht.flags&DSR_HT_EXTERNAL_KNOWN)?"Zasilanie zewnętrzne: nieznane":d->ht.flags&DSR_HT_EXTERNAL_PRESENT?"Zasilanie zewnętrzne: tak":"Zasilanie zewnętrzne: nie",52,37,232,&dsr_roboto_12,DSR_SC_MUTED);
+  lv_obj_t *read=dsr_sc_button(root,12,332,296,48,DSR_SC_BLUE,10,refresh,NULL);dsr_sc_icon(read,DSR_ICON_REFRESH,12,12,24,DSR_SC_TEXT);center(dsr_sc_text(read,"Odśwież status",46,15,240,&dsr_roboto_16,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
+  lv_obj_t *note=dsr_sc_panel(root,12,382,296,44,DSR_SC_BG,0);lv_obj_add_flag(note,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(note,LV_DIR_VER);dsr_sc_scrollbar(note);
+  dsr_sc_text(note,d->ht.errors?"Błędy pomiarów":"Czas pomiaru nieznany. Czujnik usypia także na USB. Wybudź przyciskiem, jeśli nie odpowiada.",4,0,280,&dsr_roboto_12,d->ht.errors?0xffc18c:DSR_SC_MUTED);return;
+ }
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,246,DSR_SC_CARD,10);
  dsr_sc_text(panel,"H&T Gen3 • tylko odczyt",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
  const char *state=d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):d->online?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie";

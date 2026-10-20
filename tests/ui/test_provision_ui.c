@@ -51,5 +51,9 @@ int main(int argc,char **argv)
  for(unsigned i=0;i<20;i++){o->begin(i&1,992,i&1?109:0);advance(500);o->end(ESP_OK);dsr_ui_provision_release();}
  advance(500);lv_mem_monitor(&m2);CHECK(m1.free_size==m2.free_size);
  printf("PASS: %u first-format LCD checks; %u frames; real Flash-progress seam, monotonic/bounded, resume prefix, failure, static fallback, PL EN DE, heap %lu→%lu; storage/board MODEL\n",checks,screenshots,(unsigned long)m1.free_size,(unsigned long)m2.free_size);
+ dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();
+ provision_progress_value=496;o->begin(false,992,0);advance(500);CHECK(dsr_ui_provision_layout_ok());screenshot("native-full-storage-prepare");
+ o->end(ESP_FAIL);screenshot("native-full-storage-prepare-error");dsr_ui_provision_release();
+ o->begin(true,992,109);advance(500);screenshot("native-full-storage-prepare-resume");o->end(ESP_OK);screenshot("native-full-storage-prepare-complete");dsr_ui_provision_release();
  lv_deinit();return 0;
 }

@@ -56,6 +56,11 @@ void dsr_ui_display_open(lv_event_t *event)
  (void)event;
  dsr_settings_t current;dsr_network_wifi_settings(&current);
  lv_obj_t *root=dsr_ui_screen("Ekran",false);active=true;
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  dsr_sc_panel(root,12,82,296,92,DSR_SC_CARD,10);
+  dsr_sc_panel(root,12,181,296,91,DSR_SC_CARD,10);
+  dsr_sc_panel(root,12,342,296,64,DSR_SC_CARD,10);
+ }
  brightness_label=dsr_sc_text(root,"",14,94,292,&dsr_roboto_14,DSR_SC_TEXT);
  slider=lv_slider_create(root);lv_obj_set_pos(slider,24,140);lv_obj_set_size(slider,272,18);
  lv_slider_set_range(slider,10,100);lv_slider_set_value(slider,current.brightness<10?10:current.brightness,LV_ANIM_OFF);

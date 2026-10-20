@@ -159,6 +159,13 @@ static void tick(void) {lv_tick_inc(250);lv_timer_handler();for(unsigned i=0;i<2
 static void screenshot(const char *name)
 {
     lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
+    /* Atlas captures are taken before test badges: untouched production pixels.
+     * Only the active Cyber theme qualifies; no filename-based theme guesses. */
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+        char raw[512];snprintf(raw,sizeof(raw),"%s/atlas-%s.ppm",output,name);
+        FILE *frame=fopen(raw,"wb");CHECK(frame);fprintf(frame,"P6\n320 480\n255\n");
+        CHECK(fwrite(canvas,1,sizeof(canvas),frame)==sizeof(canvas));fclose(frame);
+    }
     lv_obj_t *badge=NULL;
     unsigned frame=(unsigned)strtoul(name,NULL,10);
     unsigned badge_y=frame>=300?8:frame>=180&&frame<=199?8:frame>=160&&frame<=177?195:frame>=130?80:8;
