@@ -93,7 +93,7 @@ static void init(void)
  surface(&hud.device,0x1b3b59,0x386b92);lv_style_set_bg_grad_color(&hud.device,lv_color_hex(0x0a1d30));lv_style_set_bg_grad_dir(&hud.device,LV_GRAD_DIR_VER);
  surface(&hud.device_on,0x174b78,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_on,lv_color_hex(0x0b2440));lv_style_set_bg_grad_dir(&hud.device_on,LV_GRAD_DIR_VER);
  surface(&hud.power_on,0x0079f2,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.power_on,lv_color_hex(0x0039a3));lv_style_set_bg_grad_dir(&hud.power_on,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_on,2);lv_style_set_radius(&hud.power_on,LV_RADIUS_CIRCLE);
- surface(&hud.power_off,0xd9e9f4,0x527693);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x7896b2));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,4);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
+ surface(&hud.power_off,0x123453,0x3387a7);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x06182c));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,2);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
  surface(&hud.power_disabled,0x243a51,0x304a65);lv_style_set_radius(&hud.power_disabled,LV_RADIUS_CIRCLE);lv_style_set_border_width(&hud.power_disabled,3);
  surface(&hud.inset,0x061425,0x284b6c);lv_style_set_bg_grad_color(&hud.inset,lv_color_hex(0x102a43));lv_style_set_bg_grad_dir(&hud.inset,LV_GRAD_DIR_VER);lv_style_set_radius(&hud.inset,7);
  surface(&hud.warning,0x3e3415,0xffc107);lv_style_set_bg_grad_color(&hud.warning,lv_color_hex(0x1d241f));lv_style_set_bg_grad_dir(&hud.warning,LV_GRAD_DIR_VER);

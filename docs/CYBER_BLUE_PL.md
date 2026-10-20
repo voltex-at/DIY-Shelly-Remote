@@ -4,7 +4,9 @@ Opcjonalna czwarta skórka istniejącego systemu wyglądu. Baza implementacji:
 `e6e2359` (`work/p0-spiffs-ota-brand`, 0.7.57-dev), ESP-IDF 5.5.4,
 LVGL 9.3.0 (`c033a98afddd65aaafeebea625382a94020fe4a7`), ES3C35P 320 × 480.
 
-Najnowszą iterację rolety, ikon okien/drzwi, baterii i modułów sterowania opisano
+Najnowsze dopracowanie Systemu, testów sprzętu, baterii, diagnostyki, termostatu
+i pulpitu opisano w [poprawkach według referencji](cyber-blue/REFERENCE_REFINEMENTS.md).
+Wcześniejszą iterację rolety, ikon okien/drzwi, baterii i modułów sterowania opisano
 w [quality pass](cyber-blue/QUALITY_PASS.md). Wcześniejsze dopracowanie czytelności, edytorów i 17 brakujących ikon opisano w
 [etapie 3](cyber-blue/stage3/README.md), wraz z rzeczywistymi renderami i
 porównaniem przed/po. Poniższe liczby integracji bazowej opisują etap 2.

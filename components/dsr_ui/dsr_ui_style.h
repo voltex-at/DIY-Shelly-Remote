@@ -36,7 +36,9 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     DSR_ICON_ECO, DSR_ICON_LOCATION, DSR_ICON_TRV_VALVE,
     DSR_ICON_VOLTAGE, DSR_ICON_CURRENT, DSR_ICON_WATTAGE, DSR_ICON_PSRAM,
     DSR_ICON_GRAPHICS, DSR_ICON_FIRMWARE, DSR_ICON_HARDWARE, DSR_ICON_DIAGNOSTICS,
-    DSR_ICON_RESTART, DSR_ICON_ONLINE, DSR_ICON_OFFLINE, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_RESTART, DSR_ICON_ONLINE, DSR_ICON_OFFLINE,
+    DSR_ICON_TOUCH, DSR_ICON_USB, DSR_ICON_DOCUMENT,
+    DSR_ICON_COVER_OPEN, DSR_ICON_COVER_CLOSE, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);
@@ -47,6 +49,9 @@ lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint
 /* Non-interactive 28 px status module, shared by Cyber device pages. */
 lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int x,int y,int width,uint32_t color);
 void dsr_sc_icon_color(lv_obj_t *icon,uint32_t color);
+/* Decorative/action accent. Explicit data, warning and disabled tints remain
+ * caller-controlled; the low-level A8 recoloring API still accepts any RGB. */
+uint32_t dsr_sc_icon_accent(void);
 void dsr_sc_clock_tick(void);
 /* Selectable device icons, 1-based as stored in the workspace "icon" field. */
 #define DSR_SC_DEVICE_ICONS 20 /* == DSR_CONFIG_DEVICE_ICONS */

@@ -118,7 +118,8 @@ uint32_t dsr_storage_format_progress(void){provision_progress_reads++;return pro
 static uint8_t style_hint;static unsigned style_hint_writes;
 uint8_t dsr_style_hint_get(void){return style_hint;}
 void dsr_style_hint_set(uint8_t style){if(style!=style_hint){style_hint=style;style_hint_writes++;}}
-bool dsr_board_touch_available(void) {return true;}
+static bool touch_available=true;
+bool dsr_board_touch_available(void) {return touch_available;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}
 static dsr_connection_t boot_loaded[DSR_MAX_DEVICES];static size_t boot_loaded_count;

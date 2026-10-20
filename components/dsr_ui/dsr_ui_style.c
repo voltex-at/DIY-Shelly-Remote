@@ -563,6 +563,8 @@ static void icon_draw(lv_event_t *event)
     lv_area_t source={area.x1,area.y1,area.x1+63,area.y1+63};
     lv_draw_image(lv_event_get_layer(event),&draw,&source);
 }
+uint32_t dsr_sc_icon_accent(void)
+{return style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:DSR_SC_TEXT;}
 lv_obj_t *dsr_sc_icon(lv_obj_t *p,dsr_ui_icon_t kind,int x,int y,int size,uint32_t color)
 {
     /* Native 24/32 px masks stay crisp in compact controls. Parent hit targets
@@ -599,7 +601,7 @@ void dsr_sc_clock_tick(void)
 }
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
- if(back){lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,DSR_SC_TEXT);}
+ if(back){lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
@@ -615,13 +617,13 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
 /* Compact Cyber BLU header: keep the shared clock and its delete lifetime. */
 void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context,lv_event_cb_t help)
 {
- lv_obj_t *b=dsr_sc_button(root,0,0,40,42,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,DSR_SC_TEXT);
+ lv_obj_t *b=dsr_sc_button(root,0,0,40,42,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,dsr_sc_icon_accent());
  if(demo)dsr_sc_text(root,"DEMO",44,12,58,&dsr_roboto_14,0xffb52e);
  else{clock_label=dsr_sc_text(root,"",45,9,57,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();}
  dsr_sc_panel(root,104,9,1,25,DSR_SC_BLUE,0);
  lv_obj_t *name=dsr_sc_text(root,title,111,12,130,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,20);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
  dsr_sc_icon(root,DSR_ICON_WIFI,247,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
- b=dsr_sc_button(root,280,0,40,42,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,DSR_SC_TEXT);
+ b=dsr_sc_button(root,280,0,40,42,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,dsr_sc_icon_accent());
 }
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {
@@ -630,11 +632,11 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
  lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
- const dsr_ui_icon_t icons[]={DSR_ICON_DASHBOARD,DSR_ICON_HOME,DSR_ICON_BATTERY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
+ const dsr_ui_icon_t icons[]={style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_GRID:DSR_ICON_DASHBOARD,DSR_ICON_HOME,style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_CPU:DSR_ICON_BATTERY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-  if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);dsr_sc_icon_centered(circle,icons[i],20,DSR_SC_TEXT);}
-  else dsr_sc_icon_centered(b,icons[i],26,i==current?(style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_BLUE:DSR_SC_TEXT):DSR_SC_MUTED);
+  if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);dsr_sc_icon_centered(circle,icons[i],20,dsr_sc_icon_accent());}
+  else dsr_sc_icon_centered(b,icons[i],26,style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED);
   if(!(enabled&(1u<<i)))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
 }
@@ -682,7 +684,7 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
  if(style==DSR_SC_STYLE_CYBER_BLUE){
   lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,DSR_SC_PANEL,LV_RADIUS_CIRCLE,cb,context);
   dsr_ui_cyber_power(ring,on,enabled);
-  dsr_sc_icon_centered(ring,icon,size>=80?48:24,enabled?(on?DSR_SC_TEXT:0x163653):0x71879e);
+  dsr_sc_icon_centered(ring,icon,size>=80?48:32,enabled?DSR_SC_GLOW:0x71879e);
   if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
   return ring;
  }

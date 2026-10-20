@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include "dsr_ui_search.h"
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
@@ -169,11 +170,52 @@ static lv_obj_t *screen(const char *title)
 static void return_home(lv_event_t *e){(void)e;dsr_ui_workspace_hide();dsr_network_home(NULL);}
 static void error_back(lv_event_t *e){(void)e;bool settings=error_return_settings,rooms=error_return_rooms;dsr_ui_workspace_hide();if(settings)dsr_ui_open_settings();else if(rooms)dsr_network_rooms();else dsr_network_home(NULL);}
 static void config_error(open_result_t result);
+static int diagnostic_text_height(const char *text,const lv_font_t *font)
+{
+ lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(text),font,0,0,226,LV_TEXT_FLAG_NONE);return size.y;
+}
+static lv_obj_t *diagnostic_card(int y,int height,dsr_ui_icon_t icon,uint32_t color)
+{
+ lv_obj_t *card=dsr_sc_panel(body,0,y,296,height,DSR_SC_CARD,10);
+ lv_obj_t *well=dsr_sc_panel(card,5,5,42,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
+ dsr_sc_icon_centered(well,icon,32,icon==DSR_ICON_WARNING?color:DSR_SC_GLOW);
+ lv_obj_set_style_border_color(card,dsr_sc_color(icon==DSR_ICON_WARNING?color:DSR_SC_GLOW),0);return card;
+}
+static int diagnostic_description(int y,dsr_ui_icon_t icon,const char *title,const char *text)
+{
+ int height=42+diagnostic_text_height(text,&dsr_roboto_14);
+ lv_obj_t *card=diagnostic_card(y,height,icon,DSR_SC_GLOW);
+ dsr_sc_text(card,title,56,9,226,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(card,56,32,226,1,DSR_SC_BLUE,0);
+ dsr_sc_text(card,text,56,38,226,&dsr_roboto_14,DSR_SC_MUTED);return y+height+8;
+}
 static void diagnostics(lv_event_t *event)
 {
  (void)event;dsr_config_health_t h;dsr_config_health_snapshot(&h);
- lv_obj_t *root=screen("Diagnostyka konfiguracji");dsr_sc_label_set_text(status_label,"Tylko odczyt • dane zachowane");
  const char *storage=h.storage==DSR_STORAGE_READY?"SPIFFS: zamontowany":h.storage==DSR_STORAGE_NONEMPTY?"SPIFFS: niepusty, niezamontowany":h.storage==DSR_STORAGE_READ_ERROR?"SPIFFS: błąd odczytu":h.storage==DSR_STORAGE_PROVISION_ERROR?"SPIFFS: błąd inicjalizacji":"SPIFFS: niedostępny";
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  lv_obj_t *root=dsr_ui_screen("Diagnostyka konfiguracji",false);
+  status_label=dsr_sc_text(root,"Tylko odczyt • dane zachowane",14,80,292,&dsr_roboto_12,DSR_SC_MUTED);
+  body=dsr_sc_panel(root,12,104,296,304,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+  uint32_t storage_color=h.storage==DSR_STORAGE_READY?0x72dfb0:0xffc107;
+  int height=diagnostic_text_height(storage,&dsr_roboto_16)+20;if(height<48)height=48;
+  lv_obj_t *card=diagnostic_card(0,height,DSR_ICON_CPU,storage_color);
+  dsr_sc_text(card,storage,56,10,226,&dsr_roboto_16,storage_color);int y=height+8;
+  card=diagnostic_card(y,98,DSR_ICON_PSRAM,DSR_SC_GLOW);
+  dsr_sc_text(card,"Pamięć SPIFFS",56,9,226,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(card,56,32,226,1,DSR_SC_BLUE,0);
+  const char *names[]={"Storage:","Workspace:","HTTPS:"};const int states[]={(int)h.storage,(int)h.workspace,(int)h.panel};const unsigned errors[]={(unsigned)h.storage_error,(unsigned)h.workspace_error,(unsigned)h.panel_error};
+  for(unsigned i=0;i<3;i++){char code[32];snprintf(code,sizeof(code),"%d / 0x%x",states[i],errors[i]);dsr_sc_text(card,names[i],56,37+(int)i*18,98,&dsr_roboto_14,DSR_SC_MUTED);dsr_sc_text(card,code,158,37+(int)i*18,124,&dsr_roboto_14,DSR_SC_TEXT);}
+  y+=106;
+  const char *https=h.panel==DSR_PANEL_READY?"HTTPS uruchomiony":h.panel==DSR_PANEL_FAILED?"HTTPS: błąd uruchomienia":"HTTPS nie został uruchomiony";
+  height=diagnostic_text_height(https,&dsr_roboto_16)+20;if(height<48)height=48;
+  uint32_t https_color=h.panel==DSR_PANEL_READY?0x72dfb0:0xffc107;
+  card=diagnostic_card(y,height,DSR_ICON_SHIELD,https_color);dsr_sc_text(card,https,56,10,226,&dsr_roboto_16,https_color);y+=height+8;
+  y=diagnostic_description(y,DSR_ICON_USB,"Port USB","USB 115200 • zachowaj kopię partycji przed naprawą.");
+  y=diagnostic_description(y,DSR_ICON_DOCUMENT,"Adresy danych","dsrdata: 0xC20000 + 0x3E0000\nNVS: 0x9000 + 0x10000");
+  const char *warning="Nie kasuj i nie formatuj pamięci.";height=diagnostic_text_height(warning,&dsr_roboto_14)+20;if(height<48)height=48;
+  card=diagnostic_card(y,height,DSR_ICON_WARNING,0xffc107);dsr_ui_cyber_warning(card,false);dsr_sc_text(card,warning,56,10,226,&dsr_roboto_14,0xffc107);
+  dsr_ui_button(root,"Wstecz",12,420,296,error_back,NULL);config_log("diagnostics",open_error);return;
+ }
+ lv_obj_t *root=screen("Diagnostyka konfiguracji");dsr_sc_label_set_text(status_label,"Tylko odczyt • dane zachowane");
  dsr_sc_text(body,storage,4,8,284,&dsr_roboto_16,DSR_SC_TEXT);
  char codes[96];snprintf(codes,sizeof(codes),"Storage: %d / 0x%x\nWorkspace: %d / 0x%x\nHTTPS: %d / 0x%x",(int)h.storage,(unsigned)h.storage_error,(int)h.workspace,(unsigned)h.workspace_error,(int)h.panel,(unsigned)h.panel_error);dsr_sc_text(body,codes,4,50,284,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_sc_text(body,h.panel==DSR_PANEL_READY?"HTTPS uruchomiony":h.panel==DSR_PANEL_FAILED?"HTTPS: błąd uruchomienia":"HTTPS nie został uruchomiony",4,123,284,&dsr_roboto_14,DSR_SC_TEXT);
@@ -374,7 +416,7 @@ static void device_icons(int y)
  for(int i=0;i<=DSR_SC_DEVICE_ICONS;i++){
   lv_obj_t *b=dsr_sc_button(body,(i%5)*57+2,y+24+(i/5)*58,50,50,0x17191c,LV_RADIUS_CIRCLE,device_icon_pick,(void *)(uintptr_t)i);
   lv_obj_set_style_border_width(b,i==chosen?3:1,0);lv_obj_set_style_border_color(b,dsr_sc_color(i==chosen?DSR_SC_GLOW:0x3a3f44),0);dsr_sc_glow(b,i==chosen);
-  if(i)dsr_sc_icon_centered(b,dsr_sc_device_icons[i-1],28,i==chosen?DSR_SC_GLOW:DSR_SC_TEXT);
+  if(i)dsr_sc_icon_centered(b,dsr_sc_device_icons[i-1],28,i==chosen?DSR_SC_GLOW:dsr_sc_icon_accent());
   else{lv_obj_t *t=dsr_sc_text(b,"Auto",0,0,44,&dsr_roboto_12,i==chosen?DSR_SC_GLOW:DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(t);}
  }
  dsr_sc_text(body,"Nazwa, pokój i ikona dotyczą pilota. Konfiguracja samego Shelly wymaga obsługi API danego modelu.",2,y+24+5*58+4,280,&dsr_roboto_14,DSR_SC_MUTED);

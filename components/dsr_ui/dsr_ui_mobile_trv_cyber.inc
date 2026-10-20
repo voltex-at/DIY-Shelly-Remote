@@ -32,8 +32,8 @@ static void cyber_trv_details(lv_obj_t *root)
  const dsr_mobile_device_t *d=&model.devices[selected];bool live=d->online&&d->error==DSR_OK;
  bool known=trv_known(d),can=trv_can(d);uint8_t half=trv_shown(d);char text[48];
  lv_obj_t *panel=dsr_sc_panel(root,8,94,304,236,DSR_SC_CARD,10);edge(panel,0x00cfff,1);lv_obj_add_event_cb(panel,trv_ring_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)live);
- dsr_sc_badge(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,live?"Online":"Offline",12,90,100,live?DSR_SC_GLOW:0xffc65b);
- dsr_sc_badge(root,DSR_ICON_THERMOSTAT,known?"Nastawa temperatury":"Brak danych",120,90,188,live?DSR_SC_TEXT:0xffc65b);
+ dsr_sc_icon(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,12,94,24,live?DSR_SC_GLOW:0xffc65b);
+ dsr_sc_text(root,live?"Online":"Offline",42,98,88,&dsr_roboto_12,live?DSR_SC_GLOW:0xffc65b);
  trv_dial.arc=lv_arc_create(root);lv_obj_remove_style_all(trv_dial.arc);lv_obj_set_pos(trv_dial.arc,54,110);lv_obj_set_size(trv_dial.arc,216,216);
  lv_arc_set_range(trv_dial.arc,DSR_TRV_MIN_HALF,DSR_TRV_MAX_HALF);lv_arc_set_bg_angles(trv_dial.arc,135,45);lv_arc_set_value(trv_dial.arc,half);lv_arc_set_change_rate(trv_dial.arc,720);
  lv_obj_set_style_arc_width(trv_dial.arc,32,LV_PART_MAIN);lv_obj_set_style_arc_width(trv_dial.arc,32,LV_PART_INDICATOR);lv_obj_set_style_arc_opa(trv_dial.arc,LV_OPA_TRANSP,LV_PART_MAIN);lv_obj_set_style_arc_opa(trv_dial.arc,LV_OPA_TRANSP,LV_PART_INDICATOR);

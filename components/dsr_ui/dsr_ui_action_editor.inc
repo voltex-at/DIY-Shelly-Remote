@@ -88,7 +88,7 @@ static void action_remove_step(lv_event_t *event)
 static void action_move_step(lv_event_t *event)
 {unsigned value=(unsigned)(uintptr_t)lv_event_get_user_data(event);int at=(int)(value>>1),to=at+((value&1)?1:-1);cJSON *all=cJSON_GetObjectItemCaseSensitive(editing,"actions");if(to>=0&&to<cJSON_GetArraySize(all)){cJSON *a=cJSON_DetachItemFromArray(all,at);cJSON_InsertItemInArray(all,to,a);}action_form();}
 static lv_obj_t *action_order(int x,int y,dsr_ui_icon_t icon,lv_event_cb_t callback,uintptr_t data)
-{lv_obj_t *b=dsr_sc_button(body,x,y,44,44,DSR_SC_CARD,10,callback,(void *)data);dsr_sc_icon_centered(b,icon,22,DSR_SC_TEXT);return b;}
+{lv_obj_t *b=dsr_sc_button(body,x,y,44,44,DSR_SC_CARD,10,callback,(void *)data);dsr_sc_icon_centered(b,icon,22,dsr_sc_icon_accent());return b;}
 static void action_steps(void)
 {
  int i=0,total=cJSON_GetArraySize(item(editing,"actions"));const cJSON *a;

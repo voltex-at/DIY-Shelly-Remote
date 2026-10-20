@@ -32,7 +32,7 @@ frames.mkdir(exist_ok=True)
 for old in frames.glob('CB-*.png'):
  old.unlink()
 groups = [
- ('01 Pulpit i pokoje', r'home|room-detail|rooms$|devices$|24-tiles|dashboard-picker'),
+ ('01 Pulpit i pokoje', r'home|room-detail|rooms(?:-|$)|devices$|24-tiles|dashboard-picker|reference-dashboard'),
  ('02 Przekazniki', r'relay'),
  ('03 Rolety', r'cover'),
  ('04 BLU i termostat', r'blu-|trv-'),

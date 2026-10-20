@@ -1,6 +1,12 @@
 #ifndef SHELLY_HUD_EXTRA_H
 #define SHELLY_HUD_EXTRA_H
 #include "lvgl.h"
+extern const lv_image_dsc_t shudx_arrow_down_24;
+extern const lv_image_dsc_t shudx_arrow_down_32;
+extern const lv_image_dsc_t shudx_arrow_down_48;
+extern const lv_image_dsc_t shudx_arrow_up_24;
+extern const lv_image_dsc_t shudx_arrow_up_32;
+extern const lv_image_dsc_t shudx_arrow_up_48;
 extern const lv_image_dsc_t shudx_bathroom_24;
 extern const lv_image_dsc_t shudx_bathroom_32;
 extern const lv_image_dsc_t shudx_bathroom_48;
@@ -15,6 +21,8 @@ extern const lv_image_dsc_t shudx_coffee_machine_32;
 extern const lv_image_dsc_t shudx_coffee_machine_48;
 extern const lv_image_dsc_t shudx_current_24;
 extern const lv_image_dsc_t shudx_diagnostics_24;
+extern const lv_image_dsc_t shudx_document_24;
+extern const lv_image_dsc_t shudx_document_32;
 extern const lv_image_dsc_t shudx_door_closed_24;
 extern const lv_image_dsc_t shudx_door_closed_32;
 extern const lv_image_dsc_t shudx_door_closed_48;
@@ -54,7 +62,11 @@ extern const lv_image_dsc_t shudx_sofa_48;
 extern const lv_image_dsc_t shudx_speaker_24;
 extern const lv_image_dsc_t shudx_speaker_32;
 extern const lv_image_dsc_t shudx_speaker_48;
+extern const lv_image_dsc_t shudx_touch_24;
+extern const lv_image_dsc_t shudx_touch_32;
 extern const lv_image_dsc_t shudx_trv_valve_32;
+extern const lv_image_dsc_t shudx_usb_24;
+extern const lv_image_dsc_t shudx_usb_32;
 extern const lv_image_dsc_t shudx_valve_24;
 extern const lv_image_dsc_t shudx_valve_32;
 extern const lv_image_dsc_t shudx_valve_48;

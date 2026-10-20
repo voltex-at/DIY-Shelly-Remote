@@ -52,7 +52,7 @@ static void choose(lv_event_t *event)
 {
  selected=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(selected>=scan.count)return;detail=true;
  selected_device=scan.devices[selected];const dsr_ble_device_t *d=&selected_device;lv_obj_t *root=screen();
- lv_obj_t *card=dsr_sc_panel(root,12,88,296,98,DSR_SC_CARD,14);dsr_sc_icon(card,d->kind==DSR_BLE_SHELLY_BLU?DSR_ICON_CONTACT:DSR_ICON_PLUG,10,23,32,DSR_SC_TEXT);
+ lv_obj_t *card=dsr_sc_panel(root,12,88,296,98,DSR_SC_CARD,14);dsr_sc_icon(card,d->kind==DSR_BLE_SHELLY_BLU?DSR_ICON_CONTACT:DSR_ICON_PLUG,10,23,32,dsr_sc_icon_accent());
  truncated(dsr_sc_text(card,title(d),54,10,230,&dsr_roboto_14,DSR_SC_TEXT),22);
  char advertised[96];address_text(d,advertised,sizeof(advertised));
  truncated(dsr_sc_text(card,advertised,54,37,230,&dsr_roboto_12,DSR_SC_MUTED),18);

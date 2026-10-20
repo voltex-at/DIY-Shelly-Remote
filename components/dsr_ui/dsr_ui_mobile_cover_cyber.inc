@@ -39,7 +39,8 @@ static void cyber_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
  bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
  for(unsigned i=0;i<2;i++){
   lv_obj_t *button=dsr_sc_button(root,12+(int)i*152,374,144,48,DSR_SC_BLUE,10,cover_control,(void *)(uintptr_t)(selected*2+(i==0)));
-  dsr_sc_icon(button,i?DSR_ICON_DOWN:DSR_ICON_UP,10,12,24,valid?DSR_SC_TEXT:DSR_SC_OFF);
-  center(dsr_sc_text(button,i?"Zamknij":"Otwórz",40,15,96,&dsr_roboto_16,DSR_SC_TEXT));if(!valid)lv_obj_add_state(button,LV_STATE_DISABLED);
+  dsr_ui_cyber_panel(button,true);
+  dsr_sc_icon(button,i?DSR_ICON_COVER_CLOSE:DSR_ICON_COVER_OPEN,8,7,32,valid?DSR_SC_GLOW:DSR_SC_OFF);
+  center(dsr_sc_text(button,i?"Zamknij":"Otwórz",44,13,92,&dsr_roboto_18,DSR_SC_TEXT));if(!valid)lv_obj_add_state(button,LV_STATE_DISABLED);
  }
 }

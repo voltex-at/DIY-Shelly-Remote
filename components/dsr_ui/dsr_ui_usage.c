@@ -73,7 +73,7 @@ static void detail(lv_obj_t *root)
  const lv_point_precise_t needle[2]={{cx,cy},{cx+(r-34)*cos(a),cy+(r-34)*sin(a)}};
  if(fresh){gauge_line(root,needle,5,0xeceff1,LV_OPA_COVER);lv_obj_t *hub=dsr_sc_panel(root,cx-9,cy-9,18,18,0x17191c,LV_RADIUS_CIRCLE);lv_obj_set_style_border_width(hub,3,0);lv_obj_set_style_border_color(hub,dsr_sc_color(0xeceff1),0);}
  char value[24],unit[8],top[16];gauge_value(watts,scale,value,sizeof(value),unit,sizeof(unit),top,sizeof(top));
- dsr_sc_icon(root,DSR_ICON_ENERGY,cx-10,cy+14,20,DSR_SC_TEXT);
+ dsr_sc_icon(root,DSR_ICON_ENERGY,cx-10,cy+14,20,dsr_sc_icon_accent());
  lv_obj_t *v=dsr_sc_text(root,fresh?value:"—",cx-80,cy+36,160,&dsr_roboto_28,DSR_SC_TEXT);lv_obj_set_style_text_align(v,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_t *u=dsr_sc_text(root,unit,cx-40,cy+72,80,&dsr_roboto_16,DSR_SC_MUTED);lv_obj_set_style_text_align(u,LV_TEXT_ALIGN_CENTER,0);
  dsr_sc_text(root,"0",cx-r+6,cy+82,30,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_t *t=dsr_sc_text(root,top,cx+r-46,cy+82,40,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_RIGHT,0);

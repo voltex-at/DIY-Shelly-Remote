@@ -100,7 +100,7 @@ static void cyber_fields(lv_obj_t *root)
   general_text(card,f->label,62,9,200,22,&dsr_roboto_16,DSR_SC_TEXT);
   const char *shown=f->type==DSR_SETTING_SECRET?"Zmień hasło":!value[0]?"—":!strcmp(value,"true")?"Włączone":!strcmp(value,"false")?"Wyłączone":dsr_sc_user(value);
   general_text(card,shown,62,37,200,19,&dsr_roboto_14,0xa5cdeb);
-  dsr_sc_icon(card,DSR_ICON_NEXT,266,20,24,DSR_SC_TEXT);
+  dsr_sc_icon(card,DSR_ICON_NEXT,266,20,24,dsr_sc_icon_accent());
  }
  if(!row)dsr_sc_text(editor->body,"Brak obsługiwanych pól w odpowiedzi urządzenia",8,24,280,&dsr_roboto_16,DSR_SC_MUTED);
  dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);
@@ -133,7 +133,7 @@ static void draw(void)
     lv_obj_t *card=dsr_sc_button(editor->body,0,(int)i*66,296,58,DSR_SC_CARD,10,choose_group,(void *)(uintptr_t)i);
     dsr_sc_icon(card,component_icon(g->component),12,12,32,DSR_SC_GLOW);
     general_text(card,dsr_sc_user(title),58,18,204,22,&dsr_roboto_16,DSR_SC_TEXT);
-    dsr_sc_icon(card,DSR_ICON_NEXT,266,18,24,DSR_SC_TEXT);
+    dsr_sc_icon(card,DSR_ICON_NEXT,266,18,24,dsr_sc_icon_accent());
    }else button(editor->body,dsr_sc_user(title),(int)i*58,choose_group,i);
   }
   if(!editor->snapshot.group_count)dsr_sc_text(editor->body,"Brak dostępnych ustawień",8,24,280,&dsr_roboto_16,DSR_SC_MUTED);

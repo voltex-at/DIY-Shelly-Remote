@@ -88,7 +88,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_center(caption);
     if(!strncmp(text,"Usuń",strlen("Usuń"))||(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&!strcmp(text,"Unieważnij parowanie"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
     else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!strcmp(text,"Zapisz")||!strcmp(text,"Dalej")||!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Zmierz napięcie")||!strcmp(text,"Odśwież stan")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")))dsr_ui_primary(obj);
-    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=130){
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=100){
      dsr_ui_icon_t icon=DSR_ICON_COUNT;
      if(!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")||!strcmp(text,"Odśwież stan"))icon=DSR_ICON_REFRESH;
      else if(!strcmp(text,"Zmierz napięcie"))icon=DSR_ICON_ACTIVITY;
@@ -100,7 +100,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
      else if(!strcmp(text,"Wstecz")||!strcmp(text,"Back"))icon=DSR_ICON_BACK;
      if(icon==DSR_ICON_COUNT)icon=section_icon(text);
      if(width<170&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
-     if(icon!=DSR_ICON_COUNT){lv_obj_set_width(caption,width-58);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-8,0);dsr_sc_icon(obj,icon,14,10,28,icon==DSR_ICON_SETTINGS||icon==DSR_ICON_BLUETOOTH||icon==DSR_ICON_ROUTER?DSR_SC_BLUE:DSR_SC_TEXT);}
+     if(icon!=DSR_ICON_COUNT){bool compact=icon==DSR_ICON_BACK&&width<130;lv_obj_set_width(caption,width-(compact?44:58));lv_obj_align(caption,LV_ALIGN_RIGHT_MID,compact?-4:-8,0);dsr_sc_icon(obj,icon,compact?8:14,10,compact?24:28,dsr_sc_icon_accent());}
     }
     return obj;
 }
@@ -149,7 +149,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     dsr_sc_header(root,"",false,dsr_wifi_connected(),dsr_ui_home,NULL);
     bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-    dsr_ui_icon_t icon=!strcmp(title,"System")?DSR_ICON_CPU:!strcmp(title,"Bateria i zasilanie")?DSR_ICON_BATTERY:section_icon(title);
+    dsr_ui_icon_t icon=!strcmp(title,"System")||!strcmp(title,"Diagnostyka konfiguracji")?DSR_ICON_CPU:!strcmp(title,"Bateria i zasilanie")?DSR_ICON_BATTERY:section_icon(title);
     bool marked=hud&&icon!=DSR_ICON_COUNT;
     if(marked)dsr_sc_icon(root,icon,12,47,24,DSR_SC_GLOW);
     lv_obj_t *heading=dsr_sc_text(root,title,marked?44:12,46,marked?264:296,hud?&dsr_roboto_22:&dsr_roboto_18,DSR_SC_TEXT);
@@ -218,6 +218,18 @@ static lv_obj_t *settings_body(const char *title)
 }
 static lv_obj_t *row(lv_obj_t *body,const char *text,int y,lv_event_cb_t action)
 {return dsr_ui_button(body,text,0,y,296,action,NULL);}
+/* Shared reference-style system rows: a separate icon well and a large
+ * wrapping caption. The entire framed row remains the original hit target. */
+static lv_obj_t *system_row(lv_obj_t *parent,const char *text,int y,int height,dsr_ui_icon_t icon,lv_event_cb_t action)
+{
+ lv_obj_t *button=dsr_sc_button(parent,0,y,296,height,DSR_SC_CARD,10,action,NULL);
+ lv_obj_t *caption=dsr_sc_text(button,text,60,0,200,&dsr_roboto_18,DSR_SC_TEXT);
+ lv_obj_align(caption,LV_ALIGN_LEFT_MID,60,0);
+ lv_obj_t *well=dsr_sc_panel(button,5,5,44,height-12,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
+ dsr_sc_icon_centered(well,icon,32,DSR_SC_GLOW);
+ dsr_sc_icon(button,DSR_ICON_NEXT,264,(height-24)/2-1,24,DSR_SC_GLOW);
+ lv_obj_set_style_border_color(button,dsr_sc_color(DSR_SC_GLOW),0);return button;
+}
 void dsr_ui_settings_network(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Sieć i połączenia");dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);
@@ -380,6 +392,13 @@ static void system_info(lv_event_t *event)
 static void system_menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("System");
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  const char *names[]={"Firmware Update","Informacje i diagnostyka","Hardware tests","Konfiguracja wpisów i scen","Restart pilota"};
+  const dsr_ui_icon_t icons[]={DSR_ICON_FIRMWARE,DSR_ICON_DIAGNOSTICS,DSR_ICON_HARDWARE,DSR_ICON_SCENES,DSR_ICON_RESTART};
+  const lv_event_cb_t callbacks[]={dsr_ui_native_ota_open,system_info,hardware,dsr_ui_config_registry,restart_screen};
+  for(unsigned i=0;i<5;i++)system_row(body,names[i],(int)i*62,54,icons[i],callbacks[i]);
+  return;
+ }
  row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
  row(body,"Restart pilota",232,restart_screen);
@@ -415,6 +434,25 @@ static void hardware(lv_event_t *event)
 {
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Hardware tests", true);
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+     lv_obj_t *info=dsr_sc_panel(root,12,86,296,148,DSR_SC_CARD,10);
+     lv_obj_set_style_border_color(info,dsr_sc_color(DSR_SC_GLOW),0);
+     lv_obj_t *well=dsr_sc_panel(info,8,10,42,42,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
+     dsr_sc_icon_centered(well,DSR_ICON_DOCUMENT,32,DSR_SC_GLOW);
+     dsr_sc_text(info,"Hardware test",60,15,224,&dsr_roboto_22,DSR_SC_TEXT);
+     dsr_sc_text(info,"Display and touch test tools.\nCheck colors, corners and wake.",12,60,272,&dsr_roboto_14,DSR_SC_MUTED);
+     dsr_sc_panel(info,12,100,272,1,DSR_SC_BLUE,0);
+     dsr_sc_icon(info,DSR_ICON_TOUCH,12,110,24,DSR_SC_GLOW);
+     dsr_sc_text(info,dsr_board_touch_available()?"Touch controller: responding":"Touch controller: NOT responding",46,110,238,&dsr_roboto_14,dsr_board_touch_available()?0x72dfb0:0xffb466);
+     lv_obj_t *actions=dsr_sc_panel(root,12,244,296,122,DSR_SC_BG,0);
+     system_row(actions,"Check touchscreen",0,56,DSR_ICON_TOUCH,touch_test);
+     system_row(actions,"Check display colors",66,56,DSR_ICON_GRAPHICS,colors);
+     lv_obj_t *board=dsr_sc_panel(root,12,376,296,42,DSR_SC_CARD,10);
+     lv_obj_set_style_border_color(board,dsr_sc_color(DSR_SC_GLOW),0);
+     dsr_sc_icon(board,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);
+     dsr_sc_text(board,"ES3C35P / 320 x 480",46,11,236,&dsr_roboto_16,DSR_SC_TEXT);
+     return;
+    }
     dsr_ui_label(root, "Hardware test", 16, 100, 288);
     dsr_ui_label(root, "Display and touch test tools.\nCheck colors, corners and wake.", 16, 137, 288);
     lv_obj_t *status = dsr_ui_label(root, dsr_board_touch_available() ? "Touch controller: responding" : "Touch controller: NOT responding", 16, 200, 288);

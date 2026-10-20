@@ -54,7 +54,7 @@ static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
  char value[48];snprintf(value,sizeof(value),"%u",d->channel);cyber_overview_row(panel,DSR_ICON_GIT_BRANCH,"Kanał",value,152+shift,23,false);
  if(d->physical_generation)snprintf(value,sizeof(value),"Gen %u",d->physical_generation);else snprintf(value,sizeof(value),"%s",d->identity[0]?(d->generation==DSR_GEN1?"Gen1":d->generation==DSR_GEN2_PLUS?"Gen2+":"—"):"—");
  cyber_overview_row(panel,DSR_ICON_INFO,"Zapisane ID",value,176+shift,23,false);
- lv_obj_t *b=dsr_sc_button(panel,8,209+shift,288,43,DSR_SC_BLUE,8,open_device_settings,NULL);dsr_ui_cyber_panel(b,true);dsr_sc_icon(b,DSR_ICON_SETTINGS,10,8,24,DSR_SC_TEXT);cyber_text(b,"Otwórz ustawienia Shelly",42,12,210,21,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_icon(b,DSR_ICON_NEXT,258,9,24,DSR_SC_TEXT);
+ lv_obj_t *b=dsr_sc_button(panel,8,209+shift,288,43,DSR_SC_BLUE,8,open_device_settings,NULL);dsr_ui_cyber_panel(b,true);dsr_sc_icon(b,DSR_ICON_SETTINGS,10,8,24,dsr_sc_icon_accent());cyber_text(b,"Otwórz ustawienia Shelly",42,12,210,21,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_icon(b,DSR_ICON_NEXT,258,9,24,dsr_sc_icon_accent());
  if(!actions.device_settings||model.demo||!d->id||d->generation!=DSR_GEN2_PLUS||unbound(d))lv_obj_add_state(b,LV_STATE_DISABLED);
  lv_obj_t *update=dsr_sc_button(root,8,354,148,48,DSR_SC_CARD,10,refresh,NULL);dsr_sc_icon(update,DSR_ICON_REFRESH,10,11,24,DSR_SC_GLOW);cyber_text(update,"Odśwież status",36,16,108,20,&dsr_roboto_14,DSR_SC_TEXT);
  if(!d->can_refresh||!actions.refresh||d->busy)lv_obj_add_state(update,LV_STATE_DISABLED);

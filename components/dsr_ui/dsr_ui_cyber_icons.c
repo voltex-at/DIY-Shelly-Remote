@@ -89,6 +89,11 @@ const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
  case DSR_ICON_RESTART:return &shudx_restart_24;
  case DSR_ICON_ONLINE:return &shudx_online_24;
  case DSR_ICON_OFFLINE:return &shudx_offline_24;
+ case DSR_ICON_TOUCH:return size>=29?&shudx_touch_32:&shudx_touch_24;
+ case DSR_ICON_USB:return size>=29?&shudx_usb_32:&shudx_usb_24;
+ case DSR_ICON_DOCUMENT:return size>=29?&shudx_document_32:&shudx_document_24;
+ case DSR_ICON_COVER_OPEN:return size>=48?&shudx_arrow_up_48:size>=29?&shudx_arrow_up_32:&shudx_arrow_up_24;
+ case DSR_ICON_COVER_CLOSE:return size>=48?&shudx_arrow_down_48:size>=29?&shudx_arrow_down_32:&shudx_arrow_down_24;
  default:return NULL;
  }
 }

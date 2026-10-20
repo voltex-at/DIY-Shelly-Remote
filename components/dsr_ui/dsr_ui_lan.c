@@ -86,7 +86,7 @@ static void line(lv_obj_t *card,const char *text,int y,const lv_font_t *font,uin
  * (name set in Shelly, SKU and line, address, MAC, channels, password). */
 static void identity(lv_obj_t *root)
 {
-    lv_obj_t *card=dsr_sc_panel(root,12,88,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,DSR_SC_TEXT);
+    lv_obj_t *card=dsr_sc_panel(root,12,88,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,dsr_sc_icon_accent());
     char text[96];
     const char *friendly=dsr_device_model_name(selected.id);
     snprintf(text,sizeof(text),"%s",selected.name[0]?selected.name:friendly?friendly:selected.id);line(card,text,6,&dsr_roboto_16,DSR_SC_TEXT);
