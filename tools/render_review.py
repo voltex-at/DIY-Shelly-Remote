@@ -62,7 +62,10 @@ for path in sorted(onboarding.glob('*.ppm')):
     # their compact header. Baseline-only heap comparison frames are separate.
     if path.name.startswith('native-baseline-blu-'):continue
     prefix=path.stem.removeprefix('native-').split('-')[0]
-    if int(prefix)<30:continue
+    if prefix.isdecimal():
+        if int(prefix)<30:continue
+    elif not path.stem.startswith('native-recovered-'):
+        continue
     _,size,_,rgb=path.read_bytes().split(b'\n',3)
     assert size==b'320 480'
     png(out / (path.stem+'.png'),320,480,rgb)
