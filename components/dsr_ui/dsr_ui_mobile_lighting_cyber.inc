@@ -32,7 +32,7 @@ static void cyber_light_details(lv_obj_t *root)
  center(dsr_sc_text(panel,"Jasność",72,125,152,&dsr_roboto_14,DSR_SC_MUTED));
  for(unsigned i=0;i<2;i++){
   lv_obj_t *b=dsr_sc_button(panel,i?238:12,81,44,44,DSR_SC_PANEL,LV_RADIUS_CIRCLE,cyber_light_step,(void *)(uintptr_t)i);
-  center(dsr_sc_text(b,i?"+":"−",0,8,42,&dsr_roboto_22,DSR_SC_TEXT));if(!light_enabled(d))lv_obj_add_state(b,LV_STATE_DISABLED);
+  center(dsr_sc_text(b,i?"+":"-",0,8,42,&dsr_roboto_22,DSR_SC_TEXT));if(!light_enabled(d))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
  light_preview_label=dsr_sc_text(panel,"",8,151,280,&dsr_roboto_12,DSR_SC_GLOW);center(light_preview_label);
  light_slider=lv_slider_create(panel);lv_obj_set_pos(light_slider,26,179);lv_obj_set_size(light_slider,244,16);

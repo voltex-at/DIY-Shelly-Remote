@@ -84,6 +84,7 @@ static void lighting_routes(void)
  lv_obj_t *slider=find_type(lv_screen_active(),&lv_slider_class);CHECK(slider);lv_area_t box;lv_obj_get_coords(slider,&box);int y=(box.y1+box.y2)/2;
  touch=(lv_point_t){100,y};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);touch.x=210;lv_tick_inc(20);lv_indev_read(pointer);CHECK(!level_writes);snap("dimmer-preview");pressed=false;lv_tick_inc(20);lv_indev_read(pointer);CHECK(level_writes==1);
  press("+");CHECK(level_writes==2&&last_level==80&&find_label(lv_screen_active(),"75%"));
+ press("-");CHECK(level_writes==3&&last_level==70&&find_label(lv_screen_active(),"75%"));
  d->online=false;dsr_mobile_update(&m);route("dimmer-offline");CHECK(lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));
  d->online=true;d->endpoint_kind=DSR_ENDPOINT_RGB;d->kind=DSR_DEVICE_RGB;d->can_rgb=true;d->rgb=(dsr_rgb_status_t){.r=0,.g=180,.b=255,.brightness=78,.flags=DSR_RGB_VALID};strcpy(d->name,"Shelly RGB");
  for(unsigned lang=0;lang<3;lang++){
