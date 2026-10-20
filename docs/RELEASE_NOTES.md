@@ -1,3 +1,13 @@
+0.7.65-dev: turkusowe ikony, nowe karty systemowe i czytelniejsze sterowanie Cyber Blue HUD.
+
+- Spójne turkusowe ikony w nagłówkach, nawigacji, akcjach i kafelkach. Dashboard ma symbol czterech kafelków, a zakładka zasobów — procesor. Zachowano odrębne kolory ostrzeżeń i brakujących danych.
+- Testy sprzętu: większe napisy, osobne ramki informacji i stanu kontrolera dotyku, ikony oraz wyraźne przyciski testu dotyku i kolorów. Menu System ma spójne ramki z ikonami firmware, diagnostyki, testów, scen i restartu.
+- Bateria i zasilanie: zwarta pierwsza karta z napięciem, opisem i wiekiem odczytu; osobna ramka ostrzeżenia o niewiarygodnych danych ładowania/ogniwa/procentu; czytelne wiersze RAM, PSRAM, grafiki, stosu i BLE. Wstecz znajduje się po lewej, Zmierz napięcie po prawej.
+- Diagnostyka konfiguracji: osobne ramki SPIFFS, pamięci, HTTPS, USB, adresów danych i ostrzeżenia. Wyświetlane wartości pochodzą z rzeczywistego stanu; ekran pozostaje tylko do odczytu. Długie opisy PL/EN/DE zawijają się, a Wstecz pozostaje dostępne.
+- Termostat: usunięto górną ramkę Nastawa, status Online/Offline z ikoną jest bez dodatkowego obramowania. Przyciski sterowania na Dashboardzie są wyśrodkowane pionowo; roleta ma czytelniejsze strzałki i podpisy akcji. Długie nagłówki dopasowują rozmiar czcionki.
+- Weryfikacja interfejsu: 2471 kontroli na 75 ekranach PL/EN/DE, pełna regresja natywna z UBSan, kompilacja ES3C35P oraz atlas wszystkich 524 różnych widoków/stanów z 641 klatek (44 strony PDF). Testy obejmują rzeczywiste zakończenia pomiaru baterii, akcje sprzętowe i stany diagnostyki. Cykle otwierania ekranów nie wykazały narastania użycia puli LVGL; pula 128 KiB w PSRAM i stos UI 8192 B pozostają bez zmian. Numer wydania przechodzi osobne CI 5/5 i podpisany build.
+- Odbiór fizyczny nowych poprawek na ES3C35P pozostaje do wykonania. Aktualizuj przez kanał Dev OTA lub UPDATE-APP-ONLY, aby zachować dane. FACTORY-CLEAN-16MB usuwa dane. To wydanie Dev; Stable nie jest publikowane.
+
 0.7.64-dev: realistyczna roleta, czytelne ikony i zwarty Cyber Blue HUD.
 
 - Roleta ma pełną ramę, kasetę, prowadnice i nieruchomy widok ogrodu odsłaniany przez ruchome lamele. 0% oznacza zamknięcie, 100% otwarcie. Podczas przeciągania pancerz natychmiast podąża za palcem; bursztynowy Podgląd i biały znacznik odróżniają cel od potwierdzonej pozycji. Puszczenie wysyła jedno polecenie. Utrata połączenia, zmiana urządzenia lub wyjście poza pole anuluje gest. Potwierdzone odczyty ruchu są wygładzane przez 300 ms.
