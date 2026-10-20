@@ -1,5 +1,21 @@
 # Development
 
+## 0.7.64-dev — Cyber Blue quality pass
+
+Publikacja na żądanie właściciela z `work/cyber-blue-quality-pass`, obejmująca
+zatwierdzone poprawki z PR #70. `DEV_REQUEST`,
+`.github/dev-release-0.7.64.json` i `release.yml` wskazują dokładnie tę gałąź,
+tag `dev-v0.7.64` oraz wersję `0.7.64-dev`. Tag powstaje po CI 5/5 dla commita
+wydania. Podpis, odczyt kontrolny plików i kontrola katalogu OTA korzystają
+z dotychczasowego procesu publikacji.
+
+Zakres i odtwarzanie pełnego atlasu 468 widoków/stanów:
+[cyber-blue/QUALITY_PASS.md](cyber-blue/QUALITY_PASS.md).
+Przed wydaniem kod UI `9299af42df334e39de73c3ed827a29925395a16d` przeszedł
+CI 5/5. Commit wydania otrzymuje własny pełny przebieg. Odbiór płynności
+fizycznego dotyku, ruchu podłączonej rolety i instalacji OTA pozostaje etapem
+sprzętowym. Dane i partycje są zgodne z wcześniejszym wydaniem.
+
 ## 0.7.63-dev — pełny Cyber Blue i kompletny atlas
 
 Wydanie na żądanie właściciela z `work/cyber-blue-complete`.

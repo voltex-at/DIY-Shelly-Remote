@@ -1,3 +1,14 @@
+0.7.64-dev: realistyczna roleta, czytelne ikony i zwarty Cyber Blue HUD.
+
+- Roleta ma pełną ramę, kasetę, prowadnice i nieruchomy widok ogrodu odsłaniany przez ruchome lamele. 0% oznacza zamknięcie, 100% otwarcie. Podczas przeciągania pancerz natychmiast podąża za palcem; bursztynowy Podgląd i biały znacznik odróżniają cel od potwierdzonej pozycji. Puszczenie wysyła jedno polecenie. Utrata połączenia, zmiana urządzenia lub wyjście poza pole anuluje gest. Potwierdzone odczyty ruchu są wygładzane przez 300 ms.
+- Okno otwarte pokazuje oba skrzydła rozwarte poza ramę, zamknięte — dwa frontowe skrzydła. Drzwi mają wyraźne skrzydło, ościeżnicę i klamkę. Kontury kontaktów są cyjanowe; otwarcie nadal wyróżnia bursztynowy status, a brak danych ma oddzielną neutralną ikonę.
+- Bateria i zasilanie: pierwsza karta ma 130 zamiast 182 px; napięcie, ikona, opis, stan i wiek odczytu są bliżej siebie. Niepewność ładowania, ogniwa i procentu pozostaje jawna. Pamięć i radio mają pięć osobnych wierszy z ikonami.
+- Sterowanie przekaźnikiem, oświetleniem/RGB, roletą, H&T i TRV rozdziela połączenie i stan urządzenia na ramki statusów. Online/Offline mają dedykowane ikony, a blokada oświetlenia czytelny komunikat PL/EN/DE. Usunięto nagłówek Główne sterowanie z Cyber Blue. Akcje, odświeżanie oraz W/V/A są osobnymi modułami.
+- Dodano spójne ikony napięcia, prądu, mocy, PSRAM, grafiki, firmware, testów sprzętu, diagnostyki, restartu i połączenia oraz uzupełniono podstrony i listy. Zachowano identyfikatory pozostałych skórek i zapisanych ikon.
+- Pełny atlas produkcyjnego LVGL obejmuje 468 różnych widoków/stanów z 565 klatek, w tym formularze, błędy, przewinięcia i warianty językowe. CI publikuje planszę PNG, 39-stronicowy PDF, wyszukiwalny HTML i komplet PNG w ZIP w artefakcie real-lvgl-ui-review-NOT-FIRMWARE. Opis, źródła grafiki i odtwarzanie: [cyber-blue/QUALITY_PASS.md](cyber-blue/QUALITY_PASS.md).
+- Testy obejmują rzeczywiste zdarzenia pointera, stałość odsłoniętego ogrodu, kierunek pancerza, brak zapisów podczas gestu, anulowanie i odczyt w trakcie przeciągania oraz 100 cykli usuwania animowanego ekranu bez ubytku pamięci hosta. Wydanie przechodzi CI 5/5, audyty ELF, kontrolę pakietów i podpis istniejącym kluczem. Renderowane dane są fixture'ami; fizyczny LCD, dotyk, podłączona roleta i OTA pozostają do odbioru na ES3C35P.
+- Aktualizacja przez kanał Dev OTA lub UPDATE-APP-ONLY zachowuje dane. FACTORY-CLEAN-16MB służy do czystej instalacji i usuwa dane. Format konfiguracji, transport, partycje i zaufanie OTA pozostają zgodne z poprzednią wersją.
+
 0.7.63-dev: pełny Cyber Blue i atlas 434 ekranów i stanów.
 
 - Cyber Blue: wspólny układ wszystkich 13 wykrytych grup ustawień Shelly, list pól, edytorów i potwierdzeń. Dostępne pola nadal wynikają z odpowiedzi urządzenia; wartości poufne pozostają ukryte. RGB i RGBW mają osobne nazwy.
