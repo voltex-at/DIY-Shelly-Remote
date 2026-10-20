@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument('--screens', type=Path, default=ROOT/'build-ui/ubsan/screenshots')
 p.add_argument('--out', type=Path, default=ROOT/'build-ui/cyber-atlas')
+p.add_argument('--base-ref', default='8a8dffdc7961cd60456a892eb90085ee52a0cfdb', help='Source base for this quality pass')
 a = p.parse_args()
 a.out.mkdir(parents=True, exist_ok=True)
 frames = a.out/'frames'
@@ -110,7 +111,7 @@ for r in records:
 page='''<!doctype html><html lang="pl"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Cyber Blue - wszystkie ekrany</title><style>body{background:#071323;color:#f2f7ff;font:15px system-ui;margin:24px}h1{color:#00e5ff}header{position:sticky;top:0;background:#071323ee;padding:12px;z-index:1}input{padding:12px;width:min(90%,600px);background:#132c48;border:1px solid #00cfff;color:white;border-radius:8px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px}figure{margin:0;max-width:320px}figcaption{height:3em;overflow-wrap:anywhere;font-size:12px}img{display:block}small{color:#a9c2dc}</style><header><h1>Cyber Blue Premium - wszystkie ekrany</h1><p>COUNT rzeczywistych klatek LVGL 9.3.0, 320 × 480. Dane testowe hosta; bez testu na ESP32.</p><input id="filter" placeholder="Szukaj ekranu, np. BLE, roleta, keyboard, pl..."><span id="count"></span></header><main>CARDS</main><script>const f=document.querySelector('#filter'),all=[...document.querySelectorAll('figure')];function update(){let n=0;for(const x of all){x.hidden=!x.dataset.search.includes(f.value.toLowerCase());if(!x.hidden)n++}document.querySelector('#count').textContent=' '+n+' / '+all.length}f.addEventListener('input',update);update()</script></html>'''.replace('COUNT',str(len(records))).replace('CARDS','\n'.join(cards))
 (a.out/'index.html').write_text(page)
 manifest={'renderer':'production LVGL 9.3.0 software draw, RGB565; untouched pixels',
- 'base_sha':'e201332d8d0b5a96f4cdb70ceb96b20d26f247ad',
+ 'base_sha':a.base_ref,
  'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
  'source_dirty':bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=ROOT,text=True)),
  'ui_tree_sha':subprocess.check_output(['git','rev-parse','HEAD:components/dsr_ui'],cwd=ROOT,text=True).strip(),

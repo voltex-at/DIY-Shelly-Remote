@@ -1,5 +1,14 @@
 # Supplementary Cyber Blue icons
 
+The current quality pass adds voltage, current, wattage, PSRAM, graphics,
+firmware, hardware, diagnostics, restart, online and offline roles. These
+eleven 24 px A8 masks add 6336 Flash bytes. The complete supplementary set now
+has 31 SVG sources and 65 retained A8 masks / 75776 bytes; the original imported
+pack remains unchanged. New roles are appended after existing enum IDs.
+Window/door states use the dedicated `assets/cyber-blu-icons` sources.
+
+The historical description below records the initial seventeen-icon import.
+
 Seventeen editable outline SVGs interpreted from the supplied missing-icon
 reference sheets. They follow the existing pack's 24-unit view box, 1.9-unit
 rounded stroke, transparent interior and cyan color. These supplemental

@@ -78,27 +78,29 @@ static void show(void)
  if(hud){
   lv_obj_t *body=dsr_sc_panel(root,12,86,296,322,DSR_SC_BG,0);
   lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
-  lv_obj_t *power=dsr_sc_panel(body,0,0,296,182,DSR_SC_CARD,12);
-  dsr_sc_text(power,"Napięcie wejścia BAT",12,10,272,&dsr_roboto_14,DSR_SC_MUTED);
-  dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,14,34,48,DSR_SC_BLUE);
-  value=dsr_sc_text(power,"— V",76,39,208,&dsr_roboto_28,DSR_SC_BLUE);
-  status=dsr_sc_text(power,"Pomiar na żądanie",12,80,272,&dsr_roboto_14,DSR_SC_TEXT);
-  age=dsr_sc_text(power,"Brak pomiaru",12,132,272,&dsr_roboto_12,DSR_SC_MUTED);
-  dsr_sc_text(power,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",12,150,272,&dsr_roboto_12,0xffc107);
-  lv_obj_t *card=dsr_sc_panel(body,0,192,296,258,DSR_SC_CARD,12);
-  dsr_sc_text(card,"Pamięć i radio",12,10,236,&dsr_roboto_16,DSR_SC_TEXT);
-  dsr_sc_icon(card,DSR_ICON_MEMORY,254,8,24,DSR_SC_BLUE);
+  lv_obj_t *power=dsr_sc_panel(body,0,0,296,130,DSR_SC_CARD,12);
+  dsr_sc_text(power,"Napięcie wejścia BAT",12,8,272,&dsr_roboto_14,DSR_SC_MUTED);
+  dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,12,30,40,DSR_SC_GLOW);
+  value=dsr_sc_text(power,"— V",62,32,224,&dsr_roboto_28,DSR_SC_TEXT);
+  status=dsr_sc_text(power,"Pomiar na żądanie",12,71,272,&dsr_roboto_12,DSR_SC_TEXT);
+  dsr_sc_icon(power,DSR_ICON_CLOCK,12,106,16,DSR_SC_MUTED);
+  age=dsr_sc_text(power,"Brak pomiaru",35,106,249,&dsr_roboto_12,DSR_SC_MUTED);
+  lv_obj_t *note=dsr_sc_panel(body,0,138,296,56,DSR_SC_PANEL,8);
+  dsr_sc_icon(note,DSR_ICON_WARNING,10,15,24,0xffc107);
+  dsr_sc_text(note,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",42,8,242,&dsr_roboto_12,0xffc107);
+  lv_obj_t *card=dsr_sc_panel(body,0,202,296,230,DSR_SC_CARD,12);
+  dsr_sc_icon(card,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);dsr_sc_text(card,"Pamięć i radio",44,11,240,&dsr_roboto_16,DSR_SC_TEXT);
   const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
+  const dsr_ui_icon_t icons[]={DSR_ICON_MEMORY,DSR_ICON_PSRAM,DSR_ICON_GRAPHICS,DSR_ICON_SCENES,DSR_ICON_BLUETOOTH};
   for(unsigned i=0;i<5;i++){
-   int y=42+(int)i*34;
-   dsr_sc_text(card,names[i],12,y,134,&dsr_roboto_14,DSR_SC_MUTED);
-   memory_values[i]=dsr_sc_text(card,"—",150,y-1,134,&dsr_roboto_16,DSR_SC_TEXT);
-   lv_obj_set_style_text_align(memory_values[i],LV_TEXT_ALIGN_RIGHT,0);
-   dsr_sc_panel(card,12,y+25,272,1,DSR_SC_EDGE,0);
+   int y=42+(int)i*29;
+   dsr_sc_icon(card,icons[i],12,y,20,DSR_SC_GLOW);dsr_sc_text(card,names[i],42,y+2,108,&dsr_roboto_14,DSR_SC_MUTED);
+   memory_values[i]=dsr_sc_text(card,"—",156,y+1,128,&dsr_roboto_16,DSR_SC_TEXT);
+   lv_obj_set_style_text_align(memory_values[i],LV_TEXT_ALIGN_RIGHT,0);dsr_sc_panel(card,12,y+24,272,1,DSR_SC_EDGE,0);
   }
-  memory_detail=dsr_sc_text(card,"",12,218,272,&dsr_roboto_12,DSR_SC_MUTED);
-  dsr_ui_button(root,"Wstecz",12,420,140,back,NULL);
-  measure=dsr_ui_button(root,"Zmierz napięcie",168,420,140,request,NULL);
+  memory_detail=dsr_sc_text(card,"",12,194,272,&dsr_roboto_12,DSR_SC_MUTED);
+  measure=dsr_ui_button(root,"Zmierz napięcie",12,420,180,request,NULL);
+  dsr_ui_button(root,"Wstecz",200,420,108,back,NULL);
   diag_at=lv_tick_get()-1000;if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);dsr_ui_battery_tick();return;
  }
  dsr_sc_text(root,"Napięcie wejścia BAT",hud?26:14,hud?98:90,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);

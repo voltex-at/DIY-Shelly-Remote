@@ -733,3 +733,15 @@ void dsr_sc_gradient_arc(lv_obj_t *parent,int cx,int cy,int r,int width,int star
   lv_obj_set_style_bg_opa(seg,LV_OPA_TRANSP,LV_PART_KNOB);lv_obj_set_style_pad_all(seg,0,LV_PART_KNOB);
  }
 }
+
+/* Shared compact status/measurement modules. No click handler or hidden state. */
+lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int x,int y,int width,uint32_t color)
+{
+ lv_obj_t *badge=dsr_sc_panel(parent,x,y,width,28,DSR_SC_PANEL,7);
+ uint32_t contour=color==DSR_SC_TEXT?DSR_SC_GLOW:color;
+ lv_obj_set_style_border_color(badge,dsr_sc_color(contour),0);lv_obj_set_style_border_width(badge,1,0);
+ dsr_sc_icon(badge,icon,6,4,20,contour);
+ lv_obj_t *label=dsr_sc_text(badge,text,31,6,width-37,&dsr_roboto_12,color);
+ lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+ return badge;
+}

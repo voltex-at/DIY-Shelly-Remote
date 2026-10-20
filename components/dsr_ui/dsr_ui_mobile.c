@@ -34,6 +34,8 @@ static bool info_open,cover_drag;
 static uint8_t cover_preview_position;
 static uint32_t cover_drag_id;
 static lv_obj_t *cover_preview_label;
+static lv_obj_t *cover_position_label;
+static dsr_cyber_shutter_t *cover_visual;
 #ifdef ESP_PLATFORM
 EXT_RAM_BSS_ATTR
 #endif
@@ -85,7 +87,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){repaint_pending=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){repaint_pending=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
@@ -444,25 +446,28 @@ static void cover_drag_event(lv_event_t *event)
  lv_event_code_t code=lv_event_get_code(event);lv_obj_t *rail=lv_event_get_target(event);
  if(selected>=model.device_count)return;
  dsr_mobile_device_t *d=&model.devices[selected];
- if(code==LV_EVENT_PRESS_LOST){cover_drag=false;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");return;}
+ if(code==LV_EVENT_PRESS_LOST){cover_drag=false;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");if(cover_visual)dsr_ui_cyber_cover_restore(cover_visual,(int)lround(d->position_pct));return;}
  if(!position_enabled(d)){cover_drag=false;return;}
  lv_indev_t *input=lv_indev_active();if(!input)return;lv_point_t point;lv_indev_get_point(input,&point);lv_area_t area;lv_obj_get_coords(rail,&area);
  bool inside=point.x>=area.x1&&point.x<=area.x2&&point.y>=area.y1&&point.y<=area.y2;
  if(code==LV_EVENT_PRESSED){if(!inside)return;cover_drag=true;cover_drag_id=d->id;}
  if(!cover_drag||cover_drag_id!=d->id)return;
  int value;
- if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_area_t well;lv_obj_t *inner=lv_obj_get_child(rail,0);lv_obj_get_coords(inner,&well);value=(int)lround((well.y2-3-point.y)*100.0/(lv_area_get_height(&well)-6));}
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)value=dsr_ui_cyber_cover_target(cover_visual,point.y);
  else value=(int)lround((area.y1+138-point.y)*100.0/130.0);
  if(value<0)value=0;
  if(value>100)value=100;
  cover_preview_position=(uint8_t)value;
+ if(cover_visual)dsr_ui_cyber_cover_preview(cover_visual,value,(int)lround(d->position_pct));
  if(cover_preview_label){char text[48];snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Podgląd"),cover_preview_position);lv_label_set_text(cover_preview_label,text);}
- if(code==LV_EVENT_RELEASED){cover_drag=false;uint8_t target=cover_preview_position;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");if(inside&&actions.set_position)actions.set_position(selected,target);}
+ if(code==LV_EVENT_RELEASED){cover_drag=false;uint8_t target=cover_preview_position;if(cover_preview_label)lv_label_set_text(cover_preview_label,"");if(cover_visual)dsr_ui_cyber_cover_restore(cover_visual,(int)lround(d->position_pct));if(inside&&actions.set_position)actions.set_position(selected,target);}
 }
+#include "dsr_ui_mobile_cover_cyber.inc"
 static void cover_details(lv_obj_t *root)
 {
  dsr_mobile_device_t *d=&model.devices[selected];bool known=cover_position(d),readable=d->online&&d->error==DSR_OK;
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
+ if(hud){cyber_cover_details(root,d);return;}
  lv_obj_t *row=dsr_sc_panel(root,12,99,296,26,DSR_SC_BG,0);lv_obj_set_style_bg_opa(row,LV_OPA_TRANSP,0);
  lv_obj_add_flag(row,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(row,LV_DIR_HOR);
  lv_obj_remove_flag(row,LV_OBJ_FLAG_SCROLL_CHAIN_HOR|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
@@ -607,22 +612,21 @@ static void ht_details(lv_obj_t *root)
  const dsr_mobile_device_t *d=&model.devices[selected];char text[80];
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
   bool fresh=d->online&&d->error==DSR_OK;
-  lv_obj_t *status=dsr_sc_panel(root,12,92,296,60,DSR_SC_CARD,10);
-  dsr_sc_icon(status,DSR_ICON_SIGNAL,12,16,28,fresh?DSR_SC_GLOW:DSR_SC_OFF);
-  dsr_sc_text(status,d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):fresh?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie",50,12,234,&dsr_roboto_14,fresh?DSR_SC_TEXT:DSR_SC_MUTED);
+  dsr_sc_badge(root,fresh?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,fresh?"Online":"Offline",12,94,104,fresh?DSR_SC_GLOW:0xffc65b);
+  dsr_sc_badge(root,DSR_ICON_CONTACT,d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):fresh?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie",124,94,184,fresh?DSR_SC_TEXT:0xffc65b);
   const dsr_ui_icon_t icons[]={DSR_ICON_THERMOSTAT,DSR_ICON_ILLUMINANCE};const char *names[]={"Temperatura","Wilgotność"};
   for(unsigned i=0;i<2;i++){
-   lv_obj_t *card=dsr_sc_panel(root,12+(int)i*152,154,144,102,DSR_SC_CARD,10);dsr_sc_icon(card,icons[i],12,10,28,DSR_SC_GLOW);
+   lv_obj_t *card=dsr_sc_panel(root,12+(int)i*152,128,144,102,DSR_SC_CARD,10);dsr_sc_icon(card,icons[i],12,10,28,DSR_SC_GLOW);
    dsr_sc_text(card,names[i],10,45,124,&dsr_roboto_14,DSR_SC_MUTED);
    if(fresh&&(i?d->has_humidity:d->has_temperature))snprintf(text,sizeof(text),i?"%.1f%%":"%.1f °C",i?d->humidity_pct:d->temperature_c);else snprintf(text,sizeof(text),i?"— %%":"— °C");
    dsr_sc_text(card,dsr_sc_user(text),10,69,124,&dsr_roboto_22,DSR_SC_TEXT);
   }
-  lv_obj_t *battery=dsr_sc_panel(root,12,264,296,60,DSR_SC_CARD,10);dsr_sc_icon(battery,DSR_ICON_BATTERY,12,18,28,DSR_SC_GLOW);
+  lv_obj_t *battery=dsr_sc_panel(root,12,238,296,60,DSR_SC_CARD,10);dsr_sc_icon(battery,DSR_ICON_BATTERY,12,18,28,DSR_SC_GLOW);
   if(fresh&&d->has_battery)snprintf(text,sizeof(text),"%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);else snprintf(text,sizeof(text),"%s —",dsr_sc_tr("Bateria"));
   dsr_sc_text(battery,dsr_sc_user(text),52,10,232,&dsr_roboto_18,DSR_SC_TEXT);
   dsr_sc_text(battery,!fresh||!(d->ht.flags&DSR_HT_EXTERNAL_KNOWN)?"Zasilanie zewnętrzne: nieznane":d->ht.flags&DSR_HT_EXTERNAL_PRESENT?"Zasilanie zewnętrzne: tak":"Zasilanie zewnętrzne: nie",52,37,232,&dsr_roboto_12,DSR_SC_MUTED);
-  lv_obj_t *read=dsr_sc_button(root,12,332,296,48,DSR_SC_BLUE,10,refresh,NULL);dsr_sc_icon(read,DSR_ICON_REFRESH,12,12,24,DSR_SC_TEXT);center(dsr_sc_text(read,"Odśwież status",46,15,240,&dsr_roboto_16,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
-  lv_obj_t *note=dsr_sc_panel(root,12,382,296,44,DSR_SC_BG,0);lv_obj_add_flag(note,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(note,LV_DIR_VER);dsr_sc_scrollbar(note);
+  lv_obj_t *read=dsr_sc_button(root,12,306,296,48,DSR_SC_BLUE,10,refresh,NULL);dsr_sc_icon(read,DSR_ICON_REFRESH,12,12,24,DSR_SC_TEXT);center(dsr_sc_text(read,"Odśwież status",46,15,240,&dsr_roboto_16,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
+  lv_obj_t *note=dsr_sc_panel(root,12,356,296,70,DSR_SC_BG,0);lv_obj_add_flag(note,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(note,LV_DIR_VER);dsr_sc_scrollbar(note);
   dsr_sc_text(note,d->ht.errors?"Błędy pomiarów":"Czas pomiaru nieznany. Czujnik usypia także na USB. Wybudź przyciskiem, jeśli nie odpowiada.",4,0,280,&dsr_roboto_12,d->ht.errors?0xffc18c:DSR_SC_MUTED);return;
  }
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,246,DSR_SC_CARD,10);
@@ -803,7 +807,8 @@ static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  content=dsr_sc_panel(root,8,90,304,334,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);
  lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
  lv_obj_t *panel=dsr_sc_panel(content,0,0,304,202,DSR_SC_CARD,12);edge(panel,DSR_SC_BLUE,1);
- dsr_sc_icon(panel,contact?cyber_contact_icon(d):DSR_ICON_CONTACT,112,3,80,state_color);
+ dsr_sc_badge(panel,d->online&&d->error==DSR_OK?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,d->online&&d->error==DSR_OK?"Online":"Offline",8,8,96,d->online&&d->error==DSR_OK?DSR_SC_GLOW:0xffc65b);
+ dsr_sc_icon(panel,contact?cyber_contact_icon(d):DSR_ICON_CONTACT,112,3,80,live?0x00cfff:0x8295ab);
  const char *main_text=!live?"Brak danych":contact?((b->flags&DSR_BLU_HAS_OPEN)?((b->flags&DSR_BLU_OPEN)?"Otwarte":"Zamknięte"):"Brak danych"):(b->flags&DSR_BLU_HAS_MOTION)?((b->flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):NULL;
  if(!main_text){if(d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Brak danych"));main_text=dsr_sc_user(text);}
  lv_obj_t *well=dsr_sc_panel(panel,16,86,272,38,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);edge(well,state_color,1);
@@ -836,7 +841,7 @@ static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  if(panel_height<202)panel_height=202;
  lv_obj_set_height(panel,panel_height);
  int gateway_y=panel_height+8;
- lv_obj_t *gateway=dsr_sc_panel(content,0,gateway_y,304,68,DSR_SC_CARD,10);dsr_sc_icon(gateway,DSR_ICON_ROUTER,10,16,32,DSR_SC_BLUE);dsr_sc_panel(gateway,48,10,1,48,DSR_SC_EDGE,0);
+ lv_obj_t *gateway=dsr_sc_panel(content,0,gateway_y,304,68,DSR_SC_CARD,10);dsr_sc_icon(gateway,d->online&&d->error==DSR_OK?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,10,16,32,DSR_SC_BLUE);dsr_sc_panel(gateway,48,10,1,48,DSR_SC_EDGE,0);
  dsr_sc_text(gateway,"Shelly BLU • przez bramkę",58,5,234,&dsr_roboto_14,DSR_SC_TEXT);
  const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):(b->errors&DSR_BLU_ERROR_MASK)?((b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome"):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
  label=dsr_sc_text(gateway,state,58,25,234,&dsr_roboto_12,d->online&&d->error==DSR_OK&&!(b->errors&DSR_BLU_ERROR_MASK)?0x00cfff:0xffb52e);lv_obj_update_layout(label);
@@ -963,7 +968,7 @@ static void device_settings(lv_obj_t *root)
 static void render(void)
 {
     if(!active)return;
-    trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=NULL;light_drag=false;light_slider=light_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
+    trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_preview_label=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;placed_count=0;lv_obj_clean(root);lv_obj_remove_style_all(root);
     dsr_sc_background(root);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
@@ -1140,7 +1145,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
     if(cover_drag&&selected<model.device_count){
      const dsr_mobile_device_t *old=&model.devices[selected];const dsr_mobile_device_t *next=NULL;
      for(unsigned i=0;i<m->device_count;i++)if(m->devices[i].id==cover_drag_id)next=&m->devices[i];
-     if(next&&position_enabled(next)&&next->generation==old->generation&&next->endpoint_kind==old->endpoint_kind&&next->channel==old->channel&&!strcmp(next->identity,old->identity)&&!strcmp(next->host,old->host)){model=*m;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==cover_drag_id)selected=i;update_sample_age();return;}
+     if(next&&position_enabled(next)&&next->generation==old->generation&&next->endpoint_kind==old->endpoint_kind&&next->channel==old->channel&&!strcmp(next->identity,old->identity)&&!strcmp(next->host,old->host)){model=*m;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==cover_drag_id)selected=i;if(cover_visual){dsr_ui_cyber_cover_preview(cover_visual,cover_preview_position,(int)lround(model.devices[selected].position_pct));cover_confirmed_text(&model.devices[selected]);}update_sample_age();return;}
      cover_drag=false;
     }
     /* Freshness changes update one label, not the entire screen or scroll state. */

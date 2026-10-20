@@ -4,30 +4,30 @@ static void cyber_text(lv_obj_t *parent,const char *text,int x,int y,int width,i
 static void cyber_relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
  bool valid=d->online&&d->error==DSR_OK&&!unbound(d)&&d->has_sample_time;
- lv_obj_t *panel=dsr_sc_panel(root,8,94,304,262,DSR_SC_CARD,12);edge(panel,0x00cfff,1);
- dsr_sc_text(panel,"Główne sterowanie",14,7,270,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_panel(panel,12,33,280,1,DSR_SC_EDGE,0);
- const char *status=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":!valid?"Brak potwierdzonego odczytu":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
- lv_obj_t *s=dsr_sc_text(panel,status,10,39,282,&dsr_roboto_16,valid?DSR_SC_GLOW:0xffbf24);center(s);truncate(s,20);
- lv_obj_t *power=dsr_sc_panel(panel,12,65,280,63,DSR_SC_PANEL,8);edge(power,0x00cfff,1);
+ bool online=d->online&&d->error==DSR_OK&&!unbound(d);
+ dsr_sc_badge(root,online?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,online?"Online":"Offline",8,94,106,online?DSR_SC_GLOW:0xffc65b);
+ const char *status=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak aktualnego odczytu":!valid?"Brak potwierdzonego odczytu":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone":"Wyłączone";
+ dsr_sc_badge(root,valid?DSR_ICON_POWER:DSR_ICON_WARNING,status,122,94,190,valid?DSR_SC_TEXT:0xffc65b);
+ lv_obj_t *panel=dsr_sc_panel(root,8,130,304,206,DSR_SC_CARD,12);edge(panel,0x00cfff,1);
+ lv_obj_t *power=dsr_sc_panel(panel,8,8,288,80,DSR_SC_PANEL,8);edge(power,0x00cfff,1);
+ dsr_sc_icon(power,DSR_ICON_WATTAGE,12,9,24,DSR_SC_GLOW);
+ dsr_sc_text(power,"Moc chwilowa",44,12,230,&dsr_roboto_14,DSR_SC_MUTED);
  char text[40];if(valid&&d->has_power&&isfinite(d->power_w))snprintf(text,sizeof(text),"%.1f W",d->power_w);else snprintf(text,sizeof(text),"— W");
- center(dsr_sc_text(power,text,4,5,270,&dsr_roboto_28,DSR_SC_TEXT));
- center(dsr_sc_text(power,"Moc chwilowa",4,39,270,&dsr_roboto_14,DSR_SC_MUTED));
+ center(dsr_sc_text(power,text,8,37,270,&dsr_roboto_28,DSR_SC_TEXT));
  bool enabled=valid&&!d->busy&&d->can_switch&&(model.demo||actions.set_output);
- dsr_sc_power_button(panel,109,136,86,d->output,enabled,DSR_ICON_POWER,DSR_SC_BLUE,control,(void *)(uintptr_t)selected);
- lv_obj_t *update=dsr_sc_button(panel,209,149,84,64,DSR_SC_PANEL,10,refresh,NULL);edge(update,0x00cfff,1);
- dsr_sc_icon(update,DSR_ICON_REFRESH,28,4,28,DSR_SC_GLOW);
- center(dsr_sc_text(update,"Odśwież stan",2,33,78,&dsr_roboto_12,DSR_SC_TEXT));
+ dsr_sc_power_button(root,117,230,86,d->output,enabled,DSR_ICON_POWER,DSR_SC_BLUE,control,(void *)(uintptr_t)selected);
+ lv_obj_t *update=dsr_sc_button(root,217,243,84,64,DSR_SC_PANEL,10,refresh,NULL);edge(update,0x00cfff,1);
+ dsr_sc_icon(update,DSR_ICON_REFRESH,28,4,28,DSR_SC_GLOW);center(dsr_sc_text(update,"Odśwież stan",2,33,78,&dsr_roboto_12,DSR_SC_TEXT));
  if(!d->can_refresh||d->busy||!actions.refresh)lv_obj_add_state(update,LV_STATE_DISABLED);
- if(valid&&!d->busy)center(dsr_sc_text(panel,d->output?"Wyłącz":"Włącz",8,224,286,&dsr_roboto_14,DSR_SC_GLOW));
- dsr_sc_icon(panel,DSR_ICON_CLOCK,14,245,14,DSR_SC_MUTED);
- sample_age=dsr_sc_text(panel,"",36,245,258,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();
- const char *labels[]={"Napięcie","Natężenie"};
+ if(valid&&!d->busy)center(dsr_sc_text(root,d->output?"Wyłącz":"Włącz",90,318,140,&dsr_roboto_14,DSR_SC_GLOW));
+ lv_obj_t *age=dsr_sc_panel(root,8,342,304,28,DSR_SC_PANEL,7);dsr_sc_icon(age,DSR_ICON_CLOCK,7,5,18,DSR_SC_MUTED);
+ sample_age=dsr_sc_text(age,"",33,7,262,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();
+ const char *labels[]={"Napięcie","Natężenie"};const dsr_ui_icon_t icons[]={DSR_ICON_VOLTAGE,DSR_ICON_CURRENT};
  for(unsigned i=0;i<2;i++){
-  lv_obj_t *card=dsr_sc_panel(root,i?164:8,364,148,58,DSR_SC_CARD,10);edge(card,0x00cfff,1);
-  center(dsr_sc_text(card,labels[i],4,5,138,&dsr_roboto_12,DSR_SC_MUTED));
+  lv_obj_t *card=dsr_sc_panel(root,i?164:8,378,148,44,DSR_SC_CARD,9);edge(card,0x00cfff,1);
+  dsr_sc_icon(card,icons[i],10,4,18,DSR_SC_GLOW);dsr_sc_text(card,labels[i],34,5,108,&dsr_roboto_12,DSR_SC_MUTED);
   if(valid&&(i?d->has_current:d->has_voltage)&&isfinite(i?d->current_a:d->voltage_v))snprintf(text,sizeof(text),i?"%.3f A":"%.1f V",i?d->current_a:d->voltage_v);else snprintf(text,sizeof(text),i?"— A":"— V");
-  center(dsr_sc_text(card,text,4,25,138,&dsr_roboto_22,DSR_SC_TEXT));
+  center(dsr_sc_text(card,text,4,23,138,&dsr_roboto_18,DSR_SC_TEXT));
  }
 }
 static void cyber_overview_row(lv_obj_t *panel,dsr_ui_icon_t icon,const char *label,const char *value,int y,int height,bool wrap)
@@ -49,7 +49,7 @@ static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
  cyber_overview_row(panel,DSR_ICON_TV,"Nazwa urządzenia",d->name[0]?d->name:"—",40+shift,23,false);
  /* Identity, not a constant from the approval fixture. */
  cyber_overview_row(panel,DSR_ICON_CPU,"Model",d->identity[0]?d->identity:d->model[0]?d->model:"—",64+shift,39,true);
- cyber_overview_row(panel,DSR_ICON_SETTINGS,"Wersja firmware",d->fw[0]?d->fw:"—",104+shift,23,false);
+ cyber_overview_row(panel,DSR_ICON_FIRMWARE,"Wersja firmware",d->fw[0]?d->fw:"—",104+shift,23,false);
  cyber_overview_row(panel,DSR_ICON_SIGNAL,"Adres IP",d->host[0]?d->host:"—",128+shift,23,false);
  char value[48];snprintf(value,sizeof(value),"%u",d->channel);cyber_overview_row(panel,DSR_ICON_GIT_BRANCH,"Kanał",value,152+shift,23,false);
  if(d->physical_generation)snprintf(value,sizeof(value),"Gen %u",d->physical_generation);else snprintf(value,sizeof(value),"%s",d->identity[0]?(d->generation==DSR_GEN1?"Gen1":d->generation==DSR_GEN2_PLUS?"Gen2+":"—"):"—");

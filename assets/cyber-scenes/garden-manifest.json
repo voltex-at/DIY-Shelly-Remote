@@ -1,0 +1,11 @@
+{
+  "source": "garden-dusk.png",
+  "source_sha256": "21b4874c7c2beec5e0adad9d368f56dd94a7c62931c07cc7905551ca7d95aebc",
+  "size": [
+    152,
+    128
+  ],
+  "format": "little-endian RGB565, direct Flash image, no decoder/cache copy",
+  "bytes": 38912,
+  "sha256": "12f7afdc26051f9b03a133587009c05e20a59d4bd055caf67b01af58344a682a"
+}

@@ -64,9 +64,12 @@ static void cover_states(unsigned lang)
  dsr_mobile_model_t m=relay();dsr_mobile_device_t *d=&m.devices[0];strcpy(d->name,"SPSH-002PE16EU");d->kind=DSR_DEVICE_COVER;d->endpoint_kind=DSR_ENDPOINT_COVER;d->can_cover=d->can_position=d->can_stop_cover=d->has_position=true;
  for(unsigned i=0;i<3;i++){d->position_pct=i*50;d->cover_state=DSR_COVER_STOPPED;show(&m,DSR_MOBILE_DETAILS);snap(i==0?"cover-closed":i==1?"cover-half":"cover-open",lang);}
  d->position_pct=60;d->cover_state=DSR_COVER_CLOSING;dsr_mobile_update(&m);snap("cover-closing-start",lang);
- unsigned fill[3]={0};for(int y=180;y<312;y++)if(canvas[(y*320+150)*3+2]>90)fill[0]++;
- lv_tick_inc(150);lv_timer_handler();snap("cover-closing-mid",lang);for(int y=180;y<312;y++)if(canvas[(y*320+150)*3+2]>90)fill[1]++;
- lv_tick_inc(200);lv_timer_handler();snap("cover-closing-end",lang);for(int y=180;y<312;y++)if(canvas[(y*320+150)*3+2]>90)fill[2]++;
+ unsigned fill[3]={0};
+ for(unsigned frame=0;frame<3;frame++){
+  if(frame){lv_tick_inc(frame==1?150:200);lv_timer_handler();snap(frame==1?"cover-closing-mid":"cover-closing-end",lang);}
+  /* Locate the bright metal bottom rail, independently of the garden's blue sky. */
+  for(int y=194;y<322;y++){const unsigned char *p=&canvas[(y*320+150)*3];if(p[0]>80&&p[1]>140&&p[2]>160)fill[frame]=(unsigned)y;}
+ }
  CHECK(fill[0]<fill[1]&&fill[1]<fill[2]); /* Curtain descends from the cassette. */
  unsigned before=stops;click("Stop");CHECK(stops==before+1);
  d->position_pct=67;d->cover_state=DSR_COVER_STOPPED;dsr_mobile_update(&m);snap("cover-stopped",lang);

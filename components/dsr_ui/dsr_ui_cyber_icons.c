@@ -78,6 +78,17 @@ const lv_image_dsc_t *dsr_ui_cyber_icon(dsr_ui_icon_t kind,unsigned size)
  case DSR_ICON_ECO:return &shudx_eco_32;
  case DSR_ICON_LOCATION:return &shudx_location_32;
  case DSR_ICON_TRV_VALVE:return &shudx_trv_valve_32;
+ case DSR_ICON_VOLTAGE:return &shudx_voltage_24;
+ case DSR_ICON_CURRENT:return &shudx_current_24;
+ case DSR_ICON_WATTAGE:return &shudx_wattage_24;
+ case DSR_ICON_PSRAM:return &shudx_psram_24;
+ case DSR_ICON_GRAPHICS:return &shudx_graphics_24;
+ case DSR_ICON_FIRMWARE:return &shudx_firmware_24;
+ case DSR_ICON_HARDWARE:return &shudx_hardware_24;
+ case DSR_ICON_DIAGNOSTICS:return &shudx_diagnostics_24;
+ case DSR_ICON_RESTART:return &shudx_restart_24;
+ case DSR_ICON_ONLINE:return &shudx_online_24;
+ case DSR_ICON_OFFLINE:return &shudx_offline_24;
  default:return NULL;
  }
 }

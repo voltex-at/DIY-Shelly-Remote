@@ -61,6 +61,21 @@ lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int wid
     return obj;
 }
 
+static dsr_ui_icon_t section_icon(const char *text)
+{
+ if(!strcmp(text,"Firmware Update")||!strcmp(text,"Aktualizacja firmware")||!strcmp(text,"Wersja firmware"))return DSR_ICON_FIRMWARE;
+ if(!strcmp(text,"Informacje i diagnostyka")||!strcmp(text,"Diagnostyka konfiguracji")||!strcmp(text,"Diagnostyka"))return DSR_ICON_DIAGNOSTICS;
+ if(!strcmp(text,"Hardware tests")||!strcmp(text,"Check touchscreen"))return DSR_ICON_HARDWARE;
+ if(!strcmp(text,"Check display colors")||!strcmp(text,"Ekran"))return DSR_ICON_GRAPHICS;
+ if(!strcmp(text,"Konfiguracja wpisów i scen")||!strcmp(text,"Konfiguracja wpisów")||!strcmp(text,"Sceny")||!strcmp(text,"+ Scena"))return DSR_ICON_SCENES;
+ if(!strcmp(text,"Restart pilota")||!strcmp(text,"Uruchom ponownie"))return DSR_ICON_RESTART;
+ if(!strcmp(text,"Pulpity")||!strcmp(text,"Grupy")||!strcmp(text,"+ Grupa"))return DSR_ICON_GRID;
+ if(!strcmp(text,"Pomieszczenia")||!strcmp(text,"+ Pomieszczenie"))return DSR_ICON_HOME;
+ if(!strcmp(text,"Urządzenia")||!strcmp(text,"+ Urządzenie"))return DSR_ICON_PLUG;
+ if(!strcmp(text,"Ustawienia Shelly")||!strcmp(text,"Użyj nazwy z Shelly"))return DSR_ICON_SETTINGS;
+ if(!strcmp(text,"Odśwież status")||!strcmp(text,"Odczytaj ponownie"))return DSR_ICON_REFRESH;
+ return DSR_ICON_COUNT;
+}
 lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int width,
                         lv_event_cb_t callback, void *context)
 {
@@ -83,7 +98,8 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
      else if(!strcmp(text,"Bluetooth LE • skan i setup"))icon=DSR_ICON_BLUETOOTH;
      else if(!strcmp(text,"Wi-Fi AP • dodaj Shelly"))icon=DSR_ICON_ROUTER;
      else if(!strcmp(text,"Wstecz")||!strcmp(text,"Back"))icon=DSR_ICON_BACK;
-     if(width<220&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
+     if(icon==DSR_ICON_COUNT)icon=section_icon(text);
+     if(width<170&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
      if(icon!=DSR_ICON_COUNT){lv_obj_set_width(caption,width-58);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-8,0);dsr_sc_icon(obj,icon,14,10,28,icon==DSR_ICON_SETTINGS||icon==DSR_ICON_BLUETOOTH||icon==DSR_ICON_ROUTER?DSR_SC_BLUE:DSR_SC_TEXT);}
     }
     return obj;
@@ -133,7 +149,10 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     dsr_sc_header(root,"",false,dsr_wifi_connected(),dsr_ui_home,NULL);
     bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-    lv_obj_t *heading=dsr_sc_text(root,title,12,46,296,hud?&dsr_roboto_22:&dsr_roboto_18,DSR_SC_TEXT);
+    dsr_ui_icon_t icon=!strcmp(title,"System")?DSR_ICON_CPU:!strcmp(title,"Bateria i zasilanie")?DSR_ICON_BATTERY:section_icon(title);
+    bool marked=hud&&icon!=DSR_ICON_COUNT;
+    if(marked)dsr_sc_icon(root,icon,12,47,24,DSR_SC_GLOW);
+    lv_obj_t *heading=dsr_sc_text(root,title,marked?44:12,46,marked?264:296,hud?&dsr_roboto_22:&dsr_roboto_18,DSR_SC_TEXT);
     lv_obj_set_height(heading,hud?27:24);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
     dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
     if(navigation)dsr_sc_navigation(root,3,31,shell_navigation);
@@ -331,6 +350,25 @@ static void restart_screen(lv_event_t *event)
 static void system_info(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Informacje i diagnostyka");dsr_system_info_t info;dsr_system_info_snapshot(&info);
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
+  lv_obj_t *firmware=dsr_sc_panel(body,0,0,296,62,DSR_SC_CARD,8);dsr_sc_icon(firmware,DSR_ICON_FIRMWARE,10,15,32,DSR_SC_GLOW);
+  dsr_sc_text(firmware,esp_app_get_description()->version,52,10,234,&dsr_roboto_16,DSR_SC_TEXT);
+  dsr_sc_text(firmware,dsr_board_hardware_id(),52,35,234,&dsr_roboto_12,DSR_SC_MUTED);
+  lv_obj_t *memory=dsr_sc_panel(body,0,70,296,148,DSR_SC_CARD,8);
+  const dsr_ui_icon_t icons[]={DSR_ICON_MEMORY,DSR_ICON_MEMORY,DSR_ICON_PSRAM,DSR_ICON_FIRMWARE};
+  const char *names[]={"RAM","Największy blok","PSRAM","Flash"};
+  const size_t values[]={info.internal_free,info.internal_largest,info.psram_free,info.flash_bytes};
+  for(unsigned i=0;i<4;i++){
+   int y=8+(int)i*34;dsr_sc_icon(memory,icons[i],10,y,24,DSR_SC_GLOW);
+   dsr_sc_text(memory,names[i],42,y+5,100,&dsr_roboto_12,DSR_SC_MUTED);
+   char value[40];if(i==3&&info.flash_error)snprintf(value,sizeof(value),"%lu B / 0x%x",(unsigned long)values[i],(unsigned)info.flash_error);else snprintf(value,sizeof(value),"%lu B",(unsigned long)values[i]);
+   dsr_sc_text(memory,dsr_sc_user(value),146,y+4,140,&dsr_roboto_14,DSR_SC_TEXT);
+   if(i<3)dsr_sc_panel(memory,42,y+28,244,1,DSR_SC_EDGE,0);
+  }
+  row(body,"Diagnostyka konfiguracji",228,dsr_ui_config_diagnostics);
+  dsr_sc_text(body,"Restart: w menu System, po potwierdzeniu. Eksport i reset: niewdrożone.",4,288,284,&dsr_roboto_12,DSR_SC_MUTED);
+  row(body,"Odśwież",350,system_info);return;
+ }
  dsr_sc_text(body,esp_app_get_description()->version,4,4,284,&dsr_roboto_14,DSR_SC_TEXT);
  dsr_sc_text(body,dsr_board_hardware_id(),4,36,284,&dsr_roboto_12,DSR_SC_MUTED);
  char text[160];snprintf(text,sizeof(text),dsr_sc_tr("RAM wolna: %lu B\nNajwiększy blok: %lu B\nPSRAM wolna: %lu B\nFlash dostępna: %lu B / 0x%x"),(unsigned long)info.internal_free,(unsigned long)info.internal_largest,(unsigned long)info.psram_free,(unsigned long)info.flash_bytes,(unsigned)info.flash_error);

@@ -20,8 +20,12 @@ void dsr_ui_cyber_power(lv_obj_t *button,bool on,bool enabled);
 void dsr_ui_cyber_inset(lv_obj_t *obj);
 void dsr_ui_cyber_warning(lv_obj_t *obj,bool danger);
 void dsr_ui_cyber_cover(lv_obj_t *well,int percent,bool known);
-/* Tween between confirmed readings only; STOP is drawn at its confirmed value. */
-void dsr_ui_cyber_cover_transition(lv_obj_t *well,int from,int percent,bool known,bool moving);
+typedef struct dsr_cyber_shutter dsr_cyber_shutter_t;
+/* Confirmed samples tween; a finger preview is immediate, with an actual-position marker. */
+dsr_cyber_shutter_t *dsr_ui_cyber_cover_transition(lv_obj_t *well,int from,int percent,bool known,bool moving);
+void dsr_ui_cyber_cover_preview(dsr_cyber_shutter_t *shutter,int target,int confirmed);
+void dsr_ui_cyber_cover_restore(dsr_cyber_shutter_t *shutter,int confirmed);
+int dsr_ui_cyber_cover_target(const dsr_cyber_shutter_t *shutter,int screen_y);
 void dsr_ui_cyber_navigation(lv_obj_t *bar,unsigned current);
 void dsr_ui_cyber_button(lv_obj_t *button);
 #endif

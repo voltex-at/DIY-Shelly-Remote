@@ -7,24 +7,35 @@
     "bed": "6eb0ace5f9ec73a9a4357f41b759ececccacc89249026b858c18bd76cac7ad01",
     "boiler": "46fcd9768f16dd660be6465298b588fac6303b38281cc04a3c1030e91a4f148a",
     "coffee-machine": "cc3613f56f09bf5bbc8d72e1048f189c1bf3aa7cf7aec233613d9346609cf0ec",
+    "current": "9a09ca8692df185d44f93516695a7d1850f1d0f5a147e81be4633e8e95e909fc",
+    "diagnostics": "bc1e28bc1d117a037e4ab1b7c2fd3453fd528b52ae366790da033eb2046cdbdc",
     "door-closed": "402bb7cd1ec67c838033a069b8582bbc49529881ac75dcebc1b927013a604271",
     "door-open": "8e27fe42d8a64c0268a9cc0318f11f3b9488dfe973bfcb7de8bb9fff9ed06ca2",
     "eco": "a9356bdc7a9449a0b78839d1e3135a3f1e570dcafec0f2f3b7ebd3badb683afc",
     "ev-charger": "554044be69667efb7f495500b1582dd1d18dc53036ee2a9ae5490afea8158597",
     "fan": "390cecc95f52207718f0985728240a34685d80ede9ecad86210889521c884e1a",
+    "firmware": "9bd6328ac5515fd7fc6d563691e26bbd15909775ffe83cb4693158c1039827df",
     "floor-lamp": "d29ebd95871d07969222f86707c6d4b0b32919123ac99e9f5724485cddd491da",
     "garage": "cbf4db8b786e986cd0129062d602542bd6a4afb7ccb9e588482ed0e73f32b709",
+    "graphics": "3c644d2d8e95430a17dd4a0d5b8ed01756620ed6a598b271264db57be3442d5d",
+    "hardware": "e0ac4cd4c50ebbb4cb9f4a718cca43788601377706060a78a7264bc05d427369",
     "kettle": "4298536ad59c35c98b5971154e9761a39b54232a065a92d2289fe3a97c088281",
     "kitchen": "fda14b1e418fc9c2c5a52597e053fa2da65b0876ba488d7bc4d51eaddb9f94e9",
     "location": "e4e750b5ac9443fef53440400af92b1ea6e74b191221f9716f17e1e84b4df218",
+    "offline": "51db18f048769cb2cb2db7b97870631d09dffe4c204d5e0b3aa473330e8f9fd9",
+    "online": "ab1c475ae1b4ea4ad77fbd936f0189d690e8a0b30ef0c6d473abb3399340a1f0",
+    "psram": "dd6b09be5b340bc5ae34e1bc03b82e6f15216367500ad8e596f42b9ed6688db9",
+    "restart": "d898399aa54292d89167368e3a227b36e93c695133d7ecbf7c34624ab1d011cd",
     "sofa": "0d6e1212bbd8c00969dfa0f4354ee4d52051f6422758c00d83712f5c75e08dd8",
     "speaker": "d13e83a712ae6b6db0d70c37ed747c2d2402ff62c3f94d6b460369edf4b2db25",
     "trv-valve": "ed4150d8378952a1b9a9ca938e83d0edda97d080ecde28808e06651ab248b1d8",
     "valve": "133be985773b7b945a72b482f4d88d64d2db3cd864f27b4fed578e7d26d025fe",
+    "voltage": "1adefdafe3e19231c80109906fa047ed87cc58f4bbeea6e4f21fd1ed8af41b09",
     "wall-lamp": "87e212f27c55454b6826e2c8fa4f6c7c73dd94e4e9a85f35dbc425991f133cdf",
-    "washing-machine": "70d96f4b52f293677fe3006ebbb2b639ec6288cb47bc6ce240b0926ecb23e876"
+    "washing-machine": "70d96f4b52f293677fe3006ebbb2b639ec6288cb47bc6ce240b0926ecb23e876",
+    "wattage": "a188fdf695e4db04b38aac6abd0361ed99d8864955130161e7670ab624171d15"
   },
-  "mask_bytes": 69440,
+  "mask_bytes": 75776,
   "assets": {
     "shudx_bathroom_24": {
       "size": 24,
@@ -97,6 +108,18 @@
       "bytes": 2304,
       "sha256": "f0a01ccb9a9fef6f8bee62e58722024251afca47105ebc495ca4de6c027c8121",
       "svg": "coffee-machine.svg"
+    },
+    "shudx_current_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "5baade83b3ce36e6388940211377a6696bafd43174d7669c3ee47166341c00fc",
+      "svg": "current.svg"
+    },
+    "shudx_diagnostics_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "19c72ef47a1455020b46ab2632f8f443338206b34728d0548b22de9f7c274861",
+      "svg": "diagnostics.svg"
     },
     "shudx_door_closed_24": {
       "size": 24,
@@ -176,6 +199,12 @@
       "sha256": "c1ec51dba92981e2a7e252c5257fc3bddb11cc9116d0de1f6698d7193fed89c0",
       "svg": "fan.svg"
     },
+    "shudx_firmware_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "00adad8fb73f6908921a122fb2822c50e7d00756a077f37143ef84205c46f851",
+      "svg": "firmware.svg"
+    },
     "shudx_floor_lamp_24": {
       "size": 24,
       "bytes": 576,
@@ -211,6 +240,18 @@
       "bytes": 2304,
       "sha256": "bf05010628f24882680b384a45154867fa62329f0a392515738faa678cda7e14",
       "svg": "garage.svg"
+    },
+    "shudx_graphics_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "b6b032bed66f20d1000905dcbe385baecd1aec97c576b70840392fbdf1cf7550",
+      "svg": "graphics.svg"
+    },
+    "shudx_hardware_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "bf4569ceb6817fd7952ab34f2b3e58e81620ec774ee795f1d121d44139b5d676",
+      "svg": "hardware.svg"
     },
     "shudx_kettle_24": {
       "size": 24,
@@ -253,6 +294,30 @@
       "bytes": 1024,
       "sha256": "6b228c735966d06b4e537e7eb054168ebc4154e0e6aad39e0bfe3fc24864074c",
       "svg": "location.svg"
+    },
+    "shudx_offline_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "fd1f141f86aa5aa04b848ed496187674b7eb9a22efa3a5d8774b38746fa6f38b",
+      "svg": "offline.svg"
+    },
+    "shudx_online_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "62cf36197cab923859e53e42d82c948f93731a7a6f7ca229bb74e8b50b498953",
+      "svg": "online.svg"
+    },
+    "shudx_psram_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "17924c98e534ef680b45ce02b025bc268ab518e2b13f1afe5865d974e70014d7",
+      "svg": "psram.svg"
+    },
+    "shudx_restart_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "c1d643ab5a5b7f4dc0aac34e0478695d33075c19fbffee36e58dcc326d756e7c",
+      "svg": "restart.svg"
     },
     "shudx_sofa_24": {
       "size": 24,
@@ -314,6 +379,12 @@
       "sha256": "7d73cc695e73c6dc734c27ebd04d922adb8b4a2d6babb8f9c3b9cc1ff4ac6317",
       "svg": "valve.svg"
     },
+    "shudx_voltage_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "9dfaba9f6af2dda5cc87d668236b78b6e2743c151e0619ccb05624c77e447a0a",
+      "svg": "voltage.svg"
+    },
     "shudx_wall_lamp_24": {
       "size": 24,
       "bytes": 576,
@@ -349,6 +420,12 @@
       "bytes": 2304,
       "sha256": "7755f7ba162927cdd61e4176b5181592a447028cc21d0704ecdacc71b33aae95",
       "svg": "washing-machine.svg"
+    },
+    "shudx_wattage_24": {
+      "size": 24,
+      "bytes": 576,
+      "sha256": "cf5d619cc38e1f846698257f067474cce188922e0005213e7283aa4f6bc51174",
+      "svg": "wattage.svg"
     }
   }
 }

@@ -16,14 +16,15 @@ cap='<path d="M8 9h48v4H8z M6 53h52v5H6z"/>'
 frame='<path d="M11 13v40 M53 13v40"/>'
 closed='<rect x="15" y="17" width="15" height="32" rx="1"/><rect x="34" y="17" width="15" height="32" rx="1"/><path d="M15 33h15 M34 33h15 M28 29v6 M36 29v6"/>'
 glass='<path opacity=".38" d="m18 27 8-7 m11 7 8-7 m-27 23 8-7 m11 7 8-7"/>'
-window_closed=cap+frame+closed+glass
-window_open=cap+frame+'<rect x="15" y="17" width="15" height="32" rx="1"/><path d="M15 33h15 M34 17h15v32H34 M36 17 57 8v50l-21-9z M40 20l13-6v37l-13-5z M51 31v7"/>'
+window_closed='<path d="M10 8h44v48H10z M7 59h50"/><path d="M15 13h15v38H15z M34 13h15v38H34z M27 29v7 M37 29v7"/>'
+# Both sashes project OUTSIDE the fixed opening, leaving its center visibly open.
+window_open='<path d="M18 14h28v40H18z M13 58h38"/><path d="m18 16-14-9v49l14-5z M46 16l14-9v49l-14-5z M11 29v7 M53 29v7"/><path opacity=".4" d="m7 13 8 5v27l-8 5 M57 13l-8 5v27l8 5"/>'
 window_tilted=cap+frame+'<path opacity=".45" d="M15 16h34v37H15z"/><path d="m10 23 40-4 3 34H15z M16 28l13-1 2 21H20z M34 27l12-1 2 22H36z M28 23l9-1"/>'
 # Unknown is a frame plus explicit question badge, never a closed-state glyph alone.
 badge='<circle cx="49" cy="47" r="11"/><path d="M45 43c0-6 9-6 9 0 0 3-5 3-5 6 M49 53h.1"/>'
 door_frame='<path d="M12 57V7h39v50 M8 58h48"/>'
-door_closed=door_frame+'<path d="M17 13h28v44H17z M37 34h3 M21 18h20v11H21z M21 41h20v10H21z"/>'
-door_open=door_frame+'<path d="m17 13 24-9v58l-24-5z M21 17l16-6v43l-16-3z M32 33v5 M46 16v35"/>'
+door_closed='<path d="M15 7h35v50 M11 59h43"/><path d="M21 13h23v43H21z M37 32h3"/>'
+door_open='<path d="M21 10h30v47 M17 59h39"/><path d="m21 12-15-8v49l15 3z M11 29v7 M27 15h19v37"/>'
 icons={'window-closed':window_closed,'window-open':window_open,'window-tilted':window_tilted,'window-no-data':'<path d="M8 9h48v4H8z M6 53h29v5H6z M11 13v40 M53 13v19 M16 18h14v32H16z M16 34h14 M34 18h14v13H34z"/>'+badge,'door-closed':door_closed,'door-open':door_open,'door-no-data':'<path d="M12 57V7h39v25 M8 58h27 M18 14h26v18 M18 14v41h17"/>'+badge,
 'illuminance':'<circle cx="32" cy="32" r="12"/><path d="M32 6v7 M32 51v7 M6 32h7 M51 32h7 M13 13l5 5 M46 46l5 5 M13 51l5-5 M46 18l5-5"/>',
 'signal':'<path stroke-width="6" d="M12 53V43 M25 53V33 M38 53V23 M51 53V11"/>',

@@ -33,7 +33,10 @@ typedef enum { DSR_ICON_DASHBOARD, DSR_ICON_HOME, DSR_ICON_ENERGY, DSR_ICON_SETT
     DSR_ICON_CPU, DSR_ICON_GIT_BRANCH, DSR_ICON_PALETTE, DSR_ICON_DISPLAY, DSR_ICON_SHIELD,
     DSR_ICON_NEXT, DSR_ICON_STOP, DSR_ICON_SAVE, DSR_ICON_TRASH, DSR_ICON_WARNING, DSR_ICON_ACTIVITY, DSR_ICON_MEMORY, DSR_ICON_POWER_SUPPLY, DSR_ICON_WINDOW_TILTED, DSR_ICON_WINDOW_NO_DATA, DSR_ICON_DOOR_NO_DATA,
     DSR_ICON_ILLUMINANCE, DSR_ICON_SIGNAL, DSR_ICON_CLOCK,
-    DSR_ICON_ECO, DSR_ICON_LOCATION, DSR_ICON_TRV_VALVE, DSR_ICON_COUNT } dsr_ui_icon_t;
+    DSR_ICON_ECO, DSR_ICON_LOCATION, DSR_ICON_TRV_VALVE,
+    DSR_ICON_VOLTAGE, DSR_ICON_CURRENT, DSR_ICON_WATTAGE, DSR_ICON_PSRAM,
+    DSR_ICON_GRAPHICS, DSR_ICON_FIRMWARE, DSR_ICON_HARDWARE, DSR_ICON_DIAGNOSTICS,
+    DSR_ICON_RESTART, DSR_ICON_ONLINE, DSR_ICON_OFFLINE, DSR_ICON_COUNT } dsr_ui_icon_t;
 lv_obj_t *dsr_sc_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius);
 lv_obj_t *dsr_sc_text(lv_obj_t *parent,const char *text,int x,int y,int w,const lv_font_t *font,uint32_t color);
 lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,lv_event_cb_t cb,void *context);
@@ -41,6 +44,8 @@ lv_obj_t *dsr_sc_icon(lv_obj_t *parent,dsr_ui_icon_t kind,int x,int y,int size,u
 /* Align inside the parent's actual content box, including border/padding.
  * Do not use (parent_size-icon_size)/2 as a child's relative position. */
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint32_t color);
+/* Non-interactive 28 px status module, shared by Cyber device pages. */
+lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int x,int y,int width,uint32_t color);
 void dsr_sc_icon_color(lv_obj_t *icon,uint32_t color);
 void dsr_sc_clock_tick(void);
 /* Selectable device icons, 1-based as stored in the workspace "icon" field. */

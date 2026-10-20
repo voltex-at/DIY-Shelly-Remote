@@ -14,7 +14,8 @@
       "dsr_ui_system_open",
       "screen_settings",
       "menu",
-      "hardware"
+      "hardware",
+      "system_info"
     ]
   },
   {
@@ -160,6 +161,13 @@
       "render",
       "dsr_mobile_show",
       "dsr_mobile_show_device_settings"
+    ]
+  },
+  {
+    "source": "components/dsr_ui/dsr_ui_mobile_cover_cyber.inc",
+    "entry_points": [
+      "cyber_cover_details",
+      "cover_confirmed_text"
     ]
   },
   {

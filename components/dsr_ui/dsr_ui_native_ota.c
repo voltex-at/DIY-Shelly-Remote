@@ -150,7 +150,7 @@ static void show(void)
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
  lv_obj_t *notice_box=NULL;
  if(hud){
-  lv_obj_t *version=dsr_sc_panel(body,0,0,296,56,DSR_SC_CARD,10);dsr_sc_icon(version,DSR_ICON_CPU,12,12,32,DSR_SC_BLUE);
+  lv_obj_t *version=dsr_sc_panel(body,0,0,296,56,DSR_SC_CARD,10);dsr_sc_icon(version,DSR_ICON_FIRMWARE,12,12,32,DSR_SC_BLUE);
   lv_obj_t *channel=dsr_sc_panel(body,0,64,296,38,DSR_SC_CARD,10);dsr_sc_icon(channel,DSR_ICON_GIT_BRANCH,12,7,24,DSR_SC_BLUE);
   notice_box=dsr_sc_panel(body,0,108,296,snapshot.state==DSR_NATIVE_AVAILABLE?64:82,DSR_SC_PANEL,10);
   lv_obj_add_flag(notice_box,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(notice_box,LV_DIR_VER);dsr_sc_scrollbar(notice_box);
