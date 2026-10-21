@@ -118,7 +118,18 @@ int main(void)
     CHECK(!strcmp(persisted.ssid,"Home"));
     s=candidate("WPA3 network");s.wifi_security=DSR_WIFI_WPA3;strcpy(s.password,"short");
     CHECK(connect_candidate(&s,&detail)==DSR_OK);CHECK(config.sta.threshold.authmode==WIFI_AUTH_WPA3_PSK&&config.sta.pmf_cfg.required);
-    disconnect(WIFI_REASON_AUTH_FAIL);CHECK(!timer.armed); /* auth failure does not loop */
+    /* A verified home network keeps reconnecting after an auth-class failure:
+     * reason 15 is also a transient handshake timeout (router reboot, weak RF).
+     * Backoff grows to one gentle attempt per 5 min, never a tight loop. */
+    disconnect(WIFI_REASON_AUTH_FAIL);CHECK(timer.armed&&timer.delay==1000000);
+    const unsigned auth_backoff[]={2,4,8,16,32,64,128,256,300,300};
+    for(unsigned i=0;i<10;i++){unsigned attempts=connects;timer.callback(NULL);CHECK(connects==attempts+1);disconnect(WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT);CHECK(timer.armed&&timer.delay==(uint64_t)auth_backoff[i]*1000000);}
+    dsr_wifi_get_info(&info);CHECK(info.status==DSR_WIFI_BAD_PASSWORD&&!info.connected&&!dsr_wifi_connected());
+    timer.callback(NULL);got_ip();CHECK(dsr_wifi_connected()); /* the AP came back: recovered without user action */
+    /* DHCP lease lost while associated: no stale IP, and the renewal is accepted. */
+    handler(NULL,IP_EVENT,IP_EVENT_STA_LOST_IP,NULL);dsr_wifi_get_info(&info);CHECK(!dsr_wifi_connected()&&!info.connected&&!info.ip[0]&&info.status==DSR_WIFI_CONNECTING);
+    got_ip();CHECK(dsr_wifi_connected());
+    disconnect(WIFI_REASON_NO_AP_FOUND);CHECK(timer.armed&&timer.delay==1000000); /* success reset the backoff */
     CHECK(saves==3);s.wifi_security=DSR_WIFI_OPEN;s.password[0]=0;
     CHECK(connect_candidate(&s,&detail)==DSR_OK&&config.sta.threshold.authmode==WIFI_AUTH_OPEN);
     disconnect(WIFI_REASON_NO_AP_FOUND);CHECK(timer.armed&&timer.delay==1000000);

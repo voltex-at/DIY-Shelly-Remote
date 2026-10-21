@@ -18,6 +18,12 @@
 #define STA_STARTED BIT3
 #define CANCEL BIT4
 #define SCAN_RECORDS 48
+/* Reconnect backoff for the saved home network. A handshake timeout is also
+ * reported for weak signal or a busy/rebooting AP (ESP-IDF reason 15), so an
+ * auth-class failure never stops reconnecting: it only lengthens the backoff
+ * (wrong password: one gentle attempt per 5 min). */
+#define RETRY_CAP_S 32u
+#define AUTH_RETRY_CAP_S 300u
 static EventGroupHandle_t events;
 static SemaphoreHandle_t control, info_lock;
 static esp_timer_handle_t reconnect_timer;
@@ -26,6 +32,7 @@ static dsr_settings_t current;
 static dsr_wifi_info_t info;
 static bool initialized, driver_started, stop_fence_pending, manual, auto_connect;
 static unsigned retry_seconds = 1;
+static bool auth_failing;
 static atomic_bool temporary;
 bool dsr_wifi_temporary_active(void){return atomic_load(&temporary);}
 
@@ -78,21 +85,26 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         unsigned reason = data ? ((wifi_event_sta_disconnected_t *)data)->reason : 0;
         info.connected = false; info.ip[0] = 0; info.status = reason_status(reason);
         xEventGroupClearBits(events, IP_READY); xEventGroupSetBits(events, CONNECT_FAILED);
-        if (!manual && info.status == DSR_WIFI_BAD_PASSWORD) auto_connect = false;
+        if (info.status == DSR_WIFI_BAD_PASSWORD) auth_failing = true;
         retry = auto_connect && !manual;
+    } else if (base == IP_EVENT && id == IP_EVENT_STA_LOST_IP) {
+        /* DHCP lease lost while still associated: no LAN traffic until a new
+         * address. The SDK keeps renewing; a later GOT_IP is accepted again. */
+        if (info.connected) { info.connected = false; info.ip[0] = 0; info.status = DSR_WIFI_CONNECTING; }
+        xEventGroupClearBits(events, IP_READY);
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP && data &&
                ((ip_event_got_ip_t *)data)->esp_netif == station && (info.status == DSR_WIFI_CONNECTING || info.connected)) {
         ip_event_got_ip_t *got = data;
         info.connected = true; info.status = DSR_WIFI_CONNECTED;
         snprintf(info.ip, sizeof(info.ip), IPSTR, IP2STR(&got->ip_info.ip));
-        retry_seconds = 1; xEventGroupSetBits(events, IP_READY);
+        retry_seconds = 1; auth_failing = false; xEventGroupSetBits(events, IP_READY);
     }
     xSemaphoreGive(info_lock);
     if (retry) {
         (void)esp_timer_stop(reconnect_timer);
         xSemaphoreTake(info_lock, portMAX_DELAY);
-        unsigned delay = retry_seconds;
-        if (retry_seconds < 32) retry_seconds *= 2;
+        unsigned delay = retry_seconds, cap = auth_failing ? AUTH_RETRY_CAP_S : RETRY_CAP_S;
+        if (retry_seconds < cap) retry_seconds = retry_seconds * 2 < cap ? retry_seconds * 2 : cap;
         xSemaphoreGive(info_lock);
         (void)esp_timer_start_once(reconnect_timer, (uint64_t)delay * 1000000);
     }
@@ -117,7 +129,7 @@ static esp_err_t start_station_pinned(const dsr_settings_t *settings, bool conne
     xEventGroupClearBits(events, STA_STARTED | CONNECT_FAILED | IP_READY);
     xSemaphoreTake(info_lock, portMAX_DELAY);
     info.status = connect ? DSR_WIFI_CONNECTING : DSR_WIFI_IDLE;
-    info.connected = false; info.ip[0] = 0;
+    info.connected = false; info.ip[0] = 0; auth_failing = false;
     snprintf(info.ssid, sizeof(info.ssid), "%s", settings ? settings->ssid : "");
     xSemaphoreGive(info_lock);
     error = esp_wifi_start();
@@ -170,6 +182,7 @@ esp_err_t dsr_wifi_start(const dsr_settings_t *settings)
     if ((error = esp_wifi_init(&init)) != ESP_OK ||
         (error = esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_event, NULL)) != ESP_OK ||
         (error = esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_event, NULL)) != ESP_OK ||
+        (error = esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, on_event, NULL)) != ESP_OK ||
         (error = esp_wifi_set_storage(WIFI_STORAGE_RAM)) != ESP_OK ||
         (error = esp_wifi_set_mode(WIFI_MODE_STA)) != ESP_OK) return error;
     if (settings) current = *settings;

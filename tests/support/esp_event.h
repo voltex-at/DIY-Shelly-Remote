@@ -11,6 +11,7 @@ extern const char test_wifi_base[],test_ip_base[];
 #define WIFI_EVENT_STA_STOP 2
 #define WIFI_EVENT_STA_DISCONNECTED 3
 #define IP_EVENT_STA_GOT_IP 4
+#define IP_EVENT_STA_LOST_IP 5
 typedef void (*esp_event_handler_t)(void *,esp_event_base_t,int32_t,void *);
 esp_err_t esp_event_loop_create_default(void);
 esp_err_t esp_event_handler_register(esp_event_base_t base,int32_t id,esp_event_handler_t handler,void *arg);
