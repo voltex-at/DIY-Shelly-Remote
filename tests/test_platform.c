@@ -360,7 +360,29 @@ static void test_multi_scheduler(void)
  CHECK(dsr_fleet_upsert(&f,&b,13000)==DSR_OK);f.slots[1].command_id=17;CHECK(dsr_fleet_request(&f,1,false,true,13000)==DSR_OK&&f.slots[1].command_id==17); /* LCD preserves HTTP correlation */
  dsr_fleet_wifi(&f,false,13001);admission_open();
  CHECK(dsr_fleet_upsert(&f,&b,14000)==DSR_OK);CHECK(dsr_fleet_request(&f,1,true,true,30000)==DSR_OFFLINE); /* stale cannot SET */
- printf("Multi memory: connection=%zu slot=%zu fleet=%zu bytes; no extra worker/task\n",sizeof(dsr_connection_t),sizeof(dsr_fleet_slot_t),sizeof(dsr_fleet_t));
+ /* 429 is Shelly's temporary login limit: never a silent permanent block, never
+  * a quick retry. Reads resume automatically after 60 s, then 120 s. */
+ dsr_fleet_t g={0};CHECK(dsr_fleet_upsert(&g,&a,0)==DSR_OK);CHECK(dsr_fleet_next(&g,5000,true,&job,&index)&&index==0&&job.kind==DSR_JOB_PROBE);job.id=40;dsr_fleet_started(&g,index,&job);
+ complete_fleet(&g,index,&job,DSR_RATE_LIMITED,6000);CHECK(!g.slots[0].blocked&&g.slots[0].result==DSR_RATE_LIMITED&&g.slots[0].next_poll==66000&&!g.slots[0].connection.device.online);
+ CHECK(dsr_fleet_request(&g,0,true,true,7000)==DSR_OFFLINE); /* no SET without a fresh confirmed read */
+ CHECK(!dsr_fleet_next(&g,65999,true,&job,&index));CHECK(dsr_fleet_next(&g,66000,true,&job,&index)&&job.kind==DSR_JOB_PROBE);job.id=41;dsr_fleet_started(&g,index,&job);
+ complete_fleet(&g,index,&job,DSR_RATE_LIMITED,70000);CHECK(g.slots[0].next_poll==190000&&!g.slots[0].blocked);
+ CHECK(dsr_fleet_next(&g,190000,true,&job,&index));job.id=42;dsr_fleet_started(&g,index,&job);complete_fleet(&g,index,&job,DSR_OK,191000);
+ CHECK(g.slots[0].result==DSR_OK&&!g.slots[0].failures&&g.slots[0].next_poll==196000&&g.slots[0].connection.device.online);
+ /* Wrong credentials still wait for the user instead of hammering the device. */
+ CHECK(dsr_fleet_next(&g,196000,true,&job,&index));job.id=43;dsr_fleet_started(&g,index,&job);complete_fleet(&g,index,&job,DSR_AUTH_REQUIRED,197000);CHECK(g.slots[0].blocked&&!dsr_fleet_next(&g,900000,true,&job,&index));
+ /* STOP guard: while a cover moves, a host that stopped answering (and could
+  * hold the sole worker for its connect timeout) is not read; healthy reads go on. */
+ dsr_fleet_t h={0};CHECK(dsr_fleet_upsert(&h,&a,0)==DSR_OK);
+ dsr_connection_t cover=a;cover.layout_id=3;strcpy(cover.device.device_id,"shelly-cover");cover.device.endpoint_kind=DSR_ENDPOINT_COVER;cover.device.has_switch=false;
+ cover.telemetry=(dsr_telemetry_t){.cover={.state=DSR_COVER_STATE_OPENING,.flags=DSR_COVER_VALID|DSR_COVER_POSITION}};CHECK(dsr_fleet_upsert(&h,&cover,0)==DSR_OK&&h.count==2);
+ h.slots[0].failures=1;h.slots[0].next_poll=0;h.slots[1].next_poll=50000;
+ CHECK(!dsr_fleet_next(&h,1000,true,&job,&index)); /* deferred while the cover moves */
+ h.slots[1].connection.telemetry.cover.state=DSR_COVER_STATE_STOPPED;
+ CHECK(dsr_fleet_next(&h,1000,true,&job,&index)&&index==0&&job.kind==DSR_JOB_PROBE); /* read as soon as it stops */
+ h.slots[1].connection.telemetry.cover.state=DSR_COVER_STATE_OPENING;h.slots[0].failures=0;
+ CHECK(dsr_fleet_next(&h,1000,true,&job,&index)&&index==0); /* healthy hosts keep routine reads */
+ printf("Multi memory:connection=%zu slot=%zu fleet=%zu bytes; no extra worker/task\n",sizeof(dsr_connection_t),sizeof(dsr_fleet_slot_t),sizeof(dsr_fleet_t));
 }
 static void test_ap_protocol(void)
 {

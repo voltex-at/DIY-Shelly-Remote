@@ -297,7 +297,7 @@ static bool light_parse(const cJSON *r,uint8_t channel,dsr_light_status_t *out)
   if(cJSON_IsTrue(on))s.flags|=DSR_LIGHT_TARGET_ON;
  }
  const cJSON *calibration=cJSON_GetObjectItemCaseSensitive(r,"calibration");
- if(calibration){if(!cJSON_IsObject(calibration))return false;s.conditions|=DSR_LIGHT_CALIBRATING;const cJSON *progress=cJSON_GetObjectItemCaseSensitive(calibration,"progess");if(progress&&!light_percent(progress))return false;}
+ if(calibration){if(!cJSON_IsObject(calibration))return false;s.conditions|=DSR_LIGHT_CALIBRATING;const cJSON *progress=cJSON_GetObjectItemCaseSensitive(calibration,"progress");if(progress&&!light_percent(progress))return false;}
  const char *keys[]={"errors","flags"};
  for(unsigned n=0;n<2;n++){
   const cJSON *array=cJSON_GetObjectItemCaseSensitive(r,keys[n]);if(!array)continue;

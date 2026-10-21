@@ -28,6 +28,10 @@ bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b);
  * failed attempt; a 15 s window equal to the poll period made values blink. */
 #define DSR_FLEET_FRESH_MS 15000u
 #define DSR_FLEET_BLU_FRESH_MS 45000u
+/* HTTP 429 (Shelly login limit): automatic read again after 60 s, 120 s, then
+ * 240 s per consecutive limit; never more often, never stopped for good. */
+#define DSR_FLEET_RATE_LIMIT_MS 60000u
+#define DSR_FLEET_RATE_LIMIT_MAX_MS 300000u
 static inline uint32_t dsr_fleet_fresh_ms(const dsr_device_t *d){return d&&d->endpoint_kind==DSR_ENDPOINT_BLU?DSR_FLEET_BLU_FRESH_MS:DSR_FLEET_FRESH_MS;}
 int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);

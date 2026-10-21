@@ -67,6 +67,10 @@ static uint32_t pending_room=UINT32_MAX;
 static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5],*endpoint_choice;
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
+/* An accepted LCD intent (above all Cover STOP) is handed to the worker on the
+ * next LVGL pass, not after the remainder of the 200 ms poll period. */
+static lv_timer_t *poll_timer;
+static void dispatch_soon(void){if(poll_timer)lv_timer_ready(poll_timer);}
 
 static dsr_result_t submit_touch(const dsr_job_t *job)
 {
@@ -426,7 +430,7 @@ static void mobile_light_send(unsigned index,dsr_light_intent_t intent)
  uint32_t id=mobile_model.devices[index].id;render();index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
  int at=card_slot(index);if(at<0||binding_target(&fleet.slots[at]))return;
  uint32_t operation_id;dsr_result_t result=dsr_workspace_light_request(&fleet.slots[at].connection.device,intent,&operation_id);
- if(result==DSR_OK)fleet.slots[at].mailbox_pending=1;else{fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
+ if(result==DSR_OK){fleet.slots[at].mailbox_pending=1;dispatch_soon();}else{fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
  render();
 }
 static void mobile_remote_settings(uint32_t id)
@@ -447,7 +451,7 @@ static void mobile_rgb_send(unsigned index,dsr_rgb_intent_t intent)
  uint32_t id=mobile_model.devices[index].id;render();index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
  int at=card_slot(index);if(at<0||binding_target(&fleet.slots[at]))return;
  uint32_t operation_id;dsr_result_t result=dsr_workspace_rgb_request(&fleet.slots[at].connection.device,intent,&operation_id);
- if(result==DSR_OK)fleet.slots[at].mailbox_pending=1;else{fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
+ if(result==DSR_OK){fleet.slots[at].mailbox_pending=1;dispatch_soon();}else{fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
  render();
 }
 static void mobile_brightness(unsigned index,uint8_t brightness){if(index<mobile_model.device_count&&mobile_model.devices[index].endpoint_kind==DSR_ENDPOINT_RGB)mobile_rgb_send(index,(dsr_rgb_intent_t){.command=DSR_RGB_SET_BRIGHTNESS,.brightness=brightness});else mobile_light_send(index,(dsr_light_intent_t){.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=brightness});}
@@ -468,7 +472,7 @@ static void mobile_cover_send(unsigned index,dsr_cover_intent_t intent)
  index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
  int at=card_slot(index);if(at<0||binding_target(&fleet.slots[at]))return;
  uint32_t operation_id;dsr_result_t result=dsr_workspace_cover_request(&fleet.slots[at].connection.device,intent,&operation_id);
- if(result==DSR_OK)fleet.slots[at].mailbox_pending=intent.command==DSR_COVER_STOP?2:1;
+ if(result==DSR_OK){fleet.slots[at].mailbox_pending=intent.command==DSR_COVER_STOP?2:1;dispatch_soon();}
  else {fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
  render();
 }
@@ -494,7 +498,7 @@ static void mobile_refresh(uint32_t id)
  if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)){
   if(binding_target(s)||!s->layout_enabled)return;
   uint32_t operation_id;dsr_result_t result=dsr_workspace_ht_refresh(&s->connection.device,&operation_id);
-  if(result==DSR_OK)s->mailbox_pending=1;else{s->result=result;s->command_error=true;}
+  if(result==DSR_OK){s->mailbox_pending=1;dispatch_soon();}else{s->result=result;s->command_error=true;}
   render();return;
  }
  if(!s->layout_enabled||binding_target(s)||s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||s->operation==DSR_JOB_TRV||(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)&&s->operation==DSR_JOB_PROBE))))return;
@@ -705,8 +709,8 @@ static void __attribute__((noinline)) consume_stop(uint32_t now,bool outer_pendi
   if(action_stop_id&&stop.operation_id==action_stop_id){dsr_actions_complete(action_stop_id,stop.result);action_stop_id=0;}else dsr_actions_observe(stop.layout_id,DSR_ACTION_STOP,stop.result);
   int at=dsr_fleet_find(&fleet,&stop.device);if(at>=0){dsr_fleet_slot_t *s=&fleet.slots[at];
    if(s->urgent_stop&&s->command_id==stop.operation_id&&s->connection.layout_id==stop.layout_id&&!strcmp(s->connection.device.host,stop.device.host)){
-    s->urgent_stop=false;s->result=stop.result;s->command_error=stop.result!=DSR_OK;s->blocked=stop.result==DSR_AUTH_REQUIRED||stop.result==DSR_IDENTITY_MISMATCH||stop.result==DSR_RATE_LIMITED;
-    s->connection.device=stop.device;s->connection.telemetry=stop.telemetry;if(stop.result==DSR_OK){s->sample_valid=true;s->sample_ms=now;}s->next_poll=now+1000;
+    s->urgent_stop=false;s->result=stop.result;s->command_error=stop.result!=DSR_OK;s->blocked=stop.result==DSR_AUTH_REQUIRED||stop.result==DSR_IDENTITY_MISMATCH;
+    s->connection.device=stop.device;s->connection.telemetry=stop.telemetry;if(stop.result==DSR_OK){s->sample_valid=true;s->sample_ms=now;}s->next_poll=now+(stop.result==DSR_RATE_LIMITED?DSR_FLEET_RATE_LIMIT_MS:1000);
    }
   }render();
  }
@@ -879,5 +883,5 @@ void dsr_network_init(void)
     dsr_connection_t *loaded=calloc(DSR_MAX_DEVICES,sizeof(*loaded));size_t count=0;
     if(!loaded||dsr_connections_load(loaded,DSR_MAX_DEVICES,&count)!=ESP_OK)storage_error=true;
     if(loaded){for(size_t i=0;i<count;i++){(void)dsr_fleet_upsert(&fleet,&loaded[i],lv_tick_get()-5000);if(!loaded[i].layout_id&&loaded[i].legacy_fallback)dsr_ui_workspace_migrate(&loaded[i]);}memset(loaded,0,DSR_MAX_DEVICES*sizeof(*loaded));free(loaded);}
-    lv_timer_create(poll,200,NULL);
+    poll_timer=lv_timer_create(poll,200,NULL);
 }

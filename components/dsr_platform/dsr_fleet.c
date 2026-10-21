@@ -107,10 +107,23 @@ static bool cover_followup(const dsr_fleet_slot_t *s)
    c->state==DSR_COVER_STATE_CALIBRATING||
    ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
 }
+/* A cover in motion (or with an accepted/queued movement or STOP) is when the
+ * user is likely to press STOP. The sole worker can run STOP only between HTTP
+ * legs, so it must not then start a read of a host that stopped answering and
+ * may block for its whole connect timeout. */
+static bool cover_motion(const dsr_fleet_slot_t *s)
+{
+ const dsr_cover_status_t *c=&s->connection.telemetry.cover;
+ return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&
+  (s->queued||s->urgent_stop||s->mailbox_pending||(s->in_flight&&s->operation==DSR_JOB_COVER)||
+   c->state==DSR_COVER_STATE_OPENING||c->state==DSR_COVER_STATE_CLOSING||
+   ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
+}
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
 {
  if(!f||!job||!index)return false;
- int at=-1;
+ int at=-1;bool motion=false;
+ for(size_t i=0;i<f->count;i++)if(cover_motion(&f->slots[i]))motion=true;
  for(size_t i=0;i<f->count;i++){
   dsr_fleet_slot_t *s=&f->slots[i];if(!s->queued||s->in_flight)continue;
   bool sensor=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind);
@@ -127,6 +140,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
  }
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
   unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
+  if(motion&&s->failures&&!cover_motion(s))continue; /* deferred, never dropped */
   if(s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0)return false;
@@ -156,12 +170,16 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  /* A later confirmed Cover GET restores the actual position after a lost
   * ACK/readback. It does not claim that the requested movement succeeded. */
  if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&s->operation==DSR_JOB_PROBE&&result==DSR_OK)){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
- s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH||result==DSR_RATE_LIMITED;
+ /* Wrong credentials or another device at this address need the user. A 429
+  * is Shelly's temporary login limit: never retried quickly, never a silent
+  * permanent stop (it used to block polling until a manual Refresh). */
+ s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH;
  uint32_t delay=s->failures?(5000u<<s->failures):5000u;
  if(!s->blocked&&cover_followup(s))delay=1000u;
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
  /* BLU values come from an always-on gateway: poll often, back off on errors. */
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}
+ if(result==DSR_RATE_LIMITED){uint32_t limited=DSR_FLEET_RATE_LIMIT_MS<<(s->failures>2?2:s->failures-1);if(limited>DSR_FLEET_RATE_LIMIT_MAX_MS)limited=DSR_FLEET_RATE_LIMIT_MAX_MS;if(delay<limited)delay=limited;}
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}
  return true;
