@@ -40,19 +40,19 @@ for bad in ['v1.2', 'dev-v01.2.3', 'v1.2.3-rc1', 'release-1', '', None]:
     refused(t.channel, bad)
 
 # One requested DEV version; wrong ref, tag, CMake, extra/missing fields refuse.
-cmake = 'set(PROJECT_VER "0.7.65-dev")'
-t.dev_request_allowed('dev-v0.7.65', dict(t.DEV_REQUEST), t.DEV_REQUEST['branch'], cmake)
-for tag, ref, text in [('v0.7.65', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.66', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.64', t.DEV_REQUEST['branch'], cmake),
+cmake = 'set(PROJECT_VER "0.7.66-dev")'
+t.dev_request_allowed('dev-v0.7.66', dict(t.DEV_REQUEST), t.DEV_REQUEST['branch'], cmake)
+for tag, ref, text in [('v0.7.66', t.DEV_REQUEST['branch'], cmake),
+                       ('dev-v0.7.67', t.DEV_REQUEST['branch'], cmake),
+                       ('dev-v0.7.65', t.DEV_REQUEST['branch'], cmake),
                        ('dev-v0.7.60', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.65', 'refs/heads/main', cmake),
-                       ('dev-v0.7.65', 'refs/heads/work/cyber-blue-quality-pass', cmake),
-                       ('dev-v0.7.65', t.DEV_REQUEST['branch'], 'set(PROJECT_VER "0.7.52-dev")'),
-                       ('dev-v0.7.65', t.DEV_REQUEST['branch'], '')]:
+                       ('dev-v0.7.66', 'refs/heads/main', cmake),
+                       ('dev-v0.7.66', 'refs/heads/work/cyber-blue-quality-pass', cmake),
+                       ('dev-v0.7.66', t.DEV_REQUEST['branch'], 'set(PROJECT_VER "0.7.52-dev")'),
+                       ('dev-v0.7.66', t.DEV_REQUEST['branch'], '')]:
     refused(t.dev_request_allowed, tag, dict(t.DEV_REQUEST), ref, text)
 for request in [{}, dict(t.DEV_REQUEST, extra=True), dict(t.DEV_REQUEST, schema=2)]:
-    refused(t.dev_request_allowed, 'dev-v0.7.65', request, t.DEV_REQUEST['branch'], cmake)
+    refused(t.dev_request_allowed, 'dev-v0.7.66', request, t.DEV_REQUEST['branch'], cmake)
 
 # CI gate: exact SHA, 5/5 jobs, newest successful run wins, active run waits
 ok(t.ci_verdict(SHA, [run(1)], {1: JOBS}) == 'ok')
@@ -120,7 +120,7 @@ from pathlib import Path
 with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
     request = Path(tmp) / 'request.json'
     request.write_text(json.dumps(t.DEV_REQUEST))
-    args = Namespace(repo='fixture/repo', tag='dev-v0.7.65', sha=SHA, dev_request=str(request), wait_minutes=1)
+    args = Namespace(repo='fixture/repo', tag='dev-v0.7.66', sha=SHA, dev_request=str(request), wait_minutes=1)
     for conclusion in ('failure', 'success'):
         events = []
         state = {'tag': None}
@@ -133,7 +133,7 @@ with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
             if '/actions/runs/' in url:
                 return {'jobs': JOBS}
             if url.endswith('/git/refs'):
-                ok(data == {'ref': 'refs/tags/dev-v0.7.65', 'sha': SHA})
+                ok(data == {'ref': 'refs/tags/dev-v0.7.66', 'sha': SHA})
                 state['tag'] = SHA
                 return {}
             if '/releases?' in url:
@@ -141,7 +141,7 @@ with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
             raise AssertionError(url)
         source_read = Path.read_text
         def request_read(path, *args, **kwargs):
-            return 'set(PROJECT_VER "0.7.65-dev")' if str(path) == 'CMakeLists.txt' else source_read(path, *args, **kwargs)
+            return 'set(PROJECT_VER "0.7.66-dev")' if str(path) == 'CMakeLists.txt' else source_read(path, *args, **kwargs)
         with patch.object(t, 'gh', fake_gh), patch.dict(os.environ, GITHUB_REF=t.DEV_REQUEST['branch']), patch.object(Path, 'read_text', request_read):
             if conclusion == 'failure':
                 refused(t.cmd_gate, args)

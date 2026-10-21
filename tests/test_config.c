@@ -95,9 +95,33 @@ static void action_metadata_gc(cJSON *source,const char *base)
  }
  cJSON_Delete(doc);
 }
+static void removal_roundtrip(const char *base)
+{
+ char *json=dsr_config_default();cJSON *root=cJSON_Parse(json);free(json);CHECK(root);char error[96];
+ cJSON *devices=cJSON_GetObjectItemCaseSensitive(root,"devices");
+ for(unsigned i=0;i<16;i++){char entry[192];snprintf(entry,sizeof(entry),"{\"id\":%u,\"name\":\"Channel %u\",\"host\":\"192.0.2.20\",\"channel\":%u,\"kind\":\"relay\",\"room\":0}",i+1,i,i);cJSON_AddItemToArray(devices,cJSON_Parse(entry));}
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(root,"groups"),cJSON_Parse("{\"id\":1,\"name\":\"Group\",\"members\":[1,2,16]}"));
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(root,"scenes"),cJSON_Parse("{\"id\":1,\"name\":\"Scene\",\"actions\":[{\"device\":1,\"command\":\"on\"},{\"device\":2,\"command\":\"off\"},{\"device\":1,\"command\":\"off\"}]}"));
+ cJSON *dashboard=cJSON_GetObjectItemCaseSensitive(root,"dashboards")->child;cJSON_ReplaceItemInObjectCaseSensitive(dashboard,"tiles",cJSON_Parse("[{\"id\":1,\"type\":\"device\",\"ref\":1,\"span\":2,\"height\":1,\"fields\":255},{\"id\":2,\"type\":\"device\",\"ref\":2,\"span\":2,\"height\":1,\"fields\":255}]"));
+ CHECK(dsr_config_validate(root,error));cJSON *original=cJSON_Duplicate(root,true);
+ CHECK(!dsr_config_remove_device(root,999,error)&&cJSON_Compare(root,original,true));
+ cJSON *next=dsr_config_remove_device(root,1,error);CHECK(next&&cJSON_Compare(root,original,true));
+ CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"devices"))==15);CHECK(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(next,"devices")->child,"channel")->valueint==1);
+ CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"groups"))==1&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"scenes"))==1);
+ CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(next,"scenes")->child,"actions"))==1);
+ CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(next,"groups")->child,"members"))==2);
+ char dir[512];snprintf(dir,sizeof(dir),"%s/remove",base);CHECK(!mkdir(dir,0700));json=cJSON_PrintUnformatted(root);CHECK(dsr_config_store_save(dir,json,error));
+ char *candidate=cJSON_PrintUnformatted(next),*saved=dsr_config_replace(json,candidate,1,error);CHECK(saved);free(candidate);free(json);
+ CHECK(dsr_config_store_save(dir,saved,error));bool found=false;char *loaded=dsr_config_store_load(dir,&found,error);CHECK(found&&loaded&&!strcmp(saved,loaded));free(loaded);free(saved);
+ /* Remove the remaining channels without deleting empty scenes/groups. */
+ for(unsigned id=2;id<=16;id++){cJSON *n=dsr_config_remove_device(next,id,error);CHECK(n);cJSON_Delete(next);next=n;}
+ CHECK(!cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"devices")));CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"scenes"))==1&&cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(next,"groups"))==1);
+ CHECK(dsr_config_validate(next,error));cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(next,"devices"),cJSON_Duplicate(devices->child,true));CHECK(dsr_config_validate(next,error)); /* exact endpoint can be added again */
+ cJSON_Delete(next);cJSON_Delete(original);cJSON_Delete(root);
+}
 int main(int argc,char **argv)
 {
- CHECK(argc==3);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
+ CHECK(argc==3);removal_roundtrip(argv[1]);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
  /* New installations start in English; saved workspaces keep their language. */
  CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(r,"language")->valuestring,"en"));
  invalid(r,"schema",cJSON_CreateNumber(3));invalid(r,"revision",cJSON_CreateNumber(0));invalid(r,"revision",cJSON_CreateNumber(1.5));invalid(r,"language",cJSON_CreateString("xx"));invalid(r,"accent",cJSON_CreateNumber(0x1000000));invalid(r,"active_dashboard",cJSON_CreateNumber(99));

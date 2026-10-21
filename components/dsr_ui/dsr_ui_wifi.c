@@ -128,7 +128,7 @@ static void show_networks(void)
     lv_label_set_long_mode(caption, LV_LABEL_LONG_MODE_DOTS); lv_obj_set_height(caption, 20);
     lv_obj_set_style_text_color(caption, dsr_sc_color(0x9db5d1), 0);
     lv_obj_t *list = lv_obj_create(root); lv_obj_set_pos(list, 12, 115); lv_obj_set_size(list, 296, 287);
-    lv_obj_set_style_pad_all(list, 0, 0); lv_obj_set_style_border_width(list, 0, 0);
+    lv_obj_set_style_pad_all(list, 0, 0); dsr_sc_border_width(list, 0, 0);
     lv_obj_set_style_bg_color(list, dsr_sc_color(DSR_SC_BG), 0);
     if(hud)lv_obj_set_style_bg_opa(list,LV_OPA_TRANSP,0);
     lv_obj_set_scroll_dir(list, LV_DIR_VER); dsr_sc_scrollbar(list);

@@ -19,6 +19,29 @@ static unsigned style;
 static unsigned language=1; /* EN until the workspace (saved language) is loaded */
 unsigned dsr_sc_language(void){return language;}
 unsigned dsr_sc_style(void){return style;}
+void dsr_sc_border_color(lv_obj_t *o,lv_color_t color,lv_style_selector_t selector)
+{
+ uint32_t c=lv_color_to_u32(color)&0xffffff;
+ /* Preserve only intentional semantic warning/error contours. */
+ bool semantic=c==0xffc107||c==0xffc65b||c==0xffbf24||c==0xf0a020||c==0xffb52e||c==0xe1bb70||c==DSR_CYBER_DANGER;
+ lv_color_t target=style==DSR_SC_STYLE_CYBER_BLUE&&!semantic?lv_color_hex(DSR_CYBER_CYAN):color;
+ if(selector==0&&lv_color_eq(lv_obj_get_style_border_color(o,0),target))return;
+ lv_obj_set_style_border_color(o,target,selector);
+}
+void dsr_sc_border_width(lv_obj_t *o,int32_t width,lv_style_selector_t selector)
+{int32_t target=style==DSR_SC_STYLE_CYBER_BLUE&&width>0?DSR_CYBER_BORDER_WIDTH:width;if(selector==0&&lv_obj_get_style_border_width(o,0)==target)return;lv_obj_set_style_border_width(o,target,selector);}
+extern const lv_font_t dsr_roboto_medium_12,dsr_roboto_medium_14;
+extern const lv_font_t dsr_roboto_bold_18,dsr_roboto_bold_22,dsr_roboto_bold_28;
+const lv_font_t *dsr_sc_font(const lv_font_t *font)
+{
+ if(style!=DSR_SC_STYLE_CYBER_BLUE)return font;
+ if(font==&dsr_roboto_12)return &dsr_roboto_medium_12;
+ if(font==&dsr_roboto_14)return &dsr_roboto_medium_14;
+ if(font==&dsr_roboto_18)return &dsr_roboto_bold_18;
+ if(font==&dsr_roboto_22)return &dsr_roboto_bold_22;
+ if(font==&dsr_roboto_28)return &dsr_roboto_bold_28;
+ return font;
+}
 void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<=DSR_SC_STYLE_CYBER_BLUE?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
 unsigned dsr_sc_style_from_name(const char *name)
 {return !name?DSR_SC_STYLE_GRAPHITE:!strcmp(name,"midnight")?DSR_SC_STYLE_MIDNIGHT:!strcmp(name,"light")?DSR_SC_STYLE_LIGHT:!strcmp(name,"cyber_blue")?DSR_SC_STYLE_CYBER_BLUE:DSR_SC_STYLE_GRAPHITE;}
@@ -72,6 +95,17 @@ const char *dsr_sc_tr(const char *text)
 {
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
+ {"Poczekaj na zakończenie dodawania urządzenia.","Wait until device onboarding finishes.","Warten, bis das Hinzufügen abgeschlossen ist."},
+ {"Usuwanie urządzenia","Removing device","Gerät entfernen"},
+ {"Usuwane są tylko ta karta, jej powiązanie i odwołania. Pozostałe kanały, pokoje i sceny zostają zachowane.","Only this card, binding and references are removed. Other channels, rooms and scenes are preserved.","Nur diese Karte, Bindung und Verweise werden entfernt. Andere Kanäle, Räume und Szenen bleiben erhalten."},
+ {"Nie udało się przygotować usunięcia. Dane zachowane.","Could not prepare removal. Data preserved.","Entfernen konnte nicht vorbereitet werden. Daten bleiben erhalten."},
+ {"Usunąć ten kanał z pilota oraz jego karty i odwołania? Pozostałe kanały, pomieszczenia i sceny pozostaną. Shelly nie zostanie zresetowane.","Remove this channel, its cards and references from the remote? Other channels, rooms and scenes remain. Shelly will not be reset.","Diesen Kanal mit seinen Karten und Verweisen entfernen? Andere Kanäle, Räume und Szenen bleiben. Shelly wird nicht zurückgesetzt."},
+ {"Nie potwierdzono zapisu usunięcia. Spróbuj ponownie.","Removal write not confirmed. Try again.","Speichern der Entfernung nicht bestätigt. Erneut versuchen."},
+ {"Karta usunięta. Kończenie usuwania powiązania…","Card removed. Finishing binding removal…","Karte entfernt. Bindung wird entfernt…"},
+ {"Karta usunięta. Błąd zapisu powiązania. Pilot ponowi próbę.","Card removed. Binding write failed. The remote will retry.","Karte entfernt. Bindung konnte nicht gespeichert werden. Erneuter Versuch folgt."},
+ {"Urządzenie usunięte.","Device removed.","Gerät entfernt."},
+ {"Usunięcie nie zostało zapisane.","Removal has not been saved.","Entfernung wurde nicht gespeichert."},
+
  {"Nazwa grupy","Group name","Gruppenname"},
  {"Nazwa sceny","Scene name","Szenenname"},
  {"np. Lampy na parterze","e.g. Downstairs lights","z. B. Lichter im Erdgeschoss"},
@@ -472,11 +506,13 @@ lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int ra
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
      lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
     if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&w>=80&&h>=40)dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
+    else if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6)dsr_ui_cyber_contour(o);
     if(style==DSR_SC_STYLE_CYBER_BLUE&&color==DSR_SC_BG&&radius==0&&w>=280&&h>60)lv_obj_set_style_bg_opa(o,LV_OPA_TRANSP,0);
     return o;
 }
 lv_obj_t *dsr_sc_text(lv_obj_t *p,const char *s,int x,int y,int w,const lv_font_t *font,uint32_t color)
 {
+    font=dsr_sc_font(font);
     lv_obj_t *o=lv_label_create(p);lv_obj_remove_style_all(o);lv_label_set_text(o,dsr_sc_tr(s));
     lv_obj_set_pos(o,x,y);lv_obj_set_width(o,w);
     lv_style_t *t=shared(SHARED_TEXT,hex(dsr_sc_text_color(color)),(uintptr_t)font);
@@ -494,8 +530,8 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
     /* Consistent outlines distinguish controls from the background in all themes. */
-    if(radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
-     if(e)lv_obj_add_style(o,e,0);else{lv_obj_set_style_border_width(o,1,0);lv_obj_set_style_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
+    if(style!=DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
+     if(e)lv_obj_add_style(o,e,0);else{dsr_sc_border_width(o,1,0);dsr_sc_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
     if(cb){
      /* Compact +/- and group controls keep their layout but have a minimum
       * 44 px touch target, including the space immediately around them. */
@@ -599,11 +635,23 @@ void dsr_sc_clock_tick(void)
  if(now>=(time_t)1735689600&&localtime_r(&now,&local))snprintf(text,sizeof(text),"%02d:%02d",local.tm_hour,local.tm_min);
  if(strcmp(lv_label_get_text(clock_label),text))lv_label_set_text(clock_label,text);
 }
+static const char back_tag;
+static lv_event_cb_t header_callback;
+void dsr_sc_header_back(lv_obj_t *root,lv_event_cb_t back,void *context)
+{
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
+  lv_obj_t *b=lv_obj_get_child(root,(int)i);if(lv_obj_get_user_data(b)!=(void *)&back_tag)continue;
+  if(header_callback)lv_obj_remove_event_cb(b,header_callback);
+  header_callback=back;
+  if(back)lv_obj_add_event_cb(b,back,LV_EVENT_CLICKED,context);
+  return;
+ }
+}
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
- if(back){lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
+ if(back){header_callback=back;lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
- if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);lv_obj_set_style_border_width(badge,1,0);lv_obj_set_style_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
+ if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);dsr_sc_border_width(badge,1,0);dsr_sc_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
   lv_obj_set_x(name,back?140:92);lv_obj_set_width(name,back?98:146);
   clock_label=dsr_sc_text(root,"",back?60:12,8,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_LEFT,0);
@@ -625,6 +673,12 @@ void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_e
  dsr_sc_icon(root,DSR_ICON_WIFI,247,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
  b=dsr_sc_button(root,280,0,40,42,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,dsr_sc_icon_accent());
 }
+static void plus_feedback(lv_event_t *event)
+{
+ lv_obj_t *button=lv_event_get_target(event);lv_obj_t *circle=lv_obj_get_child(button,0);
+ bool down=lv_event_get_code(event)==LV_EVENT_PRESSED;
+ lv_obj_set_style_opa(circle,down?LV_OPA_70:LV_OPA_COVER,0);
+}
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {
  lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);
@@ -635,7 +689,7 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  const dsr_ui_icon_t icons[]={style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_GRID:DSR_ICON_DASHBOARD,DSR_ICON_HOME,style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_CPU:DSR_ICON_BATTERY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-  if(i==4){lv_obj_t *circle=dsr_sc_panel(b,0,0,36,36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);dsr_sc_icon_centered(circle,icons[i],20,dsr_sc_icon_accent());}
+  if(i==4){if(style==DSR_SC_STYLE_CYBER_BLUE){lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESS_LOST,NULL);}lv_obj_t *circle=dsr_sc_panel(b,0,0,style==DSR_SC_STYLE_CYBER_BLUE?42:36,style==DSR_SC_STYLE_CYBER_BLUE?42:36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_power(circle,true,true);dsr_sc_icon_centered(circle,icons[i],style==DSR_SC_STYLE_CYBER_BLUE?28:20,dsr_sc_icon_accent());}
   else dsr_sc_icon_centered(b,icons[i],26,style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED);
   if(!(enabled&(1u<<i)))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
@@ -662,10 +716,13 @@ static void scrollbar_margin(lv_event_t *e)
 }
 void dsr_sc_scrollbar(lv_obj_t *o)
 {
+ /* A scroll flag alone is not hit-testable after dsr_sc_panel removed
+  * CLICKABLE. Empty space and passive cards must admit real finger drags. */
+ lv_obj_add_flag(o,LV_OBJ_FLAG_CLICKABLE);
  lv_obj_set_scrollbar_mode(o,LV_SCROLLBAR_MODE_AUTO);
  lv_obj_add_event_cb(o,scrollbar_margin,LV_EVENT_REFR_EXT_DRAW_SIZE,NULL);
  lv_obj_add_event_cb(o,scrollbar_margin,LV_EVENT_DRAW_MAIN_END,NULL);
- lv_style_t *t=shared(SHARED_SCROLLBAR,hex(dsr_sc_color(0x8a9096)),0);
+ lv_style_t *t=shared(SHARED_SCROLLBAR,hex(dsr_sc_color(style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:0x8a9096)),0);
  if(t)lv_obj_add_style(o,t,LV_PART_SCROLLBAR);
  if(lv_obj_get_style_width(o,0)>=310)lv_obj_set_style_pad_right(o,1,LV_PART_SCROLLBAR);
  lv_obj_refresh_ext_draw_size(o);
@@ -691,7 +748,7 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
  /* One object: light face, thick ring as its border (blue + glow when on).
   * Two objects per row button matter: a 24-tile dashboard shares 128 KB LVGL heap. */
  lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,enabled?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,cb,context);
- lv_obj_set_style_border_width(ring,5,0);lv_obj_set_style_border_color(ring,dsr_sc_color(on&&enabled?DSR_SC_GLOW:0x3a3f44),0);
+ dsr_sc_border_width(ring,5,0);dsr_sc_border_color(ring,dsr_sc_color(on&&enabled?DSR_SC_GLOW:0x3a3f44),0);
  dsr_sc_glow(ring,on&&enabled);
  dsr_sc_icon_centered(ring,icon,(size-10)*52/100,enabled?icon_color:0x8a9096);
  if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
@@ -741,7 +798,7 @@ lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int 
 {
  lv_obj_t *badge=dsr_sc_panel(parent,x,y,width,28,DSR_SC_PANEL,7);
  uint32_t contour=color==DSR_SC_TEXT?DSR_SC_GLOW:color;
- lv_obj_set_style_border_color(badge,dsr_sc_color(contour),0);lv_obj_set_style_border_width(badge,1,0);
+ dsr_sc_border_color(badge,dsr_sc_color(contour),0);dsr_sc_border_width(badge,1,0);
  dsr_sc_icon(badge,icon,6,4,20,contour);
  lv_obj_t *label=dsr_sc_text(badge,text,31,6,width-37,&dsr_roboto_12,color);
  lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);

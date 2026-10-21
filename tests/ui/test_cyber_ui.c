@@ -153,7 +153,7 @@ static void gallery(void)
  CHECK(rgb(lv_obj_get_style_bg_color(list,0))==DSR_CYBER_ELEVATED);screenshot("613-cyber-dropdown");lv_dropdown_close(d);
  dsr_ui_open_settings();lv_obj_t *msg=lv_msgbox_create(NULL);lv_msgbox_add_title(msg,"Błąd połączenia");lv_msgbox_add_text(msg,"Spróbuj ponownie.");lv_msgbox_add_footer_button(msg,"OK");
  CHECK(rgb(lv_obj_get_style_bg_color(msg,0))==DSR_CYBER_ELEVATED);
- CHECK(lv_obj_get_style_text_font(lv_msgbox_get_title(msg),0)==&dsr_roboto_14);
+ CHECK(lv_obj_get_style_text_font(lv_msgbox_get_title(msg),0)==dsr_sc_font(&dsr_roboto_14));
  CHECK(rgb(lv_obj_get_style_bg_color(lv_msgbox_get_header(msg),0))==DSR_CYBER_ELEVATED);screenshot("614-cyber-native-message");lv_msgbox_close(msg);
 }
 int main(int argc,char **argv)

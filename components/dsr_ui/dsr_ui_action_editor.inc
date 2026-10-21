@@ -8,7 +8,7 @@ static bool action_named(void)
 {return action_name_valid(string(editing,"name"));}
 static lv_obj_t *action_pick(const char *label,int y,bool selected,lv_event_cb_t callback,uintptr_t value)
 {
- lv_obj_t *b=dsr_ui_button(body,label,0,y,284,callback,(void *)value);lv_obj_set_style_bg_color(b,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_radius(b,12,0);lv_obj_set_style_border_width(b,selected?2:1,0);lv_obj_set_style_border_color(b,dsr_sc_color(selected?DSR_SC_BLUE:DSR_SC_EDGE),0);
+ lv_obj_t *b=dsr_ui_button(body,label,0,y,284,callback,(void *)value);lv_obj_set_style_bg_color(b,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_radius(b,12,0);dsr_sc_border_width(b,selected?2:1,0);dsr_sc_border_color(b,dsr_sc_color(selected?DSR_SC_BLUE:DSR_SC_EDGE),0);
  lv_obj_t *label_obj=lv_obj_get_child(b,0);lv_obj_set_width(label_obj,264);lv_obj_set_height(label_obj,22);lv_label_set_long_mode(label_obj,LV_LABEL_LONG_MODE_DOTS);return b;
 }
 static void action_back(lv_event_t *event)
@@ -107,7 +107,7 @@ static void action_commands(void)
 {
  const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),(int)action_editor.pending_device));lv_obj_t *name=dsr_sc_text(body,dsr_sc_user(display_name(d)),4,0,276,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);dsr_sc_text(body,"Wybierz polecenie",4,50,276,&dsr_roboto_14,DSR_SC_MUTED);
  if(!action_device_supported(d)){dsr_sc_text(body,"Nieobsługiwany kanał",4,82,276,&dsr_roboto_14,DSR_SC_MUTED);action_pick("Zmień urządzenie",140,false,action_change_device,0);return;}
- bool cover=!strcmp(string(d,"kind"),"cover");const char *commands[]={cover?"open":"on",cover?"close":"off","stop"};for(unsigned i=0;i<(cover?3u:2u);i++){lv_obj_t *b=action_pick(action_command_name(commands[i]),78+(int)i*56,false,action_set_command,(uintptr_t)commands[i]);lv_obj_set_style_border_color(b,dsr_sc_color(DSR_SC_BLUE),0);}action_pick("Zmień urządzenie",cover?252:196,false,action_change_device,0);
+ bool cover=!strcmp(string(d,"kind"),"cover");const char *commands[]={cover?"open":"on",cover?"close":"off","stop"};for(unsigned i=0;i<(cover?3u:2u);i++){lv_obj_t *b=action_pick(action_command_name(commands[i]),78+(int)i*56,false,action_set_command,(uintptr_t)commands[i]);dsr_sc_border_color(b,dsr_sc_color(DSR_SC_BLUE),0);}action_pick("Zmień urządzenie",cover?252:196,false,action_change_device,0);
 }
 static void action_photo(lv_event_t *event)
 {unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);const char *id=i?gallery_id(i-1):"";if(id)action_put("photo",cJSON_CreateString(id));action_form();}
@@ -119,7 +119,7 @@ static void action_gallery(void)
  lv_obj_t *choice=lv_dropdown_create(body);lv_obj_set_pos(choice,0,24);lv_obj_set_size(choice,284,44);lv_obj_set_style_text_font(choice,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(choice),&dsr_roboto_14,0);lv_dropdown_set_options(choice,rooms);lv_dropdown_set_selected(choice,selected);lv_obj_add_event_cb(choice,action_room,LV_EVENT_VALUE_CHANGED,NULL);
  dsr_sc_text(body,"Zdjęcie (opcjonalnie)",2,88,280,&dsr_roboto_16,DSR_SC_TEXT);action_pick("Bez zdjęcia",116,!*string(editing,"photo"),action_photo,0);
  const char *id;i=(unsigned)action_editor.gallery_page*12;unsigned shown=0;
- while(shown<12&&(id=gallery_id(i))){lv_obj_t *b=dsr_sc_button(body,(int)(shown%4)*71,180+(int)(shown/4)*72,64,64,DSR_SC_CARD,12,action_photo,(void *)(uintptr_t)(i+1));lv_obj_set_style_clip_corner(b,true,0);if(dsr_ui_photo_source(id,&action_editor.photos[shown])){lv_obj_t *image=lv_image_create(b);lv_image_set_src(image,&action_editor.photos[shown]);uint32_t scale=64u*256u/action_editor.photos[shown].header.w,vertical=64u*256u/action_editor.photos[shown].header.h;lv_image_set_scale(image,scale>vertical?scale:vertical);lv_obj_center(image);lv_obj_add_flag(image,LV_OBJ_FLAG_EVENT_BUBBLE);}if(!strcmp(id,string(editing,"photo"))){lv_obj_set_style_border_width(b,3,0);lv_obj_set_style_border_color(b,dsr_sc_color(DSR_SC_BLUE),0);}i++;shown++;}
+ while(shown<12&&(id=gallery_id(i))){lv_obj_t *b=dsr_sc_button(body,(int)(shown%4)*71,180+(int)(shown/4)*72,64,64,DSR_SC_CARD,12,action_photo,(void *)(uintptr_t)(i+1));lv_obj_set_style_clip_corner(b,true,0);if(dsr_ui_photo_source(id,&action_editor.photos[shown])){lv_obj_t *image=lv_image_create(b);lv_image_set_src(image,&action_editor.photos[shown]);uint32_t scale=64u*256u/action_editor.photos[shown].header.w,vertical=64u*256u/action_editor.photos[shown].header.h;lv_image_set_scale(image,scale>vertical?scale:vertical);lv_obj_center(image);lv_obj_add_flag(image,LV_OBJ_FLAG_EVENT_BUBBLE);}if(!strcmp(id,string(editing,"photo"))){dsr_sc_border_width(b,3,0);dsr_sc_border_color(b,dsr_sc_color(DSR_SC_BLUE),0);}i++;shown++;}
  int end=190+(int)((shown+3)/4)*72;if(action_editor.gallery_page)dsr_ui_button(body,"Poprzednie zdjęcia",0,end,136,action_gallery_page,(void *)(uintptr_t)(action_editor.gallery_page-1));if(gallery_id(i))dsr_ui_button(body,"Następne zdjęcia",148,end,136,action_gallery_page,(void *)(uintptr_t)(action_editor.gallery_page+1));dsr_sc_text(body,"Własne zdjęcia dodasz w Web Panelu.",2,end+58,280,&dsr_roboto_12,DSR_SC_MUTED);if(!action_editor.fresh)dsr_ui_button(body,"Usuń wpis",0,end+102,284,delete_entity,NULL);
 }
 static void action_summary(void)

@@ -1,6 +1,7 @@
 #include "dsr_ui_internal.h"
 #include "dsr_ui_cyber.h"
 #include "dsr_system_info.h"
+#include "dsr_board.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -9,11 +10,28 @@ static dsr_result_t result=DSR_IO;
 static bool attempted,pending,active,rejected,from_home;
 static uint32_t measured;
 static lv_obj_t *header_value,*value,*status,*age,*measure,*diag;
+static lv_obj_t *header_icon;
+static int header_fill=-1;
+static bool header_charging,header_low;
 /* Only pointers; the five visible values are owned/freed by their screen. */
 static lv_obj_t *memory_values[5],*memory_detail;
 static uint32_t diag_at;
 static void header_deleted(lv_event_t *event)
 {if(lv_event_get_target(event)==header_value)header_value=NULL;}
+static void icon_deleted(lv_event_t *event)
+{if(lv_event_get_target(event)==header_icon)header_icon=NULL;}
+static void battery_draw(lv_event_t *event)
+{
+ lv_obj_t *o=lv_event_get_target(event);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(event);
+ uint32_t color=header_low?DSR_CYBER_DANGER:DSR_SC_GLOW;
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=dsr_sc_color(color);d.radius=3;
+ lv_area_t cell={a.x1+5,a.y1+3,a.x1+35,a.y1+20};lv_draw_rect(layer,&d,&cell);
+ d.border_width=0;d.radius=1;d.bg_opa=LV_OPA_COVER;d.bg_color=dsr_sc_color(color);
+ lv_area_t tip={a.x1+36,a.y1+8,a.x1+38,a.y1+15};lv_draw_rect(layer,&d,&tip);
+ if(header_fill>0){lv_area_t fill={cell.x1+4,cell.y1+4,cell.x1+3+23*header_fill/100,cell.y2-4};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
+ if(header_fill<0){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text="?";t.font=&dsr_roboto_12;t.color=dsr_sc_color(color);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+ if(header_charging){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text="+";t.font=&dsr_roboto_12;t.color=dsr_sc_color(DSR_SC_TEXT);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+}
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
 void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=memory_detail=NULL;memset(memory_values,0,sizeof(memory_values));}
@@ -31,10 +49,20 @@ void dsr_ui_battery_tick(void)
 {
  uint32_t elapsed=lv_tick_get()-measured;
  bool valid=attempted&&result==DSR_OK&&sample.has_voltage;
+ bool fresh=attempted&&result==DSR_OK&&elapsed<30000;
  char text[64];
+ if(header_icon){
+  bool charging=fresh&&sample.has_charge_state&&sample.charging&&!dsr_board_display_sleeping();
+  int fill=fresh&&sample.has_percent&&sample.percent<=100?sample.percent:-1;
+  /* Fixed tick, no timer/animation allocation. 1.6 s fill + .4 s hold. */
+  if(charging){uint32_t phase=lv_tick_get()%2000;fill=phase<1600?(int)(phase/16):100;}
+  bool low=fresh&&sample.has_percent&&sample.percent<=10;
+  if(fill!=header_fill||charging!=header_charging||low!=header_low){header_fill=fill;header_charging=charging;header_low=low;lv_obj_invalidate(header_icon);}
+ }
  if(header_value){
-  if(valid&&elapsed<30000)snprintf(text,sizeof(text),"%u.%02uV",sample.bat_mv/1000,(sample.bat_mv%1000)/10);
-  else snprintf(text,sizeof(text),"?");
+  if(fresh&&sample.has_percent&&sample.percent<=100)snprintf(text,sizeof(text),"%u%%",sample.percent);
+  else if(valid&&fresh)snprintf(text,sizeof(text),"%u.%02uV",sample.bat_mv/1000,(sample.bat_mv%1000)/10);
+  else snprintf(text,sizeof(text),"—");
   label(header_value,text);
  }
  if(!active)return;
@@ -78,9 +106,9 @@ static void show(void)
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
  if(hud){
   lv_obj_t *body=dsr_sc_panel(root,12,86,296,322,DSR_SC_BG,0);
-  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
   lv_obj_t *power=dsr_sc_panel(body,0,0,296,114,DSR_SC_CARD,10);
-  lv_obj_set_style_border_color(power,dsr_sc_color(DSR_SC_GLOW),0);
+  dsr_sc_border_color(power,dsr_sc_color(DSR_SC_GLOW),0);
   dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,12,8,40,DSR_SC_GLOW);
   value=dsr_sc_text(power,"— V",64,9,220,&dsr_roboto_28,DSR_SC_TEXT);
   status=dsr_sc_text(power,"Pomiar na żądanie",12,48,272,&dsr_roboto_14,DSR_SC_TEXT);
@@ -91,7 +119,7 @@ static void show(void)
   dsr_sc_icon(note,DSR_ICON_WARNING,10,12,24,0xffc107);
   dsr_sc_text(note,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",42,8,242,&dsr_roboto_12,0xffc107);
   lv_obj_t *card=dsr_sc_panel(body,0,180,296,250,DSR_SC_CARD,10);
-  lv_obj_set_style_border_color(card,dsr_sc_color(DSR_SC_GLOW),0);
+  dsr_sc_border_color(card,dsr_sc_color(DSR_SC_GLOW),0);
   dsr_sc_icon(card,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);dsr_sc_text(card,"Pamięć i radio",44,9,240,&dsr_roboto_18,DSR_SC_TEXT);
   dsr_sc_panel(card,12,36,272,1,DSR_SC_BLUE,0);
   const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
@@ -124,9 +152,9 @@ void dsr_ui_battery_header(lv_obj_t *root)
 {
  lv_obj_t *button=dsr_sc_button(root,276,0,44,44,DSR_SC_BG,0,dsr_ui_battery_open,NULL);
  lv_obj_set_style_bg_opa(button,LV_OPA_TRANSP,0);
- lv_obj_t *outline=dsr_sc_panel(button,4,11,34,20,DSR_SC_BG,3);
- lv_obj_set_style_border_width(outline,1,0);lv_obj_set_style_border_color(outline,dsr_sc_color(DSR_SC_MUTED),0);
- header_value=dsr_sc_text(button,"?",4,15,34,&dsr_roboto_12,DSR_SC_TEXT);
+ /* Empty icon is intentional when only a BAT voltage is known. */
+ header_icon=button;lv_obj_add_event_cb(button,battery_draw,LV_EVENT_DRAW_MAIN_END,NULL);lv_obj_add_event_cb(button,icon_deleted,LV_EVENT_DELETE,NULL);
+ header_fill=-2;header_value=dsr_sc_text(button,"—",0,26,44,&dsr_roboto_11,DSR_SC_TEXT);
  lv_obj_set_style_text_align(header_value,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);dsr_ui_battery_tick();
 }

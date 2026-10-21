@@ -80,6 +80,8 @@ static bool room_editor,room_new,room_deleted;
  * migration remain the current shared workspace/CAS implementation. */
 static bool device_editor;
 static uint32_t context_device_id;
+static uint32_t deletion_id;
+static lv_obj_t *deletion_state;
 static const char *device_input_error;
 static lv_obj_t *room_dialog,*settings_dialog;
 static bool settings_context,appearance_editor;
@@ -105,7 +107,7 @@ static void config_log(const char *stage,int code)
 #endif
 }
 static void clear_draft(void)
-{memset(&action_editor,0,sizeof(action_editor));cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
+{memset(&action_editor,0,sizeof(action_editor));cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;deletion_id=0;deletion_state=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
 void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
 static void settings_stay(lv_event_t *event)
 {(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
@@ -133,6 +135,7 @@ static void show_collection(lv_event_t *event);
 static void show_entity(cJSON *entity);
 static void show_room_form(void);
 static void show_device_form(void);
+static void delete_entity(lv_event_t *event);
 static void close_keyboard(lv_event_t *event)
 {
  (void)event;
@@ -161,7 +164,7 @@ static lv_obj_t *screen(const char *title)
 {
  view_generation++;view_save_target=SAVE_STAY;room_dialog=settings_dialog=NULL;
  dsr_network_reset_view();dsr_mobile_hide();lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_set_style_text_font(root,&dsr_roboto_14,0);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
- dsr_sc_header(root,"",false,dsr_wifi_connected(),NULL,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
+ dsr_sc_header(root,"",false,dsr_wifi_connected(),dsr_ui_home,NULL);dsr_sc_text(root,title,12,46,296,&dsr_roboto_18,DSR_SC_TEXT);dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
  status_label=dsr_sc_text(root,"Zmiany zostaną zastosowane po zapisaniu",14,82,292,&dsr_roboto_12,DSR_SC_MUTED);
  body=dsr_sc_panel(root,12,106,296,292,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  keyboard=lv_keyboard_create(root);dsr_ui_keyboard(keyboard);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
@@ -179,7 +182,7 @@ static lv_obj_t *diagnostic_card(int y,int height,dsr_ui_icon_t icon,uint32_t co
  lv_obj_t *card=dsr_sc_panel(body,0,y,296,height,DSR_SC_CARD,10);
  lv_obj_t *well=dsr_sc_panel(card,5,5,42,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
  dsr_sc_icon_centered(well,icon,32,icon==DSR_ICON_WARNING?color:DSR_SC_GLOW);
- lv_obj_set_style_border_color(card,dsr_sc_color(icon==DSR_ICON_WARNING?color:DSR_SC_GLOW),0);return card;
+ dsr_sc_border_color(card,dsr_sc_color(icon==DSR_ICON_WARNING?color:DSR_SC_GLOW),0);return card;
 }
 static int diagnostic_description(int y,dsr_ui_icon_t icon,const char *title,const char *text)
 {
@@ -415,7 +418,7 @@ static void device_icons(int y)
  int chosen=integer(editing,"icon");if(chosen<0||chosen>DSR_SC_DEVICE_ICONS)chosen=0;
  for(int i=0;i<=DSR_SC_DEVICE_ICONS;i++){
   lv_obj_t *b=dsr_sc_button(body,(i%5)*57+2,y+24+(i/5)*58,50,50,0x17191c,LV_RADIUS_CIRCLE,device_icon_pick,(void *)(uintptr_t)i);
-  lv_obj_set_style_border_width(b,i==chosen?3:1,0);lv_obj_set_style_border_color(b,dsr_sc_color(i==chosen?DSR_SC_GLOW:0x3a3f44),0);dsr_sc_glow(b,i==chosen);
+  dsr_sc_border_width(b,i==chosen?3:1,0);dsr_sc_border_color(b,dsr_sc_color(i==chosen?DSR_SC_GLOW:0x3a3f44),0);dsr_sc_glow(b,i==chosen);
   if(i)dsr_sc_icon_centered(b,dsr_sc_device_icons[i-1],28,i==chosen?DSR_SC_GLOW:dsr_sc_icon_accent());
   else{lv_obj_t *t=dsr_sc_text(b,"Auto",0,0,44,&dsr_roboto_12,i==chosen?DSR_SC_GLOW:DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(t);}
  }
@@ -431,6 +434,7 @@ static void show_device_form(void)
  add_field("Nazwa","name",0,false);object_choice("Pomieszczenie","room",80);
  dsr_ui_button(body,"Użyj nazwy z Shelly",0,148,284,use_shelly_name,NULL);
  device_icons(208);
+ dsr_ui_button(body,"Usuń urządzenie",0,584,284,delete_entity,NULL);
  actions(root,room_back);
 }
 static void scene_action_cycle(lv_event_t *event)
@@ -464,6 +468,12 @@ static bool entity_deletable(void)
  const cJSON *a=item(draft,collection_name),*member;bool present=false;
  cJSON_ArrayForEach(member,a)if(member==editing)present=true;
  if(!present)return false;
+ /* Device removal cleans exact references in one workspace CAS. A running
+  * bind may still be publishing its locator and must finish first. */
+ if(!strcmp(collection_name,"devices")){
+  if(dsr_network_bind_busy()){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie dodawania urządzenia.");return false;}
+  return true;
+ }
  int id=integer(editing,"id");const cJSON *v,*t;bool referenced=false;
  const char *type=!strcmp(collection_name,"devices")?"device":!strcmp(collection_name,"rooms")?"room":!strcmp(collection_name,"scenes")?"scene":"group";
  cJSON_ArrayForEach(v,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(v,"tiles"))if(!strcmp(string(t,"type"),type)&&integer(t,"ref")==id)referenced=true;
@@ -478,9 +488,29 @@ static bool entity_deletable(void)
  if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)<=1){dsr_sc_label_set_text(status_label,"Zachowaj przynajmniej jeden pulpit.");return false;}
  return true;
 }
+static void deletion_back(lv_event_t *event)
+{
+ (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ if(save_confirmed){dsr_ui_workspace_hide();dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);}
+ else room_back(NULL);
+}
+static void show_device_deletion(void)
+{
+ lv_obj_t *root=screen("Usuwanie urządzenia");
+ deletion_state=dsr_sc_text(body,"Zapisywanie…",8,16,276,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(body,"Usuwane są tylko ta karta, jej powiązanie i odwołania. Pozostałe kanały, pokoje i sceny zostają zachowane.",8,88,276,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_ui_button(root,"Wstecz",12,420,140,deletion_back,NULL);dsr_ui_button(root,"Zapisz",168,420,140,save,NULL);
+ view_save_target=SAVE_STAY;
+}
 static void delete_entity_confirm(lv_event_t *event)
 {
  (void)event;room_dialog_close(NULL);if(!entity_deletable())return;
+ if(!strcmp(collection_name,"devices")){
+  uint32_t id=(uint32_t)integer(editing,"id");char error[96];cJSON *next=dsr_config_remove_device(draft,id,error);
+  if(!next){dsr_sc_label_set_text(status_label,"Nie udało się przygotować usunięcia. Dane zachowane.");return;}
+  cJSON_Delete(draft);draft=next;editing=NULL;deletion_id=id;
+  show_device_deletion();save(NULL);return;
+ }
  cJSON *a=cJSON_GetObjectItemCaseSensitive(draft,collection_name);int id=integer(editing,"id"),at=0;
  for(cJSON *entry=a->child;entry;entry=entry->next,at++)if(entry==editing){cJSON_DeleteItemFromArray(a,at);break;}
  if(!strcmp(collection_name,"dashboards")&&integer(draft,"active_dashboard")==id)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"active_dashboard"),integer(a->child,"id"));
@@ -490,7 +520,8 @@ static void delete_entity(lv_event_t *event)
 {
  (void)event;if(!entity_deletable())return;
  char question[160];snprintf(question,sizeof(question),dsr_sc_tr("Usunąć \"%s\"?"),string(editing,"name"));
- lv_obj_t *panel=room_modal(question,"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie.");
+ bool device=!strcmp(collection_name,"devices");
+ lv_obj_t *panel=room_modal(question,device?"Usunąć ten kanał z pilota oraz jego karty i odwołania? Pozostałe kanały, pomieszczenia i sceny pozostaną. Shelly nie zostanie zresetowane.":"Po potwierdzeniu wybierz Zapisz. Dane zostaną zmienione dopiero po udanym zapisie.");
  /* A maximum-width name can wrap beyond two lines. Bound this named heading
   * and move only this modal's description, leaving contextual dialogs intact. */
  lv_obj_t *heading=lv_obj_get_child(panel,0);lv_obj_set_height(heading,44);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
@@ -692,7 +723,7 @@ void dsr_ui_workspace_tick(void)
   }
   if(!acknowledged){
    if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
-   dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");return;
+   dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");if(deletion_id&&deletion_state)dsr_sc_label_set_text(deletion_state,"Nie potwierdzono zapisu usunięcia. Spróbuj ponownie.");return;
   }
   draft_revision=revision;own_save=false;save_confirmed=true;save_failed=false;
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);
@@ -719,6 +750,11 @@ void dsr_ui_workspace_tick(void)
   }
   if(room_editor&&cJSON_Compare(draft,saved_baseline,true)&&(room_new||room_deleted)){room_new=false;show_room_form();}
  }else if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
+ if(deletion_id&&deletion_state){
+  dsr_result_t cleanup=dsr_network_removal_status(deletion_id);
+  const char *text=own_save?"Zapisywanie…":save_failed?"Nie potwierdzono zapisu usunięcia. Spróbuj ponownie.":save_confirmed?(cleanup==DSR_BUSY?"Karta usunięta. Kończenie usuwania powiązania…":cleanup!=DSR_OK?"Karta usunięta. Błąd zapisu powiązania. Pilot ponowi próbę.":"Urządzenie usunięte."):"Usunięcie nie zostało zapisane.";
+  dsr_sc_label_set_text(deletion_state,text);
+ }
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
  if(device_editor&&device_input_error){dsr_sc_label_set_text(status_label,device_input_error);return;}
  if(own_save)dsr_sc_label_set_text(status_label,"Zapisywanie…");

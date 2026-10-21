@@ -8,6 +8,7 @@ typedef struct {
  dsr_result_t result;
  dsr_device_t intent_identity;
  uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
+ dsr_result_t maintenance_result;
  uint8_t failures;
  bool sample_valid,blocked,command_error,queued,in_flight,layout_enabled,urgent_stop;
  uint8_t mailbox_pending; /* LCD accepted intent before shared-mailbox take: move1/STOP2. */

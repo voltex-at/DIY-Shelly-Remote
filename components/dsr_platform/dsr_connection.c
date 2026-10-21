@@ -167,7 +167,8 @@ static esp_err_t registry_change(const dsr_connection_t *connection,bool remove)
   /* A previous remove may have reached Flash before commit/readback failed.
    * Verified absence is its durable ACK; never rewrite unrelated endpoints. */
   if(at==registry->count)error=remove?ESP_OK:ESP_ERR_NOT_FOUND;
-  else {if(!remove)for(uint32_t i=0;i<registry->count;i++)if(i!=at&&registry->items[i].layout_id==connection->layout_id)error=ESP_ERR_INVALID_ARG;
+  else {if(remove&&connection->layout_id&&registry->items[at].layout_id!=connection->layout_id)error=ESP_ERR_INVALID_STATE;
+   if(!remove)for(uint32_t i=0;i<registry->count;i++)if(i!=at&&registry->items[i].layout_id==connection->layout_id)error=ESP_ERR_INVALID_ARG;
    if(error==ESP_OK){if(remove){memmove(&registry->items[at],&registry->items[at+1],(registry->count-at-1)*sizeof(registry->items[0]));memset(&registry->items[--registry->count],0,sizeof(registry->items[0]));}else registry->items[at].layout_id=connection->layout_id;error=registry_write(registry);}}
  }
  if(registry){memset(registry,0,sizeof(*registry));free(registry);}dsr_activity_end();return error;

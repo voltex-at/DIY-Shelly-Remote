@@ -16,6 +16,7 @@ void dsr_board_ui_quiesce(void);
 void dsr_board_ui_hold(uint32_t ms);
 esp_err_t dsr_board_set_backlight(uint8_t percent);
 void dsr_board_sleep_display(void);
+bool dsr_board_display_sleeping(void);
 esp_err_t dsr_board_restore_backlight(void);
 esp_err_t dsr_board_apply_display(uint8_t brightness, uint16_t idle_seconds);
 bool dsr_board_touch_available(void);

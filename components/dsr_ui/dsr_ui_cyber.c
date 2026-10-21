@@ -33,7 +33,7 @@ uint32_t dsr_ui_cyber_color(uint32_t c)
 typedef struct {
  lv_theme_t theme;
  lv_style_transition_dsc_t no_transition;
- lv_style_t text,card,primary,pressed,disabled,focus,muted,track,knob,scroll,decor,action,glow,flat,backdrop;
+ lv_style_t text,contour,card,primary,pressed,disabled,focus,muted,track,knob,scroll,decor,action,glow,flat,backdrop;
  lv_style_t device,device_on,power_on,power_off,power_disabled,inset,warning,danger,press_edge;
  bool initialized;
 } cyber_t;
@@ -46,8 +46,8 @@ static cyber_t hud;
 static void surface(lv_style_t *s,uint32_t bg,uint32_t border)
 {
  lv_style_init(s);lv_style_set_bg_color(s,lv_color_hex(bg));lv_style_set_bg_opa(s,LV_OPA_COVER);
- lv_style_set_text_color(s,lv_color_hex(DSR_CYBER_TEXT));lv_style_set_border_color(s,lv_color_hex(border));
- lv_style_set_border_width(s,1);lv_style_set_radius(s,8);lv_style_set_shadow_width(s,0);
+ lv_style_set_text_color(s,lv_color_hex(DSR_CYBER_TEXT));lv_style_set_border_color(s,lv_color_hex(border==DSR_CYBER_DANGER||border==0xffc107?border:DSR_CYBER_CYAN));
+ lv_style_set_border_width(s,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(s,8);lv_style_set_shadow_width(s,0);
  lv_style_set_bg_grad_dir(s,LV_GRAD_DIR_NONE);lv_style_set_transition(s,&hud.no_transition);
  lv_style_set_color_filter_opa(s,LV_OPA_TRANSP);
 }
@@ -60,7 +60,8 @@ static void init(void)
  static const lv_style_prop_t none[]={0};
  lv_style_transition_dsc_init(&hud.no_transition,none,lv_anim_path_linear,0,0,NULL);
  lv_style_init(&hud.text);lv_style_set_text_color(&hud.text,lv_color_hex(DSR_CYBER_TEXT));
- lv_style_set_text_font(&hud.text,&dsr_roboto_14);
+ lv_style_set_text_font(&hud.text,dsr_sc_font(&dsr_roboto_14));
+ lv_style_init(&hud.contour);lv_style_set_border_width(&hud.contour,DSR_CYBER_BORDER_WIDTH);lv_style_set_border_color(&hud.contour,lv_color_hex(DSR_CYBER_CYAN));
  surface(&hud.card,DSR_CYBER_ELEVATED,DSR_CYBER_BORDER);
  surface(&hud.primary,0x0065ce,DSR_CYBER_CYAN);
  lv_style_set_bg_grad_color(&hud.primary,lv_color_hex(0x003c8e));lv_style_set_bg_grad_dir(&hud.primary,LV_GRAD_DIR_VER);
@@ -76,15 +77,15 @@ static void init(void)
  lv_style_set_arc_color(&hud.knob,lv_color_hex(DSR_CYBER_CYAN));lv_style_set_shadow_width(&hud.knob,0);
  lv_style_init(&hud.scroll);lv_style_set_bg_color(&hud.scroll,lv_color_hex(DSR_CYBER_CYAN));
  /* Decor does not change padding, radius or the caller's semantic fill. */
- lv_style_init(&hud.decor);lv_style_set_border_width(&hud.decor,1);
- lv_style_set_border_color(&hud.decor,lv_color_hex(DSR_CYBER_BORDER));
+ lv_style_init(&hud.decor);lv_style_set_border_width(&hud.decor,DSR_CYBER_BORDER_WIDTH);
+ lv_style_set_border_color(&hud.decor,lv_color_hex(DSR_CYBER_CYAN));
  lv_style_set_bg_grad_color(&hud.decor,lv_color_hex(0x08182b));lv_style_set_bg_grad_dir(&hud.decor,LV_GRAD_DIR_VER);
- lv_style_init(&hud.action);lv_style_set_border_width(&hud.action,1);
+ lv_style_init(&hud.action);lv_style_set_border_width(&hud.action,DSR_CYBER_BORDER_WIDTH);
  lv_style_set_bg_color(&hud.action,lv_color_hex(0x0065ce));
  lv_style_set_border_color(&hud.action,lv_color_hex(DSR_CYBER_CYAN));
  lv_style_set_bg_grad_color(&hud.action,lv_color_hex(0x003688));lv_style_set_bg_grad_dir(&hud.action,LV_GRAD_DIR_VER);
  lv_style_init(&hud.glow);lv_style_set_outline_width(&hud.glow,1);lv_style_set_outline_pad(&hud.glow,1);
- lv_style_set_outline_color(&hud.glow,lv_color_hex(0x007bff));lv_style_set_outline_opa(&hud.glow,LV_OPA_COVER);
+ lv_style_set_outline_color(&hud.glow,lv_color_hex(DSR_CYBER_CYAN));lv_style_set_outline_opa(&hud.glow,LV_OPA_COVER);
  lv_style_set_shadow_width(&hud.glow,0);
  lv_style_init(&hud.flat);lv_style_set_bg_color(&hud.flat,lv_color_hex(DSR_CYBER_ELEVATED));
  lv_style_set_bg_opa(&hud.flat,LV_OPA_COVER);lv_style_set_border_width(&hud.flat,0);lv_style_set_radius(&hud.flat,0);
@@ -92,14 +93,14 @@ static void init(void)
  lv_style_set_bg_opa(&hud.backdrop,LV_OPA_80);lv_style_set_border_width(&hud.backdrop,0);lv_style_set_radius(&hud.backdrop,0);
  surface(&hud.device,0x1b3b59,0x386b92);lv_style_set_bg_grad_color(&hud.device,lv_color_hex(0x0a1d30));lv_style_set_bg_grad_dir(&hud.device,LV_GRAD_DIR_VER);
  surface(&hud.device_on,0x174b78,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_on,lv_color_hex(0x0b2440));lv_style_set_bg_grad_dir(&hud.device_on,LV_GRAD_DIR_VER);
- surface(&hud.power_on,0x0079f2,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.power_on,lv_color_hex(0x0039a3));lv_style_set_bg_grad_dir(&hud.power_on,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_on,2);lv_style_set_radius(&hud.power_on,LV_RADIUS_CIRCLE);
- surface(&hud.power_off,0x123453,0x3387a7);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x06182c));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,2);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
- surface(&hud.power_disabled,0x243a51,0x304a65);lv_style_set_radius(&hud.power_disabled,LV_RADIUS_CIRCLE);lv_style_set_border_width(&hud.power_disabled,3);
+ surface(&hud.power_on,0x0079f2,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.power_on,lv_color_hex(0x0039a3));lv_style_set_bg_grad_dir(&hud.power_on,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_on,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_on,LV_RADIUS_CIRCLE);
+ surface(&hud.power_off,0x123453,0x3387a7);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x06182c));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
+ surface(&hud.power_disabled,0x243a51,0x304a65);lv_style_set_radius(&hud.power_disabled,LV_RADIUS_CIRCLE);lv_style_set_border_width(&hud.power_disabled,DSR_CYBER_BORDER_WIDTH);
  surface(&hud.inset,0x061425,0x284b6c);lv_style_set_bg_grad_color(&hud.inset,lv_color_hex(0x102a43));lv_style_set_bg_grad_dir(&hud.inset,LV_GRAD_DIR_VER);lv_style_set_radius(&hud.inset,7);
  surface(&hud.warning,0x3e3415,0xffc107);lv_style_set_bg_grad_color(&hud.warning,lv_color_hex(0x1d241f));lv_style_set_bg_grad_dir(&hud.warning,LV_GRAD_DIR_VER);
  surface(&hud.danger,0x7d1c29,DSR_CYBER_DANGER);lv_style_set_bg_grad_color(&hud.danger,lv_color_hex(0x350e1c));lv_style_set_bg_grad_dir(&hud.danger,LV_GRAD_DIR_VER);
  lv_style_init(&hud.press_edge);lv_style_set_bg_color(&hud.press_edge,lv_color_hex(0x0084ee));lv_style_set_bg_grad_color(&hud.press_edge,lv_color_hex(0x00479b));lv_style_set_bg_grad_dir(&hud.press_edge,LV_GRAD_DIR_VER);
- lv_style_set_border_width(&hud.press_edge,2);lv_style_set_border_color(&hud.press_edge,lv_color_hex(DSR_CYBER_CYAN));lv_style_set_transition(&hud.press_edge,&hud.no_transition);
+ lv_style_set_border_width(&hud.press_edge,DSR_CYBER_BORDER_WIDTH);lv_style_set_border_color(&hud.press_edge,lv_color_hex(DSR_CYBER_CYAN));lv_style_set_transition(&hud.press_edge,&hud.no_transition);
 }
 static void states(lv_obj_t *o,lv_part_t part)
 {
@@ -172,7 +173,7 @@ static void panel_draw(lv_event_t *e)
  /* Machined top bevel + inset contour. Both draw directly into the normal
   * layer; no extra object, shadow buffer or offscreen surface is required. */
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.radius=6;
- d.border_width=1;d.border_color=lv_color_hex(disabled?0x22374c:0x2a526f);d.border_opa=LV_OPA_60;
+ d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=lv_color_hex(DSR_CYBER_CYAN);d.border_opa=disabled?LV_OPA_20:LV_OPA_40;
  lv_area_t inner={a.x1+3,a.y1+3,a.x2-3,a.y2-3};lv_draw_rect(layer,&d,&inner);
  line(layer,a.x1+12,a.y1+2,a.x2-16,a.y1+2,disabled?0x2c4056:(flags&1)?0x48d9ff:0x4d7897);
  /* Brushed, diagonal inlays occupy the right third beneath the labels. */
@@ -187,6 +188,7 @@ static void panel_draw(lv_event_t *e)
  }
  line(layer,a.x1+12,a.y2-2,a.x1+38,a.y2-2,disabled?0x36556d:DSR_CYBER_CYAN);
 }
+void dsr_ui_cyber_contour(lv_obj_t *o){init();lv_obj_add_style(o,&hud.contour,0);}
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
 {init();lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
 void dsr_ui_cyber_glow(lv_obj_t *o,bool on)
@@ -201,15 +203,15 @@ static void power_draw(lv_event_t *e)
  lv_obj_t *o=lv_event_get_target(e);if(lv_obj_has_state(o,LV_STATE_DISABLED))return;
  lv_area_t a;lv_obj_get_coords(o,&a);int side=lv_area_get_width(&a);
  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2};
- arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(0xdbfaff);arc.opa=LV_OPA_80;arc.start_angle=210;arc.end_angle=320;lv_draw_arc(lv_event_get_layer(e),&arc);
+ arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(DSR_CYBER_CYAN);arc.opa=LV_OPA_80;arc.start_angle=210;arc.end_angle=320;lv_draw_arc(lv_event_get_layer(e),&arc);
  arc.radius=(uint16_t)(side/2-2);arc.color=lv_color_hex(0x071a32);arc.opa=LV_OPA_60;arc.start_angle=25;arc.end_angle=155;lv_draw_arc(lv_event_get_layer(e),&arc);
 }
 void dsr_ui_cyber_power(lv_obj_t *o,bool on,bool enabled)
 {
- init();lv_obj_add_style(o,enabled?(on?&hud.power_on:&hud.power_off):&hud.power_disabled,0);
+ init();lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,enabled?(on?&hud.power_on:&hud.power_off):&hud.power_disabled,0);
  dsr_ui_cyber_glow(o,on&&enabled);lv_obj_add_event_cb(o,power_draw,LV_EVENT_DRAW_MAIN_END,NULL);
 }
-void dsr_ui_cyber_inset(lv_obj_t *o){init();lv_obj_add_style(o,&hud.inset,0);}
+void dsr_ui_cyber_inset(lv_obj_t *o){init();lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,&hud.inset,0);}
 void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger)lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);}
 /* Touch buttons share one state style; native fields retain their focus style. */
 void dsr_ui_cyber_button(lv_obj_t *o){init();lv_obj_add_style(o,&hud.press_edge,LV_STATE_PRESSED);}

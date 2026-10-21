@@ -52,7 +52,7 @@ static void detail(lv_obj_t *root)
  usage_header(root,exists?d.name:"Zużycie");
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_usage(root,&d,exists);return;}
  button(root,"Sterowanie",0,44,159,back,0,false);button(root,"Ustawienia",161,44,159,settings,0,false);
- lv_obj_t *card=dsr_sc_panel(root,12,96,296,300,0x2b2f33,18);lv_obj_set_style_border_width(card,1,0);lv_obj_set_style_border_color(card,dsr_sc_color(0x3a3f44),0);
+ lv_obj_t *card=dsr_sc_panel(root,12,96,296,300,0x2b2f33,18);dsr_sc_border_width(card,1,0);dsr_sc_border_color(card,dsr_sc_color(0x3a3f44),0);
  lv_obj_t *chip=dsr_sc_panel(card,88,12,120,32,0x1d2124,16);dsr_sc_icon(chip,DSR_ICON_ENERGY,10,6,20,0xe5322d);dsr_sc_text(chip,"Zużycie",36,8,80,&dsr_roboto_14,DSR_SC_TEXT);
  bool fresh=exists&&d.online&&d.has_power&&d.has_sample_time&&lv_tick_get()-d.sample_ms<=15000;
  if(!exists||!d.online||!d.has_power){
@@ -71,7 +71,7 @@ static void detail(lv_obj_t *root)
  }
  double fraction=watts/scale;if(fraction>1)fraction=1;double a=(135.0+270.0*fraction)*DSR_PI/180.0;
  const lv_point_precise_t needle[2]={{cx,cy},{cx+(r-34)*cos(a),cy+(r-34)*sin(a)}};
- if(fresh){gauge_line(root,needle,5,0xeceff1,LV_OPA_COVER);lv_obj_t *hub=dsr_sc_panel(root,cx-9,cy-9,18,18,0x17191c,LV_RADIUS_CIRCLE);lv_obj_set_style_border_width(hub,3,0);lv_obj_set_style_border_color(hub,dsr_sc_color(0xeceff1),0);}
+ if(fresh){gauge_line(root,needle,5,0xeceff1,LV_OPA_COVER);lv_obj_t *hub=dsr_sc_panel(root,cx-9,cy-9,18,18,0x17191c,LV_RADIUS_CIRCLE);dsr_sc_border_width(hub,3,0);dsr_sc_border_color(hub,dsr_sc_color(0xeceff1),0);}
  char value[24],unit[8],top[16];gauge_value(watts,scale,value,sizeof(value),unit,sizeof(unit),top,sizeof(top));
  dsr_sc_icon(root,DSR_ICON_ENERGY,cx-10,cy+14,20,dsr_sc_icon_accent());
  lv_obj_t *v=dsr_sc_text(root,fresh?value:"—",cx-80,cy+36,160,&dsr_roboto_28,DSR_SC_TEXT);lv_obj_set_style_text_align(v,LV_TEXT_ALIGN_CENTER,0);

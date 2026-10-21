@@ -90,7 +90,7 @@ static void end_preview(void){if(cover_preview){model=preview_saved;memset(&prev
 void dsr_mobile_hide(void){repaint_pending=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_preview_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
-static void edge(lv_obj_t *o,uint32_t c,int width){lv_obj_set_style_border_color(o,dsr_sc_color(c),0);lv_obj_set_style_border_width(o,width,0);}
+static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
 static void navigate(lv_event_t *e)
 {
     unsigned target=(unsigned)(uintptr_t)lv_event_get_user_data(e);
@@ -275,6 +275,25 @@ static void card_control(lv_obj_t *parent,unsigned i,dsr_ui_icon_t icon,int x,in
  dsr_sc_icon_centered(b,icon,26,valid?DSR_SC_BLUE:0x818991);
  if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,dsr_sc_color(0x555b60),LV_STATE_DISABLED);}
 }
+/* A second label per tile exhausted the fixed 128 KiB pool on a 24-card
+ * dashboard. Draw the room row in the existing card's LVGL layer instead.
+ * The stable index is owned by the same render lifecycle as its controls. */
+static void device_room_draw(lv_event_t *event)
+{
+ uintptr_t data=(uintptr_t)lv_event_get_user_data(event);unsigned i=(unsigned)(data&255u);int width=(int)(data>>8);
+ if(i>=model.device_count)return;
+ const dsr_mobile_device_t *d=&model.devices[i];const char *room=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");
+ char text[64];snprintf(text,sizeof(text),"%s",room);const lv_font_t *font=dsr_sc_font(&dsr_roboto_12);
+ lv_point_t size;lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ size_t length=strlen(text);
+ while(size.x>width&&length){
+  do{length--;}while(length&&((unsigned char)text[length]&0xc0)==0x80);
+  memcpy(text+length,"…",4);lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ }
+ lv_area_t a;lv_obj_get_content_coords(lv_event_get_target(event),&a);a.x1+=66;a.y1+=48;a.x2=a.x1+width-1;a.y2=a.y1+15;
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(DSR_SC_MUTED);label.flag=LV_TEXT_FLAG_EXPAND;
+ lv_draw_label(lv_event_get_layer(event),&label,&a);
+}
 static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height,unsigned fields)
 {
     /* Shelly Smart Control row (owner references 2026-10-18): status strip, round
@@ -293,8 +312,9 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     int body=hud?height/2+10:height/2-(on?2:1);
     bool state_box=sensor&&!trv&&(d->has_contact||(d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.flags&DSR_BLU_HAS_MOTION)))&&d->online;
     int right=cover?(hud?126:118):trv?132:state_box?104:sensor?8:70;
-    lv_obj_t *status=dsr_sc_text(card,d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),hud?66:12,hud?body-24:3,hud?width-66-right:width-24,&dsr_roboto_12,warn?0xffc18c:hud&&on?DSR_SC_BLUE:DSR_SC_MUTED);truncate(status,18);
-    if(hud&&cover){lv_obj_set_height(status,28);lv_label_set_long_mode(status,LV_LABEL_LONG_MODE_WRAP);}
+    if(hud&&cover&&d->online&&d->error==DSR_OK&&!unbound(d))state=d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Roleta";
+    lv_obj_t *status=dsr_sc_text(card,hud?state:d->error!=DSR_OK||unbound(d)?state:dsr_sc_user(subtitle),hud?66:12,hud?30:3,hud?width-66-right:width-24,&dsr_roboto_12,warn?0xffc18c:hud&&on?DSR_SC_BLUE:DSR_SC_MUTED);truncate(status,16);
+    if(hud)lv_obj_add_event_cb(card,device_room_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(((width-66-right)<<8)|i));
     lv_obj_t *thumb=dsr_sc_panel(card,8,body-25,50,50,0x17191c,LV_RADIUS_CIRCLE);
     if(hud)dsr_ui_cyber_inset(thumb);
     dsr_sc_icon_centered(thumb,hud&&cyber_blu(d)&&cyber_contact(d)?cyber_contact_icon(d):device_icon(d),hud?32:30,hud&&cyber_blu(d)&&cyber_contact(d)?cyber_contact_color(d):d->online?(on?DSR_SC_GLOW:dsr_sc_icon_accent()):DSR_SC_OFF);
@@ -345,7 +365,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
       if(fields&2){if(d->has_voltage)ADD_PART("%.1f V",d->voltage_v);else ADD_PART("— V");}
     }
 #undef ADD_PART
-    if(n)dsr_sc_segments(card,texts,n,66,body+4,width-66-right,d->online?DSR_SC_TEXT:0xffc18c);
+    if(n)dsr_sc_segments(card,texts,n,66,hud?72:body+4,width-66-right,d->online?DSR_SC_TEXT:0xffc18c);
     return card;
 }
 bool dsr_ui_photo_source(const char *id,lv_image_dsc_t *out)
@@ -1003,12 +1023,12 @@ static void render(void)
                 int y=0,x=0,row_height=0;
                 for(unsigned t=0;t<model.tile_count;t++){
                     dsr_mobile_tile_t *tile=&model.tiles[t];
-                    if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}int h=tile->height==2?120:84;place(device_card(content,tile->index,0,y,296,h,tile->fields),0,tile->index,tile->fields,0,y,296,h);y+=tile->height==2?128:92;at++;}
+                    if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}int h=tile->height==2?120:dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?104:84;place(device_card(content,tile->index,0,y,296,h,tile->fields),0,tile->index,tile->fields,0,y,296,h);y+=h+8;at++;}
                     else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?184:130;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place(room_card(content,tile->index,x,y,tile->span==2?296:144,height),1,tile->index,0,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
                     else if(tile->type==2&&tile->index<model.scene_count){if(x){x=0;y+=row_height+8;row_height=0;}scene_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                     else if(tile->type==3&&tile->index<model.group_count){if(x){x=0;y+=row_height+8;row_height=0;}group_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                 }
-            }else for(unsigned i=0;i<model.device_count;i++)if(page!=DSR_MOBILE_ROOM||model.devices[i].room==selected){place(device_card(content,i,0,(int)at*92,296,84,255),0,i,255,0,(int)at*92,296,84);at++;}
+            }else for(unsigned i=0;i<model.device_count;i++)if(page!=DSR_MOBILE_ROOM||model.devices[i].room==selected){int h=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?104:84;place(device_card(content,i,0,(int)at*(h+8),296,h,255),0,i,255,0,(int)at*(h+8),296,h);at++;}
             if(!at)empty("Brak urządzeń","Dodaj pierwsze urządzenie Shelly przyciskiem +, aby rozpocząć sterowanie swoim domem.");
         }
         lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);

@@ -146,6 +146,32 @@ static bool validate_v2(const cJSON *r,char error[96])
 }
 bool dsr_config_validate(const cJSON *root,char error[96])
 {return validate_v2(root,error);}
+cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96])
+{
+ if(!id||!dsr_config_validate(root,error)){fail(error,"Invalid device deletion source");return NULL;}
+ const cJSON *devices=get(root,"devices");int at=0;
+ while(at<cJSON_GetArraySize(devices)&&(uint32_t)get(cJSON_GetArrayItem(devices,at),"id")->valueint!=id)at++;
+ if(at==cJSON_GetArraySize(devices)){fail(error,"Device no longer exists");return NULL;}
+ cJSON *next=cJSON_Duplicate(root,true);if(!next){fail(error,"Not enough memory");return NULL;}
+ cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(next,"devices"),at);
+ cJSON *v;
+ cJSON_ArrayForEach(v,get(next,"dashboards")){
+  cJSON *a=cJSON_GetObjectItemCaseSensitive(v,"tiles");
+  for(int i=cJSON_GetArraySize(a)-1;i>=0;i--){const cJSON *t=cJSON_GetArrayItem(a,i);
+   if(!strcmp(get(t,"type")->valuestring,"device")&&(uint32_t)get(t,"ref")->valueint==id)cJSON_DeleteItemFromArray(a,i);
+  }
+ }
+ cJSON_ArrayForEach(v,get(next,"scenes")){
+  cJSON *a=cJSON_GetObjectItemCaseSensitive(v,"actions");
+  for(int i=cJSON_GetArraySize(a)-1;i>=0;i--)if((uint32_t)get(cJSON_GetArrayItem(a,i),"device")->valueint==id)cJSON_DeleteItemFromArray(a,i);
+ }
+ cJSON_ArrayForEach(v,get(next,"groups")){
+  cJSON *a=cJSON_GetObjectItemCaseSensitive(v,"members");
+  for(int i=cJSON_GetArraySize(a)-1;i>=0;i--)if((uint32_t)cJSON_GetArrayItem(a,i)->valueint==id)cJSON_DeleteItemFromArray(a,i);
+ }
+ if(!dsr_config_validate(next,error)){cJSON_Delete(next);return NULL;}
+ return next;
+}
 bool dsr_config_validate_stored(const cJSON *root,char error[96])
 {
  if(cJSON_IsObject(root)&&number(root,"schema",1,1))return validate_v1(root,error);

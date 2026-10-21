@@ -23,8 +23,8 @@ static void cyber_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
  dsr_sc_badge(root,DSR_ICON_VOLTAGE,dsr_sc_user(text),212,128,96,DSR_SC_TEXT);
  lv_obj_t *panel=dsr_sc_panel(root,12,162,296,206,DSR_SC_CARD,12);edge(panel,0x00cfff,1);
  lv_obj_t *rail=dsr_sc_panel(root,64,172,176,162,DSR_SC_BG,5);lv_obj_set_style_bg_opa(rail,LV_OPA_TRANSP,0);
- lv_obj_set_style_border_width(rail,0,0);lv_obj_remove_flag(rail,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
- lv_obj_t *well=dsr_sc_panel(rail,0,0,176,162,DSR_SC_BG,5);lv_obj_set_style_border_width(well,0,0);
+ dsr_sc_border_width(rail,0,0);lv_obj_remove_flag(rail,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+ lv_obj_t *well=dsr_sc_panel(rail,0,0,176,162,DSR_SC_BG,5);dsr_sc_border_width(well,0,0);
  int pos=known?(int)lround(d->position_pct):0;
  cover_visual=dsr_ui_cyber_cover_transition(well,cover_transition.id==d->id?cover_transition.from:pos,pos,known,cover_transition.id==d->id&&cover_transition.animate);cover_transition.animate=false;
  lv_obj_add_event_cb(well,cover_visual_deleted,LV_EVENT_DELETE,NULL);

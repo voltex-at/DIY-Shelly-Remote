@@ -37,6 +37,12 @@ static void cyber_overview_row(lv_obj_t *panel,dsr_ui_icon_t icon,const char *la
  lv_obj_t *v=dsr_sc_text(panel,dsr_sc_user(value),158,y+2,130,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(v,height-2);lv_label_set_long_mode(v,wrap?LV_LABEL_LONG_MODE_WRAP:LV_LABEL_LONG_MODE_DOTS);
  dsr_sc_panel(panel,14,y+height,272,1,DSR_SC_EDGE,0);
 }
+static void cyber_action_caption(lv_obj_t *button,const char *text)
+{
+ /* Medium DE captions need two lines in the fixed 148 px action module. */
+ lv_obj_t *label=dsr_sc_text(button,text,36,0,104,&dsr_roboto_14,DSR_SC_TEXT);
+ lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);lv_obj_align(label,LV_ALIGN_RIGHT_MID,-4,0);
+}
 static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
  const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->busy?"Odczyt stanu…":d->online?"Online":"Brak połączenia";
@@ -56,9 +62,9 @@ static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
  cyber_overview_row(panel,DSR_ICON_INFO,"Zapisane ID",value,176+shift,23,false);
  lv_obj_t *b=dsr_sc_button(panel,8,209+shift,288,43,DSR_SC_BLUE,8,open_device_settings,NULL);dsr_ui_cyber_panel(b,true);dsr_sc_icon(b,DSR_ICON_SETTINGS,10,8,24,dsr_sc_icon_accent());cyber_text(b,"Otwórz ustawienia Shelly",42,12,210,21,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_icon(b,DSR_ICON_NEXT,258,9,24,dsr_sc_icon_accent());
  if(!actions.device_settings||model.demo||!d->id||d->generation!=DSR_GEN2_PLUS||unbound(d))lv_obj_add_state(b,LV_STATE_DISABLED);
- lv_obj_t *update=dsr_sc_button(root,8,354,148,48,DSR_SC_CARD,10,refresh,NULL);dsr_sc_icon(update,DSR_ICON_REFRESH,10,11,24,DSR_SC_GLOW);cyber_text(update,"Odśwież status",36,16,108,20,&dsr_roboto_14,DSR_SC_TEXT);
+ lv_obj_t *update=dsr_sc_button(root,8,354,148,48,DSR_SC_CARD,10,refresh,NULL);dsr_sc_icon(update,DSR_ICON_REFRESH,10,11,24,DSR_SC_GLOW);cyber_action_caption(update,"Odśwież status");
  if(!d->can_refresh||!actions.refresh||d->busy)lv_obj_add_state(update,LV_STATE_DISABLED);
- lv_obj_t *edit=dsr_sc_button(root,164,354,148,48,DSR_SC_CARD,10,edit_device,NULL);dsr_sc_icon(edit,DSR_ICON_EDIT,10,11,24,DSR_SC_GLOW);cyber_text(edit,"Edytuj kartę",36,16,108,20,&dsr_roboto_14,DSR_SC_TEXT);
+ lv_obj_t *edit=dsr_sc_button(root,164,354,148,48,DSR_SC_CARD,10,edit_device,NULL);dsr_sc_icon(edit,DSR_ICON_EDIT,10,11,24,DSR_SC_GLOW);cyber_action_caption(edit,"Edytuj kartę");
  if(model.demo||!d->id||!actions.edit_device)lv_obj_add_state(edit,LV_STATE_DISABLED);
  cyber_text(root,"Ustawienia karty • lokalnie",12,410,296,16,&dsr_roboto_12,DSR_SC_MUTED);
 }

@@ -30,10 +30,10 @@ static void checks_for_language(unsigned language)
  shot(661,"wifi-password",language);unsigned writes=job_counts[DSR_JOB_WIFI_CONNECT];lv_textarea_set_text(field,"short");press_label("Connect");
  CHECK(job_counts[DSR_JOB_WIFI_CONNECT]==writes);CHECK(find_label(lv_screen_active(),"Use 8-63 characters or a 64-digit hex key."));CHECK(!find_label(lv_screen_active(),"short"));shot(662,"wifi-password-error",language);press_label("Back");dsr_network_home(NULL);
  test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_CLOCK,DSR_MANIFEST_INVALID);dsr_ui_native_ota_open(NULL);
- lv_obj_t *notice=find_label(lv_screen_active(),"Nie ustawiono czasu. Sprawdź dostęp do internetu i spróbuj ponownie.");CHECK(notice&&lv_obj_get_style_text_font(notice,0)==&dsr_roboto_14);
+ lv_obj_t *notice=find_label(lv_screen_active(),"Nie ustawiono czasu. Sprawdź dostęp do internetu i spróbuj ponownie.");CHECK(notice&&lv_obj_get_style_text_font(notice,0)==dsr_sc_font(&dsr_roboto_14));
  lv_obj_t *code=find_label(lv_screen_active(),"Kod błędu: 4/0/0/1");
  /* Technical code follows the full wrapped message inside its scroll viewport. */
- if(!code){lv_obj_t *parent=lv_obj_get_parent(notice);for(unsigned i=0;i<lv_obj_get_child_count(parent);i++){lv_obj_t *c=lv_obj_get_child(parent,(int)i);if(lv_obj_check_type(c,&lv_label_class)&&c!=notice&&lv_obj_get_style_text_font(c,0)==&dsr_roboto_12)code=c;}}
+ if(!code){lv_obj_t *parent=lv_obj_get_parent(notice);for(unsigned i=0;i<lv_obj_get_child_count(parent);i++){lv_obj_t *c=lv_obj_get_child(parent,(int)i);if(lv_obj_check_type(c,&lv_label_class)&&c!=notice&&lv_obj_get_style_text_font(c,0)==dsr_sc_font(&dsr_roboto_12))code=c;}}
  CHECK(code);lv_area_t message=area(notice),technical=area(code);CHECK(message.y2<technical.y1);
  shot(663,"ota-error",language);
  test_native_ota_uncertain();dsr_ui_native_ota_open(NULL);CHECK(find_label(lv_screen_active(),"Nie potwierdzono wyboru startowego firmware. Dalsze zapisy zablokowane do restartu."));shot(664,"ota-boot-warning",language);

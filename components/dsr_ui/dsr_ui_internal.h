@@ -47,6 +47,7 @@ dsr_result_t dsr_network_request_ap(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,
 void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *capabilities);
 bool dsr_network_busy(void);
 bool dsr_network_bind_busy(void);
+dsr_result_t dsr_network_removal_status(uint32_t id);
 bool dsr_network_ota_busy(void);
 dsr_result_t dsr_network_request_wifi(dsr_job_kind_t kind, const dsr_settings_t *settings);
 void dsr_network_wifi_settings(dsr_settings_t *out);

@@ -54,7 +54,7 @@ void dsr_ui_keyboard(lv_obj_t *kb)
  lv_obj_set_style_pad_all(kb,4,0);lv_obj_set_style_pad_row(kb,4,0);lv_obj_set_style_pad_column(kb,3,0);
  lv_obj_set_style_bg_color(kb,dsr_sc_color(0x45494d),LV_PART_ITEMS);lv_obj_set_style_text_color(kb,dsr_sc_color(DSR_SC_TEXT),LV_PART_ITEMS);
  lv_obj_set_style_bg_color(kb,dsr_sc_color(DSR_SC_BLUE),LV_PART_ITEMS|LV_STATE_PRESSED);lv_obj_set_style_bg_grad_dir(kb,LV_GRAD_DIR_NONE,LV_PART_ITEMS);
- lv_obj_set_style_border_width(kb,0,LV_PART_ITEMS);lv_obj_set_style_shadow_width(kb,0,LV_PART_ITEMS);lv_obj_set_style_radius(kb,7,LV_PART_ITEMS);
+ dsr_sc_border_width(kb,0,LV_PART_ITEMS);lv_obj_set_style_shadow_width(kb,0,LV_PART_ITEMS);lv_obj_set_style_radius(kb,7,LV_PART_ITEMS);
  lv_keyboard_set_mode(kb,LV_KEYBOARD_MODE_TEXT_LOWER);
 }
 void dsr_ui_keyboard_focus(lv_obj_t *kb,lv_obj_t *field)

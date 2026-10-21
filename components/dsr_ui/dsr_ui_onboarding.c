@@ -22,10 +22,10 @@ static void refresh_selection(void)
  for(unsigned i=0;i<4;i++){
   bool enabled=available(i),chosen=selected==(int)i;
   if(enabled)lv_obj_remove_state(cards[i],LV_STATE_DISABLED);else lv_obj_add_state(cards[i],LV_STATE_DISABLED);
-  lv_obj_set_style_border_width(cards[i],chosen?2:1,0);
-  lv_obj_set_style_border_color(cards[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_EDGE),0);
+  dsr_sc_border_width(cards[i],chosen?2:1,0);
+  dsr_sc_border_color(cards[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_EDGE),0);
   lv_obj_set_style_bg_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_CARD),0);
-  lv_obj_set_style_border_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_MUTED),0);
+  dsr_sc_border_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_MUTED),0);
   if(i<3)dsr_sc_label_set_text(descriptions[i],enabled?descriptions_ready[i]:"Najpierw połącz domowe Wi-Fi");
  }
  bool ready=selected>=0&&available((unsigned)selected)&&!cleanup_pending();
@@ -67,6 +67,7 @@ lv_obj_t *dsr_onboarding_screen(const char *title,unsigned step)
 }
 lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t back_cb,const char *forward,lv_event_cb_t forward_cb)
 {
+ dsr_sc_header_back(root,back_cb,NULL);
  lv_obj_t *footer=dsr_sc_panel(root,0,408,320,72,DSR_SC_BG,0);lv_obj_set_user_data(footer,(void *)&footer_tag);lv_obj_add_flag(footer,LV_OBJ_FLAG_CLICKABLE);
  dsr_sc_panel(footer,12,0,296,1,DSR_SC_EDGE,0);
  if(!forward){dsr_ui_button(footer,back,12,12,296,back_cb,NULL);return NULL;}
@@ -83,7 +84,7 @@ void dsr_onboarding_keyboard(lv_obj_t *root,bool shown)
 lv_obj_t *dsr_onboarding_result(lv_obj_t *list,int y,dsr_ui_icon_t icon,const char *title,const char *detail,const char *status,bool verified,lv_event_cb_t callback,void *context)
 {
  lv_obj_t *row=dsr_sc_button(list,0,y,296,88,DSR_SC_CARD,12,callback,context);
- lv_obj_set_style_border_width(row,1,0);lv_obj_set_style_border_color(row,dsr_sc_color(DSR_SC_EDGE),0);
+ dsr_sc_border_width(row,1,0);dsr_sc_border_color(row,dsr_sc_color(DSR_SC_EDGE),0);
  dsr_sc_icon(row,icon,12,26,28,dsr_sc_icon_accent());
  lv_obj_t *a=dsr_sc_text(row,title,52,9,230,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(a,22);lv_label_set_long_mode(a,LV_LABEL_LONG_CLIP);
  lv_obj_t *b=dsr_sc_text(row,detail,52,34,230,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_height(b,19);lv_label_set_long_mode(b,LV_LABEL_LONG_CLIP);
@@ -92,6 +93,7 @@ lv_obj_t *dsr_onboarding_result(lv_obj_t *list,int y,dsr_ui_icon_t icon,const ch
 }
 void dsr_ui_onboarding_open(lv_event_cb_t manual)
 {
+ if(active)return;
  active=true;selected=-1;manual_open=manual;
  lv_obj_t *overlay=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);
  lv_obj_set_style_bg_opa(overlay,170,0);lv_obj_add_flag(overlay,LV_OBJ_FLAG_CLICKABLE);
@@ -106,7 +108,7 @@ void dsr_ui_onboarding_open(lv_event_cb_t manual)
   dsr_sc_icon(row,i==0?DSR_ICON_CONTACT:i==1?DSR_ICON_WIFI:i==2?DSR_ICON_GRID:DSR_ICON_SETTINGS,12,i<3?24:13,24,dsr_sc_icon_accent());
   dsr_sc_text(row,names[i],48,i<3?9:15,206,&dsr_roboto_16,DSR_SC_TEXT);
   if(i<3)descriptions[i]=dsr_sc_text(row,descriptions_ready[i],48,35,206,&dsr_roboto_12,DSR_SC_MUTED);
-  radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);lv_obj_set_style_border_width(radios[i],1,0);
+  radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);dsr_sc_border_width(radios[i],1,0);
  }
  hint=dsr_sc_text(sheet,"Więcej opcji poniżej",128,57,176,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_RIGHT,0);
  next_button=dsr_onboarding_footer(overlay,"Anuluj",cancel,"Dalej",next);refresh_selection();

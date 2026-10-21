@@ -10,6 +10,9 @@
 #define DSR_CYBER_MUTED 0xa9b7cc
 #define DSR_CYBER_BORDER 0x315a83
 #define DSR_CYBER_DANGER 0xff3b30
+#define DSR_CYBER_BORDER_WIDTH 2
+/* One contour standard; semantic warnings/errors keep their own color. */
+void dsr_ui_cyber_contour(lv_obj_t *obj);
 uint32_t dsr_ui_cyber_color(uint32_t token);
 lv_theme_t *dsr_ui_cyber_theme(lv_theme_t *base);
 void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);

@@ -47,6 +47,7 @@ static dsr_touch_lvgl_t touch_input;
 const char *dsr_board_hardware_id(void) { return "lcdwiki-es3c35p-n16r8"; }
 lv_display_t *dsr_board_display(void) { return display; }
 bool dsr_board_touch_available(void) { return touch_ready; }
+bool dsr_board_display_sleeping(void) { return sleeping; }
 
 esp_err_t dsr_board_set_backlight(uint8_t percent)
 {

@@ -93,9 +93,9 @@ static void cyber_fields(lv_obj_t *root)
   unsigned index=editor->snapshot.fields[i];const dsr_setting_field_t *f=dsr_setting_field(index);char value[129];
   if(!f||!dsr_device_settings_value(index,value,sizeof(value)))continue;
   lv_obj_t *card=dsr_sc_button(editor->body,0,(int)row++*72,296,64,DSR_SC_CARD,10,select_field,(void *)(uintptr_t)index);
-  lv_obj_set_style_border_color(card,lv_color_hex(0x00cfff),0);lv_obj_set_style_border_width(card,1,0);
+  dsr_sc_border_color(card,lv_color_hex(0x00cfff),0);dsr_sc_border_width(card,1,0);
   lv_obj_t *well=dsr_sc_panel(card,8,9,44,46,0x071628,8);
-  lv_obj_set_style_border_color(well,lv_color_hex(0x315a83),0);lv_obj_set_style_border_width(well,1,0);
+  dsr_sc_border_color(well,lv_color_hex(0x315a83),0);dsr_sc_border_width(well,1,0);
   dsr_sc_icon_centered(well,setting_icon(f),32,DSR_SC_GLOW);
   general_text(card,f->label,62,9,200,22,&dsr_roboto_16,DSR_SC_TEXT);
   const char *shown=f->type==DSR_SETTING_SECRET?"Zmień hasło":!value[0]?"—":!strcmp(value,"true")?"Włączone":!strcmp(value,"false")?"Wyłączone":dsr_sc_user(value);
@@ -157,7 +157,7 @@ static void draw(void)
  }
  const dsr_setting_field_t *f=dsr_setting_field(editor->field);if(!f)return;
  bool hud=cyber_settings();
- if(hud){dsr_ui_cyber_panel(editor->body,false);lv_obj_set_style_bg_color(editor->body,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_COVER,0);lv_obj_set_style_radius(editor->body,10,0);lv_obj_set_style_border_color(editor->body,lv_color_hex(0x00cfff),0);dsr_sc_icon(editor->body,setting_icon(f),8,7,24,DSR_SC_GLOW);}
+ if(hud){dsr_ui_cyber_panel(editor->body,false);lv_obj_set_style_bg_color(editor->body,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_COVER,0);lv_obj_set_style_radius(editor->body,10,0);dsr_sc_border_color(editor->body,lv_color_hex(0x00cfff),0);dsr_sc_icon(editor->body,setting_icon(f),8,7,24,DSR_SC_GLOW);}
  lv_obj_t *caption=dsr_sc_text(editor->body,network_field(f)&&editor->network_step?"Hasło Wi-Fi":f->label,hud?42:8,8,hud?246:280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(caption,22);lv_label_set_long_mode(caption,LV_LABEL_LONG_DOT);
  if(editor->page==CONFIRM){
   dsr_sc_text(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);
@@ -175,7 +175,7 @@ static void draw(void)
  else if(f->type==DSR_SETTING_ENUM){editor->choice=lv_dropdown_create(editor->body);lv_obj_set_pos(editor->choice,8,70);lv_obj_set_size(editor->choice,280,48);lv_dropdown_set_options(editor->choice,f->choices);unsigned i=0;const char *p=f->choices;while(p&&*p){const char *end=strchr(p,'\n');size_t n=end?(size_t)(end-p):strlen(p);if(strlen(current)==n&&!memcmp(current,p,n)){lv_dropdown_set_selected(editor->choice,i);break;}p=end?end+1:NULL;i++;}}
  else {
   lv_obj_set_height(editor->body,100);editor->input=lv_textarea_create(editor->body);dsr_ui_textarea(editor->input);lv_obj_set_pos(editor->input,8,36);lv_obj_set_size(editor->input,280,44);lv_textarea_set_one_line(editor->input,true);lv_textarea_set_max_length(editor->input,f->type==DSR_SETTING_NUMBER?32:f->max_length);lv_textarea_set_text(editor->input,current);lv_textarea_set_password_mode(editor->input,f->type==DSR_SETTING_SECRET);
-  if(hud){lv_obj_set_style_border_color(editor->input,lv_color_hex(0x00cfff),LV_STATE_FOCUSED);lv_obj_add_state(editor->input,LV_STATE_FOCUSED);}
+  if(hud){dsr_sc_border_color(editor->input,lv_color_hex(0x00cfff),LV_STATE_FOCUSED);lv_obj_add_state(editor->input,LV_STATE_FOCUSED);}
   if(f->type==DSR_SETTING_NUMBER){char range[80];snprintf(range,sizeof(range),"%.10g – %.10g",f->minimum,f->maximum);dsr_sc_text(editor->body,dsr_sc_user(range),8,83,280,&dsr_roboto_12,DSR_SC_MUTED);}
   editor->keyboard=lv_keyboard_create(root);dsr_ui_keyboard(editor->keyboard);lv_obj_align(editor->keyboard,LV_ALIGN_BOTTOM_MID,0,0);lv_keyboard_set_textarea(editor->keyboard,editor->input);lv_keyboard_set_mode(editor->keyboard,f->type==DSR_SETTING_NUMBER?LV_KEYBOARD_MODE_NUMBER:LV_KEYBOARD_MODE_TEXT_LOWER);lv_obj_add_event_cb(editor->keyboard,confirm,LV_EVENT_READY,NULL);
  }

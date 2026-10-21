@@ -48,6 +48,7 @@ void dsr_ui_settings_tick(void)
 
 void dsr_ui_home(lv_event_t *event);
 static void menu(lv_event_t *event);
+static void hardware(lv_event_t *event);
 
 lv_obj_t *dsr_ui_label(lv_obj_t *parent, const char *text, int x, int y, int width)
 {
@@ -86,7 +87,8 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
     lv_obj_set_width(caption,width-16);lv_label_set_long_mode(caption,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_CENTER,0);
     lv_label_set_text(caption, dsr_sc_tr(text));
     lv_obj_center(caption);
-    if(!strncmp(text,"Usuń",strlen("Usuń"))||(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&!strcmp(text,"Unieważnij parowanie"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);lv_obj_set_style_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
+    if(parent==lv_screen_active()&&(!strcmp(text,"Wstecz")||!strcmp(text,"Back")))dsr_sc_header_back(parent,callback,context);
+    if(!strncmp(text,"Usuń",strlen("Usuń"))||(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&!strcmp(text,"Unieważnij parowanie"))){lv_obj_set_style_bg_color(obj,dsr_sc_color(0xb42332),0);lv_obj_set_style_bg_color(obj,dsr_sc_color(0x8f1d2b),LV_STATE_PRESSED);dsr_sc_border_color(obj,dsr_sc_color(0xe14d5b),0);lv_obj_set_style_text_color(caption,lv_color_hex(0xffffff),0);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(obj,true);}
     else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!strcmp(text,"Zapisz")||!strcmp(text,"Dalej")||!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Zmierz napięcie")||!strcmp(text,"Odśwież stan")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")))dsr_ui_primary(obj);
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&width>=100){
      dsr_ui_icon_t icon=DSR_ICON_COUNT;
@@ -118,9 +120,9 @@ void dsr_ui_textarea(lv_obj_t *obj)
     lv_obj_set_style_bg_color(obj, dsr_sc_color(DSR_SC_PANEL), 0);
     lv_obj_set_style_text_color(obj, dsr_sc_color(0xf0f4fb), 0);
     lv_obj_set_style_text_color(obj, dsr_sc_color(0x98aac0), LV_PART_TEXTAREA_PLACEHOLDER);
-    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_EDGE), 0);
-    lv_obj_set_style_border_color(obj, dsr_sc_color(DSR_SC_BLUE), LV_STATE_FOCUSED);
-    lv_obj_set_style_border_width(obj, 1, 0);
+    dsr_sc_border_color(obj, dsr_sc_color(DSR_SC_EDGE), 0);
+    dsr_sc_border_color(obj, dsr_sc_color(DSR_SC_BLUE), LV_STATE_FOCUSED);
+    dsr_sc_border_width(obj, 1, 0);
     lv_obj_set_style_radius(obj, 10, 0);
     lv_obj_set_style_bg_color(obj, dsr_sc_color(0xf0f4fb), LV_PART_CURSOR);
 }
@@ -179,13 +181,14 @@ static void touch_test(lv_event_t *event)
     dsr_ui_button(root, "4", 244, 428, 72, touch_hit, (void *)(uintptr_t)4);
     touch_status = dsr_ui_label(root, "Tap all four corners.\nEach press should match\nthe corner number.", 30, 170, 260);
     lv_obj_set_style_text_align(touch_status, LV_TEXT_ALIGN_CENTER, 0);
-    dsr_ui_button(root, "Back", 100, 325, 120, dsr_ui_home, NULL);
+    dsr_ui_button(root, "Back", 100, 325, 120, hardware, NULL);
 }
 
 static void colors(lv_event_t *event)
 {
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Display colors", true);
+    dsr_sc_header_back(root,hardware,NULL);
     dsr_ui_label(root, "Each label should match its color.", 16, 88, 288);
     const char *names[] = {"RED", "GREEN", "BLUE", "WHITE"};
     const uint32_t values[] = {0xff0000, 0x00ff00, 0x0000ff, 0xffffff};
@@ -194,7 +197,7 @@ static void colors(lv_event_t *event)
         lv_obj_set_pos(bar, 16, 133 + (int)i * 63);
         lv_obj_set_size(bar, 288, 48);
         lv_obj_set_style_bg_color(bar, lv_color_hex(values[i]), 0);
-        lv_obj_set_style_border_width(bar, 0, 0);
+        dsr_sc_border_width(bar, 0, 0);
         lv_obj_set_style_radius(bar, 8, 0);
         lv_obj_t *caption = lv_label_create(bar);
         dsr_sc_label_set_text(caption, names[i]);
@@ -230,7 +233,7 @@ static lv_obj_t *system_row(lv_obj_t *parent,const char *text,int y,int height,d
  lv_obj_t *well=dsr_sc_panel(button,5,5,44,height-12,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
  dsr_sc_icon_centered(well,icon,32,DSR_SC_GLOW);
  dsr_sc_icon(button,DSR_ICON_NEXT,264,(height-24)/2-1,24,DSR_SC_GLOW);
- lv_obj_set_style_border_color(button,dsr_sc_color(DSR_SC_GLOW),0);return button;
+ dsr_sc_border_color(button,dsr_sc_color(DSR_SC_GLOW),0);return button;
 }
 void dsr_ui_settings_network(lv_event_t *event)
 {
@@ -436,9 +439,10 @@ static void hardware(lv_event_t *event)
 {
     (void)event;
     lv_obj_t *root = dsr_ui_screen("Hardware tests", true);
+    dsr_sc_header_back(root,dsr_ui_system_open,NULL);
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
      lv_obj_t *info=dsr_sc_panel(root,12,86,296,148,DSR_SC_CARD,10);
-     lv_obj_set_style_border_color(info,dsr_sc_color(DSR_SC_GLOW),0);
+     dsr_sc_border_color(info,dsr_sc_color(DSR_SC_GLOW),0);
      lv_obj_t *well=dsr_sc_panel(info,8,10,42,42,DSR_SC_PANEL,8);dsr_ui_cyber_inset(well);
      dsr_sc_icon_centered(well,DSR_ICON_DOCUMENT,32,DSR_SC_GLOW);
      dsr_sc_text(info,"Hardware test",60,15,224,&dsr_roboto_22,DSR_SC_TEXT);
@@ -450,7 +454,7 @@ static void hardware(lv_event_t *event)
      system_row(actions,"Check touchscreen",0,56,DSR_ICON_TOUCH,touch_test);
      system_row(actions,"Check display colors",66,56,DSR_ICON_GRAPHICS,colors);
      lv_obj_t *board=dsr_sc_panel(root,12,376,296,42,DSR_SC_CARD,10);
-     lv_obj_set_style_border_color(board,dsr_sc_color(DSR_SC_GLOW),0);
+     dsr_sc_border_color(board,dsr_sc_color(DSR_SC_GLOW),0);
      dsr_sc_icon(board,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);
      dsr_sc_text(board,"ES3C35P / 320 x 480",46,11,236,&dsr_roboto_16,DSR_SC_TEXT);
      return;

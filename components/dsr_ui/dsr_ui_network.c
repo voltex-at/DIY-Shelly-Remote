@@ -125,6 +125,8 @@ void dsr_network_reset_view(void)
 
 bool dsr_network_layout_reserved(uint32_t id)
 {for(size_t i=0;i<fleet.count;i++)if(id&&fleet.slots[i].connection.layout_id==id)return true;return false;}
+dsr_result_t dsr_network_removal_status(uint32_t id)
+{for(size_t i=0;i<fleet.count;i++)if(id&&fleet.slots[i].connection.layout_id==id)return fleet.slots[i].maintenance_result==DSR_OK?DSR_BUSY:fleet.slots[i].maintenance_result;return DSR_OK;}
 static int card_slot(unsigned index)
 {
  if(index>=mobile_model.device_count)return -1;
@@ -528,7 +530,7 @@ static void form_start(const char *title)
     lv_obj_t *root = dsr_onboarding_screen(title,3);
     message = dsr_ui_label(root, "Enter the device address and login.", 16, 91, 288);
     form = lv_obj_create(root); lv_obj_set_pos(form, 12, 134); lv_obj_set_size(form, 296, 268);
-    lv_obj_set_style_pad_all(form, 8, 0); lv_obj_set_style_border_width(form, 0, 0);
+    lv_obj_set_style_pad_all(form, 8, 0); dsr_sc_border_width(form, 0, 0);
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_set_y(form,128);lv_obj_set_style_pad_all(form,4,0);}
     lv_obj_set_style_bg_color(form, dsr_sc_color(DSR_SC_BG), 0);
     lv_obj_set_style_text_color(form, dsr_sc_color(0xf0f4fb), 0);
@@ -589,6 +591,7 @@ static void manual_device(lv_event_t *event)
 void dsr_network_device(lv_event_t *event)
 {
     (void)event;
+    if(dsr_ui_onboarding_active())return;
     dsr_network_home(NULL);
     dsr_network_reset_view();dsr_mobile_hide(); /* Freeze HOME behind modal. */
     dsr_ui_onboarding_open(manual_device);
@@ -638,6 +641,7 @@ static void reconcile_layout(bool allow_storage)
  for(unsigned i=0;i<fleet.count;i++){
   dsr_fleet_slot_t *s=&fleet.slots[i];bool exists=false;uint32_t id=layout_find(r,&s->connection,&exists);
   if(s->connection.layout_id){s->layout_enabled=id!=0;
+   if(!s->layout_enabled)dsr_fleet_cancel_queued(&fleet,i);
    if(allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&!exists&&!busy&&!finishing_bind&&!s->queued&&!s->mailbox_pending&&!s->in_flight&&!s->urgent_stop){(void)maintenance_submit(DSR_JOB_UNBIND,i,s->connection.layout_id);break;}
   }else if(s->connection.legacy_fallback&&allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&id&&!busy&&!finishing_bind){(void)maintenance_submit(DSR_JOB_LAYOUT_PUBLISH,i,id);break;}
  }
@@ -709,6 +713,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
    else {dsr_fleet_slot_t *s=&fleet.slots[active_slot];
     if(!dsr_endpoint_equal(&s->connection.device,&event.device)||strcmp(s->connection.device.host,event.device.host))event.result=DSR_IDENTITY_MISMATCH;
     s->next_maintenance=event.result==DSR_OK?0:now+5000;
+    if(operation==DSR_JOB_UNBIND)s->maintenance_result=event.result;
    }
   }
   if(operation==DSR_JOB_DEVICE_SETTINGS){/* The private actor publishes a secret-free snapshot. */}

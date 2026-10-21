@@ -101,6 +101,8 @@ static bool apply_failure;
 esp_err_t dsr_board_apply_display(uint8_t brightness,uint16_t seconds)
 {display_applies++;applied_brightness=brightness;applied_seconds=seconds;return apply_failure?ESP_FAIL:ESP_OK;}
 void dsr_board_sleep_display(void) {}
+static bool display_sleeping;
+bool dsr_board_display_sleeping(void){return display_sleeping;}
 /* First-format observer seams (#28); the real gate/handshake is host-tested
  * in test_boot_memory/test_startup. These only record the call protocol. */
 static bool provision_gate;static unsigned provision_task_starts,provision_quiesces,provision_backlight;
@@ -220,7 +222,7 @@ static void battery_regression(void)
  wifi.connected=false;tick();CHECK(!in_flight);test_workspace_disable();
  dsr_ui_open_settings();click("Bateria i zasilanie");CHECK(find_label(lv_screen_active(),"Pomiar na żądanie"));
  CHECK(find_label(lv_screen_active(),"Ładowanie, ogniwo i procent: brak wiarygodnych danych."));
- CHECK(find_label(lv_screen_active(),"?"));screenshot("130-battery-unknown");
+ CHECK(find_label(lv_screen_active(),"—"));screenshot("130-battery-unknown");
  next_submit_result=DSR_BUSY;click("Zmierz napięcie");tick();
  CHECK(!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
  unsigned before=requests;click("Zmierz napięcie");CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ&&requests==before+1);
@@ -230,7 +232,7 @@ static void battery_regression(void)
  response.battery=(dsr_battery_sample_t){.has_raw=true,.has_voltage=true,.raw=2001,.adc_mv=2025,.bat_mv=4050};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"4.050 V")&&find_label(lv_screen_active(),"4.05V"));CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED));
  screenshot("132-battery-voltage");
- lv_tick_inc(30001);tick();CHECK(find_label(lv_screen_active(),"?"));CHECK(find_label(lv_screen_active(),"Pomiar nieaktualny. Zmierz ponownie."));screenshot("133-battery-stale");
+ lv_tick_inc(30001);tick();CHECK(find_label(lv_screen_active(),"—"));CHECK(find_label(lv_screen_active(),"Pomiar nieaktualny. Zmierz ponownie."));screenshot("133-battery-stale");
  click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){.has_raw=true,.raw=2001,.calibration_error=ESP_ERR_NOT_SUPPORTED};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"Kalibracja ADC niedostępna. Napięcie nieznane."));CHECK(!find_label(lv_screen_active(),"4.050 V"));screenshot("134-battery-uncalibrated");
  click("Zmierz napięcie");response.battery=(dsr_battery_sample_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);
@@ -246,8 +248,11 @@ static void battery_regression(void)
  }
  dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_ui_open_settings();dsr_ui_battery_open(NULL);lv_obj_update_layout(lv_screen_active());
  for(unsigned n=0;n<10;n++){tap(160,444);tap(298,22);lv_obj_update_layout(lv_screen_active());}
+ /* Compare the same closed-screen state: the live diagnostics label includes
+  * allocator free space and the age changes while cycling. */
+ tap(160,444);
  lv_mem_monitor_t before_memory,after_memory;lv_mem_monitor(&before_memory);
- for(unsigned n=0;n<40;n++){tap(160,444);tap(298,22);lv_obj_update_layout(lv_screen_active());}
+ for(unsigned n=0;n<40;n++){tap(298,22);tap(160,444);lv_obj_update_layout(lv_screen_active());}
  lv_mem_monitor(&after_memory);
  printf("Battery UI heap before=%lu after=%lu; 40 open/back cycles; on-demand host ADC fixture\n",(unsigned long)before_memory.free_size,(unsigned long)after_memory.free_size);
  CHECK(after_memory.free_size==before_memory.free_size);

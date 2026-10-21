@@ -111,7 +111,7 @@ int main(void)
  CHECK(dsr_battery_read(NULL)==ESP_ERR_INVALID_ARG);
  for(unsigned n=0;n<16;n++){
   reset(n);dsr_battery_sample_t sample;memset(&sample,0xa5,sizeof(sample));esp_err_t error=dsr_battery_read(&sample);
-  CHECK(!adc_live&&!cal_live);
+  CHECK(!adc_live&&!cal_live);CHECK(!sample.has_percent&&!sample.has_charge_state&&!sample.charging);
   CHECK(adc_deletes==(n>=4||n==0?1u:0u));
   if(n==0){CHECK(error==ESP_OK&&sample.has_raw&&sample.has_voltage&&sample.raw==2001&&sample.spread==4095&&sample.adc_mv==2025&&sample.bat_mv==4050&&reads==10);}
   else if(n==5){CHECK(error==ESP_OK&&sample.has_raw&&!sample.has_voltage&&sample.calibration_error==ESP_ERR_NOT_SUPPORTED&&sample.bat_mv==0);}

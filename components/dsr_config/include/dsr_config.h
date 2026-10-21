@@ -15,6 +15,10 @@
 /* Configuration contains no passwords and no fabricated telemetry. */
 char *dsr_config_default(void);
 bool dsr_config_validate(const cJSON *root, char error[96]);
+/* Return a validated independent draft, removing only this stable card ID and
+ * its tile/member/action references. Rooms, scenes and sibling channels stay.
+ * No write or revision change; the caller must use the normal durable CAS. */
+cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96]);
 /* Frozen strict schema1 and separate strict schema2 paths. Only stored legacy
  * documents may use1; all new explicit saves require canonical2. */
 bool dsr_config_validate_stored(const cJSON *root,char error[96]);

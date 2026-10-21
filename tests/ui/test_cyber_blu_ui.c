@@ -43,7 +43,7 @@ static void states(unsigned skin,unsigned lang)
   snprintf(name,sizeof(name),"%03u-blu-%s-%s",700+skin*40+lang*12+state,names[state],lang==0?"pl":lang==1?"en":"de");screenshot(name);
   if(skin==3){
    const char *status=state==1||state==4?"Otwarte":state==2||state==5||state==6||state==7?"Brak danych":"Zamknięte";
-   lv_obj_t *label=find_label(lv_screen_active(),status);CHECK(label&&lv_obj_get_style_text_font(label,0)==&dsr_roboto_28);
+   lv_obj_t *label=find_label(lv_screen_active(),status);CHECK(label&&lv_obj_get_style_text_font(label,0)==dsr_sc_font(&dsr_roboto_28));
    CHECK(color(lv_obj_get_style_text_color(label,0))==(state==1||state==4?0xffb52e:state==2||state==5||state==6||state==7?0x8295ab:0x00cfff));
    contained(label,lv_obj_get_parent(label));
    lv_obj_t *scroll=box(lv_screen_active(),304,334);CHECK(scroll&&lv_obj_has_flag(scroll,LV_OBJ_FLAG_SCROLLABLE));

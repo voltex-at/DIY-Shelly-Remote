@@ -323,6 +323,7 @@ static void test_multi_registry(void)
  unsigned char durable[8192];size_t durable_size=sizes[2];memcpy(durable,blobs[2],durable_size);
  ((uint32_t *)blobs[2])[0]=99;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);unsigned before=write_opens;CHECK(dsr_connection_save(&a)!=ESP_OK&&write_opens==before);memcpy(blobs[2],durable,durable_size);
  sizes[2]--;CHECK(dsr_connections_load(loaded,16,&n)!=ESP_OK&&!n);sizes[2]=durable_size;
+ dsr_connection_t stale=b;stale.layout_id=999;CHECK(dsr_connection_remove(&stale)==ESP_ERR_INVALID_STATE);CHECK(dsr_connections_load(loaded,16,&n)==ESP_OK&&n==3);
  /* A committed delete can outlive a failed readback. Retry must converge to
   * success after a valid authoritative registry confirms the tuple absent. */
  fail_registry_readback=true;CHECK(dsr_connection_remove(&b)!=ESP_OK);
