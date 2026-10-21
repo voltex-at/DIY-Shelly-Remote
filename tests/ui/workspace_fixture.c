@@ -12,6 +12,9 @@
 /* Disabled for the original Wi-Fi fixture until explicitly enabled. */
 static char *stored;
 static char *pending;
+static uint32_t stored_revision;
+static unsigned snapshot_calls;
+unsigned test_workspace_snapshot_calls(void){return snapshot_calls;}
 static bool defer_save;
 static unsigned snapshot_fault;
 static bool https_ready=true;
@@ -19,28 +22,31 @@ void test_workspace_fault(unsigned fault){snapshot_fault=fault;}
 void test_panel_ready(bool ready){https_ready=ready;dsr_config_health_panel(ready?ESP_OK:ESP_FAIL);}
 bool dsr_panel_ready(void){return https_ready;}
 void test_workspace_defer(bool enabled){defer_save=enabled;}
-void test_workspace_finish(bool success){if(success){free(stored);stored=pending;}else free(pending);pending=NULL;}
+void test_workspace_finish(bool success){if(success){free(stored);stored=pending;stored_revision=stored?dsr_config_revision(stored):0;}else free(pending);pending=NULL;}
 /* Existing owner workspace saved in Polish (most screenshots and labels are PL).
  * A fresh install defaults to English: tests/test_config.c and test_style_ui.c. */
 void test_workspace_enable(void)
 {
  stored=dsr_config_default();char *language=stored?strstr(stored,"\"language\":\"en\""):NULL;
  if(language)memcpy(language+12,"pl",2);
+ stored_revision=stored?1:0;
 }
-void test_workspace_enable_fresh(void){stored=dsr_config_default();}
-void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;defer_save=false;}
+void test_workspace_enable_fresh(void){stored=dsr_config_default();stored_revision=stored?1:0;}
+void test_workspace_disable(void){free(stored);free(pending);stored=pending=NULL;stored_revision=0;defer_save=false;}
 static unsigned raw_fault;
 void test_workspace_raw_fault(unsigned fault){raw_fault=fault;}
-char *dsr_workspace_snapshot(void){if(raw_fault==1||!stored)return NULL;const char *text=raw_fault==2?"{broken":stored;char *copy=malloc(strlen(text)+1);if(copy)strcpy(copy,text);return copy;}
+char *dsr_workspace_snapshot(void){snapshot_calls++;if(raw_fault==1||!stored)return NULL;const char *text=raw_fault==2?"{broken":stored;char *copy=malloc(strlen(text)+1);if(copy)strcpy(copy,text);return copy;}
 dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out)
 {
  *out=NULL;if(snapshot_fault==1)return DSR_SNAPSHOT_UNAVAILABLE;if(snapshot_fault==2)return DSR_SNAPSHOT_NO_MEMORY;
  if(snapshot_fault==3||snapshot_fault==4){const char *bad=snapshot_fault==3?"{broken":"{}";*out=malloc(strlen(bad)+1);if(*out)strcpy(*out,bad);return *out?DSR_SNAPSHOT_OK:DSR_SNAPSHOT_NO_MEMORY;}
  *out=dsr_workspace_snapshot();return *out?DSR_SNAPSHOT_OK:stored?DSR_SNAPSHOT_NO_MEMORY:DSR_SNAPSHOT_UNAVAILABLE;
 }
-uint32_t dsr_workspace_revision(void){return stored?dsr_config_revision(stored):0;}
+/* The real workspace publishes its revision under a mutex without parsing or
+ * allocating. Readiness loss returns zero; allocation failures do not. */
+uint32_t dsr_workspace_revision(void){return snapshot_fault==1||raw_fault==1?0:stored_revision+(snapshot_fault==5?1u:0u);}
 bool dsr_workspace_submit(const char *json,uint32_t revision)
-{if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;}return true;}
+{if(pending)return false;char error[96];char *next=stored?dsr_config_replace(stored,json,revision,error):NULL;if(!next)return false;if(defer_save)pending=next;else{free(stored);stored=next;stored_revision=revision+1;}return true;}
 void dsr_workspace_status(bool *busy,char message[96]){*busy=pending!=NULL;message[0]=0;}
 static bool pair_accepted=true;
 static bool pairing_available=true,pairing_paired,pairing_uncertain;

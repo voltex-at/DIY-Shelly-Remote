@@ -29,11 +29,8 @@ static const char *display_name(const cJSON *device)
 #endif
 static unsigned object_index(const cJSON *array,int id)
 {unsigned i=0;const cJSON *v;cJSON_ArrayForEach(v,array){if(integer(v,"id")==id)return i;i++;}return 255;}
-bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
+void dsr_mobile_configure_validated(dsr_mobile_model_t *m,const cJSON *r)
 {
- if(!json||!dsr_config_json_depth(json))return false;
- cJSON *r=cJSON_Parse(json);char error[96];
- if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);return false;}
  m->room_count=0;m->device_count=0;m->tile_count=0;m->configured_layout=true;m->accent=(uint32_t)integer(r,"accent");const unsigned style=dsr_sc_style_from_name(string(r,"theme"));
  const char *locale=string(r,"language");dsr_sc_appearance(m->accent,style,!strcmp(locale,"en")?1:!strcmp(locale,"de")?2:0);dsr_ui_apply_theme();
  snprintf(m->home_name,sizeof(m->home_name),"%s",dsr_sc_tr("Mój dom"));
@@ -53,7 +50,13 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
   dsr_mobile_tile_t *t=&m->tiles[m->tile_count++];const char *type=string(v,"type");t->type=!strcmp(type,"device")?0:!strcmp(type,"room")?1:!strcmp(type,"scene")?2:3;
   t->index=(uint8_t)object_index(item(r,t->type==0?"devices":t->type==1?"rooms":t->type==2?"scenes":"groups"),integer(v,"ref"));t->span=(uint8_t)integer(v,"span");t->height=(uint8_t)integer(v,"height");t->fields=(uint8_t)integer(v,"fields");
  }
- cJSON_Delete(r);return true;
+}
+bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
+{
+ if(!json||!dsr_config_json_depth(json))return false;
+ cJSON *r=cJSON_Parse(json);char error[96];
+ if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);return false;}
+ dsr_mobile_configure_validated(m,r);cJSON_Delete(r);return true;
 }
 
 #ifndef DSR_UI_REVIEW_DEMO

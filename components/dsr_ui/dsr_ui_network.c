@@ -26,6 +26,7 @@ static dsr_fleet_t fleet;
 /* Advisory metadata is cold data in PSRAM; identity/control remains in fleet. */
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 EXT_RAM_BSS_ATTR
 #endif
 static struct {char id[64];dsr_device_info_t info;} info_cache[DSR_MAX_DEVICES];
@@ -64,6 +65,10 @@ static bool storage_error;
 static bool external_bind;
 static bool lan_binding;
 static uint32_t pending_room=UINT32_MAX;
+/* Presentation snapshot belongs to the LVGL task, never an ISR/DMA buffer. */
+#ifdef ESP_PLATFORM
+EXT_RAM_BSS_ATTR
+#endif
 static dsr_mobile_model_t mobile_model;
 static lv_obj_t *form, *keyboard, *message, *fields[5],*endpoint_choice;
 static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
@@ -71,6 +76,7 @@ static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
  * next LVGL pass, not after the remainder of the 200 ms poll period. */
 static lv_timer_t *poll_timer;
 static void dispatch_soon(void){if(poll_timer)lv_timer_ready(poll_timer);}
+static const cJSON *layout_snapshot(void);
 
 static dsr_result_t submit_touch(const dsr_job_t *job)
 {
@@ -184,7 +190,7 @@ static void render(void)
  if(view!=VIEW_HOME)return;
  memset(&mobile_model,0,sizeof(mobile_model));mobile_model.wifi=dsr_wifi_connected();
  snprintf(mobile_model.home_name,sizeof(mobile_model.home_name),"Mój dom");
- char *configuration=dsr_workspace_snapshot();bool layout=configuration&&dsr_mobile_configure(&mobile_model,configuration);free(configuration);
+ const cJSON *configuration=layout_snapshot();bool layout=configuration!=NULL;if(layout)dsr_mobile_configure_validated(&mobile_model,configuration);
  if(!layout){
   for(size_t i=0;i<fleet.count;i++){
    if(!fleet.slots[i].connection.layout_id&&!fleet.slots[i].connection.legacy_fallback)continue;
@@ -465,14 +471,19 @@ static void mobile_output(unsigned index,bool on)
  if(result!=DSR_OK){fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
  dispatch(lv_tick_get(),false);render();publish_runtime(lv_tick_get());
 }
+static bool __attribute__((noinline)) take_outputs(uint32_t now,bool wifi);
 static void mobile_cover_send(unsigned index,dsr_cover_intent_t intent)
 {
  if(index>=mobile_model.device_count)return;
- uint32_t id=mobile_model.devices[index].id;render();
- index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;
+ /* STOP resolves its endpoint from the screen the user pressed, exactly like an
+  * output toggle, and reaches the urgent worker lane before any repaint. */
+ bool stop=intent.command==DSR_COVER_STOP;
+ if(!stop){uint32_t id=mobile_model.devices[index].id;render();
+  index=0;while(index<mobile_model.device_count&&mobile_model.devices[index].id!=id)index++;}
  int at=card_slot(index);if(at<0||binding_target(&fleet.slots[at]))return;
  uint32_t operation_id;dsr_result_t result=dsr_workspace_cover_request(&fleet.slots[at].connection.device,intent,&operation_id);
- if(result==DSR_OK){fleet.slots[at].mailbox_pending=intent.command==DSR_COVER_STOP?2:1;dispatch_soon();}
+ if(result==DSR_OK){fleet.slots[at].mailbox_pending=stop?2:1;
+  if(stop&&dsr_activity_begin()){(void)take_outputs(lv_tick_get(),dsr_wifi_connected());dsr_activity_end();}else dispatch_soon();}
  else {fleet.slots[at].result=result;fleet.slots[at].command_error=true;}
  render();
 }
@@ -627,10 +638,75 @@ dsr_result_t dsr_network_bind_verified(const dsr_connection_t *connection,uint32
     return result;
 }
 
-/* Only a successfully parsed shared document can authorize publication or
- * targeted unbinding. An unavailable store never means an empty workspace. */
-static cJSON *layout_snapshot(void)
-{char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);char error[96];if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);return NULL;}return r;}
+/* One immutable, validated document belongs to the LVGL task. Its nodes and
+ * strings share one PSRAM arena, avoiding persistent small internal-heap
+ * allocations and global cJSON hooks (HTTP/config tasks also use cJSON).
+ * Borrowers never mutate/delete it or keep pointers across another lookup. */
+static cJSON *layout_cache;
+static uint32_t layout_cache_revision;
+static bool layout_measure(const cJSON *node,unsigned depth,size_t *nodes,size_t *strings)
+{
+ if(depth>16)return false;
+ for(;node;node=node->next){
+  if(++*nodes>DSR_CONFIG_MAX_JSON)return false;
+  const char *values[]={node->string,node->valuestring};
+  for(unsigned i=0;i<2;i++)if(values[i]){size_t n=strlen(values[i])+1;if(n>DSR_CONFIG_MAX_JSON-*strings)return false;*strings+=n;}
+  if(!layout_measure(node->child,depth+1,nodes,strings))return false;
+ }
+ return true;
+}
+typedef struct {cJSON *nodes;size_t used,count;char *strings;} layout_copy_t;
+static cJSON *layout_copy(const cJSON *source,layout_copy_t *arena,unsigned depth)
+{
+ if(depth>16)return NULL;
+ bool tail_link=source&&source->prev;
+ cJSON *first=NULL,*previous=NULL;
+ for(;source;source=source->next){
+  if(arena->used>=arena->count)return NULL;
+  cJSON *node=&arena->nodes[arena->used++];*node=*source;node->next=node->prev=node->child=NULL;
+  const char *values[]={source->string,source->valuestring};char **destinations[]={&node->string,&node->valuestring};
+  for(unsigned i=0;i<2;i++)if(values[i]){size_t n=strlen(values[i])+1;memcpy(arena->strings,values[i],n);*destinations[i]=arena->strings;arena->strings+=n;}
+  if(source->child){node->child=layout_copy(source->child,arena,depth+1);if(!node->child)return NULL;}
+  if(previous)previous->next=node;else first=node;node->prev=previous;previous=node;
+ }
+ if(first&&tail_link)first->prev=previous; /* Child lists link their first sibling to their tail. */
+ return first;
+}
+static cJSON *layout_clone(const cJSON *root)
+{
+ size_t nodes=0,strings=0;if(!layout_measure(root,0,&nodes,&strings)||nodes>(SIZE_MAX-strings)/sizeof(cJSON))return NULL;
+ size_t bytes=nodes*sizeof(cJSON)+strings;
+#ifdef ESP_PLATFORM
+ cJSON *memory=heap_caps_calloc(1,bytes,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+#else
+ cJSON *memory=calloc(1,bytes);
+#endif
+ if(!memory)return NULL;
+ layout_copy_t arena={.nodes=memory,.count=nodes,.strings=(char *)(memory+nodes)};
+ if(!layout_copy(root,&arena,0)){free(memory);return NULL;}
+ return memory;
+}
+static const cJSON *layout_unverified(void)
+{
+ for(unsigned i=0;i<fleet.count;i++)if(fleet.slots[i].connection.layout_id){fleet.slots[i].layout_enabled=false;dsr_fleet_cancel_queued(&fleet,i);}
+ return NULL;
+}
+/* A failed refresh of a known revision cannot keep authorizing the previous
+ * mapping. Zero revision preserves existing private-binding fallback reads;
+ * it never authorizes publication/unbinding through this document cache. */
+static const cJSON *layout_snapshot(void)
+{
+ uint32_t revision=dsr_workspace_revision();
+ if(layout_cache&&layout_cache_revision==revision&&revision)return layout_cache;
+ free(layout_cache);layout_cache=NULL;layout_cache_revision=0;
+ if(!revision)return NULL;
+ char *json=NULL;if(dsr_workspace_snapshot_checked(&json)!=DSR_SNAPSHOT_OK){free(json);return layout_unverified();}
+ cJSON *root=dsr_config_json_depth(json)?cJSON_Parse(json):NULL;free(json);char error[96];
+ if(!root||!dsr_config_validate(root,error)||(uint32_t)cJSON_GetObjectItemCaseSensitive(root,"revision")->valuedouble!=revision||dsr_workspace_revision()!=revision){cJSON_Delete(root);return layout_unverified();}
+ cJSON *next=layout_clone(root);cJSON_Delete(root);
+ if(!next||dsr_workspace_revision()!=revision){free(next);return layout_unverified();}
+ layout_cache=next;layout_cache_revision=revision;return layout_cache;
+}
 static uint32_t layout_find(const cJSON *r,const dsr_connection_t *c,bool *exists)
 {
  *exists=false;if((c->device.endpoint_kind==DSR_ENDPOINT_RGB||DSR_ENDPOINT_IS_SENSOR(c->device.endpoint_kind))&&!c->layout_id)return 0;
@@ -659,7 +735,7 @@ static dsr_result_t maintenance_submit(dsr_job_kind_t kind,unsigned index,uint32
 }
 static void reconcile_layout(bool allow_storage)
 {
- cJSON *r=layout_snapshot();if(!r)return;
+ const cJSON *r=layout_snapshot();if(!r)return;
  for(unsigned i=0;i<fleet.count;i++){
   dsr_fleet_slot_t *s=&fleet.slots[i];bool exists=false;uint32_t id=layout_find(r,&s->connection,&exists);
   if(s->connection.layout_id){s->layout_enabled=id!=0;
@@ -667,7 +743,6 @@ static void reconcile_layout(bool allow_storage)
    if(allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&!exists&&!busy&&!finishing_bind&&!s->queued&&!s->mailbox_pending&&!s->in_flight&&!s->urgent_stop){(void)maintenance_submit(DSR_JOB_UNBIND,i,s->connection.layout_id);break;}
   }else if(s->connection.legacy_fallback&&allow_storage&&(int32_t)(lv_tick_get()-s->next_maintenance)>=0&&id&&!busy&&!finishing_bind){(void)maintenance_submit(DSR_JOB_LAYOUT_PUBLISH,i,id);break;}
  }
- cJSON_Delete(r);
 }
 static void queue_verified_migrations(void)
 {
@@ -715,6 +790,24 @@ static void __attribute__((noinline)) consume_stop(uint32_t now,bool outer_pendi
   }render();
  }
 }
+/* LCD and Web intents from the shared mailbox; STOP goes to the urgent lane.
+ * The caller holds an activity lease across the take/handoff gap. */
+static bool __attribute__((noinline)) take_outputs(uint32_t now,bool wifi)
+{
+ dsr_output_request_t request;bool intent_changed=false;
+ while(dsr_workspace_take_output(&request)){
+  int at=dsr_fleet_find(&fleet,&request.device);
+  if(at>=0){dsr_fleet_slot_t *s=&fleet.slots[at];s->mailbox_pending=0;dsr_result_t result;
+   if(binding_target(s)||!s->layout_enabled||strcmp(request.device.host,s->connection.device.host))result=DSR_IDENTITY_MISMATCH;
+   else if(request.device.endpoint_kind==DSR_ENDPOINT_COVER&&request.cover.command==DSR_COVER_STOP){
+    result=s->blocked?s->result:dsr_worker_stop_request(&s->connection,request.operation_id);
+    if(result==DSR_OK){dsr_fleet_cancel_queued(&fleet,(unsigned)at);s->urgent_stop=true;}
+   }else result=DSR_ENDPOINT_IS_SENSOR(request.device.endpoint_kind)?dsr_fleet_ht_refresh(&fleet,(unsigned)at,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_COVER?dsr_fleet_cover_request(&fleet,(unsigned)at,request.cover,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_LIGHT?dsr_fleet_light_request(&fleet,(unsigned)at,request.light,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_RGB?dsr_fleet_rgb_request(&fleet,(unsigned)at,request.rgb,wifi,now):dsr_fleet_request(&fleet,(unsigned)at,request.on,wifi,now);
+   s->command_id=request.operation_id;if(result!=DSR_OK){s->result=result;s->command_error=true;}intent_changed=true;
+  }
+ }
+ return intent_changed;
+}
 /* Keep the private BIND snapshot out of the main LVGL polling frame. */
 static void __attribute__((noinline)) consume_bind(void)
 {
@@ -753,7 +846,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
    if(event.result==DSR_OK){memset(&fleet.slots[active_slot].connection.credentials,0,sizeof(dsr_credentials_t));memmove(&fleet.slots[active_slot],&fleet.slots[active_slot+1],(fleet.count-active_slot-1)*sizeof(fleet.slots[0]));memset(&fleet.slots[--fleet.count],0,sizeof(fleet.slots[0]));}
   }else if(operation==DSR_JOB_LAYOUT_PUBLISH){
    if(finishing_bind){
-    cJSON *r=layout_snapshot();bool exists=false;bool valid=r&&layout_find(r,&pending,&exists)==pending.layout_id;cJSON_Delete(r);
+    const cJSON *r=layout_snapshot();bool exists=false;bool valid=r&&layout_find(r,&pending,&exists)==pending.layout_id;
     dsr_result_t result=event.result;if(result==DSR_OK&&!valid)result=DSR_CONFLICT;
     if(result==DSR_OK){pending.device=event.device;pending.telemetry=event.telemetry;pending.legacy_fallback=false;result=dsr_fleet_upsert(&fleet,&pending,now);}
     finish_bind(result);
@@ -768,13 +861,12 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
     /* Rebinding/DHCP carries the private remote name. Preserve an existing
      * workspace override (including explicit follow mode) by its stable ID. */
     if(pending.layout_id){
-     cJSON *layout=layout_snapshot();const cJSON *entry;
+     const cJSON *layout=layout_snapshot();const cJSON *entry;
      if(!layout){finish_bind(DSR_IO);return;}
      cJSON_ArrayForEach(entry,cJSON_GetObjectItemCaseSensitive(layout,"devices")){
       const cJSON *id=cJSON_GetObjectItemCaseSensitive(entry,"id"),*name=cJSON_GetObjectItemCaseSensitive(entry,"name");
       if(cJSON_IsNumber(id)&&id->valuedouble==pending.layout_id&&cJSON_IsString(name)){dsr_text_copy(pending.device.name,sizeof(pending.device.name),name->valuestring);break;}
      }
-     cJSON_Delete(layout);
     }
     if(old<0&&fleet.count>=DSR_MAX_DEVICES)bind_transport_result=DSR_FULL;
     else {bind_stage=DSR_BIND_WORKSPACE;queue_verified_migrations();finishing_bind=true;}
@@ -830,25 +922,13 @@ static void poll(lv_timer_t *timer)
   dsr_result_t result;bool pending_layout=dsr_ui_workspace_migrate_status(&result);
   if(!pending_layout){
    if(result!=DSR_OK)finish_bind(result);
-   else {cJSON *r=layout_snapshot();bool exists=false;uint32_t id=r?layout_find(r,&pending,&exists):0;cJSON_Delete(r);
+   else {const cJSON *r=layout_snapshot();bool exists=false;uint32_t id=r?layout_find(r,&pending,&exists):0;
     if(!id)finish_bind(DSR_CONFLICT);else {pending.layout_id=id;bind_stage=DSR_BIND_PRIVATE;dsr_result_t admitted=publish_verified();if(admitted!=DSR_OK&&admitted!=DSR_BUSY)finish_bind(admitted);}
    }
   }
  }
  consume_stop(now,busy);
- dsr_output_request_t request;bool intent_changed=false;
- while(dsr_workspace_take_output(&request)){
-  int at=dsr_fleet_find(&fleet,&request.device);
-  if(at>=0){dsr_fleet_slot_t *s=&fleet.slots[at];s->mailbox_pending=0;dsr_result_t result;
-   if(binding_target(s)||!s->layout_enabled||strcmp(request.device.host,s->connection.device.host))result=DSR_IDENTITY_MISMATCH;
-   else if(request.device.endpoint_kind==DSR_ENDPOINT_COVER&&request.cover.command==DSR_COVER_STOP){
-    result=s->blocked?s->result:dsr_worker_stop_request(&s->connection,request.operation_id);
-    if(result==DSR_OK){dsr_fleet_cancel_queued(&fleet,(unsigned)at);s->urgent_stop=true;}
-   }else result=DSR_ENDPOINT_IS_SENSOR(request.device.endpoint_kind)?dsr_fleet_ht_refresh(&fleet,(unsigned)at,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_COVER?dsr_fleet_cover_request(&fleet,(unsigned)at,request.cover,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_LIGHT?dsr_fleet_light_request(&fleet,(unsigned)at,request.light,wifi,now):request.device.endpoint_kind==DSR_ENDPOINT_RGB?dsr_fleet_rgb_request(&fleet,(unsigned)at,request.rgb,wifi,now):dsr_fleet_request(&fleet,(unsigned)at,request.on,wifi,now);
-   s->command_id=request.operation_id;if(result!=DSR_OK){s->result=result;s->command_error=true;}intent_changed=true;
-  }
- }
- if(intent_changed)render();
+ if(take_outputs(now,wifi))render();
  consume_bind();
  static uint32_t config_revision;uint32_t next_revision=dsr_workspace_revision();if(config_revision!=next_revision){config_revision=next_revision;render();}
  reconcile_layout(false);

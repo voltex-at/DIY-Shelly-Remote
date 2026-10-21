@@ -98,4 +98,9 @@ void dsr_mobile_cover_preview(void);
 bool dsr_mobile_active(void);
 dsr_mobile_page_t dsr_mobile_page(void);
 bool dsr_mobile_configure(dsr_mobile_model_t *model,const char *json);
+/* LVGL-owner-only borrowed document, already accepted by dsr_config_validate.
+ * No mutation, retained pointers or ownership transfer; raw JSON callers use
+ * dsr_mobile_configure so validation cannot be skipped at that boundary. */
+struct cJSON;
+void dsr_mobile_configure_validated(dsr_mobile_model_t *model,const struct cJSON *document);
 #endif
