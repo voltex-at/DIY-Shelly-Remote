@@ -5,13 +5,21 @@
 #include <stdio.h>
 #include <string.h>
 
-static dsr_battery_sample_t sample;
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#else
+#define EXT_RAM_BSS_ATTR
+#endif
+/* UI-owned cached state, never accessed by an ISR or while cache is disabled.
+ * Keep it beside the LVGL pool in PSRAM, preserving the internal-RAM budget. */
+
+static EXT_RAM_BSS_ATTR dsr_battery_sample_t sample;
 static dsr_result_t result=DSR_IO;
-static bool attempted,pending,active,rejected,from_home;
-static uint32_t measured,monitor_at;
-static dsr_battery_profile_t profile;
-static dsr_battery_trend_t trend;
-static bool profile_known;
+static EXT_RAM_BSS_ATTR bool attempted,pending,active,rejected,from_home;
+static EXT_RAM_BSS_ATTR uint32_t measured,monitor_at;
+static EXT_RAM_BSS_ATTR dsr_battery_profile_t profile;
+static EXT_RAM_BSS_ATTR dsr_battery_trend_t trend;
+static EXT_RAM_BSS_ATTR bool profile_known;
 void dsr_ui_battery_init(void)
 {profile_known=dsr_battery_profile_load(&profile)==ESP_OK;monitor_at=lv_tick_get()-15000;dsr_battery_trend_reset(&trend);}
 bool dsr_ui_battery_profile_current(dsr_battery_profile_t *out)
@@ -36,13 +44,13 @@ void dsr_ui_battery_profile_result(const dsr_event_t *event,dsr_job_kind_t kind)
  dsr_ui_battery_calibration_result(event,kind);
  dsr_ui_battery_tick();
 }
-static lv_obj_t *header_value,*value,*status,*age,*measure,*diag,*percent_value,*note_value;
-static lv_obj_t *header_icon;
+static EXT_RAM_BSS_ATTR lv_obj_t *header_value,*value,*status,*age,*measure,*diag,*percent_value,*note_value;
+static EXT_RAM_BSS_ATTR lv_obj_t *header_icon;
 static int header_fill=-1;
-static bool header_charging,header_low,header_inferred;
+static EXT_RAM_BSS_ATTR bool header_charging,header_low,header_inferred;
 /* Only pointers; the five visible values are owned/freed by their screen. */
-static lv_obj_t *memory_values[5],*memory_detail;
-static uint32_t diag_at;
+static EXT_RAM_BSS_ATTR lv_obj_t *memory_values[5],*memory_detail;
+static EXT_RAM_BSS_ATTR uint32_t diag_at;
 static void header_deleted(lv_event_t *event)
 {if(lv_event_get_target(event)==header_value)header_value=NULL;}
 static void icon_deleted(lv_event_t *event)

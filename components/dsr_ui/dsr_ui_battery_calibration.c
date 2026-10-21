@@ -4,12 +4,21 @@
 #include <string.h>
 
 enum {NOMINAL,CAPACITY,EMPTY,MID,FULL,FIELD_COUNT};
-static lv_obj_t *body,*keyboard,*type,*fields[FIELD_COUNT],*reference_field;
-static lv_obj_t *status,*save,*read_button,*apply_button,*unity_button,*reload,*gain_label,*reading,*dialog,*error_panel,*new_profile,*trend_switch;
-static dsr_battery_profile_t baseline,draft,submitted;
-static dsr_battery_sample_t reference;
-static uint32_t reference_at;
-static bool active,pending,loading,known,reference_valid,waiting_read,uncertain_draft;
+
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#else
+#define EXT_RAM_BSS_ATTR
+#endif
+/* UI-owned cached state, never accessed by an ISR or while cache is disabled.
+ * Keep it beside the LVGL pool in PSRAM, preserving the internal-RAM budget. */
+
+static EXT_RAM_BSS_ATTR lv_obj_t *body,*keyboard,*type,*fields[FIELD_COUNT],*reference_field;
+static EXT_RAM_BSS_ATTR lv_obj_t *status,*save,*read_button,*apply_button,*unity_button,*reload,*gain_label,*reading,*dialog,*error_panel,*new_profile,*trend_switch;
+static EXT_RAM_BSS_ATTR dsr_battery_profile_t baseline,draft,submitted;
+static EXT_RAM_BSS_ATTR dsr_battery_sample_t reference;
+static EXT_RAM_BSS_ATTR uint32_t reference_at;
+static EXT_RAM_BSS_ATTR bool active,pending,loading,known,reference_valid,waiting_read,uncertain_draft;
 static void back(lv_event_t *event);
 bool dsr_ui_battery_calibration_active(void){return active;}
 static void text(lv_obj_t *o,const char *s)

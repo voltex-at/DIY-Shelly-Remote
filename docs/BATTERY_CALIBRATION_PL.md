@@ -74,6 +74,9 @@ Po 30 s bez poprawnego pomiaru nagłówek pokazuje stan nieznany.
 Osobny namespace `dsr_battery`, klucz `profile`, jeden 24-bajtowy rekord:
 wersja, długość, typ, opcja trendu, liczby little-endian i CRC32. Nie zmieniono
 starych rekordów Wi-Fi/urządzeń, konfiguracji workspace ani partycji.
+Stan formularza i bufor wskaźnika należą do UI i znajdują się w PSRAM obok
+puli LVGL; nie są używane przez ISR ani przy wyłączonym cache. Zachowano
+budżet wewnętrznego BSS 80 KiB.
 Zapisy są serializowane przez worker i objęte blokadą aktywności/restartu.
 Wymagany jest commit oraz poprawny, identyczny odczyt zwrotny.
 
