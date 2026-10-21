@@ -1,5 +1,15 @@
 # Development
 
+## 0.7.68-dev — kontynuacja i trzy skórki
+
+Gałąź `work/dev-0.7.68` kontynuuje wcześniejsze etapy bez zmiany partycji,
+klucza OTA i formatu danych. Skórki: Grafitowy (0), Jasny (2), Cyber Blue (3);
+historyczny Midnight (1) jest migrowany do Grafitowego. Zakres zmian,
+wyniki lokalne, pamięć i testy sprzętowe: [DEV_0_7_68_PL.md](DEV_0_7_68_PL.md).
+Publikacja wymaga dokładnego SHA z CI 5/5, chronionego środowiska `release`
+i klucza niedostępnego dla niechronionych workflowów. Startuje wyłącznie
+z nowego tagu `dev-v0.7.68`; historyczne żądania JSON nie uruchamiają wydania.
+
 ## 0.7.64-dev — Cyber Blue quality pass
 
 Publikacja na żądanie właściciela z `work/cyber-blue-quality-pass`, obejmująca
