@@ -39,10 +39,10 @@ int main(int argc,char **argv)
  screenshot("330-splash-dark");dsr_ui_splash_end();CHECK(!provision_gate);dsr_ui_splash_release();
  style_hint=DSR_SC_STYLE_LIGHT;dsr_ui_splash_begin();CHECK(dsr_sc_style()==DSR_SC_STYLE_LIGHT);screenshot("331-splash-light");dsr_ui_splash_end();
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();CHECK(!dsr_ui_splash_visible());tick();
- /* Same frames in graphite (dark art) and light; the hint follows the config. */
- const char *styles[]={"graphite","light"};
- for(unsigned s=0;s<2;s++){
-  publish_style(styles[s]);const bool light=s==1;CHECK(dsr_sc_style()==(light?DSR_SC_STYLE_LIGHT:DSR_SC_STYLE_GRAPHITE)&&style_hint==dsr_sc_style());
+ /* Same frames in each of the exactly three skins; the hint follows the config. */
+ const char *styles[]={"graphite","light","cyber_blue"};const unsigned ids[]={DSR_SC_STYLE_GRAPHITE,DSR_SC_STYLE_LIGHT,DSR_SC_STYLE_CYBER_BLUE};
+ for(unsigned s=0;s<3;s++){
+  publish_style(styles[s]);CHECK(dsr_sc_style()==ids[s]&&style_hint==dsr_sc_style());
   char name[48];const double minimum=4.0;
   dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(const void *)dsr_ui_brand_background());
   contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-home-%s",332+s*10,styles[s]);screenshot(name);
@@ -60,10 +60,23 @@ int main(int argc,char **argv)
   dsr_ui_edit_dashboard();tick();contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-editor-%s",339+s*10,styles[s]);screenshot(name);
   dsr_network_home(NULL);tick();
  }
- /* Theme switch back to dark restores dark art; hint written once per change. */
- unsigned writes=style_hint_writes;publish_style("midnight");CHECK(dsr_sc_style()==DSR_SC_STYLE_MIDNIGHT&&style_hint_writes==writes+1);
+ /* The retired midnight skin, e.g. saved by a Web Panel page opened before the
+  * update, is applied as graphite: dark art, one hint write, never id 1. */
+ unsigned writes=style_hint_writes;publish_style("midnight");CHECK(dsr_sc_style()==DSR_SC_STYLE_GRAPHITE&&style_hint==DSR_SC_STYLE_GRAPHITE&&style_hint_writes==writes+1);
+ cJSON *saved=room_document();CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(saved,"theme")->valuestring,"graphite"));cJSON_Delete(saved);
  publish_style("midnight");CHECK(style_hint_writes==writes+1);
+ /* Any legacy style id 1 (old hint or caller) renders graphite. */
+ dsr_sc_appearance(DSR_SC_BLUE,1,0);CHECK(dsr_sc_style()==DSR_SC_STYLE_GRAPHITE);CHECK(dsr_sc_style_from_name("midnight")==DSR_SC_STYLE_GRAPHITE);
+ /* The LCD theme picker offers exactly three skins in PL/EN/DE. */
+ const char *picker[]={"Grafitowy\nJasny\nShelly HUD — Cyber Blue","Graphite\nLight\nShelly HUD — Cyber Blue","Graphit\nHell\nShelly HUD — Cyber Blue"};
+ for(unsigned language=0;language<3;language++){
+  cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);tick();
+  dsr_ui_open_settings();tick();tap_row("Wygląd i język");tick();
+  unsigned skip=1;lv_obj_t *theme=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(theme&&!strcmp(lv_dropdown_get_options(theme),picker[language]));
+  CHECK(lv_dropdown_get_option_count(theme)==3&&lv_dropdown_get_selected(theme)==0);
+  char name[48];snprintf(name,sizeof(name),"360-style-picker-%u",language);screenshot(name);dsr_network_home(NULL);tick();
+ }
  CHECK(!low_contrast);
- printf("PASS: %u style/brand LCD checks; %u frames; %u label contrast checks >= 4.0:1 (graphite+light), splash per NVS hint, hint writes only on change; SDK/storage MODEL\n",checks,screenshots,contrast_checks);
+ printf("PASS: %u style/brand LCD checks; %u frames; %u label contrast checks >= 4.0:1 (graphite, light, cyber_blue), midnight migrated to graphite, splash per NVS hint, hint writes only on change; SDK/storage MODEL\n",checks,screenshots,contrast_checks);
  lv_deinit();return 0;
 }

@@ -1,6 +1,7 @@
 # Shelly HUD — Cyber Blue Premium
 
-Opcjonalna czwarta skórka istniejącego systemu wyglądu. Baza implementacji:
+Jedna z trzech skórek systemu wyglądu (od 0.7.68-dev: Grafitowy, Jasny, Cyber
+Blue; Nocny wycofano, zob. [STYLE_BRAND_PL.md](STYLE_BRAND_PL.md)). Baza implementacji:
 `e6e2359` (`work/p0-spiffs-ota-brand`, 0.7.57-dev), ESP-IDF 5.5.4,
 LVGL 9.3.0 (`c033a98afddd65aaafeebea625382a94020fe4a7`), ES3C35P 320 × 480.
 
@@ -15,7 +16,8 @@ porównaniem przed/po. Poniższe liczby integracji bazowej opisują etap 2.
 
 Ustawienia → Wygląd i język → Motyw → **Shelly HUD — Cyber Blue** → Zapisz.
 Ta sama opcja jest dostępna w istniejącym selektorze Web Panelu. Identyfikatory
-0 `graphite`, 1 `midnight`, 2 `light` pozostają bez zmian. Nowy: 3 `cyber_blue`.
+0 `graphite`, 2 `light`, 3 `cyber_blue` pozostają bez zmian; wycofane 1
+`midnight` jest migrowane na `graphite`.
 Domyślna konfiguracja nadal wybiera Grafit. Pole `accent` nie jest nadpisywane:
 Cyber Blue używa własnej palety, a powrót przywraca zapisany akcent użytkownika.
 

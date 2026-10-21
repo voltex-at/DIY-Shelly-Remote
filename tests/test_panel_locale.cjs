@@ -141,6 +141,9 @@ async function preserve(f,selector){
    await switchTo(f,'pl');eq(await page.getByRole('button',{name:'Dalej',exact:true}).isEnabled(),true);}
   await page.getByRole('button',{name:'Sieć lokalna',exact:true}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.getByRole('button',{name:'Sprawdź urządzenie',exact:true}).click();await page.locator('input[type=password]').fill('TEST-LAN-secret');await preserve(f,'input[type=password]');ok(await page.evaluate(()=>page==='discovery'&&lanMode==='credentials'));
   await page.locator('nav [data-page="appearance"]').click();await switchTo(f,'pl');ok((await page.locator('#editor').innerText()).includes('Język pilota'));ok((await page.locator('#editor').innerText()).includes('Język Web Panelu'));await switchTo(f,locale);await shot(page,path.join(out,`${locale}-appearance-mobile.png`));
+  // Exactly three skins; the retired midnight skin is never offered.
+  {const theme=page.locator('#editor select').filter({has:page.locator('option[value="cyber_blue"]')});eq(await theme.count(),1);
+   eq(await theme.locator('option').evaluateAll(o=>o.map(x=>x.value)),['graphite','light','cyber_blue']);eq(await theme.inputValue(),'graphite');}
   await page.locator('nav [data-page="system"]').click();await page.locator('input[type=file]').setInputFiles({name:'TEST-ONLY.bin',mimeType:'application/octet-stream',buffer:Buffer.from('not firmware')});await preserve(f,'input[type=file]');
   await switchTo(f,locale);for(const width of [1440,390]){await page.setViewportSize({width,height:900});await geometry(page);await shot(page,path.join(out,`${locale}-paired-${width}.png`));}
   await page.reload();await page.locator('#workspace').waitFor({state:'visible'});eq(await page.locator('html').getAttribute('lang'),locale);eq(state.config.language,'pl');
@@ -151,6 +154,14 @@ async function preserve(f,selector){
   await switchTo(f,'pl');await page.locator('nav [data-page="devices"]').click();await page.getByRole('button',{name:'Wyszukaj Shelly w LAN'}).click();await page.getByRole('button',{name:'Bluetooth LE • skan'}).click();await page.getByRole('button',{name:'Dalej',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#ble-status')?.textContent==='Skan przerwany');await Promise.all([page.waitForResponse(r=>r.url().endsWith('/ble/scan')),page.locator('#ble-start').click()]);await page.evaluate(()=>pollBle(bleGeneration));ok(await page.locator('#ble-start').isDisabled());for(const l of ['pl','en','de']){await switchTo(f,l);ok(await page.locator('#ble-start').isDisabled());eq(await page.locator('#ble-status').textContent(),{pl:'Odbieranie reklam: 3 / 20 s',en:'Receiving advertisements: 3 / 20 s',de:'Advertisements empfangen: 3 / 20 s'}[l]);eq(await page.locator('#ble-cancel').textContent(),{pl:'Anuluj skan BLE',en:'Cancel BLE scan',de:'BLE-Scan abbrechen'}[l]);}
   await Promise.all([page.waitForResponse(r=>r.url().endsWith('/ble/cancel')),page.locator('#ble-cancel').click()]);await page.evaluate(()=>pollBle(bleGeneration));ok(await page.locator('#ble-cancel').isDisabled());for(const l of ['pl','en','de']){await switchTo(f,l);eq(await page.locator('#ble-status').textContent(),{pl:'Skan przerwany',en:'Scan cancelled',de:'Scan abgebrochen'}[l]);}
   state.paired=false;await page.evaluate(()=>poll());await page.locator('#pairing').waitFor({state:'visible'});for(const l of ['pl','en','de'])await switchTo(f,l);eq(state.errors,[]);await f.context.close();
+ }
+ // A configuration still holding the retired midnight skin (until the remote
+ // migrates it) shows Graphite and offers only the three remaining skins.
+ for(const locale of ['pl','en','de']){
+  const f=await fixture(browser,{navigator:'pl-PL',stored:locale,paired:true});f.state.config.theme='midnight';await f.page.reload();await f.page.locator('#workspace').waitFor({state:'visible'});
+  await f.page.locator('nav [data-page="appearance"]').click();const theme=f.page.locator('#editor select').filter({has:f.page.locator('option[value="cyber_blue"]')});
+  eq(await theme.locator('option').evaluateAll(o=>o.map(x=>x.value)),['graphite','light','cyber_blue']);eq(await theme.inputValue(),'graphite');
+  ok(!(await f.page.locator('#editor').innerText()).match(/Nocny|Midnight|Nacht/));eq(f.state.errors,[]);await f.context.close();
  }
  await browser.close();fs.rmSync(browserTemp,{recursive:true,force:true});console.log(`PASS: ${checks} locale checks; actual shipped assets; HTTP/session/radio/reboot MODEL, no device/TLS proof`);
 })().catch(async e=>{console.error(e);if(active)await active.screenshot({path:path.join(out,'failure.png'),fullPage:true}).catch(()=>{});process.exit(1);});

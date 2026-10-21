@@ -42,9 +42,9 @@ const lv_font_t *dsr_sc_font(const lv_font_t *font)
  if(font==&dsr_roboto_28)return &dsr_roboto_bold_28;
  return font;
 }
-void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme<=DSR_SC_STYLE_CYBER_BLUE?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
+void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme==DSR_SC_STYLE_LIGHT||theme==DSR_SC_STYLE_CYBER_BLUE?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
 unsigned dsr_sc_style_from_name(const char *name)
-{return !name?DSR_SC_STYLE_GRAPHITE:!strcmp(name,"midnight")?DSR_SC_STYLE_MIDNIGHT:!strcmp(name,"light")?DSR_SC_STYLE_LIGHT:!strcmp(name,"cyber_blue")?DSR_SC_STYLE_CYBER_BLUE:DSR_SC_STYLE_GRAPHITE;}
+{return !name?DSR_SC_STYLE_GRAPHITE:!strcmp(name,"light")?DSR_SC_STYLE_LIGHT:!strcmp(name,"cyber_blue")?DSR_SC_STYLE_CYBER_BLUE:DSR_SC_STYLE_GRAPHITE;}
 /* "Jasny": every neutral token of the dark design maps to a light twin.
  * Data colors (accent, RGB swatches, warnings) pass through unchanged. */
 static uint32_t light(uint32_t c)
@@ -80,7 +80,6 @@ lv_color_t dsr_sc_color(uint32_t c)
 {
  if(style==DSR_SC_STYLE_CYBER_BLUE)return lv_color_hex(dsr_ui_cyber_color(c));
  if(c==DSR_SC_BLUE)return lv_color_hex(accent);
- if(style==DSR_SC_STYLE_MIDNIGHT&&c==DSR_SC_BG)c=0x080f19;
  if(style==DSR_SC_STYLE_LIGHT)c=light(c);
  return lv_color_hex(c);
 }

@@ -22,8 +22,13 @@ cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96]);
 /* Frozen strict schema1 and separate strict schema2 paths. Only stored legacy
  * documents may use1; all new explicit saves require canonical2. */
 bool dsr_config_validate_stored(const cJSON *root,char error[96]);
-/* RAM-only, no revision increment, no write. Caller owns canonical2 or NULL. */
+/* RAM-only, no revision increment, no write. Caller owns canonical2 or NULL.
+ * Also migrates the retired "midnight" theme to "graphite". */
 char *dsr_config_upgrade(const char *json,bool *legacy,char error[96]);
+/* Exactly three skins remain: graphite, light, cyber_blue. Replaces a retired
+ * "midnight" theme in place by "graphite"; true only when it changed. Stored
+ * documents may still hold it (validate_stored); dsr_config_validate never. */
+bool dsr_config_retire_theme(cJSON *root);
 /* CAS revision is mandatory. Caller owns returned canonical JSON. */
 char *dsr_config_replace(const char *current, const char *candidate,
                          uint32_t expected_revision, char error[96]);

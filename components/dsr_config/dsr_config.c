@@ -51,12 +51,22 @@ static bool reference(const cJSON *root,const char *key,const cJSON *id,bool zer
  const cJSON *v;cJSON_ArrayForEach(v,get(root,key))if(get(v,"id")->valueint==id->valueint)return true;
  return false;
 }
+/* Exactly three skins. "midnight" (retired in 0.7.68-dev) is accepted only
+ * from a stored document so it can be migrated; it is never valid output. */
+static bool theme(const cJSON *r,bool stored)
+{return choice(r,"theme",stored?"|graphite||midnight||light||cyber_blue|":"|graphite||light||cyber_blue|");}
+bool dsr_config_retire_theme(cJSON *root)
+{
+ const cJSON *value=get(root,"theme");
+ if(!cJSON_IsString(value)||strcmp(value->valuestring,"midnight"))return false;
+ return cJSON_ReplaceItemInObjectCaseSensitive(root,"theme",cJSON_CreateString("graphite"));
+}
 static bool validate_v1(const cJSON *r,char error[96])
 {
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
  if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards|"))return fail(error,"Unknown configuration field");
  if(!number(r,"schema",1,1)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
- if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight||light||cyber_blue|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
+ if(!choice(r,"language","|pl||en||de|")||!theme(r,true)||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
  if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
  const cJSON *v;
@@ -97,12 +107,12 @@ static bool action_appearance(const cJSON *r,const cJSON *o)
  for(unsigned i=0;i<32;i++)if(!((p[i]>='a'&&p[i]<='f')||(p[i]>='0'&&p[i]<='9')))return false;
  return true;
 }
-static bool validate_v2(const cJSON *r,char error[96])
+static bool validate_v2(const cJSON *r,char error[96],bool stored)
 {
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
  if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards||groups|"))return fail(error,"Unknown configuration field");
  if(!number(r,"schema",DSR_CONFIG_SCHEMA,DSR_CONFIG_SCHEMA)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
- if(!choice(r,"language","|pl||en||de|")||!choice(r,"theme","|graphite||midnight||light||cyber_blue|")||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
+ if(!choice(r,"language","|pl||en||de|")||!theme(r,stored)||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"groups",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
  if(!reference(r,"dashboards",get(r,"active_dashboard"),false))return fail(error,"Select an existing dashboard");
  const cJSON *v;
@@ -145,7 +155,7 @@ static bool validate_v2(const cJSON *r,char error[96])
  error[0]=0;return true;
 }
 bool dsr_config_validate(const cJSON *root,char error[96])
-{return validate_v2(root,error);}
+{return validate_v2(root,error,false);}
 cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96])
 {
  if(!id||!dsr_config_validate(root,error)){fail(error,"Invalid device deletion source");return NULL;}
@@ -175,16 +185,21 @@ cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96])
 bool dsr_config_validate_stored(const cJSON *root,char error[96])
 {
  if(cJSON_IsObject(root)&&number(root,"schema",1,1))return validate_v1(root,error);
- return validate_v2(root,error);
+ return validate_v2(root,error,true);
 }
 /* Explicit validated upgrade. No filesystem/NVS/worker or revision mutation.
- * The caller publishes canonical2 in RAM and writes only on explicit Save. */
+ * The caller publishes canonical2 in RAM and writes only on explicit Save
+ * (a schema-2 boot document is refreshed by the existing checkpoint save).
+ * The retired midnight skin becomes graphite here, idempotently; every other
+ * setting, room, scene, binding id and photo reference is kept byte-exact. */
 char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
 {
  if(legacy)*legacy=false;
  if(!json||strlen(json)>DSR_CONFIG_MAX_JSON||!dsr_config_json_depth(json)||strstr(json,"\\u0000")){fail(error,"Configuration size/depth/encoding limit");return NULL;}
  const char *end=NULL;cJSON *root=cJSON_ParseWithOpts(json,&end,true);
  if(!root||!dsr_config_validate_stored(root,error)){cJSON_Delete(root);return NULL;}
+ const cJSON *stored_theme=get(root,"theme");
+ if(!strcmp(stored_theme->valuestring,"midnight")&&!dsr_config_retire_theme(root)){cJSON_Delete(root);fail(error,"Not enough memory for configuration upgrade");return NULL;}
  bool old=number(root,"schema",1,1);
  if(old){
   cJSON *groups=cJSON_CreateArray();
@@ -212,6 +227,8 @@ char *dsr_config_replace(const char *current,const char *candidate,uint32_t expe
  if(!revision||revision!=expected){fail(error,"Revision conflict; reload before editing");return NULL;}
  const char *end=NULL;cJSON *r=cJSON_ParseWithOpts(candidate,&end,true);
  if(!r){fail(error,"Malformed JSON");return NULL;}
+ /* A page opened before the update may still hold the retired theme. */
+ if(cJSON_IsObject(r))(void)dsr_config_retire_theme(r);
  if(!dsr_config_validate(r,error)){cJSON_Delete(r);return NULL;}
  if((uint32_t)get(r,"revision")->valuedouble!=expected){cJSON_Delete(r);fail(error,"Revision conflict; reload before editing");return NULL;}
  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"revision"),revision+1);

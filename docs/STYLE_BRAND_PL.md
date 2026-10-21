@@ -14,8 +14,17 @@ zajmują 4 × 300 KiB, bez dekodera, kopii w RAM i PSRAM.
   wyłącznie zadanie UI (8 KiB stosu). `app_main` dotyka LVGL tylko przy
   zamkniętej bramce i po `dsr_ui_task_quiesce`.
 - **Tło aplikacji:** obraz bez tekstu na każdym ekranie głównym
-  (`dsr_sc_background`). Grafit i Nocny używają wariantu ciemnego, Jasny
+  (`dsr_sc_background`). Grafit i Cyber Blue używają wariantu ciemnego, Jasny
   jasnego.
+- **Dokładnie trzy skórki (od 0.7.68-dev):** Grafitowy (`graphite`, id 0),
+  Jasny (`light`, id 2) i Shelly HUD — Cyber Blue (`cyber_blue`, id 3).
+  Skórkę Nocny (`midnight`, id 1) wycofano. Zapisana konfiguracja z
+  `midnight` przechodzi bezstratnie na `graphite` przy starcie (upgrade
+  workspace z odświeżeniem punktu kontrolnego) oraz przy każdym zapisie, także
+  z karty Web Panelu otwartej przed aktualizacją. Podpowiedź NVS 1 jest
+  czytana jako 0 i nadpisywana raz przy następnym zastosowaniu stylu. Pozostałe
+  ustawienia, pokoje, sceny, powiązania i zdjęcia pozostają bez zmian. Id 1 nie
+  jest ponownie używany.
 - **Styl „Jasny”:** trzecia wartość `theme` w konfiguracji (`light`), dostępna
   na LCD i w Web Panelu. Wszystkie neutralne kolory ciemnego projektu mają
   jasne odpowiedniki w `dsr_sc_color`. Akcent użyty jako tekst jest
@@ -24,7 +33,7 @@ zajmują 4 × 300 KiB, bez dekodera, kopii w RAM i PSRAM.
 
 **Zgodność wstecz:** starszy firmware nie zna wartości `light` i odmówi
 wczytania takiej konfiguracji, nie kasując danych. Przed powrotem do starszej
-wersji przez USB przełącz styl na Grafit albo Nocny.
+wersji przez USB przełącz styl na Grafit.
 
 **Testy (host, prawdziwe LVGL):** 18 klatek (splash ciemny i jasny; home,
 karta, urządzenie, ustawienia, wygląd, kreator, formularz, edytor w stylu

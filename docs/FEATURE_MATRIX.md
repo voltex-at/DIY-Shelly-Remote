@@ -42,7 +42,7 @@ testem fizycznym. Opis szczegółowy do 0.7.33: [history/FEATURE_MATRIX_0.7.33.m
 | Obszar | Kod | CI | ES3C35P | Odbiór |
 | --- | --- | --- | --- | --- |
 | Start, wyświetlacz, dotyk, podświetlenie | tak | tak | potwierdzone (0.1.0) | — |
-| Ekran startowy z logo, styl Grafitowy/Nocny/Jasny | tak | tak (kontrast ≥4:1) | brak testu | — |
+| Ekran startowy z logo, skórki Grafitowy/Jasny/Cyber Blue (Nocny → Grafitowy) | tak | tak (kontrast ≥4:1, migracja) | brak testu | — |
 | Pierwsze formatowanie SPIFFS z postępem na LCD | tak | tak (IDF 5.5.4 SPIFFS, NOR model) | formatowanie zaliczone (0.7.37) | — |
 | Wznowienie przerwanego formatowania (109/313 bloków) | tak | tak | brak testu | — |
 | Wi-Fi, jeden Shelly ON/OFF (1PM Mini Gen3) | tak | tak | potwierdzone (0.6.x) | — |

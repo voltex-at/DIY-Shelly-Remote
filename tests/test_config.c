@@ -10,6 +10,55 @@ static unsigned checks;
 #define CHECK(x) do {checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}} while(0)
 static void invalid(cJSON *r,const char *key,cJSON *value)
 {char error[96];cJSON *copy=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(copy,key,value);CHECK(!dsr_config_validate(copy,error));cJSON_Delete(copy);}
+static void write_checkpoint(const char *dir,unsigned slot,const char *json)
+{
+ char path[600];snprintf(path,sizeof(path),"%s/config%u.dat",dir,slot);FILE *f=fopen(path,"wb");CHECK(f);
+ uint32_t header[]={0x44535231,(uint32_t)strlen(json),dsr_config_crc32(json,strlen(json)),dsr_config_revision(json)};
+ CHECK(fwrite(header,sizeof(header),1,f)==1&&fwrite(json,1,strlen(json),f)==strlen(json));CHECK(!fclose(f));
+}
+/* 0.7.67 -> 0.7.68: each of the four stored skins, schema 1 and 2, written as a
+ * real checkpoint. Midnight becomes graphite; every other field (language,
+ * accent, rooms, photos, devices, scenes, revision) is kept; reloading and a
+ * restart are idempotent; a page still holding midnight saves graphite. */
+static void theme_migration(const cJSON *base,const char *root)
+{
+ const char *stored[]={"graphite","midnight","light","cyber_blue"},*expected[]={"graphite","graphite","light","cyber_blue"};
+ for(unsigned schema=1;schema<=2;schema++)for(unsigned i=0;i<4;i++){
+  char dir[512],error[96];snprintf(dir,sizeof(dir),"%s/theme-%u-%u",root,schema,i);CHECK(!mkdir(dir,0700));
+  cJSON *doc=cJSON_Duplicate(base,true);CHECK(doc);
+  cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(stored[i]));
+  cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString("de"));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"accent"),0x34cbb5);
+  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"rooms"),cJSON_Parse("{\"id\":7,\"name\":\"Küche\",\"icon\":1,\"photo\":\"0000000000000000" "000000000000000a\"}"));
+  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"devices"),cJSON_Parse("{\"id\":9,\"name\":\"Roleta\",\"host\":\"192.168.1.40\",\"channel\":1,\"kind\":\"cover\",\"room\":7}"));
+  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"scenes"),cJSON_Parse("{\"id\":3,\"name\":\"Noc\",\"actions\":[{\"device\":9,\"command\":\"close\"}]}"));
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),41);
+  if(schema==1){cJSON_DeleteItemFromObjectCaseSensitive(doc,"groups");cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"schema"),1);}
+  CHECK(dsr_config_validate_stored(doc,error));
+  CHECK(dsr_config_validate(doc,error)==(schema==2&&i!=1)); /* midnight is never a current document */
+  char *old=cJSON_PrintUnformatted(doc);CHECK(old);write_checkpoint(dir,0,old);
+  bool found=false,legacy=false;char *loaded=dsr_config_store_load(dir,&found,error);CHECK(found&&loaded&&!strcmp(loaded,old)); /* reading never rewrites */
+  char *upgraded=dsr_config_upgrade(loaded,&legacy,error);CHECK(upgraded&&legacy==(schema==1));
+  cJSON *after=cJSON_Parse(upgraded);CHECK(after&&dsr_config_validate(after,error));
+  CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(after,"theme")->valuestring,expected[i]));
+  cJSON *a=cJSON_Duplicate(after,true),*b=cJSON_Duplicate(doc,true);
+  const char *excluded[]={"theme","groups","schema"};for(unsigned k=0;k<3;k++){cJSON_DeleteItemFromObjectCaseSensitive(a,excluded[k]);cJSON_DeleteItemFromObjectCaseSensitive(b,excluded[k]);}
+  CHECK(cJSON_Compare(a,b,true)&&dsr_config_revision(upgraded)==41);
+  /* Boot refresh + restart: the canonical document reaches both checkpoints;
+   * upgrading it again is byte-identical. No checkpoint is erased. */
+  CHECK(dsr_config_store_save(dir,upgraded,error));char *reloaded=dsr_config_store_load(dir,&found,error);CHECK(found&&reloaded);
+  char *again=dsr_config_upgrade(reloaded,&legacy,error);CHECK(again&&!strcmp(again,upgraded));
+  CHECK(dsr_config_store_save(dir,again,error));char *settled=dsr_config_store_load(dir,&found,error);CHECK(found&&settled&&!strcmp(settled,upgraded));
+  char *idempotent=dsr_config_upgrade(settled,&legacy,error);CHECK(idempotent&&!strcmp(idempotent,settled)&&!legacy);
+  /* A Web Panel page opened before the update still sends midnight. */
+  cJSON *stale=cJSON_Parse(upgraded);cJSON_ReplaceItemInObjectCaseSensitive(stale,"theme",cJSON_CreateString("midnight"));char *candidate=cJSON_PrintUnformatted(stale);
+  char *next=dsr_config_replace(upgraded,candidate,41,error);CHECK(next&&dsr_config_revision(next)==42);
+  cJSON *saved=cJSON_Parse(next);CHECK(saved&&!strcmp(cJSON_GetObjectItemCaseSensitive(saved,"theme")->valuestring,"graphite"));
+  cJSON_Delete(saved);free(next);free(candidate);cJSON_Delete(stale);free(idempotent);free(settled);free(again);free(reloaded);
+  cJSON_Delete(a);cJSON_Delete(b);cJSON_Delete(after);free(upgraded);free(loaded);free(old);cJSON_Delete(doc);
+ }
+ cJSON *probe=cJSON_Duplicate(base,true);CHECK(!dsr_config_retire_theme(probe));cJSON_ReplaceItemInObjectCaseSensitive(probe,"theme",cJSON_CreateString("midnight"));
+ CHECK(dsr_config_retire_theme(probe)&&!dsr_config_retire_theme(probe));cJSON_Delete(probe);
+}
 static void photo_names(const char *vectors)
 {
  FILE *f=fopen(vectors,"r");CHECK(f);char id[33],expected[38];unsigned count=0;
@@ -129,12 +178,12 @@ int main(int argc,char **argv)
  /* "Jasny" (#owner 2026-10-17) is accepted; unknown or pipe-smuggled themes are not. */
  {char error[96];cJSON *light=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(light,"theme",cJSON_CreateString("light"));CHECK(dsr_config_validate(light,error));cJSON_Delete(light);}
  /* Exercise the actual dual-checkpoint serializer/loader for every skin.
-  * These are disk round trips; physical NVS/SPIFFS is not emulated here. */
+  * Exactly three remain; these are disk round trips, not physical SPIFFS. */
  {
   char dir[512];snprintf(dir,sizeof(dir),"%s/skins",argv[1]);CHECK(!mkdir(dir,0700));
-  const char *skins[]={"graphite","midnight","light","cyber_blue","graphite"};
+  const char *skins[]={"graphite","light","cyber_blue","graphite"};
   cJSON *doc=cJSON_Duplicate(r,true);
-  for(unsigned i=0;i<5;i++){
+  for(unsigned i=0;i<4;i++){
    cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(skins[i]));
    cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),i+1);
    CHECK(dsr_config_validate(doc,error));char *json=cJSON_PrintUnformatted(doc);CHECK(json);
@@ -146,7 +195,9 @@ int main(int argc,char **argv)
   }
   cJSON_Delete(doc);
  }
+ theme_migration(r,argv[1]);
  invalid(r,"theme",cJSON_CreateString("neon"));invalid(r,"theme",cJSON_CreateString("light||midnight"));invalid(r,"theme",cJSON_CreateString("Light"));
+ invalid(r,"theme",cJSON_CreateString("midnight"));
  cJSON_AddStringToObject(r,"password","must-not-be-stored");CHECK(!dsr_config_validate(r,error));cJSON_DeleteItemFromObjectCaseSensitive(r,"password");
  cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms"),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices"),*dash=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),*tiles=cJSON_GetObjectItemCaseSensitive(dash,"tiles");
  cJSON *room=cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}");cJSON_AddItemToArray(rooms,room);

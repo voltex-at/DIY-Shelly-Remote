@@ -57,9 +57,11 @@ void dsr_sc_clock_tick(void);
 #define DSR_SC_DEVICE_ICONS 20 /* == DSR_CONFIG_DEVICE_ICONS */
 extern const dsr_ui_icon_t dsr_sc_device_icons[DSR_SC_DEVICE_ICONS];
 void dsr_sc_scrollbar(lv_obj_t *scrollable); /* visible position indicator on the right */
-enum {DSR_SC_STYLE_GRAPHITE,DSR_SC_STYLE_MIDNIGHT,DSR_SC_STYLE_LIGHT,DSR_SC_STYLE_CYBER_BLUE};
+/* Exactly three skins with their stable stored ids. Id 1 belonged to the
+ * retired "midnight" skin (0.7.68-dev): it is never selectable or rendered and
+ * any legacy 1 (style hint or old caller) is applied as graphite. */
+enum {DSR_SC_STYLE_GRAPHITE=0,DSR_SC_STYLE_LIGHT=2,DSR_SC_STYLE_CYBER_BLUE=3};
 unsigned dsr_sc_style_from_name(const char *name);
-/* Stable IDs: graphite / midnight / light / cyber_blue; a bool still maps 0/1. */
 void dsr_sc_appearance(uint32_t accent,unsigned style,unsigned language);
 unsigned dsr_sc_style(void);
 const char *dsr_sc_user(const char *text);

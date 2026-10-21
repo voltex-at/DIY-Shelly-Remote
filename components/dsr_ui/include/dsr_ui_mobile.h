@@ -52,7 +52,7 @@ typedef struct {
     dsr_mobile_room_t rooms[DSR_UI_MAX_ROOMS];
     char dashboard_name[48];
     uint32_t accent;
-    bool configured_layout,midnight;
+    bool configured_layout;
     uint8_t tile_count;
     dsr_mobile_tile_t tiles[24];
     uint8_t scene_count;
