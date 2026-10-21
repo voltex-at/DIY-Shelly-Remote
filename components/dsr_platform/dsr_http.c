@@ -407,7 +407,9 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
     bool matches=true;
     bool parsed=device->endpoint_kind==DSR_ENDPOINT_COVER?cover_parse(root,device->channel,&connection->telemetry.cover):device->endpoint_kind==DSR_ENDPOINT_LIGHT?light_parse(root,device->channel,&connection->telemetry.light):device->endpoint_kind==DSR_ENDPOINT_RGB?rgb_parse(root,device->channel,&connection->telemetry.rgb,expected,&matches):cJSON_IsBool(output);
-    if(!parsed||!matches){cJSON_Delete(root);return !parsed?DSR_UNSUPPORTED:DSR_BAD_RESPONSE;}
+    /* This endpoint was already identified. Invalid telemetry is a transient
+     * response failure, not evidence that the channel is unsupported. */
+    if(!parsed||!matches){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
     cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
     cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
     if(device->generation==DSR_GEN2_PLUS){

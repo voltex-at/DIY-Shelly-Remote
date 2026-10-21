@@ -117,6 +117,7 @@ static bool cover_motion(const dsr_fleet_slot_t *s)
  return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&
   (s->queued||s->urgent_stop||s->mailbox_pending||(s->in_flight&&s->operation==DSR_JOB_COVER)||
    c->state==DSR_COVER_STATE_OPENING||c->state==DSR_COVER_STATE_CLOSING||
+   c->state==DSR_COVER_STATE_CALIBRATING||
    ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
 }
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
@@ -136,6 +137,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
   * routine round-robin polling; this never repeats a movement POST. */
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
   unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
+  if(motion&&s->failures&&!cover_motion(s))continue; /* failed idle Covers also defer their early retries */
   if(cover_followup(s)&&s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
  }
  if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
@@ -170,6 +172,9 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  /* A later confirmed Cover GET restores the actual position after a lost
   * ACK/readback. It does not claim that the requested movement succeeded. */
  if(DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)||s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&s->operation==DSR_JOB_PROBE&&result==DSR_OK)){s->result=result;s->command_error=result!=DSR_OK;}else if(!s->command_error)s->result=result;
+ /* A confirmed read ends the temporary login limit even when the 429 came
+  * from a command. Keep other uncertain command failures until a new intent. */
+ if(s->operation==DSR_JOB_PROBE&&result==DSR_OK&&event->device.online&&s->result==DSR_RATE_LIMITED){s->result=DSR_OK;s->command_error=false;}
  /* Wrong credentials or another device at this address need the user. A 429
   * is Shelly's temporary login limit: never retried quickly, never a silent
   * permanent stop (it used to block polling until a manual Refresh). */

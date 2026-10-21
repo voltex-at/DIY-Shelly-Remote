@@ -341,6 +341,35 @@ static void complete_fleet(dsr_fleet_t *f,unsigned index,const dsr_job_t *job,ds
  dsr_event_t event={.id=job->id,.result=result,.device=job->connection.device,.telemetry=job->connection.telemetry};event.device.online=result==DSR_OK;
  CHECK(dsr_fleet_complete(f,index,&event,now));
 }
+static dsr_result_t recovery_command(dsr_fleet_t *fleet,unsigned kind,uint32_t now)
+{
+ if(kind==DSR_ENDPOINT_LIGHT)return dsr_fleet_light_request(fleet,0,(dsr_light_intent_t){.command=DSR_LIGHT_ON},true,now);
+ if(kind==DSR_ENDPOINT_RGB)return dsr_fleet_rgb_request(fleet,0,(dsr_rgb_intent_t){.command=DSR_RGB_ON},true,now);
+ return dsr_fleet_request(fleet,0,true,true,now);
+}
+static void test_command_rate_limit_recovery(void)
+{
+ const unsigned kinds[]={DSR_ENDPOINT_SWITCH,DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB};
+ const dsr_result_t errors[]={DSR_RATE_LIMITED,DSR_OFFLINE,DSR_BAD_RESPONSE};
+ for(unsigned kind=0;kind<3;kind++)for(unsigned failure=0;failure<3;failure++){
+  dsr_fleet_t f={0};dsr_connection_t c=connection();c.layout_id=1;c.device.generation=DSR_GEN2_PLUS;c.device.endpoint_kind=kinds[kind];c.device.online=c.device.has_switch=true;strcpy(c.device.device_id,"shelly-recovery");
+  if(kinds[kind]==DSR_ENDPOINT_LIGHT)c.telemetry.light.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS;
+  if(kinds[kind]==DSR_ENDPOINT_RGB)c.telemetry.rgb.flags=DSR_RGB_VALID;
+  CHECK(dsr_fleet_upsert(&f,&c,0)==DSR_OK&&recovery_command(&f,kinds[kind],1)==DSR_OK);
+  dsr_job_t job;unsigned index;CHECK(dsr_fleet_next(&f,1,false,&job,&index)&&job.kind!=DSR_JOB_PROBE);job.id=101;dsr_fleet_started(&f,index,&job);
+  complete_fleet(&f,index,&job,errors[failure],2);CHECK(f.slots[0].result==errors[failure]&&f.slots[0].command_error);
+  uint32_t due=f.slots[0].next_poll;CHECK(!dsr_fleet_next(&f,due-1,true,&job,&index));
+  CHECK(dsr_fleet_next(&f,due,true,&job,&index)&&job.kind==DSR_JOB_PROBE);job.id=102;dsr_fleet_started(&f,index,&job);
+  dsr_event_t read={.id=102,.result=DSR_OK,.device=c.device,.telemetry=c.telemetry};CHECK(dsr_fleet_complete(&f,index,&read,due));
+  /* A fresh read clears the temporary login block for the next explicit
+   * command. It must not relabel an uncertain timed-out/malformed write OK. */
+  if(errors[failure]==DSR_RATE_LIMITED)CHECK(f.slots[0].result==DSR_OK&&!f.slots[0].command_error);
+  else CHECK(f.slots[0].result==errors[failure]&&f.slots[0].command_error);
+  CHECK(f.slots[0].connection.device.online&&f.slots[0].sample_ms==due);
+  CHECK(!dsr_fleet_next(&f,due,false,&job,&index)); /* no automatic write replay */
+  CHECK(recovery_command(&f,kinds[kind],due)==DSR_OK);dsr_fleet_cancel_queued(&f,0);admission_open();
+ }
+}
 static void test_multi_scheduler(void)
 {
  dsr_fleet_t f={0};dsr_connection_t unpub=connection();strcpy(unpub.device.device_id,"pending");unpub.device.generation=DSR_GEN2_PLUS;unpub.device.online=unpub.device.has_switch=true;
@@ -383,6 +412,25 @@ static void test_multi_scheduler(void)
  h.slots[1].connection.telemetry.cover.state=DSR_COVER_STATE_OPENING;h.slots[0].failures=0;
  CHECK(dsr_fleet_next(&h,1000,true,&job,&index)&&index==0); /* healthy hosts keep routine reads */
  printf("Multi memory:connection=%zu slot=%zu fleet=%zu bytes; no extra worker/task\n",sizeof(dsr_connection_t),sizeof(dsr_fleet_slot_t),sizeof(dsr_fleet_t));
+}
+static void test_cover_stop_poll_priority(void)
+{
+ const uint8_t motion[]={DSR_COVER_STATE_OPENING,DSR_COVER_STATE_CLOSING,DSR_COVER_STATE_CALIBRATING};
+ for(unsigned state=0;state<3;state++)for(unsigned failure=1;failure<=2;failure++){
+  dsr_fleet_t f={0};dsr_connection_t live=connection();live.layout_id=1;live.device.generation=DSR_GEN2_PLUS;live.device.endpoint_kind=DSR_ENDPOINT_COVER;live.device.online=true;live.device.has_switch=false;strcpy(live.device.device_id,"shelly-live-cover");
+  live.telemetry.cover=(dsr_cover_status_t){.state=motion[state],.flags=DSR_COVER_VALID|DSR_COVER_POSITION};
+  dsr_connection_t dead=live;dead.layout_id=2;strcpy(dead.device.device_id,"shelly-idle-cover");strcpy(dead.device.host,"192.168.1.11");dead.device.online=false;memset(&dead.telemetry,0,sizeof(dead.telemetry));
+  CHECK(dsr_fleet_upsert(&f,&live,0)==DSR_OK&&dsr_fleet_upsert(&f,&dead,0)==DSR_OK);
+  f.slots[0].next_poll=50000;f.slots[1].failures=(uint8_t)failure;f.slots[1].next_poll=1000;
+  dsr_job_t job;unsigned index;
+  bool scheduled=dsr_fleet_next(&f,1000,true,&job,&index);
+  if(scheduled)fprintf(stderr,"Idle Cover retry selected while live state=%u failures=%u\n",(unsigned)motion[state],failure);
+  CHECK(!scheduled); /* failed idle Cover cannot delay live STOP */
+  f.slots[0].next_poll=1000;CHECK(dsr_fleet_next(&f,1000,true,&job,&index)&&index==0&&job.kind==DSR_JOB_PROBE); /* live follow-up still runs */
+  f.slots[0].next_poll=50000;f.slots[1].failures=0;CHECK(dsr_fleet_next(&f,1000,true,&job,&index)&&index==1); /* healthy reads continue */
+  f.slots[1].failures=(uint8_t)failure;f.slots[0].connection.telemetry.cover.state=DSR_COVER_STATE_STOPPED;
+  CHECK(dsr_fleet_next(&f,1000,true,&job,&index)&&index==1); /* deferred Cover read resumes after motion */
+ }
 }
 static void test_ap_protocol(void)
 {
@@ -472,7 +520,7 @@ static void test_device_settings_http(void)
 }
 int main(void)
 {
-    test_device_settings_http();test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
+    test_device_settings_http();test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_command_rate_limit_recovery();test_cover_stop_poll_priority();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
