@@ -1,28 +1,26 @@
 name: Signed release
-# Tag vX.Y.Z      -> Stable release (GitHub "latest"), needs owner approval
-# Tag dev-vX.Y.Z  -> Dev prerelease
-# Start: push the tag, or in the GitHub UI: Releases -> Draft a new release ->
-# new tag on a commit whose "Firmware checks" passed 5/5 -> Publish (tick
-# "Set as a pre-release" for dev-v...).
-# One owner-requested 0.7.67-dev may also start from the explicit request file
-# on work/battery-calibration. Its immutable tag is created only after exact CI 5/5.
+# Tag vX.Y.Z      -> Stable release (GitHub "latest"), environment stable-release
+# Tag dev-vX.Y.Z  -> Dev prerelease, environment release
+# Start: push the tag onto a commit whose "Firmware checks" passed 5/5. Branch
+# pushes never start a release (the former one-off request files are history).
 #
-# gate:    tag == built commit, CI 5/5 for that commit, Stable approval
-#          environment; a release opened in the UI is hidden until complete.
+# gate:    tag == built commit, CI 5/5 for that commit, and the signing
+#          environment requires owner approval and admits only release tags;
+#          a release opened in the UI is hidden until complete.
 # build:   one reproducible build (CONFIG_APP_REPRODUCIBLE_BUILD).
 # publish: signed manifest; assets are uploaded once, never replaced; digests
 #          are read back before the release becomes visible.
+# The OTA signing key must be an ENVIRONMENT secret of release/stable-release,
+# never a repository secret visible to unprotected workflows.
 on:
   push:
-    branches: ['work/battery-calibration']
-    paths: ['.github/dev-release-0.7.67.json']
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']
 permissions:
   contents: read
 env:
-  RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev-v0.7.67' }}
+  RELEASE_TAG: ${{ github.ref_name }}
 concurrency:
-  group: release-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev-v0.7.67' }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   gate:
@@ -32,16 +30,13 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v4
-      - name: Exact commit, CI 5/5, Stable approval; hide an incomplete UI release
+      - name: Exact commit, CI 5/5, protected signing environment; hide an incomplete UI release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          request=()
-          if [[ "$GITHUB_REF" == refs/heads/work/battery-calibration ]]; then
-            request=(--dev-request .github/dev-release-0.7.67.json)
-          fi
-          python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA" "${request[@]}"
+          [[ "$GITHUB_REF" == refs/tags/* ]] || { echo "Releases start only from a tag"; exit 1; }
+          python3 tools/release_tool.py gate --repo "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
   build:
     needs: gate
     runs-on: ubuntu-24.04

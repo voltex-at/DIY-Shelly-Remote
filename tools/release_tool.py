@@ -2,8 +2,9 @@
 """Fail-closed gate and immutable publication for one signed GitHub Release.
 
 gate     the tag still points at the built commit, `Firmware checks` passed
-         5/5 for exactly that commit, Stable has an owner-approval environment,
-         and a release opened in the UI is hidden (draft) until it is complete.
+         5/5 for exactly that commit, the signing environment of the channel
+         requires the owner's approval and admits only release tags, and a
+         release opened in the UI is hidden (draft) until it is complete.
 publish  uploads the signed set once. Existing assets are never replaced: an
          identical asset is accepted (idempotent re-run), a different one fails.
          The release is made visible only after every digest was read back.
@@ -25,6 +26,10 @@ from pathlib import Path
 CI_WORKFLOW = 'ci.yml'
 CI_JOBS = {'native', 'ui-review', 'diagnostic (esp32)', 'diagnostic (esp32s3)', 'es3c35p'}
 STABLE_ENVIRONMENT = 'stable-release'
+# The signing job of each channel runs in this environment (release.yml).
+ENVIRONMENTS = {'dev': 'release', 'stable': STABLE_ENVIRONMENT}
+# Deployment tag patterns an environment may admit, per channel.
+TAG_POLICIES = {'dev': {'dev-v*', 'dev-v*.*.*'}, 'stable': {'v*', 'v*.*.*'}}
 TAG = re.compile(r'^(?:v|dev-v)(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')
 
 
@@ -36,20 +41,6 @@ def channel(tag):
     if not TAG.match(tag or ''):
         raise Refused(f'unsupported tag {tag!r}')
     return 'dev' if tag.startswith('dev-') else 'stable'
-
-
-# One owner-requested DEV publication (2026-10-21), not a general branch release.
-# It cannot select another tag, Stable, branch or CMake version.
-DEV_REQUEST = {'schema': 1, 'tag': 'dev-v0.7.67', 'version': '0.7.67-dev',
-               'branch': 'refs/heads/work/battery-calibration'}
-
-
-def dev_request_allowed(tag, request, ref, cmake):
-    if request != DEV_REQUEST or tag != DEV_REQUEST['tag'] or ref != DEV_REQUEST['branch']:
-        raise Refused('DEV request does not match the one authorized version and branch')
-    version = re.search(r'set\(PROJECT_VER "([^"]+)"\)', cmake)
-    if not version or version.group(1) != DEV_REQUEST['version']:
-        raise Refused('DEV request version does not match PROJECT_VER')
 
 
 # Match the installed firmware's unchanged 16 KiB catalogue limit. A single
@@ -147,6 +138,21 @@ def stable_approval(environment):
         raise Refused(f'Stable needs environment "{STABLE_ENVIRONMENT}" with required reviewers (owner approval)')
 
 
+def signing_environment(kind, environment, policies):
+    """The OTA signing key may only be reachable from an owner-approved
+    environment that admits release tags, never an arbitrary branch."""
+    name = ENVIRONMENTS[kind]
+    rules = (environment or {}).get('protection_rules') or []
+    if not any(rule.get('type') == 'required_reviewers' and rule.get('reviewers') for rule in rules):
+        raise Refused(f'environment "{name}" needs required reviewers (owner approval) before signing')
+    policy = (environment or {}).get('deployment_branch_policy') or {}
+    if not policy.get('custom_branch_policies') or policy.get('protected_branches'):
+        raise Refused(f'environment "{name}" must be limited to custom release tag patterns')
+    entries = (policies or {}).get('branch_policies') or []
+    if not entries or any(e.get('type') != 'tag' or e.get('name') not in TAG_POLICIES[kind] for e in entries):
+        raise Refused(f'environment "{name}" may admit only {sorted(TAG_POLICIES[kind])} tags')
+
+
 def tag_unchanged(expected_sha, current_sha):
     if not current_sha or current_sha != expected_sha:
         raise Refused(f'tag moved: built {expected_sha}, tag now {current_sha}')
@@ -221,33 +227,22 @@ def sha256(path):
 
 def cmd_gate(a):
     kind = channel(a.tag)
-    requested = bool(a.dev_request)
-    current = tag_commit(a.repo, a.tag)
-    if requested:
-        dev_request_allowed(a.tag, json.loads(Path(a.dev_request).read_text()), os.environ.get('GITHUB_REF'),
-                            Path('CMakeLists.txt').read_text())
-        if current:
-            tag_unchanged(a.sha, current)
-    else:
-        tag_unchanged(a.sha, current)
+    # Releases start only from an existing tag on the exact built commit. The
+    # tag is pushed by the owner after CI 5/5; nothing here creates or moves it.
+    tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
+    environment = ENVIRONMENTS[kind]
+    signing_environment(kind, gh(f'repos/{a.repo}/environments/{environment}'),
+                        gh(f'repos/{a.repo}/environments/{environment}/deployment-branch-policies?per_page=30'))
     deadline = time.time() + a.wait_minutes * 60
     while True:
         runs = (gh(f'repos/{a.repo}/actions/workflows/{CI_WORKFLOW}/runs?head_sha={a.sha}&per_page=20') or {}).get('workflow_runs', [])
         jobs = {r['id']: (gh(f'repos/{a.repo}/actions/runs/{r["id"]}/jobs?per_page=50') or {}).get('jobs', [])
                 for r in runs if r.get('head_sha') == a.sha and r.get('status') == 'completed' and r.get('conclusion') == 'success'}
-        # The push starts both workflows: allow the CI run a short discovery window.
-        if requested and not runs and time.time() < deadline:
-            time.sleep(10)
-            continue
         if ci_verdict(a.sha, runs, jobs) == 'ok':
             break
         if time.time() > deadline:
             raise Refused(f'CI for {a.sha} still running after {a.wait_minutes} min')
         time.sleep(60)
-    if requested and not current:
-        # Only create the immutable tag AFTER exact-commit CI 5/5. A concurrent
-        # creation fails closed; no forced update or tag/asset replacement.
-        gh(f'repos/{a.repo}/git/refs', '-X', 'POST', data={'ref': 'refs/tags/' + a.tag, 'sha': a.sha})
     tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
     if kind == 'stable':
         stable_approval(gh(f'repos/{a.repo}/environments/{STABLE_ENVIRONMENT}'))
@@ -336,7 +331,6 @@ def main():
         s.add_argument('--sha', required=True)
         if name == 'gate':
             s.add_argument('--wait-minutes', type=int, default=45)
-            s.add_argument('--dev-request', help='one authorized DEV request; exact commit CI remains mandatory')
         else:
             s.add_argument('--dir', required=True)
             s.add_argument('--notes', required=True)

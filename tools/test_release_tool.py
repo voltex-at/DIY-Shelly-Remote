@@ -39,20 +39,30 @@ ok(t.channel('v1.2.3') == 'stable' and t.channel('dev-v0.7.39') == 'dev')
 for bad in ['v1.2', 'dev-v01.2.3', 'v1.2.3-rc1', 'release-1', '', None]:
     refused(t.channel, bad)
 
-# One requested DEV version; wrong ref, tag, CMake, extra/missing fields refuse.
-cmake = 'set(PROJECT_VER "0.7.67-dev")'
-t.dev_request_allowed('dev-v0.7.67', dict(t.DEV_REQUEST), t.DEV_REQUEST['branch'], cmake)
-for tag, ref, text in [('v0.7.67', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.68', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.65', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.60', t.DEV_REQUEST['branch'], cmake),
-                       ('dev-v0.7.67', 'refs/heads/main', cmake),
-                       ('dev-v0.7.67', 'refs/heads/work/cyber-blue-quality-pass', cmake),
-                       ('dev-v0.7.67', t.DEV_REQUEST['branch'], 'set(PROJECT_VER "0.7.52-dev")'),
-                       ('dev-v0.7.67', t.DEV_REQUEST['branch'], '')]:
-    refused(t.dev_request_allowed, tag, dict(t.DEV_REQUEST), ref, text)
-for request in [{}, dict(t.DEV_REQUEST, extra=True), dict(t.DEV_REQUEST, schema=2)]:
-    refused(t.dev_request_allowed, 'dev-v0.7.67', request, t.DEV_REQUEST['branch'], cmake)
+# The signing key is reachable only from an owner-approved, tag-only environment.
+REVIEWED = {'protection_rules': [{'type': 'required_reviewers', 'reviewers': [{'type': 'User'}]}],
+            'deployment_branch_policy': {'protected_branches': False, 'custom_branch_policies': True}}
+
+
+def policies(*entries):
+    return {'branch_policies': [{'name': name, 'type': kind} for name, kind in entries]}
+
+
+t.signing_environment('dev', REVIEWED, policies(('dev-v*', 'tag')))
+t.signing_environment('stable', REVIEWED, policies(('v*', 'tag'), ('v*.*.*', 'tag')))
+for kind, env, admitted in [
+        ('dev', None, policies(('dev-v*', 'tag'))),                                     # environment absent
+        ('dev', {}, policies(('dev-v*', 'tag'))),                                       # unprotected (as found 2026-10-21)
+        ('dev', dict(REVIEWED, protection_rules=[]), policies(('dev-v*', 'tag'))),      # no owner approval
+        ('dev', dict(REVIEWED, protection_rules=[{'type': 'required_reviewers', 'reviewers': []}]), policies(('dev-v*', 'tag'))),
+        ('dev', dict(REVIEWED, deployment_branch_policy=None), policies(('dev-v*', 'tag'))),          # any branch
+        ('dev', dict(REVIEWED, deployment_branch_policy={'protected_branches': True, 'custom_branch_policies': False}), policies()),
+        ('dev', REVIEWED, policies()),                                                  # custom policy without patterns
+        ('dev', REVIEWED, policies(('dev-v*', 'tag'), ('work/*', 'branch'))),           # a work branch could sign
+        ('dev', REVIEWED, policies(('*', 'tag'))),                                      # any tag
+        ('dev', REVIEWED, policies(('v*', 'tag'))),                                     # Stable pattern on DEV
+        ('stable', REVIEWED, policies(('dev-v*', 'tag')))]:
+    refused(t.signing_environment, kind, env, admitted)
 
 # CI gate: exact SHA, 5/5 jobs, newest successful run wins, active run waits
 ok(t.ci_verdict(SHA, [run(1)], {1: JOBS}) == 'ok')
@@ -109,47 +119,41 @@ t.verify_uploaded(release([asset(n) for n in LOCAL]), LOCAL)
 refused(t.verify_uploaded, release([asset(n) for n in list(LOCAL)[:2]]), LOCAL)
 refused(t.verify_uploaded, release([asset(n, 'e' * 64) for n in LOCAL]), LOCAL)
 
-# CLI ordering with a fake GitHub transport: failed exact CI cannot create a
-# tag; passed CI precedes tag creation and immutable readback. No network I/O.
+# CLI ordering with a fake GitHub transport: the gate needs the existing tag on
+# the exact commit, a protected signing environment and exact CI 5/5. It never
+# creates, moves or deletes a tag. No network I/O.
 from argparse import Namespace
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import json
-import os
 from pathlib import Path
-with TemporaryDirectory(prefix='dsr-dev-request-') as tmp:
-    request = Path(tmp) / 'request.json'
-    request.write_text(json.dumps(t.DEV_REQUEST))
-    args = Namespace(repo='fixture/repo', tag='dev-v0.7.67', sha=SHA, dev_request=str(request), wait_minutes=1)
-    for conclusion in ('failure', 'success'):
-        events = []
-        state = {'tag': None}
-        def fake_gh(url, *verb, data=None):
-            events.append(url)
-            if '/git/ref/tags/' in url:
-                return {'object': {'type': 'commit', 'sha': state['tag']}} if state['tag'] else None
-            if '/actions/workflows/' in url:
-                return {'workflow_runs': [run(1, conclusion=conclusion)]}
-            if '/actions/runs/' in url:
-                return {'jobs': JOBS}
-            if url.endswith('/git/refs'):
-                ok(data == {'ref': 'refs/tags/dev-v0.7.67', 'sha': SHA})
-                state['tag'] = SHA
-                return {}
-            if '/releases?' in url:
-                return []
-            raise AssertionError(url)
-        source_read = Path.read_text
-        def request_read(path, *args, **kwargs):
-            return 'set(PROJECT_VER "0.7.67-dev")' if str(path) == 'CMakeLists.txt' else source_read(path, *args, **kwargs)
-        with patch.object(t, 'gh', fake_gh), patch.dict(os.environ, GITHUB_REF=t.DEV_REQUEST['branch']), patch.object(Path, 'read_text', request_read):
-            if conclusion == 'failure':
-                refused(t.cmd_gate, args)
-                ok(state['tag'] is None and not any(x.endswith('/git/refs') for x in events))
-            else:
-                t.cmd_gate(args)
-                ok(state['tag'] == SHA)
-                ok(next(i for i, x in enumerate(events) if '/actions/runs/' in x) < events.index('repos/fixture/repo/git/refs'))
+args = Namespace(repo='fixture/repo', tag='dev-v0.7.68', sha=SHA, wait_minutes=1)
+for case in ('ok', 'ci-failed', 'unprotected', 'tag-elsewhere', 'no-tag'):
+    events = []
+    def fake_gh(url, *verb, data=None):
+        events.append(url)
+        ok(not verb and data is None)  # read-only: no tag/ref creation or environment change
+        if '/git/ref/tags/' in url:
+            return None if case == 'no-tag' else {'object': {'type': 'commit', 'sha': OTHER if case == 'tag-elsewhere' else SHA}}
+        if url.endswith('/environments/release'):
+            return {} if case == 'unprotected' else REVIEWED
+        if '/environments/release/deployment-branch-policies' in url:
+            return policies(('dev-v*', 'tag'))
+        if '/actions/workflows/' in url:
+            return {'workflow_runs': [run(1, conclusion='failure' if case == 'ci-failed' else 'success')]}
+        if '/actions/runs/' in url:
+            return {'jobs': JOBS}
+        if '/releases?' in url:
+            return []
+        raise AssertionError(url)
+    with patch.object(t, 'gh', fake_gh):
+        if case == 'ok':
+            t.cmd_gate(args)
+            ok(events.index('repos/fixture/repo/environments/release') < next(i for i, x in enumerate(events) if '/actions/workflows/' in x))
+        else:
+            refused(t.cmd_gate, args)
+    if case in ('unprotected', 'tag-elsewhere', 'no-tag'):
+        ok(not any('/actions/' in x for x in events))  # refused before waiting for CI
 
 # A page with one release is still bounded by body + the API/asset envelope.
 # Full historical notes reproduced 5/7/200/1 on the owner's 0.7.52 device.
@@ -273,16 +277,5 @@ with TemporaryDirectory(prefix='dsr-publish-readback-') as tmp:
   ok(events==([False,True] if reject_public else [False]));ok(validations==[True,False]);ok(state['release']['draft']==reject_public)
   ok({asset['name']:asset['digest'][7:] for asset in state['release']['assets']}==local)
 
-# One-time completion rejects other source/version/branch/bytes and any upload.
-import complete_dev_054 as completion
-completion.allowed(dict(completion.REQUEST),repo,'refs/heads/work/p0-spiffs-ota-brand')
-for request,repository,ref in [(dict(completion.REQUEST,tag='v0.7.54'),repo,'refs/heads/work/p0-spiffs-ota-brand'),(dict(completion.REQUEST,source_sha='b'*40),repo,'refs/heads/work/p0-spiffs-ota-brand'),(dict(completion.REQUEST),repo,'refs/heads/main'),(dict(completion.REQUEST),'other/repo','refs/heads/work/p0-spiffs-ota-brand')]:
- refused(completion.allowed,request,repository,ref)
-local=dict(completion.EXPECTED,**{completion.MANIFEST:'a'*64,'SHA256SUMS.txt':'b'*64})
-metadata=dict(tag_name=completion.REQUEST['tag'],draft=True,prerelease=True,assets=[dict(name=name,digest='sha256:'+digest,state='uploaded') for name,digest in local.items()])
-completion.ready(metadata,local)
-for change in [dict(draft=False),dict(prerelease=False),dict(tag_name='v0.7.54'),dict(assets=metadata['assets'][:-1])]:refused(completion.ready,dict(metadata,**change),local)
-refused(completion.ready,metadata,dict(local,**{'diy_shelly_remote.bin':'c'*64}))
-
-print(f'PASS: {checks} release gate/publication decisions; missing/failed/stale CI, moved tag, Stable approval, '
-      'immutable assets and duplicate events refused or idempotent; no GitHub I/O')
+print(f'PASS: {checks} release gate/publication decisions; missing/failed/stale CI, moved tag, unprotected signing '
+      'environment, Stable approval, immutable assets and duplicate events refused or idempotent; no GitHub I/O')

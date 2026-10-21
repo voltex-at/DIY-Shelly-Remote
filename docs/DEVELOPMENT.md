@@ -122,6 +122,24 @@ secret ([OTA_MANIFEST_PL.md](OTA_MANIFEST_PL.md)) and attaches the app BIN,
 manifest and FACTORY ZIP. Stable and merges to `main` require explicit owner
 approval. Never commit keys, tokens, SSIDs or backups.
 
+Od 0.7.68-dev wydanie startuje wyłącznie z tagu wypchniętego na commit z CI
+5/5 (`git tag dev-vX.Y.Z <sha>` + `git push origin dev-vX.Y.Z`). Jednorazowe
+pliki żądań w `.github/` pozostają zapisem historii, ale nic ich już nie
+uruchamia. Bramka `release_tool.py gate` odmawia, jeśli środowisko podpisu
+kanału (`release` dla DEV, `stable-release` dla Stable) nie wymaga zgody
+właściciela lub dopuszcza coś innego niż tagi `dev-v*` / `v*`. Klucz
+`DSR_OTA_SIGNING_KEY` musi być sekretem tych środowisk, a nie sekretem
+repozytorium (ten jest widoczny dla workflow na dowolnej gałęzi):
+
+```sh
+gh secret set DSR_OTA_SIGNING_KEY --env release < klucz-podpisu.txt
+gh secret set DSR_OTA_SIGNING_KEY --env stable-release < klucz-podpisu.txt
+gh secret delete DSR_OTA_SIGNING_KEY   # sekret repozytorium
+```
+
+Jednorazowe workflowy `repair-dev-notes.yml` (0.7.53) i `complete-dev-054.yml`
+(0.7.54) z prawem zapisu usunięto w 0.7.68-dev; opisy poniżej są historią.
+
 ### Wydanie 0.7.53-dev
 
 Jednorazowe żądanie `.github/dev-release-0.7.53.json` na
