@@ -9,15 +9,17 @@
 void test_native_ota_progress(size_t received,size_t total);
 
 static unsigned rgb(lv_color_t c){return lv_color_to_u32(c)&0xffffff;}
+/* Exactly three picker rows; a row is never a stored id (1 is retired). */
+static const unsigned skin_ids[]={DSR_SC_STYLE_GRAPHITE,DSR_SC_STYLE_LIGHT,DSR_SC_STYLE_CYBER_BLUE};
 static lv_obj_t *theme_choice(void)
-{unsigned skip=1;lv_obj_t *o=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(o&&lv_dropdown_get_option_count(o)==4);return o;}
-static void select_skin(unsigned s)
+{unsigned skip=1;lv_obj_t *o=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(o&&lv_dropdown_get_option_count(o)==3);return o;}
+static void select_skin(unsigned row)
 {
  dsr_ui_open_settings();tap_row("Wygląd i język");lv_obj_t *o=theme_choice();
  CHECK(strstr(lv_dropdown_get_options(o),"Shelly HUD — Cyber Blue"));
- lv_dropdown_set_selected(o,s);lv_obj_send_event(o,LV_EVENT_VALUE_CHANGED,NULL);click("Zapisz");tick();
- CHECK(dsr_sc_style()==s&&style_hint==s);
- cJSON *doc=room_document();CHECK(dsr_sc_style_from_name(cJSON_GetObjectItemCaseSensitive(doc,"theme")->valuestring)==s);cJSON_Delete(doc);
+ lv_dropdown_set_selected(o,row);lv_obj_send_event(o,LV_EVENT_VALUE_CHANGED,NULL);click("Zapisz");tick();
+ CHECK(dsr_sc_style()==skin_ids[row]&&style_hint==skin_ids[row]);
+ cJSON *doc=room_document();CHECK(dsr_sc_style_from_name(cJSON_GetObjectItemCaseSensitive(doc,"theme")->valuestring)==skin_ids[row]);cJSON_Delete(doc);
 }
 static unsigned hits,cover_hits,stop_hits,position_hits,last_position,refresh_hits;
 static void refresh_hit(uint32_t id){CHECK(id==3);refresh_hits++;}
@@ -34,6 +36,27 @@ static double full_paint_ms(void)
  struct timespec a,b;CHECK(clock_gettime(CLOCK_MONOTONIC,&a)==0);
  for(unsigned i=0;i<8;i++){lv_obj_invalidate(lv_screen_active());lv_refr_now(display);}
  CHECK(clock_gettime(CLOCK_MONOTONIC,&b)==0);return ((b.tv_sec-a.tv_sec)*1000.0+(b.tv_nsec-a.tv_nsec)/1000000.0)/8;
+}
+static void label_inside_parent(const char *text)
+{
+ lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label);lv_area_t a,p;
+ lv_obj_update_layout(lv_screen_active());lv_obj_get_coords(label,&a);lv_obj_get_coords(lv_obj_get_parent(label),&p);
+ CHECK(a.y1>=p.y1&&a.y2<=p.y2);
+ lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ CHECK(size.x<=p.x2-a.x1+1);
+}
+static void unclipped_labels(void)
+{
+ /* Bold Cyber values and the German Gruppen caption must fit their actual
+  * containers, including the skin's border inset. */
+ dsr_ui_open_settings();dsr_mobile_bind(NULL);
+ dsr_mobile_model_t m={.wifi=true,.device_count=1,.devices={{.id=71,.name="Clipping relay",.identity="clipping-fixture",.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true,.has_sample_time=true,.has_voltage=true,.voltage_v=232.9,.has_current=true,.current_a=.081}}};
+ for(unsigned lang=0;lang<3;lang++){
+  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);
+  dsr_mobile_show(DSR_MOBILE_DETAILS,0);label_inside_parent("232.9 V");label_inside_parent("0.081 A");
+  dsr_mobile_show(DSR_MOBILE_DEVICES,0);label_inside_parent("Pomieszczenia");label_inside_parent("Grupy");label_inside_parent("Sceny");label_inside_parent("Urządzenia");
+ }
+ dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();
 }
 static void mask_pixels(lv_obj_t *o,const lv_image_dsc_t *asset,uint32_t color)
 {
@@ -164,10 +187,10 @@ int main(int argc,char **argv)
  cJSON *doc=room_document();cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"rooms"),cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}"));publish_document(doc);dsr_ui_init();tick();
  const void *background=dsr_ui_brand_background();
  /* Editing and canceling cannot change the active or saved appearance. */
- dsr_ui_open_settings();tap_row("Wygląd i język");lv_obj_t *d=theme_choice();lv_dropdown_set_selected(d,3);lv_obj_send_event(d,LV_EVENT_VALUE_CHANGED,NULL);
+ dsr_ui_open_settings();tap_row("Wygląd i język");lv_obj_t *d=theme_choice();lv_dropdown_set_selected(d,2);lv_obj_send_event(d,LV_EVENT_VALUE_CHANGED,NULL);
  CHECK(dsr_sc_style()==DSR_SC_STYLE_GRAPHITE);click("Wstecz");click("Odrzuć");CHECK(dsr_sc_style()==DSR_SC_STYLE_GRAPHITE);
  lv_mem_monitor_t legacy,first;lv_mem_monitor(&legacy);
- select_skin(3);lv_mem_monitor(&first);
+ select_skin(2);lv_mem_monitor(&first);unclipped_labels();
  printf("LVGL free before first Cyber selection %lu, after %lu (same appearance screen; includes lazy widget/style caches)\n",(unsigned long)legacy.free_size,(unsigned long)first.free_size);
  CHECK(rgb(dsr_sc_color(DSR_SC_BG))==DSR_CYBER_BG&&rgb(dsr_sc_color(DSR_SC_BLUE))==DSR_CYBER_BLUE);
  CHECK(dsr_ui_brand_background()==background); /* Reuse original dark art. */
@@ -176,17 +199,17 @@ int main(int argc,char **argv)
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_LIGHT,0);dsr_ui_apply_theme();dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);
  /* Fill LVGL's lazy style/font caches for both directions before measuring. */
  /* Settle allocator splits as well as lazy caches with the two-tab layout. */
- for(unsigned warm=0;warm<40;warm++)for(unsigned i=0;i<4;i++)select_skin(i);
+ for(unsigned warm=0;warm<40;warm++)for(unsigned i=0;i<3;i++)select_skin(i);
  /* Compare quiescent empty roots: retained allocation slack in a live screen
   * varies with TLSF fragmentation when the parent LVGL theme is rebuilt. */
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
  lv_mem_monitor_t a,b;lv_mem_monitor(&a);
- for(unsigned cycle=0;cycle<20;cycle++)for(unsigned s=0;s<4;s++)select_skin(s);
+ for(unsigned cycle=0;cycle<20;cycle++)for(unsigned s=0;s<3;s++)select_skin(s);
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
  lv_mem_monitor(&b);fprintf(stderr,"skin cycle memory: %lu -> %lu, largest %lu; used blocks %u -> %u\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size,(unsigned)a.used_cnt,(unsigned)b.used_cnt);CHECK(b.free_size>=a.free_size);CHECK(b.used_cnt==a.used_cnt);CHECK(b.free_biggest_size>32000);
- printf("Cyber Blue LVGL heap after warmup: %lu -> %lu bytes free; largest %lu; 80 saved skin switches, no growth; 128 KiB pool\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size);
+ printf("Cyber Blue LVGL heap after warmup: %lu -> %lu bytes free; largest %lu; 60 saved skin switches, no growth; 128 KiB pool\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size);
  select_skin(0);CHECK(dsr_ui_brand_background()==background&&rgb(dsr_sc_color(DSR_SC_BG))==DSR_SC_BG);
  CHECK(!job_counts[DSR_JOB_SET_OUTPUT]&&!job_counts[DSR_JOB_COVER]&&!restart_requests);
- printf("PASS: %u Cyber Blue checks; %u real LVGL 320x480 frames; selection/save/cancel/reload, four skins, dialogs/keyboard/dropdown, pointer callback; storage/radio MODEL\n",checks,screenshots);
+ printf("PASS: %u Cyber Blue checks; %u real LVGL 320x480 frames; selection/save/cancel/reload, three skins, dialogs/keyboard/dropdown, pointer callback; storage/radio MODEL\n",checks,screenshots);
  lv_deinit();return 0;
 }

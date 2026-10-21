@@ -20,8 +20,15 @@ static EXT_RAM_BSS_ATTR uint32_t measured,monitor_at;
 static EXT_RAM_BSS_ATTR dsr_battery_profile_t profile;
 static EXT_RAM_BSS_ATTR dsr_battery_trend_t trend;
 static EXT_RAM_BSS_ATTR bool profile_known;
+/* One 50 ms frame timer, created once and paused unless the charging fill is
+ * shown (never while the display sleeps): smooth, with no allocation churn. */
+static EXT_RAM_BSS_ATTR lv_timer_t *charge_timer;
+static void charge_frame(lv_timer_t *timer);
 void dsr_ui_battery_init(void)
-{profile_known=dsr_battery_profile_load(&profile)==ESP_OK;monitor_at=lv_tick_get()-15000;dsr_battery_trend_reset(&trend);}
+{
+ profile_known=dsr_battery_profile_load(&profile)==ESP_OK;monitor_at=lv_tick_get()-15000;dsr_battery_trend_reset(&trend);
+ if(!charge_timer){charge_timer=lv_timer_create(charge_frame,50,NULL);if(charge_timer)lv_timer_pause(charge_timer);}
+}
 bool dsr_ui_battery_profile_current(dsr_battery_profile_t *out)
 {if(out)*out=profile;return profile_known;}
 bool dsr_ui_battery_reference(dsr_battery_sample_t *out,uint32_t *at)
@@ -64,8 +71,15 @@ static void battery_draw(lv_event_t *event)
  d.border_width=0;d.radius=1;d.bg_opa=LV_OPA_COVER;d.bg_color=dsr_sc_color(color);
  lv_area_t tip={a.x1+36,a.y1+8,a.x1+38,a.y1+15};lv_draw_rect(layer,&d,&tip);
  if(header_fill>0){lv_area_t fill={cell.x1+4,cell.y1+4,cell.x1+3+23*header_fill/100,cell.y2-4};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
- if(header_fill<0){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text="?";t.font=&dsr_roboto_12;t.color=dsr_sc_color(color);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+ /* Unknown level: an empty outline. A "?" read as a help button in the
+  * status bar; the value below already shows "—". */
  if(header_charging){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text=header_inferred?"~":"+";t.font=&dsr_roboto_12;t.color=dsr_sc_color(DSR_SC_TEXT);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+}
+static void charge_frame(lv_timer_t *timer)
+{
+ if(!header_icon||!header_charging||dsr_board_display_sleeping()){lv_timer_pause(timer);return;}
+ uint32_t phase=lv_tick_get()%2000;int fill=phase<1600?(int)(phase/16):100;
+ if(fill!=header_fill){header_fill=fill;lv_obj_invalidate(header_icon);}
 }
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
@@ -99,11 +113,12 @@ void dsr_ui_battery_tick(void)
   bool inferred=profile_known&&profile.trend_enabled&&dsr_battery_trend_likely(&trend,lv_tick_get());
   bool charging=fresh&&((sample.has_charge_state&&sample.charging)||inferred)&&!dsr_board_display_sleeping();
   int fill=fresh&&sample.has_percent&&sample.percent<=100?sample.percent:-1;
-  /* Fixed tick, no timer/animation allocation. 1.6 s fill + .4 s hold. */
+  /* 1.6 s fill + .4 s hold, advanced by the 50 ms frame timer below. */
   if(charging){uint32_t phase=lv_tick_get()%2000;fill=phase<1600?(int)(phase/16):100;}
   bool low=fresh&&sample.has_percent&&sample.percent<=10;
   if(fill!=header_fill||charging!=header_charging||low!=header_low||inferred!=header_inferred){header_fill=fill;header_charging=charging;header_low=low;header_inferred=inferred;lv_obj_invalidate(header_icon);}
  }
+ if(charge_timer){if(header_icon&&header_charging)lv_timer_resume(charge_timer);else lv_timer_pause(charge_timer);}
  if(header_value){
   if(fresh&&sample.has_percent&&sample.percent<=100)snprintf(text,sizeof(text),sample.percent_estimated?"~%u%%":"%u%%",sample.percent);
   else if(valid&&fresh)snprintf(text,sizeof(text),"%u.%02uV",sample.bat_mv/1000,(sample.bat_mv%1000)/10);

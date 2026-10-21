@@ -4,6 +4,7 @@
  * image copies, blur or per-frame timers. No device/network code lives here. */
 #include "dsr_ui_cyber.h"
 #include "dsr_ui_style.h"
+#include "dsr_board.h"
 #include "src/themes/lv_theme_private.h" /* LVGL 9.3's concrete theme storage */
 
 uint32_t dsr_ui_cyber_color(uint32_t c)
@@ -221,7 +222,7 @@ static const lv_image_dsc_t shutter_garden={.header={.magic=LV_IMAGE_HEADER_MAGI
 struct dsr_cyber_shutter {lv_obj_t *well;int open,confirmed;bool known,preview;};
 typedef dsr_cyber_shutter_t shutter_t;
 static void shutter_frame(void *data,int32_t open)
-{shutter_t *s=data;s->open=open;lv_obj_invalidate(s->well);}
+{if(dsr_board_display_sleeping())return;shutter_t *s=data;s->open=open;lv_obj_invalidate(s->well);}
 static void shutter_delete(lv_event_t *e)
 {shutter_t *s=lv_event_get_user_data(e);lv_anim_delete(s,shutter_frame);lv_free(s);}
 static lv_area_t shutter_aperture(const shutter_t *s)

@@ -9,7 +9,7 @@ jobs:
   ui-review:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install JSON parser for shared configuration and UI fixtures
         run: sudo apt-get update && sudo apt-get install -y libcjson-dev python3-pil python3-reportlab
       - name: Fetch exact LVGL source used by firmware
@@ -23,6 +23,7 @@ jobs:
           python3 tools/render_review.py --no-run
           python3 tools/render_cyber_atlas.py --screens build-ui/asan/screenshots --out build-ui/cyber-atlas --base-ref 5d33c2c9a755ba5b5c3692b97d766f6a6e21a04e
           python3 tools/render_cyber_final.py --screens build-ui/asan/screenshots --out build-ui/cyber-atlas
+          python3 tools/render_skin_atlas.py --screens build-ui/asan/screenshots --out build-ui/skin-atlas
       - name: Install pinned browser test runner
         run: npm install --prefix .test-deps/panel-node --no-audit --no-fund playwright@1.51.1
       - name: Verify real panel assets against shared C configuration and LVGL
@@ -46,7 +47,7 @@ jobs:
           node tests/test_panel_onboarding_model.cjs
           node tests/test_web_locale_dictionary.cjs
           node tests/test_panel_locale.cjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: real-lvgl-ui-review-NOT-FIRMWARE
@@ -55,6 +56,7 @@ jobs:
             build-ui/review-export.zip
             build-ui/cyber-atlas/
             build-ui/Cyber_Blue_Atlas.zip
+            build-ui/skin-atlas/
             build-ui/panel-review/
             build-ui/panel-locale/
             build-ui/panel-runtime/
@@ -63,7 +65,7 @@ jobs:
   native:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install real JSON parser for protocol fixtures
         run: sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography libssl-dev
       - name: Portable C tests with address and undefined behavior sanitizers
@@ -95,7 +97,7 @@ jobs:
     # These are compile coverage targets, NOT supported hardware profiles.
     container: espressif/idf:v5.5.4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Compile unconfigured diagnostic application
         shell: bash
         run: |
@@ -104,7 +106,7 @@ jobs:
           idf.py -B build -D DSR_DIAGNOSTIC_BUILD=ON build
           python3 tools/check_ota_diagnostic.py --bin build/diy_shelly_remote.bin
       - name: Retain diagnostic ELF and map only (no flashable release)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: diagnostic-only-${{ matrix.target }}
           path: |
@@ -115,7 +117,7 @@ jobs:
     runs-on: ubuntu-24.04
     container: espressif/idf:v5.5.4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build LCDWiki ES3C35P local switch development firmware
         shell: bash
         run: |
@@ -177,25 +179,25 @@ jobs:
           python3 tools/check_factory_package.py --package-dir build-board/installers
           python3 tools/test_factory.py --package-dir build-board/installers
       - name: Retain full clean FACTORY image (destructive installation variant)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: es3c35p-FACTORY-CLEAN-16MB-NOT-STABLE
           path: build-board/installers/FACTORY-CLEAN-16MB/
           if-no-files-found: error
       - name: Retain app-only UPDATE (no filesystem or partition image)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: es3c35p-UPDATE-APP-ONLY-NOT-STABLE
           path: build-board/installers/UPDATE-APP-ONLY/
           if-no-files-found: error
       - name: Retain build reports (no flashable image)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: es3c35p-build-reports-NOT-FIRMWARE
           path: build-board/reports/
           if-no-files-found: error
       - name: Retain target debug symbols and effective configuration
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: es3c35p-debug-symbols-NOT-FIRMWARE
           path: |

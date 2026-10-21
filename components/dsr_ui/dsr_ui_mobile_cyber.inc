@@ -24,10 +24,10 @@ static void cyber_relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  sample_age=dsr_sc_text(age,"",33,7,262,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();
  const char *labels[]={"Napięcie","Natężenie"};const dsr_ui_icon_t icons[]={DSR_ICON_VOLTAGE,DSR_ICON_CURRENT};
  for(unsigned i=0;i<2;i++){
-  lv_obj_t *card=dsr_sc_panel(root,i?164:8,378,148,44,DSR_SC_CARD,9);edge(card,0x00cfff,1);
+  lv_obj_t *card=dsr_sc_panel(root,i?164:8,378,148,48,DSR_SC_CARD,9);edge(card,0x00cfff,1);
   dsr_sc_icon(card,icons[i],10,4,18,DSR_SC_GLOW);dsr_sc_text(card,labels[i],34,5,108,&dsr_roboto_12,DSR_SC_MUTED);
   if(valid&&(i?d->has_current:d->has_voltage)&&isfinite(i?d->current_a:d->voltage_v))snprintf(text,sizeof(text),i?"%.3f A":"%.1f V",i?d->current_a:d->voltage_v);else snprintf(text,sizeof(text),i?"— A":"— V");
-  center(dsr_sc_text(card,text,4,23,138,&dsr_roboto_18,DSR_SC_TEXT));
+  center(dsr_sc_text(card,text,4,20,138,&dsr_roboto_18,DSR_SC_TEXT));
  }
 }
 static void cyber_overview_row(lv_obj_t *panel,dsr_ui_icon_t icon,const char *label,const char *value,int y,int height,bool wrap)
@@ -45,7 +45,7 @@ static void cyber_action_caption(lv_obj_t *button,const char *text)
 }
 static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
- const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->busy?"Odczyt stanu…":d->online?"Online":"Brak połączenia";
+ const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->busy?"Odczyt stanu…":d->online?"Online":not_online(d);
  bool online=d->online&&d->error==DSR_OK&&!unbound(d);bool extra=strcmp(state,"Online")!=0;int shift=extra?24:0;
  content=dsr_sc_panel(root,8,94,304,256,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
  lv_obj_t *panel=dsr_sc_panel(content,0,0,304,256+shift,DSR_SC_CARD,12);edge(panel,0x00cfff,1);

@@ -29,6 +29,51 @@ static void repaint_regression(void)
 }
 static bool has_lux(lv_obj_t *o)
 {if(lv_obj_check_type(o,&lv_label_class)&&strstr(lv_label_get_text(o)," lx"))return true;for(unsigned i=0;i<lv_obj_get_child_count(o);i++)if(has_lux(lv_obj_get_child(o,(int)i)))return true;return false;}
+static unsigned sleeping_cover_draws;
+static void count_sleeping_cover(lv_event_t *event){(void)event;sleeping_cover_draws++;}
+static bool sleep_has_text(lv_obj_t *o,const char *text)
+{
+ if(lv_obj_check_type(o,&lv_label_class)&&strstr(lv_label_get_text(o),text))return true;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++)if(sleep_has_text(lv_obj_get_child(o,(int)i),text))return true;
+ return false;
+}
+static lv_obj_t *cover_well(lv_obj_t *o)
+{
+ if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==162&&!lv_obj_get_child_count(o))return o;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *well=cover_well(lv_obj_get_child(o,(int)i));if(well)return well;}return NULL;
+}
+static void sleep_repaint_regression(void)
+{
+ unsigned prior_style=dsr_sc_style(),prior_language=dsr_sc_language();
+ dsr_ui_open_settings();dsr_mobile_bind(NULL);
+ dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();
+ dsr_mobile_model_t m={.wifi=true,.device_count=1,.devices={{.id=72,.name="Sleeping relay",.identity="sleep-fixture",.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true,.has_sample_time=true,.has_power=true,.power_w=10,.fields=1}}};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DEVICES,0);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *name=find_label(lv_screen_active(),"Sleeping relay");CHECK(name);lv_obj_t *card=lv_obj_get_parent(name);
+ display_sleeping=true;m.devices[0].output=true;m.devices[0].power_w=20;dsr_mobile_update(&m);
+ CHECK(find_label(lv_screen_active(),"Sleeping relay")==name&&lv_obj_is_valid(card));
+ CHECK(!sleep_has_text(lv_screen_active(),"20.0 W"));
+ m.devices[0].power_w=30;dsr_mobile_update(&m);lv_tick_inc(100);lv_timer_handler();
+ CHECK(find_label(lv_screen_active(),"Sleeping relay")==name&&!sleep_has_text(lv_screen_active(),"30.0 W"));
+ display_sleeping=false;lv_tick_inc(40);lv_timer_handler();
+ CHECK(sleep_has_text(lv_screen_active(),"30.0 W")&&!sleep_has_text(lv_screen_active(),"20.0 W"));
+ m.devices[0].sample_ms=lv_tick_get();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_t *age=find_label(lv_screen_active(),"Odczyt potwierdzony 0 s temu");CHECK(age);
+ display_sleeping=true;lv_tick_inc(2100);dsr_mobile_update(&m);
+ CHECK(find_label(lv_screen_active(),"Odczyt potwierdzony 0 s temu")==age);
+ m.devices[0].sample_ms=lv_tick_get();dsr_mobile_update(&m);
+ display_sleeping=false;lv_tick_inc(40);lv_timer_handler();CHECK(find_label(lv_screen_active(),"Odczyt potwierdzony 0 s temu"));
+ m.devices[0]=(dsr_mobile_device_t){.id=73,.name="Sleeping cover",.identity="sleep-cover",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.has_position=true,.position_pct=20,.cover_state=DSR_COVER_STOPPED};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);
+ m.devices[0].cover_state=DSR_COVER_OPENING;m.devices[0].position_pct=80;dsr_mobile_update(&m);
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *well=cover_well(lv_screen_active());CHECK(well);
+ lv_obj_add_event_cb(well,count_sleeping_cover,LV_EVENT_DRAW_MAIN,NULL);lv_refr_now(display);
+ unsigned draws=sleeping_cover_draws;display_sleeping=true;lv_tick_inc(120);lv_timer_handler();lv_refr_now(display);
+ CHECK(sleeping_cover_draws==draws);
+ m.devices[0].position_pct=90;dsr_mobile_update(&m);CHECK(cover_well(lv_screen_active())==well);
+ display_sleeping=false;lv_tick_inc(40);lv_timer_handler();CHECK(find_label(lv_screen_active(),"Pozycja 90%"));
+ dsr_ui_open_settings();
+ dsr_sc_appearance(DSR_SC_BLUE,prior_style,prior_language);dsr_ui_apply_theme();
+}
 static void thermostat(void)
 {
  dsr_mobile_model_t m={.device_count=1};m.devices[0]=(dsr_mobile_device_t){.id=42,.kind=DSR_DEVICE_SENSOR,.endpoint_kind=DSR_ENDPOINT_BLU,.generation=DSR_GEN2_PLUS,.online=true,.has_trv_target=true,.trv_target_c=20,.has_temperature=true,.temperature_c=21.5,.has_battery=true,.battery_pct=90,.blu={.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET,.trv_pos=28}};
@@ -108,7 +153,7 @@ int main(int argc,char **argv)
  dsr_sc_appearance(DSR_SC_BLUE,false,2);CHECK(!strcmp(dsr_sc_tr("Paruj BLU"),"BLU koppeln"));CHECK(!strstr(dsr_sc_tr("Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly."),"Sparuj"));
  lv_obj_t *root=dsr_ui_screen("Scroll test",false),*list=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_scrollbar(list);dsr_sc_panel(list,0,0,296,900,DSR_SC_CARD,8);lv_obj_update_layout(root);lv_area_t h,v;lv_obj_get_scrollbar_area(list,&h,&v);CHECK(lv_area_get_width(&v)==2&&lv_area_get_height(&v)==36&&v.x1>307&&v.x2<320);lv_obj_invalidate(root);lv_refr_now(display);unsigned pixel=((unsigned)((v.y1+v.y2)/2)*320u+(unsigned)v.x1)*3u;CHECK(canvas[pixel]>60&&canvas[pixel+1]>60&&canvas[pixel+2]>60);screenshot("502-owner-scrollbar");
  unsigned hits=ready_count;dsr_sc_button(root,12,86,36,36,DSR_SC_CARD,8,ready,NULL);lv_obj_update_layout(root);tap(9,104);CHECK(ready_count==hits+1);
- repaint_regression();thermostat();sensor_states();ota_buttons_visible();
+ repaint_regression();sleep_repaint_regression();thermostat();sensor_states();ota_buttons_visible();
  CHECK(job_counts[DSR_JOB_SET_OUTPUT]==0&&job_counts[DSR_JOB_COVER]==0);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  printf("PASS: %u owner UX LCD checks; %u frames; genuine LVGL/pointer; SDK/transport MODEL\n",checks,screenshots);lv_deinit();return 0;
 }

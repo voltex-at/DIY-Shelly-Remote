@@ -36,6 +36,8 @@ static void set_output(unsigned index,bool on){(void)on;CHECK(index<5);commands+
 static void noop(void){}
 /* Review fixture links dsr_ui_config.c without dsr_ui.c: LVGL theme is fixed here. */
 void dsr_ui_apply_theme(void){}
+/* The review display never sleeps (board backlight MODEL). */
+bool dsr_board_display_sleeping(void){return false;}
 static void edit_dashboard(void){edits++;}
 static void open_settings(void){settings_opens++;}
 static void add_device(void){add_opens++;}

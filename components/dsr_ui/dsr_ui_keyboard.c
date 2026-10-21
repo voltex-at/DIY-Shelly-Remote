@@ -42,12 +42,16 @@ void dsr_ui_keyboard(lv_obj_t *kb)
    if(!text[0])break;
    if(!strcmp(text,"\n")){row++;continue;}
    unsigned width=row==4?(key==0?5:key==1?4:key==2?9:key==3?4:8):(!strcmp(text,LV_SYMBOL_UP)||!strcmp(text,LV_SYMBOL_BACKSPACE)||!strcmp(text,"ABC"))?2:1;
+   /* ~29 px wide keys sit under the finger: a character key shows an enlarged
+    * popover above it while pressed. Mode, edit and footer keys do not. */
+   bool popover=m<5&&row<4&&width==1&&strcmp(text,"ąä");
    /* key is reset at every line below; no repeat avoids duplicate submit. */
-   controls[m][i-row]=(lv_buttonmatrix_ctrl_t)(width|LV_BUTTONMATRIX_CTRL_CLICK_TRIG|LV_BUTTONMATRIX_CTRL_NO_REPEAT);
+   controls[m][i-row]=(lv_buttonmatrix_ctrl_t)(width|LV_BUTTONMATRIX_CTRL_CLICK_TRIG|LV_BUTTONMATRIX_CTRL_NO_REPEAT|(popover?LV_BUTTONMATRIX_CTRL_POPOVER:0));
    key++;if(!strcmp(templates[m][i+1],"\n"))key=0;
   }
   lv_keyboard_set_map(kb,modes[m],maps[m],controls[m]);
  }
+ lv_keyboard_set_popovers(kb,true);
  lv_obj_remove_event_cb(kb,lv_keyboard_def_event_cb);lv_obj_add_event_cb(kb,keyboard_event,LV_EVENT_VALUE_CHANGED,NULL);
  lv_obj_set_size(kb,320,240);lv_obj_align(kb,LV_ALIGN_BOTTOM_MID,0,0);
  lv_obj_set_style_text_font(kb,&dsr_roboto_22,LV_PART_ITEMS);lv_obj_set_style_bg_color(kb,dsr_sc_color(DSR_SC_PANEL),0);

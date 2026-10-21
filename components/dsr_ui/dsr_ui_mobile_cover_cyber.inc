@@ -32,11 +32,12 @@ static void cyber_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
  for(unsigned i=0;i<=10;i++){int y=194+(int)i*128/10;dsr_sc_panel(root,i%5?49:43,y,i%5?5:11,1,DSR_SC_MUTED,0);}
  dsr_sc_text(root,"100%",19,181,40,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"50%",24,250,36,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"0%",31,314,27,&dsr_roboto_12,DSR_SC_MUTED);
  if(!known)center(dsr_sc_text(well,"—",8,74,160,&dsr_roboto_28,DSR_SC_MUTED));
- bool stop_valid=d->can_stop_cover&&(model.demo||actions.stop_cover);
- lv_obj_t *stop=dsr_sc_button(root,250,232,52,64,DSR_SC_PANEL,9,cover_stop,NULL);edge(stop,DSR_SC_GLOW,1);dsr_sc_icon(stop,DSR_ICON_STOP,14,7,24,stop_valid?DSR_SC_GLOW:DSR_SC_OFF);center(dsr_sc_text(stop,"Stop",2,38,46,&dsr_roboto_12,DSR_SC_TEXT));if(!stop_valid)lv_obj_add_state(stop,LV_STATE_DISABLED);
+ bool stop_valid=d->can_stop_cover&&(model.demo||actions.stop_cover),moving=cover_moving(d);
+ if(!moving){lv_obj_t *stop=dsr_sc_button(root,250,232,52,64,DSR_SC_PANEL,9,cover_stop,NULL);edge(stop,DSR_SC_GLOW,1);dsr_sc_icon(stop,DSR_ICON_STOP,14,7,24,stop_valid?DSR_SC_GLOW:DSR_SC_OFF);center(dsr_sc_text(stop,"Stop",2,38,46,&dsr_roboto_12,DSR_SC_TEXT));if(!stop_valid)lv_obj_add_state(stop,LV_STATE_DISABLED);}
  cover_position_label=dsr_sc_text(root,"",18,339,284,&dsr_roboto_22,known?DSR_SC_GLOW:DSR_SC_MUTED);center(cover_position_label);cover_confirmed_text(d);
  cover_preview_label=dsr_sc_text(root,"",244,182,62,&dsr_roboto_12,0xffc65b);lv_obj_set_style_text_align(cover_preview_label,LV_TEXT_ALIGN_CENTER,0);
  bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
+ if(moving){cover_compact(root,12,374,88,48,0,valid);stop_button(root,106,374,108,48,stop_valid,cover_stop,NULL);cover_compact(root,220,374,88,48,1,valid);return;}
  for(unsigned i=0;i<2;i++){
   lv_obj_t *button=dsr_sc_button(root,12+(int)i*152,374,144,48,DSR_SC_BLUE,10,cover_control,(void *)(uintptr_t)(selected*2+(i==0)));
   dsr_ui_cyber_panel(button,true);
