@@ -110,7 +110,7 @@ void dsr_network_reset_view(void)
     dsr_ui_blu_hide();
     dsr_ui_onboarding_reset();
     dsr_ui_settings_hide();
-    dsr_ui_battery_hide();dsr_ui_display_hide();
+    dsr_ui_battery_hide();dsr_ui_battery_calibration_hide();dsr_ui_display_hide();
     dsr_ui_usage_hide();
     dsr_ui_actions_hide();
     dsr_wifi_ui_reset();
@@ -359,6 +359,24 @@ dsr_result_t dsr_network_request_battery(void)
 {
  if(!++serial)++serial;
  const dsr_job_t job={.id=serial,.kind=DSR_JOB_BATTERY_READ};
+ return submit_touch(&job);
+}
+dsr_result_t dsr_network_request_battery_auto(void)
+{
+ /* Background measurement yields to every queued touch, actor and radio flow.
+  * Never queue it for later or change the current scene/control mode. */
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_ble_rpc_active())return DSR_BUSY;
+ dsr_job_t job={.id=++serial,.kind=DSR_JOB_BATTERY_READ};if(!job.id)job.id=++serial;
+ dsr_result_t r=dsr_worker_submit(&job);
+ if(r==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}
+ return r;
+}
+dsr_result_t dsr_network_request_battery_profile(dsr_job_kind_t kind,const dsr_battery_profile_t *profile)
+{
+ if(kind!=DSR_JOB_BATTERY_PROFILE_LOAD&&kind!=DSR_JOB_BATTERY_PROFILE_SAVE)return DSR_INVALID;
+ if(kind==DSR_JOB_BATTERY_PROFILE_SAVE&&!dsr_battery_profile_valid(profile))return DSR_INVALID;
+ dsr_job_t job={.id=++serial,.kind=kind};if(!job.id)job.id=++serial;
+ if(profile)job.battery_profile=*profile;
  return submit_touch(&job);
 }
 void dsr_network_wifi_settings(dsr_settings_t *out) { *out = settings; }
@@ -723,6 +741,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
   else if(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)dsr_ui_ap_result(&event,operation);
   else if(operation==DSR_JOB_DISPLAY_SAVE){if(event.result==DSR_OK){settings.brightness=event.brightness;settings.idle_seconds=event.idle_seconds;}dsr_ui_display_result(&event);}
   else if(operation==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&event);
+  else if(operation==DSR_JOB_BATTERY_PROFILE_LOAD||operation==DSR_JOB_BATTERY_PROFILE_SAVE)dsr_ui_battery_profile_result(&event,operation);
   else if(operation==DSR_JOB_WIFI_SCAN||operation==DSR_JOB_WIFI_CONNECT){
    if(operation==DSR_JOB_WIFI_CONNECT&&event.result==DSR_OK){settings=wifi_candidate;storage_error=false;dsr_fleet_wifi(&fleet,false,now);}
    dsr_wifi_ui_result(&event,operation);
@@ -780,7 +799,7 @@ static bool __attribute__((noinline)) dispatch_touch(void)
  memset(&touch_job,0,sizeof(touch_job));dsr_activity_end();
  if(r!=DSR_OK){
   if(kind==DSR_JOB_OTA_CHECK||kind==DSR_JOB_OTA_INSTALL)dsr_native_ota_reject(id);
-  else {dsr_event_t e={.id=id,.result=r};if(kind==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&e);else dsr_ui_display_result(&e);}
+  else {dsr_event_t e={.id=id,.result=r};if(kind==DSR_JOB_BATTERY_READ)dsr_ui_battery_result(&e);else if(kind==DSR_JOB_BATTERY_PROFILE_LOAD||kind==DSR_JOB_BATTERY_PROFILE_SAVE)dsr_ui_battery_profile_result(&e,kind);else dsr_ui_display_result(&e);}
  }
  return true;
 }
@@ -856,6 +875,7 @@ void dsr_network_init(void)
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);
+    dsr_ui_battery_init();
     dsr_connection_t *loaded=calloc(DSR_MAX_DEVICES,sizeof(*loaded));size_t count=0;
     if(!loaded||dsr_connections_load(loaded,DSR_MAX_DEVICES,&count)!=ESP_OK)storage_error=true;
     if(loaded){for(size_t i=0;i<count;i++){(void)dsr_fleet_upsert(&fleet,&loaded[i],lv_tick_get()-5000);if(!loaded[i].layout_id&&loaded[i].legacy_fallback)dsr_ui_workspace_migrate(&loaded[i]);}memset(loaded,0,DSR_MAX_DEVICES*sizeof(*loaded));free(loaded);}

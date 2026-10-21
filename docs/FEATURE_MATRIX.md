@@ -1,4 +1,10 @@
-# Matryca funkcji — 0.7.62-dev
+# Matryca funkcji — 0.7.67-dev
+
+W 0.7.67-dev: lokalny profil baterii, korekta napięcia multimetrem,
+procent `~` z trzech punktów i opcjonalna animacja po ≥10 s wzrostu.
+Animacja jest przypuszczeniem, nie potwierdzeniem ładowarki.
+Model/NVS/worker i rzeczywiste LVGL są testowane; fizyczne pomiary i
+zachowanie w USB/ładowaniu wymagają odbioru. [Szczegóły](BATTERY_CALIBRATION_PL.md).
 
 W 0.7.62-dev: BLU i konfiguracja BLE RPC kończą zamykanie po maks. 4 s.
 Brak callbacku izoluje stary host BLE, zwalnia globalną blokadę aktywności

@@ -148,9 +148,19 @@ static void network_task(void *arg)
             event.brightness=job.settings.brightness;
             event.idle_seconds=job.settings.idle_seconds;
             memset(&current,0,sizeof(current));
+        } else if(job.kind==DSR_JOB_BATTERY_PROFILE_LOAD||job.kind==DSR_JOB_BATTERY_PROFILE_SAVE){
+#ifdef DSR_BOARD_ES3C35P
+            esp_err_t e=job.kind==DSR_JOB_BATTERY_PROFILE_SAVE?dsr_battery_profile_save(&job.battery_profile):ESP_OK;
+            if(e==ESP_OK)e=dsr_battery_profile_load(&event.battery_profile);
+            if(e==ESP_OK&&job.kind==DSR_JOB_BATTERY_PROFILE_SAVE&&!dsr_battery_profile_equal(&job.battery_profile,&event.battery_profile))e=ESP_FAIL;
+            event.result=e==ESP_OK?DSR_OK:DSR_IO;
+#else
+            event.result=DSR_UNSUPPORTED;
+#endif
         } else if(job.kind==DSR_JOB_BATTERY_READ){
 #ifdef DSR_BOARD_ES3C35P
             event.result=dsr_battery_read(&event.battery)==ESP_OK?DSR_OK:DSR_IO;
+            if(event.result==DSR_OK){dsr_battery_profile_t p;if(dsr_battery_profile_load(&p)==ESP_OK)dsr_battery_apply_profile(&p,&event.battery);}
 #else
             event.result=DSR_UNSUPPORTED;
 #endif
@@ -226,7 +236,7 @@ fail:
 
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
 {
-    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_DEVICE_SETTINGS) return DSR_INVALID;
+    if (!jobs || !job || job->kind < DSR_JOB_PROBE || job->kind > DSR_JOB_BATTERY_PROFILE_SAVE) return DSR_INVALID;
     if(job->kind==DSR_JOB_DEVICE_SETTINGS&&!dsr_device_settings_admitted(job))return DSR_INVALID;
     if(job->kind==DSR_JOB_SET_OUTPUT&&DSR_ENDPOINT_IS_SENSOR(job->connection.device.endpoint_kind))return DSR_INVALID;
     if(job->kind==DSR_JOB_RGB&&(!dsr_rgb_intent_valid(job->rgb)||job->connection.device.endpoint_kind!=DSR_ENDPOINT_RGB))return DSR_INVALID;
@@ -250,6 +260,10 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job)
         if((job->kind==DSR_JOB_AP_PROVISION||job->kind==DSR_JOB_AP_VERIFY)&&(!memchr(job->ap_identity.ssid,0,sizeof(job->ap_identity.ssid))||!dsr_ap_identity_matches(job->ap_identity.ssid,&job->ap_identity)||!dsr_wifi_settings_valid(&job->settings)))return DSR_INVALID;
         if(job->kind==DSR_JOB_AP_PROVISION&&!job->ap_confirmed)return DSR_INVALID;
         if(job->kind==DSR_JOB_AP_VERIFY&&!dsr_ipv4_valid(job->connection.device.host))return DSR_INVALID;
+    } else if(job->kind==DSR_JOB_BATTERY_PROFILE_SAVE){
+        if(!dsr_battery_profile_valid(&job->battery_profile))return DSR_INVALID;
+    } else if(job->kind==DSR_JOB_BATTERY_PROFILE_LOAD){
+        /* Local settings read: no endpoint or Wi-Fi is required. */
     } else if(job->kind==DSR_JOB_DISPLAY_SAVE){
         if(job->settings.brightness<10||job->settings.brightness>100||job->settings.idle_seconds>3600)return DSR_INVALID;
     } else if (job->kind == DSR_JOB_WIFI_CONNECT) {

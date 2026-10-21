@@ -28,7 +28,7 @@ esp_err_t adc_oneshot_read(adc_oneshot_unit_handle_t h,adc_channel_t channel,int
 {
  CHECK(h==&adc_token&&channel==7);if(worker_context)CHECK(!dsr_activity_restart_reserve());reads++;
  static const int values[]={3000,2005,1999,2002,2001,2000,1998,2003,0,4095};
- CHECK(reads<=10);*raw=mode==7?4095:mode==8?0:mode==9?-1:values[reads-1];
+ CHECK(reads<=10);*raw=mode==7?4095:mode==8?0:mode==9?-1:mode==16?2001:values[reads-1];
  return mode==6&&reads==4?ESP_FAIL:ESP_OK;
 }
 esp_err_t adc_cali_raw_to_voltage(adc_cali_handle_t h,int raw,int *mv)
@@ -59,6 +59,14 @@ int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
 static dsr_settings_t display_stored={.ssid="new-network",.password="latest-private-password",.wifi_security=DSR_WIFI_WPA2,.brightness=70,.idle_seconds=60};
 static unsigned display_load_error,display_save_error,display_saves;
+static dsr_battery_profile_t battery_profile;
+static bool profile_load_error,profile_save_error;
+static unsigned profile_saves;
+esp_err_t dsr_battery_profile_load(dsr_battery_profile_t *p)
+{if(!battery_profile.nominal_mv)dsr_battery_profile_defaults(&battery_profile);*p=battery_profile;return profile_load_error?ESP_FAIL:ESP_OK;}
+esp_err_t dsr_battery_profile_save(const dsr_battery_profile_t *p)
+{CHECK(!dsr_activity_restart_reserve()&&dsr_battery_profile_valid(p));profile_saves++;if(profile_save_error)return ESP_FAIL;battery_profile=*p;return ESP_OK;}
+
 static unsigned pairing_revokes;static esp_err_t pairing_error;static void (*pairing_during)(void);
 esp_err_t dsr_panel_pairing_revoke(void){CHECK(!dsr_activity_restart_reserve());pairing_revokes++;if(pairing_during)pairing_during();return pairing_error;}
 esp_err_t dsr_settings_load(dsr_settings_t *out){CHECK(!dsr_activity_restart_reserve());if(display_load_error)return ESP_FAIL;*out=display_stored;return ESP_OK;}
@@ -127,6 +135,23 @@ int main(void)
   CHECK(event.result==(n==2?DSR_IO:DSR_OK)&&event.battery.has_voltage==(n==0));
   CHECK(!dsr_worker_receive(&event)&&!adc_live&&!cal_live);admission_open();
  }
+ /* Calibration jobs execute offline in the sole slot; an invalid draft never
+  * enters Flash. The real ADC worker applies only a confirmed profile. */
+ dsr_battery_profile_t profile;dsr_battery_profile_defaults(&profile);profile.kind=DSR_BATTERY_LIPO_1S;
+ for(unsigned f=0;f<4;f++){
+  profile_save_error=f==1;profile_load_error=f==2;
+  dsr_job_t j={.id=80+f,.kind=f==3?DSR_JOB_BATTERY_PROFILE_LOAD:DSR_JOB_BATTERY_PROFILE_SAVE,.battery_profile=profile};
+  unsigned before=profile_saves;CHECK(dsr_worker_submit(&j)==DSR_OK&&dsr_worker_submit(&j)==DSR_BUSY);if(!setjmp(stop))worker(NULL);
+  dsr_event_t e;CHECK(dsr_worker_receive(&e)&&e.id==j.id&&e.result==((f==1||f==2)?DSR_IO:DSR_OK));
+  CHECK(profile_saves==before+(f!=3));if(e.result==DSR_OK)CHECK(dsr_battery_profile_equal(&e.battery_profile,&profile));admission_open();
+ }
+ profile_load_error=profile_save_error=false;
+ dsr_job_t invalid_profile={.kind=DSR_JOB_BATTERY_PROFILE_SAVE,.battery_profile=profile};invalid_profile.battery_profile.full_mv=3700;CHECK(dsr_worker_submit(&invalid_profile)==DSR_INVALID);admission_open();
+ for(unsigned f=0;f<2;f++){
+  reset(16);profile_load_error=f==1;dsr_job_t j={.id=90+f,.kind=DSR_JOB_BATTERY_READ};CHECK(dsr_worker_submit(&j)==DSR_OK);if(!setjmp(stop))worker(NULL);
+  dsr_event_t e;CHECK(dsr_worker_receive(&e)&&e.result==DSR_OK&&e.battery.has_voltage&&e.battery.has_percent==(f==0));CHECK(!e.battery.has_charge_state&&!e.battery.charging);CHECK(e.battery.percent_estimated==(f==0));if(!f)CHECK(e.battery.percent==81);admission_open();
+ }
+ profile_load_error=false;
  /* Display jobs remain functional offline and preserve the newest Wi-Fi
   * record even if the submitted UI snapshot contains obsolete credentials. */
  for(unsigned n=0;n<4;n++){

@@ -13,7 +13,7 @@ p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
 p.add_argument("--jobs", type=int, default=6, help="Parallel compiler processes (use 1 on constrained hosts)")
-p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui"], help="Run one focused regression after compiling production UI")
+p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -41,7 +41,7 @@ includes = [lvgl, ROOT / "tests/ui", ROOT / "tests/actions", ROOT / "tests/histo
             ROOT / "components/dsr_ui"]
 flags += [item for folder in includes for item in ["-I", str(folder)]]
 sources = list(sorted((lvgl / "src").rglob("*.c")))
-sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_display.c",
+sources += [ROOT / name for name in ["tests/ui/test_ui_review.c" if args.review else "tests/ui/test_ui.c", "components/dsr_ui/dsr_ui.c", "components/dsr_ui/dsr_ui_onboarding.c", "components/dsr_ui/dsr_ui_native_ota.c", "components/dsr_ui/dsr_ui_battery.c", "components/dsr_ui/dsr_ui_battery_calibration.c", "components/dsr_platform/dsr_battery_model.c", "components/dsr_ui/dsr_ui_display.c",
             "components/dsr_ui/dsr_ui_blu.c", "components/dsr_platform/dsr_blu_model.c", "tests/ui/blu_fixture.c", "components/dsr_ui/dsr_ui_device_settings.c", "components/dsr_platform/dsr_device_settings.c", "components/dsr_platform/dsr_device_settings_model.c", "tests/ui/device_settings_fixture.c", "components/dsr_ui/dsr_ui_keyboard.c", "components/dsr_ui/dsr_ui_network.c", "components/dsr_ui/dsr_ui_wifi.c", "components/dsr_ui/dsr_ui_lan.c", "components/dsr_ui/dsr_ui_ap.c", "components/dsr_platform/dsr_ap_model.c", "components/dsr_ui/dsr_ui_actions.c", "components/dsr_ui/dsr_ui_usage.c", "components/dsr_ui/dsr_ui_ble.c", "components/dsr_ui/dsr_ui_ble_rpc.c", "components/dsr_platform/dsr_ble_model.c",
             "components/dsr_platform/dsr_wifi_policy.c"]]
 sources += [ROOT / "components/dsr_ui/dsr_ui_style.c", ROOT / "components/dsr_ui/dsr_ui_cyber.c", ROOT / "components/dsr_ui/dsr_ui_cyber_icons.c", ROOT / "components/dsr_ui/cyber_icons/shelly_hud_icons.c", ROOT / "components/dsr_ui/dsr_ui_mobile.c", ROOT / "components/dsr_ui/dsr_ui_room_photos.c", ROOT / "components/dsr_ui/dsr_ui_icons.c", ROOT / "components/dsr_ui/dsr_ui_provision.c"]
@@ -130,7 +130,7 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         subprocess.run([cc,*flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))

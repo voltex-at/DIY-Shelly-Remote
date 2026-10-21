@@ -151,7 +151,7 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
     dsr_sc_header(root,"",false,dsr_wifi_connected(),dsr_ui_home,NULL);
     bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-    dsr_ui_icon_t icon=!strcmp(title,"System")||!strcmp(title,"Diagnostyka konfiguracji")?DSR_ICON_CPU:!strcmp(title,"Bateria i zasilanie")?DSR_ICON_BATTERY:section_icon(title);
+    dsr_ui_icon_t icon=!strcmp(title,"System")||!strcmp(title,"Diagnostyka konfiguracji")?DSR_ICON_CPU:(!strcmp(title,"Bateria i zasilanie")||!strcmp(title,"Kalibracja baterii"))?DSR_ICON_BATTERY:section_icon(title);
     bool marked=hud&&icon!=DSR_ICON_COUNT;
     if(marked)dsr_sc_icon(root,icon,12,47,24,DSR_SC_GLOW);
     int heading_width=marked?264:296;const lv_font_t *heading_font=hud?&dsr_roboto_22:&dsr_roboto_18;

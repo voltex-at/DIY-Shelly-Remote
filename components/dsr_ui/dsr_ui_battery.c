@@ -8,11 +8,38 @@
 static dsr_battery_sample_t sample;
 static dsr_result_t result=DSR_IO;
 static bool attempted,pending,active,rejected,from_home;
-static uint32_t measured;
-static lv_obj_t *header_value,*value,*status,*age,*measure,*diag;
+static uint32_t measured,monitor_at;
+static dsr_battery_profile_t profile;
+static dsr_battery_trend_t trend;
+static bool profile_known;
+void dsr_ui_battery_init(void)
+{profile_known=dsr_battery_profile_load(&profile)==ESP_OK;monitor_at=lv_tick_get()-15000;dsr_battery_trend_reset(&trend);}
+bool dsr_ui_battery_profile_current(dsr_battery_profile_t *out)
+{if(out)*out=profile;return profile_known;}
+bool dsr_ui_battery_reference(dsr_battery_sample_t *out,uint32_t *at)
+{
+ if(!attempted||pending||result!=DSR_OK||!sample.has_voltage||(uint32_t)(lv_tick_get()-measured)>=30000)return false;
+ if(out)*out=sample;
+ if(at)*at=measured;
+ return true;
+}
+void dsr_ui_battery_profile_result(const dsr_event_t *event,dsr_job_kind_t kind)
+{
+ if(event->result==DSR_OK&&dsr_battery_profile_valid(&event->battery_profile)){
+  profile=event->battery_profile;profile_known=true;
+  /* A saved correction must never reinterpret a cached old sample in place. */
+  sample.has_percent=false;sample.percent_estimated=false;attempted=false;
+  monitor_at=lv_tick_get()-15000;
+ }else profile_known=false;
+ sample.has_percent=false;sample.percent_estimated=false;attempted=false;
+ dsr_battery_trend_reset(&trend);
+ dsr_ui_battery_calibration_result(event,kind);
+ dsr_ui_battery_tick();
+}
+static lv_obj_t *header_value,*value,*status,*age,*measure,*diag,*percent_value,*note_value;
 static lv_obj_t *header_icon;
 static int header_fill=-1;
-static bool header_charging,header_low;
+static bool header_charging,header_low,header_inferred;
 /* Only pointers; the five visible values are owned/freed by their screen. */
 static lv_obj_t *memory_values[5],*memory_detail;
 static uint32_t diag_at;
@@ -30,11 +57,11 @@ static void battery_draw(lv_event_t *event)
  lv_area_t tip={a.x1+36,a.y1+8,a.x1+38,a.y1+15};lv_draw_rect(layer,&d,&tip);
  if(header_fill>0){lv_area_t fill={cell.x1+4,cell.y1+4,cell.x1+3+23*header_fill/100,cell.y2-4};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
  if(header_fill<0){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text="?";t.font=&dsr_roboto_12;t.color=dsr_sc_color(color);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
- if(header_charging){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text="+";t.font=&dsr_roboto_12;t.color=dsr_sc_color(DSR_SC_TEXT);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+ if(header_charging){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text=header_inferred?"~":"+";t.font=&dsr_roboto_12;t.color=dsr_sc_color(DSR_SC_TEXT);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
 }
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
-void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=memory_detail=NULL;memset(memory_values,0,sizeof(memory_values));}
+void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=memory_detail=percent_value=note_value=NULL;memset(memory_values,0,sizeof(memory_values));}
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
@@ -47,20 +74,30 @@ static void request(lv_event_t *event)
 }
 void dsr_ui_battery_tick(void)
 {
+ dsr_ui_battery_calibration_tick();
+ uint32_t interval=profile.trend_enabled?1000:20000;
+ if(dsr_board_display_sleeping()||dsr_ui_battery_calibration_active())dsr_battery_trend_reset(&trend);
+ if(profile_known&&profile.kind!=DSR_BATTERY_NONE&&!pending&&!dsr_ui_battery_calibration_active()&&!dsr_board_display_sleeping()&&
+    (uint32_t)(lv_tick_get()-monitor_at)>=interval){
+  monitor_at=lv_tick_get();
+  if(dsr_network_request_battery_auto()==DSR_OK){pending=true;if(measure)lv_obj_add_state(measure,LV_STATE_DISABLED);}
+  else monitor_at-=interval-(interval<5000?interval:5000); /* Bounded retry, no backlog. */
+ }
  uint32_t elapsed=lv_tick_get()-measured;
  bool valid=attempted&&result==DSR_OK&&sample.has_voltage;
  bool fresh=attempted&&result==DSR_OK&&elapsed<30000;
  char text[64];
  if(header_icon){
-  bool charging=fresh&&sample.has_charge_state&&sample.charging&&!dsr_board_display_sleeping();
+  bool inferred=profile_known&&profile.trend_enabled&&dsr_battery_trend_likely(&trend,lv_tick_get());
+  bool charging=fresh&&((sample.has_charge_state&&sample.charging)||inferred)&&!dsr_board_display_sleeping();
   int fill=fresh&&sample.has_percent&&sample.percent<=100?sample.percent:-1;
   /* Fixed tick, no timer/animation allocation. 1.6 s fill + .4 s hold. */
   if(charging){uint32_t phase=lv_tick_get()%2000;fill=phase<1600?(int)(phase/16):100;}
   bool low=fresh&&sample.has_percent&&sample.percent<=10;
-  if(fill!=header_fill||charging!=header_charging||low!=header_low){header_fill=fill;header_charging=charging;header_low=low;lv_obj_invalidate(header_icon);}
+  if(fill!=header_fill||charging!=header_charging||low!=header_low||inferred!=header_inferred){header_fill=fill;header_charging=charging;header_low=low;header_inferred=inferred;lv_obj_invalidate(header_icon);}
  }
  if(header_value){
-  if(fresh&&sample.has_percent&&sample.percent<=100)snprintf(text,sizeof(text),"%u%%",sample.percent);
+  if(fresh&&sample.has_percent&&sample.percent<=100)snprintf(text,sizeof(text),sample.percent_estimated?"~%u%%":"%u%%",sample.percent);
   else if(valid&&fresh)snprintf(text,sizeof(text),"%u.%02uV",sample.bat_mv/1000,(sample.bat_mv%1000)/10);
   else snprintf(text,sizeof(text),"—");
   label(header_value,text);
@@ -69,7 +106,10 @@ void dsr_ui_battery_tick(void)
  if(valid)snprintf(text,sizeof(text),"%u.%03u V",sample.bat_mv/1000,sample.bat_mv%1000);
  else snprintf(text,sizeof(text),"— V");
  label(value,text);
- label(status,pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":"Napięcie BAT • dzielnik nominalny 2:1");
+ if(fresh&&sample.has_percent)snprintf(text,sizeof(text),sample.percent_estimated?"~%u%%":"%u%%",sample.percent);else snprintf(text,sizeof(text),"—%%");
+ label(percent_value,text);
+ label(note_value,dsr_battery_trend_likely(&trend,lv_tick_get())?"Prawdopodobne ładowanie • trend min. 10 s":profile_known&&profile.kind!=DSR_BATTERY_NONE?"~%: szacunek. Brak detekcji baterii i ładowania.":"Ładowanie, ogniwo i procent: brak wiarygodnych danych.");
+ label(status,pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":sample.percent_estimated?"Szacunek z profilu • wpływ obciążenia i temperatury":"Napięcie BAT • dzielnik nominalny 2:1");
  if(status&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)lv_obj_set_style_text_color(status,dsr_sc_color(pending?DSR_SC_BLUE:rejected||(attempted&&(!valid||elapsed>=30000))?0xffc107:DSR_SC_TEXT),0);
  if(attempted){snprintf(text,sizeof(text),dsr_sc_tr("Ostatni odczyt: %lu s temu"),(unsigned long)(elapsed/1000));label(age,text);}
  else label(age,"Brak pomiaru");
@@ -92,12 +132,15 @@ void dsr_ui_battery_tick(void)
 }
 void dsr_ui_battery_result(const dsr_event_t *event)
 {
- pending=false;attempted=true;measured=lv_tick_get();sample=event->battery;result=event->result;
+ dsr_ui_battery_calibration_sample(event);
+ pending=false;attempted=true;measured=monitor_at=lv_tick_get();sample=event->battery;result=event->result;
+ dsr_battery_trend_update(&trend,result==DSR_OK?&sample:NULL,lv_tick_get(),profile_known&&profile.kind!=DSR_BATTERY_NONE&&profile.trend_enabled&&!dsr_board_display_sleeping()&&!dsr_ui_battery_calibration_active());
  if(active&&measure)lv_obj_remove_state(measure,LV_STATE_DISABLED);
  dsr_ui_battery_tick();
 }
 static void show(void);
-void dsr_ui_battery_open(lv_event_t *event){(void)event;from_home=false;show();}
+void dsr_ui_battery_return(void){show();}
+void dsr_ui_battery_open(lv_event_t *event){(void)event;if(dsr_ui_battery_calibration_back())return;from_home=false;show();}
 /* Bottom bar entry (former "Energia", 0.7.51): back returns to the dashboard. */
 void dsr_ui_battery_show(void){from_home=true;show();}
 static void show(void)
@@ -110,15 +153,17 @@ static void show(void)
   lv_obj_t *power=dsr_sc_panel(body,0,0,296,114,DSR_SC_CARD,10);
   dsr_sc_border_color(power,dsr_sc_color(DSR_SC_GLOW),0);
   dsr_sc_icon(power,DSR_ICON_POWER_SUPPLY,12,8,40,DSR_SC_GLOW);
-  value=dsr_sc_text(power,"— V",64,9,220,&dsr_roboto_28,DSR_SC_TEXT);
+  value=dsr_sc_text(power,"— V",64,9,156,&dsr_roboto_28,DSR_SC_TEXT);
+  percent_value=dsr_sc_text(power,"—%",220,14,64,&dsr_roboto_18,DSR_SC_GLOW);
   status=dsr_sc_text(power,"Pomiar na żądanie",12,48,272,&dsr_roboto_14,DSR_SC_TEXT);
   dsr_sc_panel(power,12,86,272,1,DSR_SC_BLUE,0);
   dsr_sc_icon(power,DSR_ICON_CLOCK,12,90,20,DSR_SC_GLOW);
   age=dsr_sc_text(power,"Brak pomiaru",42,94,242,&dsr_roboto_12,DSR_SC_MUTED);
   lv_obj_t *note=dsr_sc_panel(body,0,122,296,50,DSR_SC_PANEL,8);dsr_ui_cyber_warning(note,false);
   dsr_sc_icon(note,DSR_ICON_WARNING,10,12,24,0xffc107);
-  dsr_sc_text(note,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",42,8,242,&dsr_roboto_12,0xffc107);
-  lv_obj_t *card=dsr_sc_panel(body,0,180,296,250,DSR_SC_CARD,10);
+  note_value=dsr_sc_text(note,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",42,8,242,&dsr_roboto_12,0xffc107);
+  dsr_ui_button(body,"Kalibracja baterii",0,180,296,dsr_ui_battery_calibration_open,NULL);
+  lv_obj_t *card=dsr_sc_panel(body,0,236,296,250,DSR_SC_CARD,10);
   dsr_sc_border_color(card,dsr_sc_color(DSR_SC_GLOW),0);
   dsr_sc_icon(card,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);dsr_sc_text(card,"Pamięć i radio",44,9,240,&dsr_roboto_18,DSR_SC_TEXT);
   dsr_sc_panel(card,12,36,272,1,DSR_SC_BLUE,0);
@@ -135,15 +180,18 @@ static void show(void)
   measure=dsr_ui_button(root,"Zmierz napięcie",128,420,180,request,NULL);
   diag_at=lv_tick_get()-1000;if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);dsr_ui_battery_tick();return;
  }
- dsr_sc_text(root,"Napięcie wejścia BAT",hud?26:14,hud?98:90,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);
- value=dsr_sc_text(root,"— V",hud?90:14,hud?122:110,hud?202:292,&dsr_roboto_28,hud?DSR_SC_BLUE:DSR_SC_TEXT);
- status=dsr_sc_text(root,"Pomiar na żądanie",hud?26:14,hud?164:148,hud?268:292,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);
- age=dsr_sc_text(root,"Brak pomiaru",hud?26:14,hud?194:170,hud?268:292,hud?&dsr_roboto_11:&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(root,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",hud?26:14,hud?212:190,hud?268:292,hud?&dsr_roboto_11:&dsr_roboto_12,hud?0xffc107:DSR_SC_MUTED);
- lv_obj_t *card=dsr_sc_panel(root,12,hud?252:224,296,hud?98:126,DSR_SC_CARD,12);
+ lv_obj_t *body=dsr_sc_panel(root,12,86,296,260,DSR_SC_BG,0);
+ lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+ dsr_sc_text(body,"Napięcie wejścia BAT",2,4,292,&dsr_roboto_14,DSR_SC_MUTED);
+ value=dsr_sc_text(body,"— V",2,24,206,&dsr_roboto_28,DSR_SC_TEXT);
+ percent_value=dsr_sc_text(body,"—%",212,30,80,&dsr_roboto_18,DSR_SC_GLOW);
+ status=dsr_sc_text(body,"Pomiar na żądanie",2,62,292,&dsr_roboto_12,DSR_SC_TEXT);
+ age=dsr_sc_text(body,"Brak pomiaru",2,98,292,&dsr_roboto_12,DSR_SC_MUTED);
+ note_value=dsr_sc_text(body,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",2,120,292,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_ui_button(body,"Kalibracja baterii",0,164,296,dsr_ui_battery_calibration_open,NULL);
+ lv_obj_t *card=dsr_sc_panel(body,0,220,296,126,DSR_SC_CARD,12);
  dsr_sc_text(card,"Pamięć i radio",12,8,272,&dsr_roboto_14,DSR_SC_TEXT);
- if(hud)dsr_sc_icon(card,DSR_ICON_MEMORY,252,4,24,DSR_SC_BLUE);
- diag=dsr_sc_text(card,"…",12,hud?28:32,276,hud?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
+ diag=dsr_sc_text(card,"…",12,32,276,&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
  if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
  dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);dsr_ui_battery_tick();

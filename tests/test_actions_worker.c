@@ -71,6 +71,11 @@ esp_err_t dsr_connection_save(const dsr_connection_t *c){(void)c;abort();}
 esp_err_t dsr_native_ota_init(void){return ESP_OK;}
 bool dsr_native_ota_admitted(uint32_t id,dsr_job_kind_t kind){(void)id;(void)kind;return false;}
 void dsr_native_ota_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
+bool dsr_battery_profile_equal(const dsr_battery_profile_t *a,const dsr_battery_profile_t *b){(void)a;(void)b;abort();}
+bool dsr_battery_profile_valid(const dsr_battery_profile_t *p){(void)p;return false;}
+esp_err_t dsr_battery_profile_load(dsr_battery_profile_t *p){(void)p;abort();}
+esp_err_t dsr_battery_profile_save(const dsr_battery_profile_t *p){(void)p;abort();}
+void dsr_battery_apply_profile(const dsr_battery_profile_t *p,dsr_battery_sample_t *s){(void)p;(void)s;abort();}
 esp_err_t dsr_battery_read(dsr_battery_sample_t *s){(void)s;abort();}
 static void execute(void){if(!setjmp(idle))worker(NULL);CHECK(!guard&&!write_hook);}
 static void begin(unsigned scene,unsigned nonce)

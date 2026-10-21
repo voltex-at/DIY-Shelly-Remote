@@ -97,7 +97,7 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
 typedef void (*dsr_http_job_write_hook_t)(void);
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_RESERVED_17,DSR_JOB_RESERVED_18,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV, DSR_JOB_DEVICE_SETTINGS } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_RESERVED_17,DSR_JOB_RESERVED_18,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV, DSR_JOB_DEVICE_SETTINGS, DSR_JOB_BATTERY_PROFILE_LOAD, DSR_JOB_BATTERY_PROFILE_SAVE } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;
@@ -105,7 +105,7 @@ typedef struct {
     dsr_settings_t settings;
     /* Different job kinds reuse the two existing public-intent bytes. */
     union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_trv_intent_t trv;};
-    union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;dsr_rgb_intent_t rgb;};
+    union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;dsr_rgb_intent_t rgb;dsr_battery_profile_t battery_profile;};
 } dsr_job_t;
 _Static_assert(sizeof(dsr_job_t)==560&&offsetof(dsr_job_t,on)==406&&offsetof(dsr_job_t,ap_confirmed)==407&&offsetof(dsr_job_t,ap)==408&&offsetof(dsr_job_t,rgb)==408,"Cover retains the existing job footprint and payload offsets");
 /* Credentials are never returned through the event queue. */
@@ -114,7 +114,7 @@ typedef struct {
     uint32_t layout_id;
     dsr_result_t ap_write_result;
     dsr_telemetry_t telemetry;
-    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;dsr_device_info_t info;}; dsr_wifi_status_t wifi_detail;
+    union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;dsr_device_info_t info;dsr_battery_profile_t battery_profile;}; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;
     uint8_t brightness; uint16_t idle_seconds;
 } dsr_event_t;

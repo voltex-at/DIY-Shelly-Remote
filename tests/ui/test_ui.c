@@ -25,7 +25,7 @@ time_t time(time_t *out){time_t now=1760877240;if(out)*out=now;return now;}
 
 static unsigned checks;
 static unsigned screenshots,requests;
-static unsigned job_counts[DSR_JOB_DEVICE_SETTINGS+1];
+static unsigned job_counts[DSR_JOB_BATTERY_PROFILE_SAVE+1];
 void test_native_ota_set(dsr_native_ota_state_t state,dsr_native_ota_error_t error,dsr_manifest_result_t why);
 void test_native_ota_uncertain(void);
 void test_native_ota_notes(const char *text);
@@ -122,6 +122,10 @@ uint8_t dsr_style_hint_get(void){return style_hint;}
 void dsr_style_hint_set(uint8_t style){if(style!=style_hint){style_hint=style;style_hint_writes++;}}
 static bool touch_available=true;
 bool dsr_board_touch_available(void) {return touch_available;}
+static dsr_battery_profile_t battery_stored;
+static bool battery_load_failure;
+esp_err_t dsr_battery_profile_load(dsr_battery_profile_t *out)
+{if(!battery_stored.nominal_mv)dsr_battery_profile_defaults(&battery_stored);*out=battery_stored;return battery_load_failure?ESP_FAIL:ESP_OK;}
 esp_err_t dsr_settings_load(dsr_settings_t *out) {*out=stored; return ESP_OK;}
 esp_err_t dsr_connection_load(dsr_connection_t *out, bool *found) {memset(out,0,sizeof(*out)); *found=false; return ESP_OK;}
 static dsr_connection_t boot_loaded[DSR_MAX_DEVICES];static size_t boot_loaded_count;
@@ -131,7 +135,7 @@ bool dsr_wifi_connected(void) {return wifi.connected&&!dsr_wifi_temporary_active
 void dsr_wifi_get_info(dsr_wifi_info_t *out) {*out=wifi;}
 void dsr_wifi_cancel_connect(void) {CHECK(submitted.kind==DSR_JOB_WIFI_CONNECT);}
 dsr_result_t dsr_worker_submit(const dsr_job_t *job)
-{if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;CHECK(job->kind<=DSR_JOB_DEVICE_SETTINGS);job_counts[job->kind]++;submitted=*job; in_flight=true; return DSR_OK;}
+{if(job->kind==DSR_JOB_LAYOUT_PUBLISH||job->kind==DSR_JOB_UNBIND){CHECK(!maintenance_ready&&!in_flight);CHECK(dsr_activity_begin());maintenance=*job;maintenance_ready=true;if(job->kind==DSR_JOB_UNBIND)unbind_jobs++;else publish_jobs++;return DSR_OK;}if(next_submit_result!=DSR_OK){dsr_result_t result=next_submit_result;next_submit_result=DSR_OK;return result;}CHECK(!in_flight);if(!dsr_activity_begin())return DSR_BUSY;requests++;CHECK(job->kind<=DSR_JOB_BATTERY_PROFILE_SAVE);job_counts[job->kind]++;submitted=*job; in_flight=true; return DSR_OK;}
 bool dsr_worker_receive(dsr_event_t *out)
 {if(maintenance_ready&&!hold_maintenance){*out=(dsr_event_t){.id=maintenance.id,.result=maintenance_result,.device=maintenance.connection.device,.layout_id=maintenance.connection.layout_id,.telemetry=maintenance.connection.telemetry};maintenance_ready=false;dsr_activity_end();return true;}if(!result_ready)return false; *out=response; result_ready=false;if(stale_event){stale_event=false;return true;} /* synthetic unrelated event leaves current MODEL job in flight */ in_flight=false;dsr_activity_end();CHECK(!dsr_activity_restart_reserve()); /* real poll lease covers the receive->persistent-follow-up gap */ return true;}
 /* Urgent SDK lane MODEL; genuine sole-worker mutex/event ownership is tested
