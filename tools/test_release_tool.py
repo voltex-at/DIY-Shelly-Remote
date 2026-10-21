@@ -40,16 +40,21 @@ for bad in ['v1.2', 'dev-v01.2.3', 'v1.2.3-rc1', 'release-1', '', None]:
     refused(t.channel, bad)
 
 # The signing key is reachable only from an owner-approved, tag-only environment.
-REVIEWED = {'protection_rules': [{'type': 'required_reviewers', 'reviewers': [{'type': 'User'}]}],
+OWNER = 'voltex-at'
+REVIEWED = {'protection_rules': [{'type': 'required_reviewers', 'reviewers': [
+                {'type': 'User', 'reviewer': {'login': OWNER}}]}],
+            'can_admins_bypass': False,
             'deployment_branch_policy': {'protected_branches': False, 'custom_branch_policies': True}}
 
 
 def policies(*entries):
-    return {'branch_policies': [{'name': name, 'type': kind} for name, kind in entries]}
+    return {'total_count': len(entries),
+            'branch_policies': [{'name': name, 'type': kind} for name, kind in entries]}
 
 
-t.signing_environment('dev', REVIEWED, policies(('dev-v*', 'tag')))
-t.signing_environment('stable', REVIEWED, policies(('v*', 'tag'), ('v*.*.*', 'tag')))
+t.signing_environment('dev', REVIEWED, policies(('dev-v*', 'tag')), OWNER)
+t.signing_environment('dev', REVIEWED, policies(('dev-v*', 'tag')), OWNER.upper())
+t.signing_environment('stable', REVIEWED, policies(('v*', 'tag'), ('v*.*.*', 'tag')), OWNER)
 for kind, env, admitted in [
         ('dev', None, policies(('dev-v*', 'tag'))),                                     # environment absent
         ('dev', {}, policies(('dev-v*', 'tag'))),                                       # unprotected (as found 2026-10-21)
@@ -62,7 +67,26 @@ for kind, env, admitted in [
         ('dev', REVIEWED, policies(('*', 'tag'))),                                      # any tag
         ('dev', REVIEWED, policies(('v*', 'tag'))),                                     # Stable pattern on DEV
         ('stable', REVIEWED, policies(('dev-v*', 'tag')))]:
-    refused(t.signing_environment, kind, env, admitted)
+    refused(t.signing_environment, kind, env, admitted, OWNER)
+
+# GitHub requires only one listed reviewer to approve: another user or team
+# alongside the owner must not be able to unlock the signing key.
+for reviewers in [
+        [{'type': 'User', 'reviewer': {'login': 'another-user'}}],
+        [{'type': 'User'}],
+        [{'type': 'Team', 'reviewer': {'login': OWNER}}],
+        [{'type': 'User', 'reviewer': {'login': OWNER}},
+         {'type': 'User', 'reviewer': {'login': 'another-user'}}]]:
+    env = dict(REVIEWED, protection_rules=[{'type': 'required_reviewers', 'reviewers': reviewers}])
+    refused(t.signing_environment, 'dev', env, policies(('dev-v*', 'tag')), OWNER)
+for bypass in [True, None]:
+    refused(t.signing_environment, 'dev', dict(REVIEWED, can_admins_bypass=bypass), policies(('dev-v*', 'tag')), OWNER)
+refused(t.signing_environment, 'dev', {k: v for k, v in REVIEWED.items() if k != 'can_admins_bypass'},
+        policies(('dev-v*', 'tag')), OWNER)
+
+# The first page can look safe while another page admits an arbitrary branch.
+refused(t.signing_environment, 'dev', REVIEWED,
+        {'total_count': 2, 'branch_policies': [{'name': 'dev-v*', 'type': 'tag'}]}, OWNER)
 
 # CI gate: exact SHA, 5/5 jobs, newest successful run wins, active run waits
 ok(t.ci_verdict(SHA, [run(1)], {1: JOBS}) == 'ok')
@@ -128,7 +152,9 @@ from unittest.mock import patch
 import json
 from pathlib import Path
 args = Namespace(repo='fixture/repo', tag='dev-v0.7.68', sha=SHA, wait_minutes=1)
-for case in ('ok', 'ci-failed', 'unprotected', 'tag-elsewhere', 'no-tag'):
+gate_reviewed = dict(REVIEWED, protection_rules=[{'type': 'required_reviewers', 'reviewers': [
+    {'type': 'User', 'reviewer': {'login': 'fixture'}}]}])
+for case in ('ok', 'ci-failed', 'unprotected', 'wrong-owner', 'bypass', 'truncated', 'tag-elsewhere', 'no-tag'):
     events = []
     def fake_gh(url, *verb, data=None):
         events.append(url)
@@ -136,9 +162,14 @@ for case in ('ok', 'ci-failed', 'unprotected', 'tag-elsewhere', 'no-tag'):
         if '/git/ref/tags/' in url:
             return None if case == 'no-tag' else {'object': {'type': 'commit', 'sha': OTHER if case == 'tag-elsewhere' else SHA}}
         if url.endswith('/environments/release'):
-            return {} if case == 'unprotected' else REVIEWED
+            if case == 'unprotected':
+                return {}
+            if case == 'wrong-owner':
+                return REVIEWED
+            return dict(gate_reviewed, can_admins_bypass=True) if case == 'bypass' else gate_reviewed
         if '/environments/release/deployment-branch-policies' in url:
-            return policies(('dev-v*', 'tag'))
+            admitted = policies(('dev-v*', 'tag'))
+            return dict(admitted, total_count=2) if case == 'truncated' else admitted
         if '/actions/workflows/' in url:
             return {'workflow_runs': [run(1, conclusion='failure' if case == 'ci-failed' else 'success')]}
         if '/actions/runs/' in url:
@@ -152,7 +183,7 @@ for case in ('ok', 'ci-failed', 'unprotected', 'tag-elsewhere', 'no-tag'):
             ok(events.index('repos/fixture/repo/environments/release') < next(i for i, x in enumerate(events) if '/actions/workflows/' in x))
         else:
             refused(t.cmd_gate, args)
-    if case in ('unprotected', 'tag-elsewhere', 'no-tag'):
+    if case in ('unprotected', 'wrong-owner', 'bypass', 'truncated', 'tag-elsewhere', 'no-tag'):
         ok(not any('/actions/' in x for x in events))  # refused before waiting for CI
 
 # A page with one release is still bounded by body + the API/asset envelope.
@@ -225,7 +256,7 @@ with TemporaryDirectory(prefix='dsr-repair-test-') as tmp:
         raise AssertionError(url)
     original_read = Path.read_text
     def repair_read(path,*args,**kwargs):
-        return notes_text if str(path)=='docs/RELEASE_NOTES.md' else original_read(path,*args,**kwargs)
+        return notes_text if path.as_posix()=='docs/RELEASE_NOTES.md' else original_read(path,*args,**kwargs)
     def check_projected(tag, release):
         t.catalogue_bytes(tag,release)
         events.append('preflight' if not events else 'readback')

@@ -138,17 +138,27 @@ def stable_approval(environment):
         raise Refused(f'Stable needs environment "{STABLE_ENVIRONMENT}" with required reviewers (owner approval)')
 
 
-def signing_environment(kind, environment, policies):
+def signing_environment(kind, environment, policies, owner):
     """The OTA signing key may only be reachable from an owner-approved
     environment that admits release tags, never an arbitrary branch."""
     name = ENVIRONMENTS[kind]
     rules = (environment or {}).get('protection_rules') or []
-    if not any(rule.get('type') == 'required_reviewers' and rule.get('reviewers') for rule in rules):
-        raise Refused(f'environment "{name}" needs required reviewers (owner approval) before signing')
+    reviewers = [reviewer for rule in rules if rule.get('type') == 'required_reviewers'
+                 for reviewer in rule.get('reviewers') or []]
+    # GitHub accepts approval from any listed reviewer, so including another
+    # user or team would let them release the key without the owner's consent.
+    if not owner or not reviewers or any(reviewer.get('type') != 'User' or
+            (reviewer.get('reviewer') or {}).get('login', '').lower() != owner.lower()
+            for reviewer in reviewers):
+        raise Refused(f'environment "{name}" must require approval only from repository owner {owner}')
+    if (environment or {}).get('can_admins_bypass') is not False:
+        raise Refused(f'environment "{name}" must disable administrator bypass of owner approval')
     policy = (environment or {}).get('deployment_branch_policy') or {}
     if not policy.get('custom_branch_policies') or policy.get('protected_branches'):
         raise Refused(f'environment "{name}" must be limited to custom release tag patterns')
     entries = (policies or {}).get('branch_policies') or []
+    if (policies or {}).get('total_count') != len(entries):
+        raise Refused(f'environment "{name}" deployment policies are incomplete; every policy must be checked')
     if not entries or any(e.get('type') != 'tag' or e.get('name') not in TAG_POLICIES[kind] for e in entries):
         raise Refused(f'environment "{name}" may admit only {sorted(TAG_POLICIES[kind])} tags')
 
@@ -232,7 +242,8 @@ def cmd_gate(a):
     tag_unchanged(a.sha, tag_commit(a.repo, a.tag))
     environment = ENVIRONMENTS[kind]
     signing_environment(kind, gh(f'repos/{a.repo}/environments/{environment}'),
-                        gh(f'repos/{a.repo}/environments/{environment}/deployment-branch-policies?per_page=30'))
+                        gh(f'repos/{a.repo}/environments/{environment}/deployment-branch-policies?per_page=30'),
+                        a.repo.split('/')[0])
     deadline = time.time() + a.wait_minutes * 60
     while True:
         runs = (gh(f'repos/{a.repo}/actions/workflows/{CI_WORKFLOW}/runs?head_sha={a.sha}&per_page=20') or {}).get('workflow_runs', [])
