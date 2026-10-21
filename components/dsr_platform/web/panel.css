@@ -18,5 +18,8 @@
 /* Grid items must shrink below the preview canvas' intrinsic 320px width. */
 .workspace-grid>section,.action-form>label,.action-form input,.action-form select{min-width:0}.action-form input,.action-form select{max-width:100%}@media(max-width:900px){.workspace-grid{grid-template-columns:minmax(0,1fr)}}
 
+/* Keep translated preview actions inside the card at phone widths. */
+.preview-panel .section-head{flex-wrap:wrap}.preview-panel .section-head>div{flex:1 0 100%}
+
 /* A contextual form has its own Save; keep its mobile screen focused. */
 .editing-action .savebar{display:none}.editing-action .onboarding-footer{bottom:12px}@media(max-width:900px){.editing-action .preview-panel{display:none}}

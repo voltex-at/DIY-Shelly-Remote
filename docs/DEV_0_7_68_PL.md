@@ -54,7 +54,7 @@ są modelami testowymi.
 | UI Review | 2 643 kontrole, 24 klatki |
 | Atlas trzech skórek i PL/EN/DE | 450 klatek, 50 widoków/stanów |
 | Panel: rzeczywisty Chrome, zapis i podgląd LVGL | 46 kontroli |
-| Panel: runtime / akcje / języki w Chrome | 106 / 227 / 1 018 kontroli |
+| Panel: runtime / akcje / języki w Chrome | 109 / 227 / 1 018 kontroli |
 | Panel: opóźnione odpowiedzi i podgląd | 95 kontroli |
 | Słownik WWW PL/EN/DE | 2 772 kontrole, 355 kompletnych komunikatów |
 | Narzędzie wydawnicze | 135 decyzji, także testy odrzucenia błędnych polityk |

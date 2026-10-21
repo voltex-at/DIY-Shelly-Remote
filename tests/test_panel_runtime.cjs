@@ -3,7 +3,7 @@
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-runtime');fs.mkdirSync(out,{recursive:true});
-let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=v=>{assert(v);checks++;};
+let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=(v,message)=>{assert(v,message);checks++;};
 const config={schema:2,groups:[],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Home',tiles:[]}],rooms:[],scenes:[],devices:[]};
 const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192.0.2.'+(ch+8),online:true,output:false,has_switch:true,has_power:true,power_w:3.25,has_voltage:true,voltage_v:230,has_current:true,current_a:.1,pending:false,error:0,sample_age_ms:1234,operation_id:0});
 (async()=>{
@@ -62,7 +62,16 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
  state.dropPost=false;state.devices[1].pending=false;state.devices[1].output=true;await page.evaluate(()=>dsrRuntimeRefresh());eq(state.posts.length,3);ok(await cards.nth(1).locator('button').first().isEnabled());
  // Locale changes update text in place, preserve focus and generate no I/O.
  await cards.nth(1).locator('button').first().focus();const before=state.gets;await page.evaluate(()=>{window.kept=document.activeElement;const picker=document.querySelector('#web-locale');picker.value='de';picker.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(30);eq(state.gets,before);eq(await page.evaluate(()=>document.activeElement===window.kept),true);ok((await cards.nth(1).innerText()).includes('EIN — durch Abfrage bestätigt'));await page.locator('#web-locale').selectOption('en');await page.waitForTimeout(30);ok((await cards.nth(1).innerText()).includes('ON — confirmed by readback'));
- for(const locale of ['pl','en','de']){await page.locator('#web-locale').selectOption(locale);for(const width of [1440,390]){await page.setViewportSize({width,height:900});ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,`runtime-${locale}-${width}.png`),fullPage:true});}}await page.locator('#web-locale').selectOption('en');
+ for(const locale of ['pl','en','de']){
+  await page.locator('#web-locale').selectOption(locale);
+  for(const width of [1440,390,320]){
+   await page.setViewportSize({width,height:900});
+   const geometry=await page.evaluate(()=>({viewport:innerWidth,content:document.documentElement.scrollWidth}));
+   ok(geometry.content<=geometry.viewport,`${locale} runtime overflow: ${JSON.stringify(geometry)}`);
+   await page.screenshot({path:path.join(out,`runtime-${locale}-${width}.png`),fullPage:true});
+  }
+ }
+ await page.locator('#web-locale').selectOption('en');
  state.fail=true;await page.evaluate(()=>dsrRuntimeRefresh());for(const b of await cards.locator('button').all())ok(await b.isDisabled());state.fail=false;await page.evaluate(()=>dsrRuntimeRefresh());ok(await cards.nth(1).locator('button').first().isEnabled());
  state.devices[1].sample_age_ms=14950;await page.evaluate(()=>dsrRuntimeRefresh());await page.waitForTimeout(120);ok(await cards.nth(1).locator('button').first().isDisabled());const posts=state.posts.length;await cards.nth(1).locator('button').first().dispatchEvent('click');eq(state.posts.length,posts);state.devices[1].sample_age_ms=1;await page.evaluate(()=>dsrRuntimeRefresh());
  // Restart does not turn an old accepted command into a success; its epoch ends.
