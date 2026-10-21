@@ -9,10 +9,10 @@ const loadSource=source.slice(start,source.indexOf('function box(',start));
 const flush=()=>new Promise(resolve=>setImmediate(resolve));let checks=0;
 const ok=(v,m)=>{assert(v,m);checks++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);checks++;};
 function fixture(){
- const nodes=new Map(),holds=new Map(),calls=[],notices=[];
+ const nodes=new Map(),holds=new Map(),calls=[],notices=[],frames=[];
  const document={revision:5,dashboards:[{id:1,name:'Old saved name'}]};let server=structuredClone(document),renders=0,refreshes=0;
- const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',firstElementChild:{},getContext:()=>({})});return nodes.get(id);};
- const c={actionSession:null,config:structuredClone(document),dirty:false,conflict:false,saving:false,editSerial:0,page:'dashboards',lanGeneration:0,remoteReachable:true,window:{dsrActionsRefresh:()=>refreshes++},
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',firstElementChild:{},getContext:()=>({createImageData:(w,h)=>({data:new Uint8Array(w*h*4)}),putImageData:im=>frames.push(Array.from(im.data.slice(0,8)))})});return nodes.get(id);};
+ const c={document:{hidden:false},actionSession:null,config:structuredClone(document),dirty:false,conflict:false,saving:false,editSerial:0,page:'dashboards',lanGeneration:0,remoteReachable:true,window:{dsrActionsRefresh:()=>refreshes++},
   $:node,setText:(n,t)=>n.textContent=t,m:x=>x,notice:x=>notices.push(x),failure:x=>Error(x),serverMessage:x=>x,structuredClone,Uint8Array,JSON,
   render:()=>{renders++;node('#editor').firstElementChild={};},updateOnboardingChoice:()=>{},setTimeout:fn=>{queueMicrotask(fn);return 1;},
   request:async(route,options)=>{
@@ -20,12 +20,12 @@ function fixture(){
    if(options?.method==='PUT'){if(c.deferPut)await c.deferPut;if(c.failPut)throw Error('MODEL Save failure');const body=JSON.parse(options.body);assert.equal(body.revision,server.revision);server={...body,revision:body.revision+1};}
    const held=holds.get(route)?.shift(),captured=structuredClone(route==='config'?server:{revision:server.revision,busy:false,firmware:'MODEL'});
    if(held?.stage==='request')await held.promise;
-   return{status:200,json:async()=>{if(held?.stage==='json')await held.promise;return captured;},arrayBuffer:async()=>new ArrayBuffer(0)};
+   return{status:200,json:async()=>{if(held?.stage==='json')await held.promise;return captured;},arrayBuffer:async()=>{if(held?.stage==='body')await held.promise;return c.previewBytes||new ArrayBuffer(0);}};
   }};
- vm.createContext(c);vm.runInContext(loadSource+slice('function canonical(', 'async function poll(){if(!config')+slice('async function poll(){if(!config','async function uploadPhoto(')+'\nglobalThis.api={load,showConfig,save,poll};',c);
+ vm.createContext(c);vm.runInContext(loadSource+slice('function canonical(', 'async function poll(){if(!config')+slice('async function poll(){if(!config','async function uploadPhoto(')+'\nglobalThis.api={load,showConfig,save,poll,refreshPreview:typeof refreshPreview===\'function\'?refreshPreview:null};',c);
  function hold(route,stage){let release,reject;const promise=new Promise((yes,no)=>{release=yes;reject=no;});const h={stage,promise,release,reject};if(!holds.has(route))holds.set(route,[]);holds.get(route).push(h);return h;}
  function edit(name){c.config.dashboards[0].name=name;c.dirty=true;c.editSerial++;}
- return{c,calls,notices,hold,edit,node,setServer:value=>server=structuredClone(value),renders:()=>renders,refreshes:()=>refreshes};
+ return{c,calls,notices,frames,hold,edit,node,setServer:value=>server=structuredClone(value),renders:()=>renders,refreshes:()=>refreshes};
 }
 const tests=[];
 for(const stage of ['request','json'])for(const change of ['edit','save','bind','reload'])tests.push([`late config ${stage} preserves newer ${change}`,async()=>{
@@ -48,7 +48,13 @@ for(const stage of ['request','json'])tests.push([`Save begin/failure ABA invali
 for(const stage of ['request','json'])tests.push([`navigation invalidates config ${stage}`,async()=>{
  const f=fixture(),held=f.hold('config',stage),old=f.c.api.load();await flush();f.c.page='rooms';f.c.render();const renders=f.renders();held.release();await old;eq(f.renders(),renders);eq(f.c.page,'rooms');
 }]);
-tests.push(['old poll error cannot mark a newer successful status offline',async()=>{const f=fixture(),held=f.hold('status','request'),old=f.c.api.poll();await flush();await f.c.api.poll();const n=f.calls.length;held.reject(Error('Old response failed'));await old;ok(f.c.remoteReachable);eq(f.calls.length,n);ok(!f.notices.length);}]);
+tests.push(['status polling never overlaps an unfinished request and recovers after failure',async()=>{const f=fixture(),held=f.hold('status','request'),old=f.c.api.poll();await flush();await f.c.api.poll();eq(f.calls.filter(x=>x.route==='status').length,1);held.reject(Error('Held response failed'));await old;ok(!f.c.remoteReachable);await f.c.api.poll();ok(f.c.remoteReachable);eq(f.calls.filter(x=>x.route==='status').length,2);}]);
+
+tests.push(['routine status polls never request a full LCD snapshot',async()=>{const f=fixture();await f.c.api.poll();await f.c.api.poll();eq(f.calls.filter(x=>x.route==='preview.raw').length,0);eq(f.calls.filter(x=>x.route==='status').length,2);}]);
+tests.push(['hidden browser tab pauses status and manual preview I/O',async()=>{const f=fixture();f.c.document.hidden=true;await f.c.api.poll();eq(f.calls.length,0);ok(typeof f.c.api.refreshPreview==='function');await f.c.api.refreshPreview();eq(f.calls.length,0);}]);
+tests.push(['explicit LCD preview refresh is single-flight and releases after failure',async()=>{const f=fixture();ok(typeof f.c.api.refreshPreview==='function');const held=f.hold('preview.raw','request'),first=f.c.api.refreshPreview();await flush();await f.c.api.refreshPreview();eq(f.calls.filter(x=>x.route==='preview.raw').length,1);held.reject(Error('Snapshot transport failed'));await first;await f.c.api.refreshPreview();eq(f.calls.filter(x=>x.route==='preview.raw').length,2);ok(!f.node('#preview-refresh').disabled);}]);
+tests.push(['manual snapshot still decodes genuine RGB565 red and green pixels',async()=>{const f=fixture(),bytes=new Uint8Array(320*480*2);bytes.set([0,248,224,7]);f.c.previewBytes=bytes.buffer;await f.c.api.refreshPreview();eq(f.frames,[[255,0,0,255,0,255,0,255]]);ok(f.node('#preview-status').textContent.includes('Obraz pobrany'));}]);
+tests.push(['preview body arriving after the tab is hidden cannot paint',async()=>{const f=fixture();f.c.previewBytes=new ArrayBuffer(320*480*2);const held=f.hold('preview.raw','body'),old=f.c.api.refreshPreview();await flush();f.c.document.hidden=true;held.release();await old;eq(f.frames.length,0);ok(!f.node('#preview-refresh').disabled);}]);
 tests.push(['fresh external revision still raises conflict and disables save',async()=>{const f=fixture();f.edit('Draft');f.setServer({revision:6,dashboards:[{id:1,name:'External'}]});await f.c.api.poll();ok(f.c.conflict&&f.node('#save').disabled);ok(f.notices.some(n=>n.includes('Konfiguracja zmieniła się')));eq(f.c.config.dashboards[0].name,'Draft');}]);
 tests.push(['explicit current Reload still discards the old dirty draft',async()=>{const f=fixture();f.edit('Discard this draft');await f.c.api.load();ok(!f.c.dirty&&!f.c.conflict);eq(f.c.config.dashboards[0].name,'Old saved name');}]);
 tests.push(['Reload during pending PUT cannot replace the submitted document',async()=>{

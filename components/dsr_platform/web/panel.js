@@ -3,6 +3,8 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ['Odśwież podgląd','Refresh preview','Vorschau aktualisieren'],
+ ['Na żądanie','On demand','Auf Abruf'],
  ["Zapis", "Save", "Speichern"],
  ["Gotowe", "Done", "Fertig"],
  ["Nazwa grupy", "Group name", "Gruppenname"],
@@ -542,7 +544,23 @@ async function save(){
   if(!acknowledged)throw failure(m('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.'));
  }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();}
 }
-async function poll(){if(!config||$('#workspace').hidden)return;const serial=++statusReadSerial,owner=configReadOwner();const current=()=>serial===statusReadSerial&&configReadCurrent(owner);try{const response=await request('status');if(!current())return;const s=await response.json();if(!current())return;remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else{await load();return;}}const r=await request('preview.raw');if(!current())return;if(r.status===200){const bytes=new Uint8Array(await r.arrayBuffer());if(!current())return;if(bytes.length===320*480*2){const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));}}}catch(e){if(!current())return;remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{if(current()){if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}}
+let statusPollBusy=false,previewBusy=false;
+/* A 300 KiB snapshot is an explicit action, separate from lightweight status.
+ * Keep one transfer in flight and discard a frame after navigation or hiding. */
+async function refreshPreview(){
+ if(!config||$('#workspace').hidden||document.hidden||previewBusy)return;
+ const owner=configReadOwner(),current=()=>!document.hidden&&configReadCurrent(owner);
+ previewBusy=true;$('#preview-refresh').disabled=true;
+ try{
+  const r=await request('preview.raw');if(!current()||r.status!==200)return;
+  const bytes=new Uint8Array(await r.arrayBuffer());if(!current()||bytes.length!==320*480*2)return;
+  const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);
+  for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}
+  ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));
+ }catch(e){if(current())setText($('#preview-status'),m('Brak połączenia'));}
+ finally{previewBusy=false;$('#preview-refresh').disabled=false;}
+}
+async function poll(){if(!config||$('#workspace').hidden||document.hidden||statusPollBusy)return;statusPollBusy=true;const serial=++statusReadSerial,owner=configReadOwner();const current=()=>!document.hidden&&serial===statusReadSerial&&configReadCurrent(owner);try{const response=await request('status');if(!current())return;const s=await response.json();if(!current())return;remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else{await load();return;}}}catch(e){if(!current())return;remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{statusPollBusy=false;if(current()){if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}}
 async function uploadPhoto(file,room,current=()=>true){
  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>15*1024*1024)throw failure(m('Wybierz JPG, PNG lub WebP do 15 MB.'));
  const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close();throw failure(m('Zbyt duże zdjęcie.'));}
@@ -560,4 +578,7 @@ document.querySelectorAll('[data-ui]').forEach(node=>setText(node,m(node.dataset
 document.querySelectorAll('[data-ui-aria]').forEach(node=>setUIAttribute(node,'aria-label',m(node.dataset.uiAria)));
 $('#web-locale').addEventListener('change',event=>updateWebLocale(event.target.value));
 updateWebLocale(webLocale,false);
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{page=b.dataset.page;render();}));$('#save').addEventListener('click',save);$('#reload').addEventListener('click',load);$('#pair-form').addEventListener('submit',async e=>{e.preventDefault();try{await request('pair',{method:'POST',body:$('#pair-code').value.trim()});$('#pair-code').value='';await load();}catch(error){notice(error.uiMessage||serverMessage(error.message));}});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});load();setInterval(poll,1500);
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{page=b.dataset.page;render();}));$('#save').addEventListener('click',save);$('#reload').addEventListener('click',load);$('#preview-refresh').addEventListener('click',refreshPreview);$('#pair-form').addEventListener('submit',async e=>{e.preventDefault();try{await request('pair',{method:'POST',body:$('#pair-code').value.trim()});$('#pair-code').value='';await load();}catch(error){notice(error.uiMessage||serverMessage(error.message));}});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});load();
+/* Schedule the next read only after the previous read and body have settled. */
+async function pollLoop(){try{await poll();}finally{setTimeout(pollLoop,1500);}}
+setTimeout(pollLoop,1500);

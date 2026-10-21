@@ -18,10 +18,11 @@ async function fixture(browser,options={}){
  const context=await browser.newContext({locale:options.navigator||'pl-PL',viewport:{width:1440,height:1050}});
  await context.addInitScript(({stored,storageFault,setFault,languages})=>{
   // MODEL clock: periodic status and 800ms autonomous radio callbacks are
-  // controlled. Explicit poll()/pollBle() still execute genuine application
+  // controlled, including the serialized 1500ms status timeout. Explicit
+  // poll()/pollBle() still execute genuine application
   // callbacks. Save's 250ms acknowledgement waits and initial 0ms run normally.
   window.setInterval=()=>1;
-  const timeout=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>ms===800?1:timeout(fn,ms,...args);
+  const timeout=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>ms===800||ms===1500?1:timeout(fn,ms,...args);
   if(languages)Object.defineProperty(navigator,'languages',{get:()=>languages});
   if(stored!==undefined&&!sessionStorage.getItem('__test_seeded'))localStorage.setItem('dsr.web.locale',stored);
   sessionStorage.setItem('__test_seeded','1');
@@ -108,7 +109,7 @@ async function preserve(f,selector){
   for(const width of [1440,390]){await page.setViewportSize({width,height:900});await geometry(page);await shot(page,path.join(out,`${locale}-unpaired-${width}.png`));}
   state.pairFail=true;await Promise.all([page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/pair'&&r.status()===403),page.locator('#pair-form button').click()]);await page.waitForFunction(()=>document.querySelector('#notice').textContent==='Pairing fixture refused');await switchTo(f,'en');eq(await page.locator('#notice').textContent(),'Pairing fixture refused');eq(await page.locator('#pair-code').inputValue(),'0123456789abcdef');state.pairFail=false;
   await page.locator('#pair-form button').click();await page.locator('#workspace').waitFor({state:'visible'});await switchTo(f,'pl');
-  for(const l of ['pl','en','de']){await switchTo(f,l);eq(await page.locator('#editor h3').first().textContent(),'Pulpity');}
+  for(const l of ['pl','en','de']){await switchTo(f,l);eq(await page.locator('#editor h3').first().textContent(),'Pulpity');eq(await page.locator('#preview-refresh').textContent(),{pl:'Odśwież podgląd',en:'Refresh preview',de:'Vorschau aktualisieren'}[l]);}
   await switchTo(f,'pl');
   await page.locator('nav [data-page="devices"]').click();await page.getByRole('button',{name:'Edytuj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Unsaved user text Pomieszczenia');await page.locator('input[type=password]').fill('TEST-ONLY-password');await preserve(f,'input[type=password]');await preserve(f,'#editor input[type=text]');
   eq(await page.evaluate(()=>config.devices[0].name),'Unsaved user text Pomieszczenia');eq(await page.evaluate(()=>config.language),'pl');ok(await page.evaluate(()=>dirty&&!conflict));

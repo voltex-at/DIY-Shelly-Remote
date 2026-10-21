@@ -8,7 +8,7 @@ let activePage;
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1050},locale:'pl-PL'}),page=await context.newPage();let checks=0;
- activePage=page;let bindPosts=0;
+ activePage=page;let bindPosts=0,previewGets=0;
  async function bindAndWait(){
   const before=bindPosts;
   // Register the response listener before clicking. A prior bind's identical
@@ -20,7 +20,7 @@ let activePage;
   await page.waitForFunction(()=>page==='devices'&&document.querySelector('#notice').textContent.includes('Połączenie, nazwa i pomieszczenie zapisane.'));
   assert.equal(bindPosts,before+1);checks++;
  }
- const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));if(new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.method()==='POST')bindPosts++;});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{assert(r.url().startsWith('http://127.0.0.1:8765/'));if(new URL(r.url()).pathname==='/api/v1/devices/bind'&&r.method()==='POST')bindPosts++;if(new URL(r.url()).pathname==='/api/v1/preview.raw')previewGets++;});
  await page.goto('http://127.0.0.1:8765/');await page.locator('#pairing').waitFor({state:'visible'});checks++;
  await page.locator('#pair-code').fill('0123456789abcdef');await page.locator('#pair-form button').click();await page.locator('#workspace').waitFor({state:'visible'});checks++;
  await page.getByRole('button',{name:'Pomieszczenia',exact:true}).click();await page.getByRole('button',{name:'+ Dodaj',exact:true}).click();await page.getByLabel('Nazwa',{exact:true}).fill('Salon');await page.getByRole('button',{name:'← Wróć do listy'}).click();
@@ -30,7 +30,9 @@ let activePage;
  const tiles=page.locator('.tile');assert.equal(await tiles.count(),2);checks++;
  await tiles.nth(0).dragTo(tiles.nth(1));checks++;await page.locator('#save').click();await page.waitForFunction(()=>document.querySelector('#revision').textContent==='2');checks++;
  const config=await page.evaluate(async()=>await(await fetch('/api/v1/config')).json());assert.equal(config.rooms[0].name,'Salon');assert.equal(config.devices[0].host,'192.168.1.77');assert.equal(config.dashboards[0].tiles[0].type,'room');checks+=3;
- await page.waitForFunction(()=>document.querySelector('#preview-status').textContent.startsWith('Obraz pobrany'));checks++;
+ assert.equal(previewGets,0);checks++;
+ await page.getByRole('button',{name:'Odśwież podgląd',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('#preview-status').textContent.startsWith('Obraz pobrany'));assert.equal(previewGets,1);checks+=2;
  fs.mkdirSync(path.join('build-ui','panel-review'),{recursive:true});await page.screenshot({path:'build-ui/panel-review/panel-desktop.png',fullPage:true});
  await page.evaluate(()=>fetch('/api/v1/test/reboot',{method:'POST'}));await page.reload();await page.locator('#workspace').waitFor({state:'visible'});assert.equal(await page.locator('#revision').textContent(),'2');checks++;
  await page.evaluate(()=>fetch('/api/v1/test/touch-edit',{method:'POST'}));await page.waitForFunction(()=>document.querySelector('#revision').textContent==='3');checks++;
