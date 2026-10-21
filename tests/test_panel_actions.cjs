@@ -6,7 +6,14 @@ const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-actio
 const temp=fs.mkdtempSync(path.join(process.env.RUNNER_TEMP||path.dirname(root),'dsr-act-web-'));process.env.TMPDIR=temp;
 let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=(x,message)=>{assert(x,message);checks++;};
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1200,height:1000},locale:'pl-PL'});await context.addInitScript(()=>{window.setInterval=()=>1;localStorage.setItem('dsr.web.locale','pl');});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});const context=await browser.newContext({viewport:{width:1200,height:1000},locale:'pl-PL'});await context.addInitScript(()=>{
+  window.setInterval=()=>1;
+  // Keep autonomous status polling under the same MODEL clock as intervals;
+  // explicit refreshes and save acknowledgement timeouts still run normally.
+  const timeout=window.setTimeout.bind(window);
+  window.setTimeout=(fn,ms,...args)=>ms===1500?1:timeout(fn,ms,...args);
+  localStorage.setItem('dsr.web.locale','pl');
+ });
  let config={schema:2,revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,rooms:[],devices:[{id:1,name:'A',host:'192.0.2.1',channel:0,kind:'relay',room:0},{id:2,name:'B',host:'192.0.2.2',channel:0,kind:'relay',room:0}],groups:[{id:1,name:'<img src=x onerror=alert(1)>',members:[1,2]}],scenes:[{id:1,name:'Sleep',actions:[{device:1,command:'off'}]}],dashboards:[{id:1,name:'Home',tiles:[{id:1,type:'scene',ref:1,span:2,height:1,fields:255}]}]};
  let actor={boot_id:17,admission_generation:0,revision:1,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]};const posts=[],errors=[];let drop=false,admit=true,holdSave=false,failSave=false,pendingWrite=null,puts=0,epoch=1,entries=[{sequence:1,utc:0,monotonic_ms:120000,run_id:0,object_id:0,layout_id:1,kind:2,source:2,command:1,outcome:1,result:0}];
  page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',async route=>{

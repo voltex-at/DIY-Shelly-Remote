@@ -9,8 +9,13 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:1440,height:1000},locale:'pl-PL'});
- await context.addInitScript(()=>{window.setInterval=()=>1;localStorage.setItem('dsr.web.locale','pl');});
- const state={boot:17,devices:[device('shelly-test-a',0,'<img src=x onerror=alert(1)>'),device('shelly-test-b',1,'Second fixture')],posts:[],gets:0,fail:false,stale:null,dropPost:false};
+ await context.addInitScript(()=>{
+  window.setInterval=()=>1;
+  const timeout=window.setTimeout.bind(window);
+  window.setTimeout=(fn,ms,...args)=>ms===1500?1:timeout(fn,ms,...args);
+  localStorage.setItem('dsr.web.locale','pl');
+ });
+ const state={boot:17,devices:[device('shelly-test-a',0,'<img src=x onerror=alert(1)>'),device('shelly-test-b',1,'Second fixture')],posts:[],gets:0,statusGets:0,fail:false,stale:null,dropPost:false};
  page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
@@ -34,12 +39,15 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
    const body=req.postDataJSON();state.posts.push(body);const d=state.devices.find(d=>d.device_id===body.device_id&&d.generation===body.generation&&d.channel===body.channel);assert(d);assert.deepEqual(Object.keys(body).sort(),['channel','device_id','generation','on']);assert.equal(typeof body.on,'boolean');d.operation_id++;d.pending=true;if(state.dropPost)return route.abort('failed');return send(202,{accepted:true,operation_id:d.operation_id,boot_id:state.boot});
   }
   if(u.pathname.endsWith('/actions/status'))return send(200,{boot_id:1,admission_generation:0,revision:config.revision,run_id:0,object_id:0,nonce:'',kind:0,available:true,active:false,cancelled:false,current:0,steps:[]});
-  if(u.pathname.endsWith('/status'))return send(200,{revision:1,firmware:'HOST TEST / DEMO',busy:false});
+  if(u.pathname.endsWith('/status')){state.statusGets++;return send(200,{revision:1,firmware:'HOST TEST / DEMO',busy:false});}
   if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2),contentType:'application/octet-stream'});
   throw Error('Unexpected path '+u.pathname);
  });
  await page.goto('http://127.0.0.1:8765/');await page.locator('#workspace').waitFor({state:'visible'});await page.locator('nav [data-page=devices]').click();
  const cards=page.locator('.runtime-card');await cards.nth(1).getByRole('button',{name:'Włącz: Second fixture',exact:true}).waitFor();await page.waitForFunction(()=>!document.querySelectorAll('.runtime-card button')[0].disabled);
+ // This fixture owns refresh timing; background status reads would race its
+ // deliberate transport failures and stale snapshots below.
+ await page.waitForTimeout(1600);eq(state.statusGets,0);
  eq(await cards.count(),2);eq(await cards.nth(0).locator('h3').innerText(),'<img src=x onerror=alert(1)>');eq(await cards.locator('img').count(),0);ok((await cards.nth(0).innerText()).includes('3,25 W'));ok((await cards.nth(1).innerText()).includes('WYŁ. — potwierdzone'));
  state.stale=structuredClone(state.devices);await cards.nth(0).locator('button').first().click();await page.waitForFunction(()=>document.querySelectorAll('.runtime-card button')[0].disabled);await page.waitForTimeout(80);
  eq(state.posts.length,1);eq(state.posts[0],{device_id:'shelly-test-a',generation:2,channel:0,on:true});ok(await cards.nth(0).locator('button').first().isDisabled());ok(await cards.nth(1).locator('button').first().isEnabled());ok(!(await cards.nth(0).innerText()).includes('WŁ. — potwierdzone'));
