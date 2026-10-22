@@ -161,9 +161,9 @@ static void navigation_and_chips(void)
  lv_obj_t *power=find_part(lv_screen_active(),"18.6 W");CHECK(power&&strstr(lv_label_get_text(power),"230.1 V"));lv_obj_t *chip=lv_obj_get_parent(power);
  CHECK(lv_obj_get_width(chip)<180);CHECK(lv_obj_get_width(chip)>=lv_obj_get_width(power)+12);
  lv_obj_t *position=find(lv_screen_active(),"Pozycja 65%");if(!position)position=find(lv_screen_active(),"Position 65%");CHECK(position);CHECK(lv_obj_get_width(lv_obj_get_parent(position))<170);
- unsigned before=edits;tap(160,126);CHECK(edits==before+1);
+ unsigned before=edits;tap(236,72);CHECK(edits==before+1);
  before=settings_opens;tap(224,455);CHECK(settings_opens==before+1);before=add_opens;tap(288,455);CHECK(add_opens==before+1);
- tap(260,126);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
+ tap(286,72);CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));char counts[96];snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,4u);CHECK(find(lv_screen_active(),counts));
  dsr_mobile_model_t update=fixture;update.devices[4].online=true;dsr_mobile_update(&update);lv_obj_update_layout(lv_screen_active());CHECK(find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));snprintf(counts,sizeof(counts),dsr_sc_tr("Urządzenia: %u • online: %u"),5u,5u);CHECK(find(lv_screen_active(),counts));dsr_mobile_update(&fixture);
  tap(160,324);CHECK(!find(lv_screen_active(),dsr_sc_tr("Informacje o pulpicie")));
  tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
@@ -172,10 +172,13 @@ static lv_obj_t *parent_of(const char *text)
 {lv_obj_t *label=find(lv_screen_active(),dsr_sc_tr(text));CHECK(label);return lv_obj_get_parent(label);}
 static void tap_stop(void)
 {lv_area_t a;lv_obj_t *button=parent_of("Stop");lv_obj_get_coords(button,&a);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);}
+/* The cover frame also holds a passive divider: count only touch targets. */
+static lv_obj_t *nth_clickable(lv_obj_t *parent,unsigned n)
+{for(unsigned i=0;i<lv_obj_get_child_count(parent);i++){lv_obj_t *c=lv_obj_get_child(parent,(int)i);if(lv_obj_has_flag(c,LV_OBJ_FLAG_CLICKABLE)&&!n--)return c;}return NULL;}
 static void cover_card_tap(bool open)
 {
  lv_obj_t *card=parent_of("Roleta w salonie");lv_obj_scroll_to_view(card,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());
- lv_obj_t *control=lv_obj_get_child(lv_obj_get_child(card,3),open?0:1);CHECK(lv_obj_get_width(control)>=44&&lv_obj_get_height(control)>=44);
+ lv_obj_t *control=nth_clickable(lv_obj_get_child(card,3),open?0:1);CHECK(control);CHECK(lv_obj_get_width(control)>=44&&lv_obj_get_height(control)>=44);
  lv_area_t a;lv_obj_get_coords(control,&a);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
 }
 static unsigned outdoor_pixels(void)
@@ -325,7 +328,7 @@ int main(int argc,char **argv)
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_HOME,0);save("13-home-german");CHECK(find(lv_screen_active(),"Mein Dashboard"));
  navigation_and_chips();
  dsr_sc_appearance(DSR_SC_BLUE,false,0);
- dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);tap(260,126);save("14-dashboard-info");CHECK(find(lv_screen_active(),"Informacje o pulpicie"));tap(160,324);
+ dsr_mobile_update(&fixture);dsr_mobile_show(DSR_MOBILE_HOME,0);tap(286,72);save("14-dashboard-info");CHECK(find(lv_screen_active(),"Informacje o pulpicie"));tap(160,324);
  printf("PASS: %u review checks, %u real LVGL frames at 320x480, 576 raster-centering cases, real pointer hit-testing, 80 navigation cycles; demo never sends commands\n",checks,frames_saved);
  lv_deinit();return 0;
 }

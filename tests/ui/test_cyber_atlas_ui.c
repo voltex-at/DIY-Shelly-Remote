@@ -72,39 +72,46 @@ static void editing_routes(void)
  dsr_network_home(NULL);dsr_ui_actions_open(0);route("groups");dsr_network_home(NULL);dsr_ui_actions_open(1);route("scenes");
  dsr_network_home(NULL);test_workspace_fault(1);dsr_ui_edit_dashboard();route("storage-unavailable");test_workspace_fault(0);dsr_network_home(NULL);
 }
+/* The dimmer dial: the one clickable lv_arc (the coloured scale is passive). */
+static lv_obj_t *input_arc(lv_obj_t *o)
+{
+ if(lv_obj_check_type(o,&lv_arc_class)&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))return o;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *f=input_arc(lv_obj_get_child(o,(int)i));if(f)return f;}
+ return NULL;
+}
 static void lighting_routes(void)
 {
  dsr_mobile_actions_t a={.set_brightness=level_set,.set_rgb=color_set,.refresh=ignored_refresh};dsr_mobile_bind(&a);
  dsr_mobile_model_t m={.wifi=true,.device_count=1,.room_count=2,.home_name="Mój dom",.rooms={{.name="Salon",.id=1},{.name="Sypialnia",.id=2}}};
- dsr_mobile_device_t *d=&m.devices[0];*d=(dsr_mobile_device_t){.id=31,.name="Shelly Dimmer Gen3",.identity="atlas-light",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_LIGHT,.kind=DSR_DEVICE_LIGHT,.online=true,.output=true,.can_light=true,.can_refresh=true,.has_power=true,.power_w=24.8,.has_voltage=true,.voltage_v=232.1,.has_current=true,.current_a=.11,.has_sample_time=true,.sample_ms=lv_tick_get(),.light={.brightness=75,.flags=DSR_LIGHT_BRIGHTNESS}};
+ dsr_mobile_device_t *d=&m.devices[0];*d=(dsr_mobile_device_t){.id=31,.name="Shelly Dimmer Gen3",.identity="atlas-light",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_LIGHT,.kind=DSR_DEVICE_LIGHT,.online=true,.output=true,.can_switch=true,.can_light=true,.can_refresh=true,.has_power=true,.power_w=24.8,.has_voltage=true,.voltage_v=232.1,.has_current=true,.current_a=.11,.has_sample_time=true,.sample_ms=lv_tick_get(),.light={.brightness=75,.flags=DSR_LIGHT_BRIGHTNESS}};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);route("home");dsr_mobile_show(DSR_MOBILE_ROOMS,0);route("rooms");dsr_mobile_show(DSR_MOBILE_ROOM,1);route("room-detail");dsr_mobile_show(DSR_MOBILE_DEVICES,0);route("devices");
  for(unsigned lang=0;lang<3;lang++){
   dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);char name[48];snprintf(name,sizeof(name),"dimmer-%s",lang==0?"pl":lang==1?"en":"de");route(name);
  }
  dsr_sc_appearance(DSR_SC_BLUE,3,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);
- lv_obj_t *slider=find_type(lv_screen_active(),&lv_slider_class);CHECK(slider);lv_area_t box;lv_obj_get_coords(slider,&box);int y=(box.y1+box.y2)/2;
- touch=(lv_point_t){100,y};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);touch.x=210;lv_tick_inc(20);lv_indev_read(pointer);CHECK(!level_writes);snap("dimmer-preview");pressed=false;lv_tick_inc(20);lv_indev_read(pointer);CHECK(level_writes==1);
+ lv_obj_t *dial=input_arc(lv_screen_active());CHECK(dial&&!lv_obj_has_state(dial,LV_STATE_DISABLED));lv_area_t box;lv_obj_get_coords(dial,&box);int cx=(box.x1+box.x2)/2,cy=(box.y1+box.y2)/2,r=lv_area_get_width(&box)/2-15;
+ touch=(lv_point_t){cx-r,cy};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);touch=(lv_point_t){cx-r*7/10,cy-r*7/10};lv_tick_inc(20);lv_indev_read(pointer);CHECK(!level_writes);snap("dimmer-preview");pressed=false;lv_tick_inc(20);lv_indev_read(pointer);CHECK(level_writes==1&&last_level!=75);
  press("+");CHECK(level_writes==2&&last_level==80&&find_label(lv_screen_active(),"75%"));
  press("-");CHECK(level_writes==3&&last_level==70&&find_label(lv_screen_active(),"75%"));
- d->online=false;dsr_mobile_update(&m);route("dimmer-offline");CHECK(lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));
+ d->online=false;dsr_mobile_update(&m);route("dimmer-offline");CHECK(lv_obj_has_state(input_arc(lv_screen_active()),LV_STATE_DISABLED));
  d->online=true;d->can_light=false;
  for(unsigned lang=0;lang<3;lang++){
   dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);
-  CHECK(find_label(lv_screen_active(),"Sterowanie zablokowane"));CHECK(lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));
+  CHECK(find_label(lv_screen_active(),"Sterowanie zablokowane"));CHECK(lv_obj_has_state(input_arc(lv_screen_active()),LV_STATE_DISABLED));
   CHECK(!find_label(lv_screen_active(),"Główne sterowanie"));char name[48];snprintf(name,sizeof(name),"dimmer-blocked-%u",lang);route(name);
  }
  d->can_light=true;
  d->online=true;d->endpoint_kind=DSR_ENDPOINT_RGB;d->kind=DSR_DEVICE_RGB;d->can_rgb=true;d->rgb=(dsr_rgb_status_t){.r=0,.g=180,.b=255,.brightness=78,.flags=DSR_RGB_VALID};strcpy(d->name,"Shelly RGB");
  for(unsigned lang=0;lang<3;lang++){
-  dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);char name[64];snprintf(name,sizeof(name),"rgb-brightness-%u",lang);route(name);press("Kolor RGB");snprintf(name,sizeof(name),"rgb-color-%u",lang);route(name);
+  dsr_sc_appearance(DSR_SC_BLUE,3,lang);dsr_ui_apply_theme();dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);char name[64];snprintf(name,sizeof(name),"rgb-brightness-%u",lang);route(name);press("Kolor");snprintf(name,sizeof(name),"rgb-color-%u",lang);route(name);
  }
- dsr_sc_appearance(DSR_SC_BLUE,3,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);route("rgb-brightness");press("Kolor RGB");route("rgb-color");
- slider=find_type(lv_screen_active(),&lv_slider_class);lv_slider_set_value(slider,120,LV_ANIM_OFF);lv_obj_send_event(slider,LV_EVENT_VALUE_CHANGED,NULL);CHECK(!color_writes);route("rgb-preview");press("Zastosuj");CHECK(color_writes==1);
+ dsr_sc_appearance(DSR_SC_BLUE,3,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);route("rgb-brightness");press("Kolor");route("rgb-color");
+ lv_obj_t *slider=find_type(lv_screen_active(),&lv_slider_class);lv_slider_set_value(slider,120,LV_ANIM_OFF);lv_obj_send_event(slider,LV_EVENT_VALUE_CHANGED,NULL);CHECK(!color_writes);route("rgb-preview");press("Zastosuj");CHECK(color_writes==1);
  d->rgb.flags|=DSR_RGB_TRANSITION;dsr_mobile_update(&m);route("rgb-transition");d->online=false;dsr_mobile_update(&m);route("rgb-offline");
  d->online=true;d->rgb.flags=DSR_RGB_VALID;dsr_mobile_update(&m);
- for(unsigned cycle=0;cycle<8;cycle++){dsr_mobile_show(DSR_MOBILE_DETAILS,0);press("Kolor RGB");press("Jasność");}
+ for(unsigned cycle=0;cycle<8;cycle++){dsr_mobile_show(DSR_MOBILE_DETAILS,0);press("Kolor");press("Wstecz");}
  dsr_mobile_hide();lv_obj_clean(lv_screen_active());lv_refr_now(display);lv_mem_monitor_t before,after;lv_mem_monitor(&before);
- for(unsigned cycle=0;cycle<60;cycle++){dsr_mobile_show(DSR_MOBILE_DETAILS,0);press("Kolor RGB");press("Jasność");dsr_mobile_hide();lv_obj_clean(lv_screen_active());lv_refr_now(display);}
+ for(unsigned cycle=0;cycle<60;cycle++){dsr_mobile_show(DSR_MOBILE_DETAILS,0);press("Kolor");press("Wstecz");dsr_mobile_hide();lv_obj_clean(lv_screen_active());lv_refr_now(display);}
  lv_mem_monitor(&after);CHECK(after.free_size==before.free_size&&after.used_cnt==before.used_cnt);
  printf("Cyber lighting memory: %lu -> %lu bytes free after 60 brightness/color/back cycles, 128 KiB LVGL host pool; not target RAM/PSRAM\n",(unsigned long)before.free_size,(unsigned long)after.free_size);
  *d=(dsr_mobile_device_t){.id=31,.name="Shelly H&T Gen3",.endpoint_kind=DSR_ENDPOINT_HT,.kind=DSR_DEVICE_SENSOR,.online=true,.can_refresh=true,.has_temperature=true,.temperature_c=21.4,.has_humidity=true,.humidity_pct=46.2,.has_battery=true,.battery_pct=85};

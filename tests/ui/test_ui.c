@@ -216,7 +216,7 @@ static lv_obj_t *power_target(lv_obj_t *root)
 }
 static lv_obj_t *card_power_target(lv_obj_t *root)
 {
- if(lv_obj_get_width(root)==64&&lv_obj_get_height(root)==64&&lv_obj_has_flag(root,LV_OBJ_FLAG_CLICKABLE))return root;
+ if(lv_obj_get_width(root)==58&&lv_obj_get_height(root)==58&&lv_obj_has_flag(root,LV_OBJ_FLAG_CLICKABLE))return root;
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=card_power_target(lv_obj_get_child(root,(int)i));if(o)return o;}return NULL;
 }
 static void tap_card_power(void)
@@ -543,7 +543,7 @@ static void storage_error_regression(void)
  /* All three real pointer targets still open the form with healthy storage. */
  dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
  for(unsigned surface=0;surface<3;surface++){dsr_network_rooms();tap(surface==2?280:160,surface==0?116:surface==1?380:450);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));click("Wstecz");}
- dsr_network_home(NULL);tap(160,126);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
+ dsr_network_home(NULL);tap(236,72);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
  dsr_ui_open_settings();test_panel_ready(false);click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");test_panel_ready(true);click("Wstecz");
  click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");CHECK(requests==before);test_workspace_disable();
  test_workspace_enable();
@@ -617,7 +617,7 @@ static void rooms_regression(void)
  dsr_network_rooms();dsr_ui_edit_room(1);click("Wstecz");lv_refr_now(display);lv_mem_monitor_t memory_before,memory_after;lv_mem_monitor(&memory_before);
  for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
  printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
- test_workspace_photos(false);dsr_network_home(NULL);tap(58,126);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
+ test_workspace_photos(false);dsr_network_home(NULL);tap(186,72);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
 }
 static void p0_generic(const char *collection,const char *name)
 {dsr_ui_edit_dashboard();click(collection);if(name)click(name);}

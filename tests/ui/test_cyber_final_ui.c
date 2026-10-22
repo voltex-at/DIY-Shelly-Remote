@@ -56,7 +56,7 @@ static void dashboard_rows(unsigned lang)
 {
  dsr_mobile_model_t m={.wifi=true,.device_count=3,.room_count=1,.rooms={{.id=1,.name="Pomieszczenie z bardzo długą nazwą ÄÖÜß"}}};
  for(unsigned i=0;i<3;i++)m.devices[i]=(dsr_mobile_device_t){.id=31+i,.name="Długa nazwa urządzenia Żółć ÄÖÜß",.identity="final-fixture",.kind=i==1?DSR_DEVICE_COVER:DSR_DEVICE_RELAY,.endpoint_kind=i==1?DSR_ENDPOINT_COVER:DSR_ENDPOINT_SWITCH,.online=i!=2,.output=i==0,.room=i==2?255:0,.cover_state=DSR_COVER_OPENING};
- dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_t *name=find_label(lv_screen_active(),"Długa nazwa urządzenia Żółć ÄÖÜß");CHECK(name);lv_obj_t *card=lv_obj_get_parent(name);lv_obj_t *state=find_label(card,"Włączone");CHECK(state);lv_area_t a=final_box(state),c=final_box(card);CHECK(a.y1>final_box(name).y2&&a.y2<c.y1+72&&lv_obj_get_height(card)>=120);CHECK(!strcmp(m.rooms[0].name,"Pomieszczenie z bardzo długą nazwą ÄÖÜß"));final_snap("dashboard-two-rows",lang);
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_t *name=find_label(lv_screen_active(),"Długa nazwa urządzenia Żółć ÄÖÜß");CHECK(name);lv_obj_t *card=lv_obj_get_parent(name);lv_obj_t *state=find_label(card,"Włączone");CHECK(state);lv_area_t a=final_box(state),c=final_box(card);CHECK(a.y1>final_box(name).y2&&a.y2<c.y2-24&&lv_obj_get_height(card)>=110);CHECK(!strcmp(m.rooms[0].name,"Pomieszczenie z bardzo długą nazwą ÄÖÜß"));final_snap("dashboard-two-rows",lang);
 }
 static void indicators(unsigned lang)
 {

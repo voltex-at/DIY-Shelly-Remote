@@ -35,7 +35,7 @@ typedef struct {
  lv_theme_t theme;
  lv_style_transition_dsc_t no_transition;
  lv_style_t text,contour,card,primary,pressed,disabled,focus,muted,track,knob,scroll,decor,action,glow,flat,backdrop;
- lv_style_t device,device_on,power_on,power_off,power_disabled,inset,warning,danger,press_edge;
+ lv_style_t device,device_on,device_pressed,power_on,power_off,power_disabled,inset,warning,danger,press_edge;
  bool initialized;
 } cyber_t;
 #ifdef ESP_PLATFORM
@@ -92,8 +92,14 @@ static void init(void)
  lv_style_set_bg_opa(&hud.flat,LV_OPA_COVER);lv_style_set_border_width(&hud.flat,0);lv_style_set_radius(&hud.flat,0);
  lv_style_init(&hud.backdrop);lv_style_set_bg_color(&hud.backdrop,lv_color_hex(DSR_CYBER_BG));
  lv_style_set_bg_opa(&hud.backdrop,LV_OPA_80);lv_style_set_border_width(&hud.backdrop,0);lv_style_set_radius(&hud.backdrop,0);
- surface(&hud.device,0x1b3b59,0x386b92);lv_style_set_bg_grad_color(&hud.device,lv_color_hex(0x0a1d30));lv_style_set_bg_grad_dir(&hud.device,LV_GRAD_DIR_VER);
- surface(&hud.device_on,0x174b78,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_on,lv_color_hex(0x0b2440));lv_style_set_bg_grad_dir(&hud.device_on,LV_GRAD_DIR_VER);
+ /* Owner reference 2026-10: dark navy tiles in both states; the chamfered
+  * double contour is drawn by frame_draw, the power button carries "on". */
+ surface(&hud.device,0x0f243c,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device,lv_color_hex(0x09182b));lv_style_set_bg_grad_dir(&hud.device,LV_GRAD_DIR_VER);
+ lv_style_set_border_width(&hud.device,0);lv_style_set_radius(&hud.device,18);
+ surface(&hud.device_on,0x112c4b,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_on,lv_color_hex(0x0a1b31));lv_style_set_bg_grad_dir(&hud.device_on,LV_GRAD_DIR_VER);
+ lv_style_set_border_width(&hud.device_on,0);lv_style_set_radius(&hud.device_on,18);
+ surface(&hud.device_pressed,0x17406a,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_pressed,lv_color_hex(0x0c2442));lv_style_set_bg_grad_dir(&hud.device_pressed,LV_GRAD_DIR_VER);
+ lv_style_set_border_width(&hud.device_pressed,0);
  surface(&hud.power_on,0x0079f2,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.power_on,lv_color_hex(0x0039a3));lv_style_set_bg_grad_dir(&hud.power_on,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_on,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_on,LV_RADIUS_CIRCLE);
  surface(&hud.power_off,0x123453,0x3387a7);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x06182c));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
  surface(&hud.power_disabled,0x243a51,0x304a65);lv_style_set_radius(&hud.power_disabled,LV_RADIUS_CIRCLE);lv_style_set_border_width(&hud.power_disabled,DSR_CYBER_BORDER_WIDTH);
@@ -191,30 +197,66 @@ static void panel_draw(lv_event_t *e)
  line(layer,a.x1+12,a.y2-2,a.x1+38,a.y2-2,disabled?0x36556d:contour);
 }
 void dsr_ui_cyber_contour(lv_obj_t *o){init();lv_obj_add_style(o,&hud.contour,0);}
+/* dsr_sc_panel falls back to local properties once its shared style table is
+ * full. Local values outrank every style added later, so a skin surface that
+ * owns fill/radius first drops them (power buttons stayed navy, not blue). */
+static void own_surface(lv_obj_t *o,bool radius)
+{lv_obj_remove_local_style_prop(o,LV_STYLE_BG_COLOR,0);if(radius)lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);}
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
-{init();lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
+{init();if(primary)own_surface(o,false);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
 void dsr_ui_cyber_glow(lv_obj_t *o,bool on)
 {init();if(on)lv_obj_add_style(o,&hud.glow,0);else lv_obj_remove_style(o,&hud.glow,0);}
-void dsr_ui_cyber_device(lv_obj_t *o,bool on,bool warning)
+/* Chamfered contour of the owner's HUD reference: eight joined segments. */
+static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_t opa,int width)
 {
- init();lv_obj_remove_style(o,&hud.decor,0);lv_obj_add_style(o,on?&hud.device_on:&hud.device,0);dsr_ui_cyber_glow(o,on);
- lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(2|(on?4:0)|(warning?8:0)));
+ lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=lv_color_hex(color);d.opa=opa;d.width=width;d.round_start=d.round_end=1;
+ const lv_point_precise_t p[9]={{a.x1+cut,a.y1},{a.x2-cut,a.y1},{a.x2,a.y1+cut},{a.x2,a.y2-cut},{a.x2-cut,a.y2},{a.x1+cut,a.y2},{a.x1,a.y2-cut},{a.x1,a.y1+cut},{a.x1+cut,a.y1}};
+ for(unsigned i=0;i<8;i++){d.p1=p[i];d.p2=p[i+1];lv_draw_line(layer,&d);}
 }
+/* flags: 1 inner contour, 2 status strip, 4 on, 8 warning, 16 diagonal inlay. */
+static void frame_draw(lv_event_t *e)
+{
+ lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(e);
+ uintptr_t flags=(uintptr_t)lv_event_get_user_data(e);bool pressed=lv_obj_has_state(o,LV_STATE_PRESSED);
+ int w=lv_area_get_width(&a),h=lv_area_get_height(&a);
+ if(flags&16){int span=h>70?26:16;if(span>w/4)span=w/4;for(int i=0;i<5;i++){int end=a.x2-12-i*6;line(layer,end-span,a.y1+6,end,a.y1+6+span,0x1b4568);}}
+ chamfer(layer,(lv_area_t){a.x1+1,a.y1+1,a.x2-1,a.y2-1},9,DSR_CYBER_CYAN,(flags&4)||pressed?LV_OPA_COVER:LV_OPA_80,2);
+ if(flags&1)chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},7,DSR_CYBER_CYAN,LV_OPA_40,1);
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_COVER;d.radius=1;
+ if(flags&2){d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x2f6f9c);lv_area_t strip={a.x1+4,a.y1+18,a.x1+5,a.y2-18};lv_draw_rect(layer,&d,&strip);}
+ d.bg_color=lv_color_hex(DSR_CYBER_CYAN);lv_area_t bar={a.x1+14,a.y2-5,a.x1+42,a.y2-4};lv_draw_rect(layer,&d,&bar);
+}
+static void frame(lv_obj_t *o,bool on,uintptr_t flags)
+{
+ init();own_surface(o,true);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.contour,0);
+ lv_obj_add_style(o,on?&hud.device_on:&hud.device,0);lv_obj_add_style(o,&hud.device_pressed,LV_STATE_PRESSED);dsr_ui_cyber_glow(o,false);
+ lv_obj_remove_event_cb(o,panel_draw);lv_obj_remove_event_cb(o,frame_draw);lv_obj_add_event_cb(o,frame_draw,LV_EVENT_DRAW_MAIN_END,(void *)flags);
+}
+void dsr_ui_cyber_device(lv_obj_t *o,bool on,bool warning)
+{frame(o,on,1|2|16|(on?4:0)|(warning?8:0));}
+void dsr_ui_cyber_frame(lv_obj_t *o,bool inner)
+{frame(o,false,inner?1|16:0);}
 static void power_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);if(lv_obj_has_state(o,LV_STATE_DISABLED))return;
  lv_area_t a;lv_obj_get_coords(o,&a);int side=lv_area_get_width(&a);
  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2};
+ /* Reference ring: cyan rim, dark gap, then the blue face of an active button. */
+ if(side>=40&&lv_obj_get_style_outline_width(o,0)>0){
+  arc.radius=(uint16_t)(side/2-2);arc.width=3;arc.color=lv_color_hex(0x061631);arc.opa=LV_OPA_COVER;arc.start_angle=0;arc.end_angle=360;lv_draw_arc(lv_event_get_layer(e),&arc);
+  arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(0x5fc8ff);arc.opa=LV_OPA_70;lv_draw_arc(lv_event_get_layer(e),&arc);
+  return;
+ }
  arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(DSR_CYBER_CYAN);arc.opa=LV_OPA_80;arc.start_angle=210;arc.end_angle=320;lv_draw_arc(lv_event_get_layer(e),&arc);
  arc.radius=(uint16_t)(side/2-2);arc.color=lv_color_hex(0x071a32);arc.opa=LV_OPA_60;arc.start_angle=25;arc.end_angle=155;lv_draw_arc(lv_event_get_layer(e),&arc);
 }
 void dsr_ui_cyber_power(lv_obj_t *o,bool on,bool enabled)
 {
- init();lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,enabled?(on?&hud.power_on:&hud.power_off):&hud.power_disabled,0);
+ init();own_surface(o,true);lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,enabled?(on?&hud.power_on:&hud.power_off):&hud.power_disabled,0);
  dsr_ui_cyber_glow(o,on&&enabled);lv_obj_add_event_cb(o,power_draw,LV_EVENT_DRAW_MAIN_END,NULL);
 }
-void dsr_ui_cyber_inset(lv_obj_t *o){init();lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,&hud.inset,0);}
-void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger){lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);lv_obj_set_style_bg_color(o,lv_color_hex(0xb42332),0);lv_obj_set_style_bg_grad_color(o,lv_color_hex(0x8f1d2b),0);lv_obj_set_style_border_color(o,lv_color_hex(DSR_CYBER_DANGER),0);lv_obj_set_style_bg_color(o,lv_color_hex(0x8f1d2b),LV_STATE_PRESSED);}}
+void dsr_ui_cyber_inset(lv_obj_t *o){init();own_surface(o,true);lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,&hud.inset,0);}
+void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();own_surface(o,false);lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger){lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);lv_obj_set_style_bg_color(o,lv_color_hex(0xb42332),0);lv_obj_set_style_bg_grad_color(o,lv_color_hex(0x8f1d2b),0);lv_obj_set_style_border_color(o,lv_color_hex(DSR_CYBER_DANGER),0);lv_obj_set_style_bg_color(o,lv_color_hex(0x8f1d2b),LV_STATE_PRESSED);}}
 /* Touch buttons share one state style; native fields retain their focus style. */
 void dsr_ui_cyber_button(lv_obj_t *o){init();lv_obj_add_style(o,&hud.press_edge,LV_STATE_PRESSED);}
 /* One retained state; pixels are read directly from the native Flash texture. */

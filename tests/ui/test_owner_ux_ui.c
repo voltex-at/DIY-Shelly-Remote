@@ -19,7 +19,7 @@ static void repaint_regression(void)
 {
  dsr_mobile_model_t m={.device_count=2};
  for(unsigned i=0;i<2;i++){m.devices[i]=(dsr_mobile_device_t){.id=42+i,.kind=DSR_DEVICE_RELAY,.online=true,.can_switch=true,.has_power=true,.power_w=10};snprintf(m.devices[i].name,48,"Latency relay %u",i);strcpy(m.devices[i].identity,"latency-fixture");}
- dsr_mobile_bind(NULL);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());tap(260,126);
+ dsr_mobile_bind(NULL);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());tap(286,72);
  lv_obj_t *close=find_label(lv_screen_active(),"Zamknij");CHECK(close);lv_area_t a;lv_obj_get_coords(close,&a);dial_pointer((a.x1+a.x2)/2,(a.y1+a.y2)/2,true);
  m.devices[1].power_w=11;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Zamknij")==close);
  dial_pointer((a.x1+a.x2)/2,(a.y1+a.y2)/2,false);CHECK(!find_label(lv_screen_active(),"Zamknij"));
@@ -145,7 +145,7 @@ int main(int argc,char **argv)
   * battery screen and is covered by the Cyber suites. */
  for(unsigned language=0;language<3;language++)for(unsigned theme=0;theme<2;theme++){
   doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==0?"graphite":"light"));publish_document(doc);dsr_network_home(NULL);lv_obj_update_layout(lv_screen_active());CHECK(!labels(lv_screen_active(),"Mój dom")&&labels(lv_screen_active(),"Mój pulpit")==1);
-  lv_obj_t *power=NULL;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);for(unsigned j=0;j<lv_obj_get_child_count(o);j++){lv_obj_t *c=lv_obj_get_child(o,(int)j);for(unsigned k=0;k<lv_obj_get_child_count(c);k++){lv_obj_t *b=lv_obj_get_child(c,(int)k);if(lv_obj_get_width(b)==64&&lv_obj_get_height(b)==64&&lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))power=b;}}}CHECK(power);lv_area_t p,c;lv_obj_get_coords(power,&p);lv_obj_get_coords(lv_obj_get_parent(power),&c);CHECK(p.y1>=c.y1+40&&p.y2<=c.y2-8&&p.x2<=c.x2-8);
+  lv_obj_t *power=NULL;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);for(unsigned j=0;j<lv_obj_get_child_count(o);j++){lv_obj_t *c=lv_obj_get_child(o,(int)j);for(unsigned k=0;k<lv_obj_get_child_count(c);k++){lv_obj_t *b=lv_obj_get_child(c,(int)k);if(lv_obj_get_width(b)==58&&lv_obj_get_height(b)==58&&lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))power=b;}}}CHECK(power);lv_area_t p,c;lv_obj_get_coords(power,&p);lv_obj_get_coords(lv_obj_get_parent(power),&c);CHECK(p.y1>=c.y1+24&&p.y2<=c.y2-4&&p.x2<=c.x2-8);
   dsr_ui_edit_room(1);red_button("Usuń pomieszczenie");dsr_ui_open_settings();dsr_ui_config_registry(NULL);click("Urządzenia");click("Owner relay");red_button("Usuń urządzenie");
   dsr_ui_open_settings();lv_obj_update_layout(lv_screen_active());tap(160,452);CHECK(find_label(lv_screen_active(),"Napięcie wejścia BAT"));
   dsr_onboarding_screen("Bluetooth LE",2);lv_obj_update_layout(lv_screen_active());char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *step=find_label(lv_screen_active(),caption);CHECK(step&&lv_obj_get_y(step)>=8&&lv_obj_get_y(step)+lv_obj_get_height(step)<=32);CHECK(!labels(lv_screen_active(),"Mój dom"));tap(52,20);CHECK(dsr_mobile_active());

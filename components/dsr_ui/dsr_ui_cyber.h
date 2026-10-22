@@ -19,6 +19,8 @@ void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);
 void dsr_ui_cyber_glow(lv_obj_t *obj,bool on);
 void dsr_ui_cyber_background(lv_obj_t *root,bool active);
 void dsr_ui_cyber_device(lv_obj_t *card,bool on,bool warning);
+/* Same chamfered tile contour without status strip (selector, room tiles). */
+void dsr_ui_cyber_frame(lv_obj_t *obj,bool inner);
 void dsr_ui_cyber_power(lv_obj_t *button,bool on,bool enabled);
 void dsr_ui_cyber_inset(lv_obj_t *obj);
 void dsr_ui_cyber_warning(lv_obj_t *obj,bool danger);

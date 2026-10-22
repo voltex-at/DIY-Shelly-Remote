@@ -35,7 +35,7 @@ static void dashboard(unsigned theme)
  dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard im Erdgeschoss",.room_count=1,.rooms={{.id=1,.name="Küche und Esszimmer"}},.device_count=1};
  m.devices[0]=(dsr_mobile_device_t){.id=1,.identity="dev069-relay",.name="Deckenbeleuchtung Küche",.room=0,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true,.can_switch=true,.has_power=true,.power_w=0,.has_voltage=true,.voltage_v=231.8,.fields=255};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
- lv_obj_t *name=find_label(lv_screen_active(),m.dashboard_name);CHECK(name);CHECK(lv_obj_get_width(name)>=248);
+ lv_obj_t *name=find_label(lv_screen_active(),m.dashboard_name);CHECK(name);lv_area_t selector=rect(lv_obj_get_parent(name));CHECK(selector.y1<60&&selector.x2<170);
  lv_obj_t *measurement=containing(lv_screen_active(),"231.8 V");CHECK(measurement&&strstr(lv_label_get_text(measurement),"0.0 W")&&!strstr(lv_label_get_text(measurement),"..."));
  lv_obj_t *card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_area_t a=rect(card),v=rect(lv_obj_get_parent(measurement));
  CHECK(v.x1>=a.x1+60&&v.x2<=a.x2-80&&v.y2<a.y2-5&&v.y1<a.y1+100);shot("dashboard-relay",theme);
@@ -45,9 +45,9 @@ static void dashboard(unsigned theme)
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
  lv_obj_t *minus=find_label(lv_screen_active(),"-"),*plus=find_label(lv_screen_active(),"+");CHECK(minus&&plus);
  CHECK(lv_obj_get_width(lv_obj_get_parent(minus))>=48&&lv_obj_get_height(lv_obj_get_parent(plus))>=48);
- card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));a=rect(card);v=rect(lv_obj_get_parent(lv_obj_get_parent(minus)));CHECK(v.x1>=a.x1+120&&v.x2<a.x2-5);CHECK(find_label(card,"21.0 °C"));CHECK(lv_obj_get_height(card)<=150&&!containing(card,"Ventil"));shot("dashboard-trv",theme);
+ card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));a=rect(card);v=rect(lv_obj_get_parent(lv_obj_get_parent(minus)));CHECK(v.x1>=a.x1+8&&v.x2<a.x2-5&&v.y1>a.y1+80);CHECK(find_label(card,"21.0 °C"));CHECK(lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));shot("dashboard-trv",theme);
  m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="dev069-window",.name="Fenster Schlafzimmer",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.contact_open=true,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_OPEN}};
- dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(!find_label(lv_screen_active(),"Brak dodatkowych pomiarów"));card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_obj_t *box=lv_obj_get_child(card,3);a=rect(card);v=rect(box);CHECK(lv_obj_get_height(box)==80&&lv_obj_get_height(card)<=132&&v.y1>a.y1+24);shot("dashboard-window",theme);
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(!find_label(lv_screen_active(),"Brak dodatkowych pomiarów"));card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_obj_t *box=lv_obj_get_child(card,3);a=rect(card);v=rect(box);CHECK(lv_obj_get_height(box)==56&&lv_obj_get_height(card)<=132&&v.y1>a.y1+24);shot("dashboard-window",theme);
  dsr_mobile_show(DSR_MOBILE_DEVICES,0);shot("devices-tabs",theme);
  m.devices[0].has_illuminance=true;m.devices[0].illuminance_lux=0;strcpy(m.devices[0].name,"Deckenbeleuchtung im großen Wohnzimmer");dsr_mobile_update(&m);CHECK(containing(lv_screen_active(),"0 lx"));shot("window-long-name-real-reading",theme);
 }

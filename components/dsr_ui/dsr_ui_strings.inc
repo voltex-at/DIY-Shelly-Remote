@@ -429,3 +429,6 @@
  {"Dane czujnika są odczytywane przez bramkę Shelly. Odświeżanie sprawdza bramkę; nie wymusza nowego sygnału czujnika.","Sensor readings come from the Shelly gateway. Refresh checks the gateway; it does not force a new sensor signal.","Sensordaten kommen vom Shelly-Gateway. Aktualisieren fragt das Gateway ab, ohne ein neues Sensorsignal auszulösen."},
 
 {"Licznik energii","Energy meter","Energiezähler"},
+{"Moc","Power","Leistung"},{"Prąd","Current","Strom"},{"Włączony","On","Eingeschaltet"},{"Wyłączony","Off","Ausgeschaltet"},
+{"Szybkie ustawienia","Quick settings","Schnellauswahl"},{"Sterowanie RGB","RGB control","RGB-Steuerung"},{"Kolor","Color","Farbe"},
+{"Ciepły","Warm","Warm"},{"Neutralny","Neutral","Neutral"},{"Niebieski","Blue","Blau"},{"Relaks","Relax","Entspannt"},

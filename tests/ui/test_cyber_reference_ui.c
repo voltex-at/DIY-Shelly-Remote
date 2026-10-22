@@ -87,13 +87,13 @@ static void dashboard(unsigned lang)
  m.devices[0]=(dsr_mobile_device_t){.id=31,.name="Lampa",.identity="reference-lamp",.kind=DSR_DEVICE_RELAY,.online=true,.output=true,.can_switch=true,.has_power=true,.power_w=3.2,.has_voltage=true,.voltage_v=233.1};
  m.devices[1]=(dsr_mobile_device_t){.id=32,.name="Roleta",.identity="reference-cover",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.can_cover=true,.has_position=true,.position_pct=50};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
- lv_obj_t *root=lv_screen_active(),*card=lv_obj_get_parent(find_label(root,"Lampa")),*button=sized(card,64,64);
- lv_area_t a=ref_box(card),b=ref_box(button);CHECK(b.y1>ref_box(find_label(card,"Lampa")).y2+8&&b.y2<a.y2-5&&b.x2<a.x2-5);CHECK(role(root,DSR_ICON_HOME)&&role(root,DSR_ICON_GRID)&&role(root,DSR_ICON_CPU));snap("dashboard",lang);
+ lv_obj_t *root=lv_screen_active(),*card=lv_obj_get_parent(find_label(root,"Lampa")),*button=sized(card,58,58);
+ lv_area_t a=ref_box(card),b=ref_box(button);CHECK(b.y1>ref_box(find_label(card,"Lampa")).y2&&b.y2<a.y2-3&&b.x2<a.x2-5);CHECK(role(root,DSR_ICON_HOME)&&role(root,DSR_ICON_GRID)&&role(root,DSR_ICON_CPU));snap("dashboard",lang);
  unsigned n=outputs;tap((b.x1+b.x2)/2,(b.y1+b.y2)/2);CHECK(outputs==n+1);
- const dsr_ui_icon_t arrows[]={DSR_ICON_COVER_OPEN,DSR_ICON_COVER_CLOSE};
+ const dsr_ui_icon_t arrows[]={DSR_ICON_UP,DSR_ICON_DOWN};
  for(unsigned i=0;i<2;i++){button=lv_obj_get_parent(role(root,arrows[i]));b=ref_box(button);n=movements;tap((b.x1+b.x2)/2,(b.y1+b.y2)/2);CHECK(movements==n+1&&direction==(i?-1:1));}
- m.devices[1].busy=true;dsr_mobile_update(&m);root=lv_screen_active();button=lv_obj_get_parent(role(root,DSR_ICON_COVER_OPEN));CHECK(lv_obj_has_state(button,LV_STATE_DISABLED));b=ref_box(button);n=movements;tap((b.x1+b.x2)/2,(b.y1+b.y2)/2);CHECK(movements==n);
- m.devices[1].busy=false;m.devices[1].online=false;dsr_mobile_update(&m);CHECK(lv_obj_has_state(lv_obj_get_parent(role(lv_screen_active(),DSR_ICON_COVER_CLOSE)),LV_STATE_DISABLED));snap("dashboard-offline",lang);
+ m.devices[1].busy=true;dsr_mobile_update(&m);root=lv_screen_active();button=lv_obj_get_parent(role(root,DSR_ICON_UP));CHECK(lv_obj_has_state(button,LV_STATE_DISABLED));b=ref_box(button);n=movements;tap((b.x1+b.x2)/2,(b.y1+b.y2)/2);CHECK(movements==n);
+ m.devices[1].busy=false;m.devices[1].online=false;dsr_mobile_update(&m);CHECK(lv_obj_has_state(lv_obj_get_parent(role(lv_screen_active(),DSR_ICON_DOWN)),LV_STATE_DISABLED));snap("dashboard-offline",lang);
  m.room_count=1;strcpy(m.rooms[0].name,"Salon");m.rooms[0].id=1;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_ROOMS,0);snap("rooms",lang);
 }
 static void thermostat(unsigned lang)

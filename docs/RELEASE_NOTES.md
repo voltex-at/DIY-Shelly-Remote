@@ -1,3 +1,12 @@
+0.7.70-dev: ekran główny, pomieszczenia, ściemniacz i RGB według zdjęć referencyjnych właściciela.
+
+- Pulpit: jeden wiersz z wyborem pulpitu i trzema kwadratowymi akcjami (+, edycja, informacje), dzięki czemu mieszczą się trzy karty. Karta ma nazwę, kwadratowe pole ikony, wiersz „Pomieszczenie • Stan”, pigułkę pomiarów i jedną akcję po prawej: duży okrągły włącznik, ramkę ze strzałkami góra/dół dla rolety (STOP w całej ramce podczas ruchu), kafel stanu dla czujnika otwarcia oraz pasek nastawy −/+ pod odczytami termostatu. Długi stan (oczekiwanie, wysyłanie) zajmuje cały wiersz zamiast nazwy pomieszczenia.
+- Cyber Blue: ciemnogranatowe kafle z fazowaną podwójną ramką zamiast niebieskiego wypełnienia; stan „włączone” pokazuje niebieski włącznik z białą ikoną. Pomieszczenia mają jedną cienką ramkę, zdjęcie bez własnej obwódki, mniejszy znacznik i ołówek 34 px z polem dotyku 44 px; niewybrane zakładki mają cienki kontur.
+- Ściemniacz (Cyber Blue): zakładki Sterowanie / Zużycie / Ustawienia, moc, napięcie i prąd, tarcza jasności z przeciąganiem (zapis po puszczeniu), −/+ co 5%, wiersz „Włączony” z przełącznikiem, szybkie ustawienia 10/25/50/100% i wiek potwierdzonego odczytu; problemy (offline, blokada) są w ostatnim wierszu.
+- RGB (Cyber Blue): zakładki Sterowanie / Sceny / Ustawienia, koło barw (kolor wysyłany po puszczeniu), suwak jasności, ustawienia Ciepły / Neutralny / Niebieski / Relaks, odczyt RGB i mocy oraz przycisk Wyłącz/Włącz. „Kolor >” otwiera dokładne suwaki R/G/B z „Zastosuj”.
+- Poprawka: gdy współdzielona tablica stylów była pełna, lokalne właściwości panelu przesłaniały style Cyber Blue (np. włącznik zostawał granatowy). Powierzchnie skórki przejmują teraz wypełnienie i promień.
+- Wszystkie polecenia używają istniejących akcji Light/RGB/Switch/Cover/TRV i potwierdzonych danych. Dane, partycje, klucz OTA i format konfiguracji bez zmian. Testy hosta nie zastępują odbioru na urządzeniu.
+
 0.7.69-dev: dopracowane UI trzech skórek, kompaktowe karty i niezależny restart.
 
 - Dokładnie Cyber Blue, Grafit i Jasny. Procent baterii jest wewnątrz wskaźnika; dolna nawigacja używa domu, siatki i procesora. Listy ustawień mają czytelniejsze odstępy i dostępny ostatni wiersz.

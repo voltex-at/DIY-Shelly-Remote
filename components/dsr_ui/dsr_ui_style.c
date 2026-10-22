@@ -687,7 +687,13 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);dsr_sc_border_width(badge,1,0);dsr_sc_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
-  lv_obj_set_x(name,back?140:92);lv_obj_set_width(name,back?76:124);
+  lv_obj_set_x(name,back?128:92);lv_obj_set_width(name,back?92:124);
+  /* A device name between clock and Wi-Fi: one line, else two smaller lines. */
+  if(back&&title&&title[0]){
+   lv_point_t size;lv_text_get_size(&size,lv_label_get_text(name),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+   if(size.x>92){lv_obj_set_style_text_font(name,dsr_sc_font(&dsr_roboto_12),0);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);lv_obj_set_y(name,6);lv_obj_set_height(name,2*lv_font_get_line_height(dsr_sc_font(&dsr_roboto_12)));}
+   else lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
+  }
   clock_label=dsr_sc_text(root,"",back?64:12,9,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_LEFT,0);
   lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();
   dsr_sc_icon(root,DSR_ICON_WIFI,224,10,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
