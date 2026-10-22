@@ -342,6 +342,19 @@ static void onboarding_review(unsigned theme)
  click("Shelly Plus 1");test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));shot("lan-configure",theme);
  dsr_network_home(NULL);tick();
 }
+static void onboarding_next(unsigned theme,unsigned language)
+{
+ cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);dsr_network_home(NULL);tick();
+ dsr_network_device(NULL);lv_obj_t *label=find_label(lv_screen_active(),"Dalej"),*button=lv_obj_get_parent(label);CHECK(label&&lv_obj_has_state(button,LV_STATE_DISABLED));
+ unsigned scans=test_ble_scans(),jobs=requests;click("Dalej");CHECK(test_ble_scans()==scans&&requests==jobs&&dsr_ui_onboarding_active());
+ if(language==2)shot("next-disabled",theme);
+ click("Bluetooth");CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED)&&test_ble_scans()==scans&&requests==jobs);
+ lv_obj_t *reference=lv_obj_create(NULL),*save=dsr_ui_button(reference,"Zapisz",0,0,140,NULL,NULL);dsr_ui_primary(save);
+ CHECK(lv_color_eq(lv_obj_get_style_bg_color(button,0),lv_obj_get_style_bg_color(save,0))&&lv_color_eq(lv_obj_get_style_bg_grad_color(button,0),lv_obj_get_style_bg_grad_color(save,0))&&lv_obj_get_style_bg_grad_dir(button,0)==lv_obj_get_style_bg_grad_dir(save,0));
+ lv_obj_delete(reference);char name[40];snprintf(name,sizeof(name),"next-selected-%u",language);shot(name,theme);
+ CHECK(has_icon(button,DSR_ICON_NEXT,theme==3?24:28));lv_area_t b=rect(button),t=rect(label);lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(size.x<=lv_obj_get_width(label)&&t.x1>=b.x1+48&&t.x2<=b.x2-4&&b.y2<=463);
+ click("Dalej");CHECK(test_ble_scans()==scans+1&&!dsr_ui_onboarding_active());dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -353,7 +366,8 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_COVER_CARD")){for(unsigned i=0;i<3;i++)cover_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_ONBOARDING")){for(unsigned i=0;i<3;i++)onboarding_review(themes[i]);onboarding_labels();}
- else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
+ else if(getenv("DSR_UI_FOCUS_ONBOARDING_NEXT")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_next(themes[i],language);}
+ else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
 }

@@ -1,6 +1,7 @@
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
 #include <stdio.h>
+#include <string.h>
 
 /* Repo-owned composition, using the existing Apache-2.0 symbol atlas. The
  * modal retains real HOME pixels but suspends its callbacks and rendering. */
@@ -73,7 +74,12 @@ lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t ba
  dsr_sc_panel(footer,12,0,296,1,DSR_SC_EDGE,0);
  if(!forward){dsr_ui_button(footer,back,12,8,296,back_cb,NULL);return NULL;}
  dsr_ui_button(footer,back,12,8,140,back_cb,NULL);
- lv_obj_t *button=dsr_ui_button(footer,forward,168,8,140,forward_cb,NULL);dsr_ui_primary(button);return button;
+ lv_obj_t *button=dsr_ui_button(footer,forward,168,8,140,forward_cb,NULL);dsr_ui_primary(button);
+ if(!strcmp(forward,"Dalej")){
+  lv_obj_t *caption=lv_obj_get_child(button,0);lv_obj_set_width(caption,82);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-8,0);
+  dsr_sc_icon(button,DSR_ICON_NEXT,14,10,28,dsr_sc_icon_accent());
+ }
+ return button;
 }
 void dsr_onboarding_keyboard(lv_obj_t *root,bool shown)
 {

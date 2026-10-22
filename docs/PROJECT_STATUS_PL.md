@@ -86,7 +86,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Aktualne podglądy kroków, napisów i ramek do oceny właściciela. **Wykryto przycięte pole wyboru kanału w formularzu „Nazwa i pomieszczenie”** — poprawka otwarta. Odbiór sprzętowy pozostaje otwarty |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Właściciel: wymaga korekty; zlecił ikonę i niebieski styl „Weiter” jak „Speichern”. Dodano strzałkę i potwierdzono wspólny aktywny styl; podgląd do oceny. **Przycięte pole kanału w „Nazwa i pomieszczenie” pozostaje otwarte**. Odbiór sprzętowy pozostaje otwarty |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -189,6 +189,14 @@ Po akceptacji rolety właściciel wybrał dodawanie urządzeń: kroki, napisy i 
 **Wykryta niespójność:** w kroku LAN „Nazwa i pomieszczenie” dolna część pola kanału jest ucięta przez przewijany kontener formularza. Kontener ma wysokość 184 px, a pole kanału zaczyna się na 156 px i ma wysokość 44 px, więc jego dolne 16 px wykracza poza początkowy obszar widoczny. Opis pomocniczy pod formularzem pozostawia zbyt mało miejsca na pełny widok wszystkich pól. Problem występuje we wszystkich trzech skórkach. Propozycja do ankiety: zachować pełną szerokość i dotychczasową wysokość pól, powiększyć widoczny obszar formularza, a opis pomocniczy przenieść za pola do jego przewijanej treści; komunikaty wyniku zapisu muszą pozostać widoczne po operacji. Kod firmware tego formularza nie został jeszcze zmieniony.
 
 Walidacja podglądu: `DSR_UI_FOCUS_ONBOARDING=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek ograniczony do dodawania urządzeń, 48 wybranych klatek, bez pełnego atlasu ani ponawiania zaakceptowanych kart. Obejmuje pustą listę AP, błąd i ponowienie, dwie odrębne zgody, anulowanie z powrotem do domowego Wi-Fi w modelu hosta, wyniki LAN i konfigurację oraz rozpoznane/nierozpoznane BLE i języki PL/EN/DE. Obejrzenie rzeczywistych pikseli ujawniło opisane przycięcie pola kanału mimo przejścia dotychczasowych sprawdzeń. To walidacja hosta z atrapami radia i zapisu; akceptacja wyglądu oraz rzeczywiste dodawanie urządzeń na pilocie pozostają otwarte. Żaden nowy DEV nie został opublikowany.
+
+### NET-01 — przycisk „Dalej / Continue / Weiter”
+
+Właściciel oznaczył podgląd kreatora jako wymagający korekty i zlecił: **„Przycisk Weiter dodajmy ikonę oraz kolor zmieńmy na ten niebieski z przycisku Speichern”**. Dodano strzałkę w prawo z istniejącego zestawu ikon, z miejscem oddzielonym od etykiety. Zmiana dotyczy przycisku Dalej w stopce kreatora i działa w trzech skórkach oraz PL/EN/DE.
+
+Aktywny Dalej już korzystał z tego samego stylu podstawowej akcji co Zapisz; poprzedni podgląd pokazywał stan przed wyborem metody. Nowy podgląd obejmuje oba stany oraz aktywny niebieski przycisk po wyborze. Porównanie ze Zapisz potwierdza identyczny kolor tła, kolor gradientu i kierunek gradientu. Wymóg wyboru metody pozostaje aktywny; samo zaznaczenie metody nie uruchamia skanowania, a przejście następuje po naciśnięciu Dalej.
+
+Walidacja: `DSR_UI_FOCUS_ONBOARDING_NEXT=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko 12 klatek pierwszego ekranu, trzy skórki i PL/EN/DE. Sprawdzono ikonę, czytelność pełnej etykiety i odstępy, zgodność aktywnego stylu ze Zapisz oraz brak uruchomienia skanowania przed wyborem i naciśnięciem Dalej. Przed poprawką regresja wykazała brak ikony. Te same sprawdzenia dla DE w trzech skórkach są także w standardowym przebiegu tego przypadku UI, przewidzianym na końcowe CI. Pozostałych ekranów i atlasu nie uruchamiano ponownie w tej rundzie. Podgląd oczekuje na ocenę właściciela. Przycięte pole kanału oraz pozostałe uwagi do kreatora nadal są otwarte; odpowiedź dotycząca przycisku nie zamyka tych punktów.
 
 ## Konsolidacja starych zgłoszeń
 
