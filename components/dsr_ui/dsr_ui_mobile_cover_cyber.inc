@@ -12,7 +12,7 @@ static void cover_confirmed_text(const dsr_mobile_device_t *d)
 static void shared_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
 {
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE,known=cover_position(d),live=d->online&&d->error==DSR_OK;
- const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Brak aktualnego odczytu":d->cover_errors?cover_fault(d->cover_errors):d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":known&&d->position_pct==0?"Zamknięte":known&&d->position_pct==100?"Otwarte":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
+ const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Brak aktualnego odczytu":!d->can_cover?"Brak obsługi Cover RPC":d->cover_errors?cover_fault(d->cover_errors):d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":known&&d->position_pct==0?"Zamknięte":known&&d->position_pct==100?"Otwarte":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
  dsr_sc_badge(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,live?"Online":"Offline",12,102,104,live?DSR_SC_GLOW:0xffc65b);
  char state_text[112];if(live&&d->has_frequency&&isfinite(d->frequency_hz))snprintf(state_text,sizeof(state_text),"%s • %.1f Hz",dsr_sc_tr(state),d->frequency_hz);else snprintf(state_text,sizeof(state_text),"%s",dsr_sc_tr(state));
  dsr_sc_badge(root,d->cover_state==DSR_COVER_OPENING?DSR_ICON_UP:d->cover_state==DSR_COVER_CLOSING?DSR_ICON_DOWN:DSR_ICON_COVER,dsr_sc_user(state_text),124,102,184,live?DSR_SC_TEXT:0xffc65b);

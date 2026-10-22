@@ -501,8 +501,8 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
         lv_obj_t *window=dsr_sc_panel(card,0,0,width,height-90,DSR_SC_CARD,DSR_SC_RADIUS);lv_obj_set_style_clip_corner(window,true,0);lv_obj_t *image=lv_image_create(window);lv_image_set_src(image,&photos[i]);
         uint32_t scale=(uint32_t)width*256/photos[i].header.w,vertical=(uint32_t)(height-90)*256/photos[i].header.h;if(vertical>scale)scale=vertical;
         lv_image_set_scale(image,scale);lv_image_set_antialias(image,true);lv_obj_center(image);
-    }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-88)/2,30,44,44,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),28,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:0xe8edf2);}
-    lv_obj_t *tag=dsr_sc_panel(card,0,0,82,22,0x25292b,7);lv_obj_set_style_bg_opa(tag,220,0);dsr_sc_icon(tag,room_icon(i),4,3,16,dsr_sc_icon_accent());dsr_sc_text(tag,"Pokój",28,4,48,&dsr_roboto_12,DSR_SC_TEXT);
+    }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-44)/2,54,44,44,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),28,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:0xe8edf2);}
+    lv_obj_t *tag=dsr_sc_panel(card,8,6,76,22,0x25292b,7);lv_obj_set_style_bg_opa(tag,220,0);dsr_sc_icon(tag,room_icon(i),6,3,16,dsr_sc_icon_accent());dsr_sc_text(tag,"Pokój",30,4,40,&dsr_roboto_12,DSR_SC_TEXT);
     const char *room=dsr_sc_name(model.rooms[i].name);const lv_font_t *font=&dsr_roboto_14;lv_point_t size;
     lv_text_get_size(&size,dsr_sc_tr(room),dsr_sc_font(font),0,0,width-16,LV_TEXT_FLAG_NONE);if(size.y>46)font=&dsr_roboto_12;
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(model.rooms[i].name),8,height-82,width-16,font,DSR_SC_TEXT);center(name);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_height(name,46);
@@ -512,7 +512,7 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
     char text[32];if(count&&complete)snprintf(text,sizeof(text),"%.1f W",power);else snprintf(text,sizeof(text),"%u %s",count,dsr_sc_tr("urz."));
     dsr_sc_icon(badge,DSR_ICON_ENERGY,5,5,16,dsr_sc_icon_accent());center(dsr_sc_text(badge,text,23,6,55,&dsr_roboto_12,DSR_SC_TEXT));
     if(page==DSR_MOBILE_ROOMS){
-        lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-56,8,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
+        lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-52,6,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
         if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
     }
     return card;
@@ -1070,7 +1070,7 @@ static void render(void)
         lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);
         if(page==DSR_MOBILE_ROOMS){
-            for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*170,144,162);/* rooms page: not partial */
+            for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*194,144,186);/* rooms page: not partial */
             if(!model.room_count){
                 empty("Brak pomieszczeń","Utwórz pierwszy pokój, aby uporządkować urządzenia.");
                 lv_obj_t *add=dsr_sc_button(content,12,210,272,48,DSR_SC_PANEL,10,add_room,NULL);
@@ -1084,7 +1084,7 @@ static void render(void)
                 for(unsigned t=0;t<model.tile_count;t++){
                     dsr_mobile_tile_t *tile=&model.tiles[t];
                     if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}int h=device_card_height(&model.devices[tile->index],tile->height==2);place(device_card(content,tile->index,0,y,296,h,tile->fields),0,tile->index,tile->fields,0,y,296,h);y+=h+8;at++;}
-                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?216:162;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place(room_card(content,tile->index,x,y,tile->span==2?296:144,height),1,tile->index,0,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
+                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?240:186;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place(room_card(content,tile->index,x,y,tile->span==2?296:144,height),1,tile->index,0,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
                     else if(tile->type==2&&tile->index<model.scene_count){if(x){x=0;y+=row_height+8;row_height=0;}scene_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                     else if(tile->type==3&&tile->index<model.group_count){if(x){x=0;y+=row_height+8;row_height=0;}group_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                 }

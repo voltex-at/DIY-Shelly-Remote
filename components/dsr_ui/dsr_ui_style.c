@@ -839,6 +839,7 @@ lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int 
  lv_obj_t *label=dsr_sc_text(badge,text,32,5,width-44,&dsr_roboto_12,color);
  lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),dsr_sc_font(&dsr_roboto_12),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
  if(size.x>width-44)lv_obj_set_style_text_font(label,dsr_sc_font(&dsr_roboto_11),0);
- lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+ lv_text_get_size(&size,lv_label_get_text(label),lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ lv_obj_set_height(label,17);lv_label_set_long_mode(label,size.x>width-44?LV_LABEL_LONG_MODE_SCROLL_CIRCULAR:LV_LABEL_LONG_MODE_CLIP);
  return badge;
 }
