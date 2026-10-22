@@ -419,6 +419,11 @@ static void card_battery_draw(lv_event_t *event)
  lv_area_t a;lv_obj_get_content_coords(card,&a);
  a.x1+=CARD_ROW_X;a.y1+=l.body+60;a.x2=a.x1+23;a.y2=a.y1+23;
  lv_area_t frame={a.x1-6,a.y1,a.x1+32+size.x+5,a.y2};lv_layer_t *layer=lv_event_get_layer(event);
+ lv_obj_t *reading=lv_obj_get_child(card,-1);
+ if(reading&&lv_obj_get_x(reading)==l.metric_x&&lv_obj_get_y(reading)==l.metric_y){
+  lv_area_t value;lv_obj_get_coords(reading,&value);int shift=(value.x1+value.x2-frame.x1-frame.x2)/2;
+  a.x1+=shift;a.x2+=shift;frame.x1+=shift;frame.x2+=shift;
+ }
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
  else{lv_draw_rect_dsc_t border;lv_draw_rect_dsc_init(&border);border.base.obj=card;border.bg_opa=LV_OPA_TRANSP;border.border_width=1;border.border_color=dsr_sc_color(DSR_SC_GLOW);border.radius=8;lv_draw_rect(layer,&border,&frame);}
  dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
@@ -871,7 +876,13 @@ static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool 
  lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,0xe8ecef,LV_RADIUS_CIRCLE,trv_step,(void *)(uintptr_t)(index*2+(plus?1:0)));
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
  if(hud)dsr_ui_cyber_power(b,true,valid);
- lv_obj_t *t=dsr_sc_text(b,plus?"+":"-",0,(size-26)/2,size,&dsr_roboto_22,hud?DSR_SC_TEXT:plus?0xe5322d:DSR_SC_BLUE);center(t);
+ lv_obj_t *t=dsr_sc_text(b,plus?"+":"-",0,0,LV_SIZE_CONTENT,&dsr_roboto_22,hud?DSR_SC_TEXT:plus?0xe5322d:DSR_SC_BLUE);
+ /* Center the visible glyph, including its baseline and side bearings. */
+ const lv_font_t *font=lv_obj_get_style_text_font(t,0);lv_font_glyph_dsc_t glyph;
+ int inner=size-2*lv_obj_get_style_border_width(b,0);
+ if(lv_font_get_glyph_dsc(font,&glyph,plus?'+':'-',0))
+  lv_obj_set_pos(t,(inner-glyph.box_w)/2-glyph.ofs_x,(inner-glyph.box_h)/2-(font->line_height-font->base_line-glyph.box_h-glyph.ofs_y));
+ else lv_obj_center(t);
  if(!valid){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_bg_color(b,dsr_sc_color(0x555b60),LV_STATE_DISABLED);}
 }
 static void half_text(char *out,size_t size,uint8_t half){snprintf(out,size,"%u.%u °C",(unsigned)half/2u,(unsigned)(half%2u)*5u);}

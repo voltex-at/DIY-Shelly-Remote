@@ -37,6 +37,17 @@ static bool frame_pixel(int x,int y)
  for(unsigned c=0;c<3;c++)distance+=abs((int)canvas[(y*320+x)*3+(int)c]-(int)((expected>>(16-c*8))&255));
  return distance<100; /* RGB565 + Cyber's translucent contour */
 }
+static bool centered_symbol(lv_obj_t *label)
+{
+ lv_area_t button=rect(lv_obj_get_parent(label)),ink={320,480,-1,-1};uint32_t color=lv_color_to_u32(lv_obj_get_style_text_color(label,0));
+ for(int y=button.y1+8;y<=button.y2-8;y++)for(int x=button.x1+8;x<=button.x2-8;x++){
+  int distance=0;for(unsigned c=0;c<3;c++)distance+=abs((int)canvas[(y*320+x)*3+(int)c]-(int)((color>>(16-c*8))&255));
+  if(distance<70){if(x<ink.x1)ink.x1=x;if(x>ink.x2)ink.x2=x;if(y<ink.y1)ink.y1=y;if(y>ink.y2)ink.y2=y;}
+ }
+ bool centered=ink.x2>=ink.x1&&abs(ink.x1+ink.x2-button.x1-button.x2)<=2&&abs(ink.y1+ink.y2-button.y1-button.y2)<=2;
+ if(!centered)fprintf(stderr,"Symbol %s: ink %d,%d..%d,%d; button %d,%d..%d,%d\n",lv_label_get_text(label),(int)ink.x1,(int)ink.y1,(int)ink.x2,(int)ink.y2,(int)button.x1,(int)button.y1,(int)button.x2,(int)button.y2);
+ return centered;
+}
 typedef struct {char target[48],battery[16];lv_area_t target_area,battery_area,icon_area;const lv_font_t *font,*battery_font;bool icon;} trv_readouts_t;
 static void capture_trv_draw(lv_event_t *event)
 {
@@ -72,6 +83,7 @@ static void thermostat_card(unsigned theme,unsigned language)
  CHECK(lv_area_get_width(&controls)==104&&lv_area_get_height(&controls)==56);
  CHECK(controls.x1>=a.x1+8&&controls.x2<a.x2-5&&controls.y1>rect(find_label(card,m.devices[0].name)).y2);
  trv_readouts_t readout;lv_obj_t *frame=capture_trv(card,&readout);CHECK(strstr(readout.target,"21.0 °C")&&!strstr(readout.target,"Solltemperatur"));
+ bool minus_centered=centered_symbol(minus),plus_centered=centered_symbol(plus);CHECK(minus_centered&&plus_centered);
  CHECK(strstr(readout.target,dsr_sc_tr("Nastawa")));if(language==2)CHECK(!strcmp(readout.target,"Soll 21.0 °C"));
  lv_area_t f=rect(frame),t=readout.target_area;lv_point_t text_size;
  lv_text_get_size(&text_size,readout.target,readout.font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
@@ -87,22 +99,29 @@ static void thermostat_card(unsigned theme,unsigned language)
  CHECK(abs(reading_area.x1+reading_area.x2-reading_frame.x1-reading_frame.x2)<=1);
  CHECK(abs(reading_area.y1+reading_area.y2-reading_frame.y1-reading_frame.y2)<=1);
  CHECK(lv_obj_get_height(reading)==lv_font_get_line_height(lv_obj_get_style_text_font(reading,0)));
- CHECK(readout.icon_area.x1==reading_frame.x1); /* battery belongs under the reading column */
  lv_text_get_size(&text_size,readout.battery,readout.battery_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
  CHECK(lv_area_get_width(&b)==text_size.x); /* no empty tail after the percentage */
  int frame_left=readout.icon_area.x1-6,frame_right=b.x2+6;
+ CHECK(abs(frame_left+frame_right-reading_frame.x1-reading_frame.x2)<=1);
  int inset=theme==3?1:0,mid_x=(frame_left+frame_right)/2,mid_y=(f.y1+f.y2)/2;
  CHECK(frame_pixel(mid_x,f.y1+inset)&&frame_pixel(mid_x,f.y2-inset));
  CHECK(frame_pixel(frame_left+inset,mid_y)&&frame_pixel(frame_right-inset,mid_y));
  CHECK(frame_right-frame_left+1<92&&!frame_pixel(frame_left+91-inset,mid_y));
  CHECK(containing(card,"21.5 °C")&&lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));
  char name[48];snprintf(name,sizeof(name),"dashboard-trv-%u",language);shot(name,theme);
+ if(language==2){
+  /* The same symbol helper also owns the detail page's 48 px controls. */
+  dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_refr_now(display);
+  CHECK(centered_symbol(find_label(lv_screen_active(),"-"))&&centered_symbol(find_label(lv_screen_active(),"+")));
+  dsr_mobile_show(DSR_MOBILE_HOME,0);
+ }
  /* Device battery, not the remote's status-bar estimate; redraw on new readings. */
  const double levels[]={0,100,NAN,-1,101};
  for(unsigned k=0;k<sizeof(levels)/sizeof(levels[0]);k++){
   m.devices[0].battery_pct=levels[k];dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));
   capture_trv(card,&readout);CHECK(!strcmp(readout.battery,k==0?"0%":k==1?"100%":"—"));
   lv_text_get_size(&text_size,readout.battery,readout.battery_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(lv_area_get_width(&readout.battery_area)==text_size.x);
+  CHECK(abs(readout.icon_area.x1-6+readout.battery_area.x2+6-reading_frame.x1-reading_frame.x2)<=1);
  }
  m.devices[0].has_battery=false;dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));capture_trv(card,&readout);CHECK(!strcmp(readout.battery,"—")&&readout.icon);
  if(theme==3&&language==2)shot("dashboard-trv-battery-unknown",theme);
