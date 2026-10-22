@@ -86,7 +86,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Właściciel: wymaga korekty. „Weiter” ma strzałkę po prawej i aktywny niebieski styl jak „Speichern”; wybraną metodę wyróżnia biała kropka w niebieskim okręgu. Aktualny podgląd do oceny. **Przycięte pole kanału w „Nazwa i pomieszczenie” pozostaje otwarte**. Odbiór sprzętowy pozostaje otwarty |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Przycisk Dalej i znacznik wybranej metody zaakceptowane na podglądzie**: strzałka po prawej, aktywny niebieski styl jak „Speichern” oraz biała kropka w niebieskim okręgu. **Przycięte pole kanału w „Nazwa i pomieszczenie” oraz pozostały odbiór kreatora pozostają otwarte**. Odbiór sprzętowy pozostaje otwarty |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -200,7 +200,9 @@ Walidacja: `DSR_UI_FOCUS_ONBOARDING_NEXT=1 python3 tools/dev/run_host.py test_ui
 
 Doprecyzowanie właściciela po podglądzie: strzałkę przenieść na prawą stronę przycisku, a po wybraniu Bluetooth, Wi-Fi AP lub sieci lokalnej dodać białą kropkę wewnątrz niebieskiego okręgu. Obie zmiany są w kodzie roboczym. Znacznik jest wyśrodkowany i pojawia się tylko przy jednej wybranej metodzie; przełączenie usuwa go z poprzedniej opcji. Rysowanie korzysta z istniejącej kontrolki, bez dodatkowych obiektów ani zasobów graficznych. Etykieta Dalej/Continue/Weiter ma wydzielone miejsce po lewej od strzałki. Aktywny niebieski styl Zapisz pozostaje wspólny.
 
-Walidacja tej korekty: ten sam tryb `DSR_UI_FOCUS_ONBOARDING_NEXT=1` — PASS, 14 wybranych klatek pierwszego ekranu, trzy skórki i PL/EN/DE. Sprawdzono rzeczywiste białe piksele w środku zaznaczonego okręgu oraz ich brak przy pozostałych opcjach, zmianę zaznaczenia między trzema metodami, położenie strzałki po prawej i pełne etykiety bez kolizji. Wybór opcji nie uruchamia transportu; skan startuje dopiero po Dalej. Nie powtarzano pozostałych ekranów, animacji ani pełnego atlasu. Aktualne położenie strzałki i znacznik wyboru oczekują na ocenę podglądu; pozostały zakres NET-01 i odbiór na sprzęcie nadal są otwarte.
+Walidacja tej korekty: ten sam tryb `DSR_UI_FOCUS_ONBOARDING_NEXT=1` — PASS, 14 wybranych klatek pierwszego ekranu, trzy skórki i PL/EN/DE. Sprawdzono rzeczywiste białe piksele w środku zaznaczonego okręgu oraz ich brak przy pozostałych opcjach, zmianę zaznaczenia między trzema metodami, położenie strzałki po prawej i pełne etykiety bez kolizji. Wybór opcji nie uruchamia transportu; skan startuje dopiero po Dalej. Nie powtarzano pozostałych ekranów, animacji ani pełnego atlasu.
+
+**Odbiór ankiety:** właściciel potwierdził „Tak, te poprawki zaakceptowane” dla strzałki po prawej oraz białej kropki wybranej metody. Te elementy pierwszego ekranu są zaakceptowane na podglądzie. Przycięte pole kanału, pozostały zakres NET-01 / UI-10 i odbiór na fizycznym pilocie pozostają otwarte; akceptacja nie oznacza nowego wydania DEV.
 
 ## Konsolidacja starych zgłoszeń
 
