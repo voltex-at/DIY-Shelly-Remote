@@ -676,6 +676,15 @@ void dsr_sc_clock_tick(void)
 }
 static const char back_tag;
 static lv_event_cb_t header_callback;
+static void header_back_icon(lv_event_t *event)
+{
+ lv_obj_t *icon=lv_event_get_target(event);lv_area_t a;lv_obj_get_coords(icon,&a);
+ lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=icon_color(icon);d.width=3;d.round_start=d.round_end=1;
+ /* Keep the 24 px slot; only the chevron's stroke becomes heavier. */
+ int x=(a.x1+a.x2)/2,y=(a.y1+a.y2)/2;
+ d.p1=(lv_point_precise_t){x+4,y-8};d.p2=(lv_point_precise_t){x-4,y};lv_draw_line(lv_event_get_layer(event),&d);
+ d.p1=d.p2;d.p2=(lv_point_precise_t){x+4,y+8};lv_draw_line(lv_event_get_layer(event),&d);
+}
 void dsr_sc_header_back(lv_obj_t *root,lv_event_cb_t back,void *context)
 {
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
@@ -688,7 +697,11 @@ void dsr_sc_header_back(lv_obj_t *root,lv_event_cb_t back,void *context)
 }
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
- if(back){header_callback=back;lv_obj_t *b=dsr_sc_button(root,12,0,44,DSR_SC_STATUS_H,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
+ if(back){
+  header_callback=back;lv_obj_t *b=dsr_sc_button(root,12,0,44,DSR_SC_STATUS_H,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);
+  lv_obj_t *icon=dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());
+  if(style==DSR_SC_STYLE_CYBER_BLUE){dsr_ui_cyber_header_back(b);lv_obj_remove_event_cb(icon,icon_draw);lv_obj_add_event_cb(icon,header_back_icon,LV_EVENT_DRAW_MAIN,NULL);}
+ }
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);dsr_sc_border_width(badge,1,0);dsr_sc_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {

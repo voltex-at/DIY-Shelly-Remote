@@ -195,8 +195,9 @@ static void panel_draw(lv_event_t *e)
  if(w<8||h<8)return;
  int cut=h<40?4:9;if(cut>w/4)cut=w/4;
  dsr_ui_cyber_draw_contour(layer,&a,contour,disabled?LV_OPA_20:LV_OPA_80);
- if(w>=80&&h>=40){
+ if((w>=80||(flags&2))&&h>=40)
   chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},cut-2,contour,disabled?LV_OPA_10:LV_OPA_40,1);
+ if(w>=80&&h>=40){
   int span=h>70?26:16;if(span>w/4)span=w/4;
   for(int i=0;i<5;i++){int end=a.x2-12-i*6;line(layer,end-span,a.y1+6,end,a.y1+6+span,disabled?0x21344a:danger?0x9b2536:0x1b4568);}
  }
@@ -210,6 +211,8 @@ static void own_surface(lv_obj_t *o,bool radius)
 {lv_obj_remove_local_style_prop(o,LV_STYLE_BG_COLOR,0);if(radius)lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);}
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
 {init();if(primary)own_surface(o,false);lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
+void dsr_ui_cyber_header_back(lv_obj_t *o)
+{lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)2);}
 void dsr_ui_cyber_glow(lv_obj_t *o,bool on)
 {init();if(on)lv_obj_add_style(o,&hud.glow,0);else lv_obj_remove_style(o,&hud.glow,0);}
 /* Chamfered contour of the owner's HUD reference: eight joined segments. */

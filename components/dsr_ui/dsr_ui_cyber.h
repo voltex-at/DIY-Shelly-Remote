@@ -18,6 +18,8 @@ void dsr_ui_cyber_draw_contour(lv_layer_t *layer,const lv_area_t *area,uint32_t 
 uint32_t dsr_ui_cyber_color(uint32_t token);
 lv_theme_t *dsr_ui_cyber_theme(lv_theme_t *base);
 void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);
+/* Double contour for the compact header control, without diagonal inlays. */
+void dsr_ui_cyber_header_back(lv_obj_t *button);
 void dsr_ui_cyber_glow(lv_obj_t *obj,bool on);
 void dsr_ui_cyber_background(lv_obj_t *root,bool active);
 void dsr_ui_cyber_device(lv_obj_t *card,bool on,bool warning);

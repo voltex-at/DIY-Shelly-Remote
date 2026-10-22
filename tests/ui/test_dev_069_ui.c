@@ -401,6 +401,19 @@ static void lan_form(unsigned theme,unsigned language)
  if(theme==3&&language==2)shot("lan-form-auth",theme);
  dsr_ui_open_settings();
 }
+static void header_back_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_lan_device_t device={.id="shellyplus1-aabbccddeeff",.name="Shelly Plus 1",.host="192.0.2.20",.model="SNSW-001X16EU",.generation=2};dsr_lan_capabilities_t caps={.switches=1};
+ dsr_ui_lan_adopt(&device,&caps);lv_obj_t *back=NULL,*root=lv_screen_active();
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=lv_obj_get_child(root,(int)i);lv_area_t a=rect(o);if(a.x1==12&&a.y1==0&&lv_obj_get_width(o)==44&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))back=o;}
+ CHECK(back&&lv_obj_get_height(back)==44);lv_area_t a=rect(back);
+ if(language==2)shot("header-back",theme);
+ touch=(lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);lv_refr_now(display);CHECK(lv_obj_has_state(back,LV_STATE_PRESSED));
+ if(theme==3&&language==2)shot("header-back-pressed",theme);
+ pressed=false;lv_tick_inc(20);lv_indev_read(pointer);tick();CHECK(!find_type(lv_screen_active(),&lv_textarea_class)); /* real header callback returns to results */
+ dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -414,7 +427,8 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_ONBOARDING")){for(unsigned i=0;i<3;i++)onboarding_review(themes[i]);onboarding_labels();}
  else if(getenv("DSR_UI_FOCUS_ONBOARDING_NEXT")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_next(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_LAN_FORM")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lan_form(themes[i],language);}
- else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);}onboarding_labels();}
+ else if(getenv("DSR_UI_FOCUS_HEADER_BACK")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)header_back_review(themes[i],language);}
+ else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);header_back_review(themes[i],2);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
 }
