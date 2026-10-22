@@ -81,7 +81,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Aktywny punkt ankiety. Podgląd obu stanów w trzech skórkach gotowy; wykryto znikanie pomieszczenia przy „Geschlossen” i skracanie przy „Offen”. Wybór układu tekstu i ocena grafik oczekują na właściciela |
+| UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | **Grafiki zaakceptowane**. Wdrożony opisany przez właściciela układ: nazwa u góry, mała ikona po lewej, duża po prawej, pośrodku pomieszczenie → ikona z lx → bateria z procentem. Układ do oceny na podglądzie |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
@@ -156,9 +156,11 @@ Właściciel wybrał ten punkt jako następny po zaakceptowaniu karty termostatu
 
 Wykryta niespójność: wiersz „pomieszczenie • stan” skraca pomieszczenie „Schlafzimmer” przy „Offen”, a dłuższe „Geschlossen” usuwa pomieszczenie z tego wiersza. Nazwa urządzenia i przypisanie do pomieszczenia są odrębnymi polami. Grafika po prawej poprawnie rozróżnia okno/drzwi i stan otwarty/zamknięty, bez powielania tekstu stanu w swoim panelu.
 
-Następna odpowiedź ankiety ustali układ czytelnego pomieszczenia i stanu oraz ocenę wielkości/wyglądu grafik. Ten etap dokumentuje aktualny wygląd przed korektą; nie oznacza akceptacji UI-08.
+Właściciel zaakceptował wielkość i wygląd grafik. Ostateczne doprecyzowanie układu zastępuje wcześniejszą propozycję pełnego wiersza pomieszczenia: **nazwa urządzenia u góry; mała ikona po lewej; zaakceptowana duża grafika po prawej; w środkowej kolumnie od góry pomieszczenie, ikona i wartość lx, następnie ikona baterii i procent**.
 
-Walidacja: `DSR_UI_FOCUS_CONTACT=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS na przypiętym LVGL 9.3. Tylko 15 podglądów wybranych kart: 12 kombinacji skórki/typu/stanu i trzy dłuższe nazwy z odczytami. Sprawdzono etykiety PL/EN/DE, grafikę 52 px, odstępy od ramek i brak pustego komunikatu o pomiarach. To host z modelem danych, bez odbioru na pilocie.
+Ten wariant jest w kodzie roboczym. Pomieszczenie zawija się w środkowej kolumnie bez skracania i bez rywalizacji z tekstem stanu; otwarcie/zamknięcie wskazują zaakceptowane grafiki. Odczyty lx i baterii mają osobne, krótkie ramki oraz ikony. Rzeczywiste 0 lx pozostaje zerem, brak albo nieprawidłowy odczyt jest oznaczony „—”. Zachowano dotychczasowe komunikaty offline/braku danych. Układ kolumn oczekuje na ocenę właściciela; akceptacja samych grafik jest już zapisana.
+
+Walidacja: `DSR_UI_FOCUS_CONTACT=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS na przypiętym LVGL 9.3. Tylko 15 podglądów wybranych kart: 12 kombinacji skórki/typu/stanu i trzy dłuższe nazwy z odczytami. Sprawdzono PL/EN/DE, długie nazwy pomieszczeń do granicy pola modelu, odstępy i wyśrodkowanie wierszy pomiarowych, brak odczytów oraz offline. Grafika 52 px zachowała rozmiar. Pomieszczenie i odczyty są rysowane w istniejącej karcie; dla 16 urządzeń pozostaje 61 008 B wolnej pamięci, największy blok 60 952 B, w puli 128 KiB. To host z modelem danych, bez odbioru na pilocie; nowy DEV po zakończeniu ankiety.
 
 ## Konsolidacja starych zgłoszeń
 

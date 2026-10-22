@@ -327,7 +327,7 @@ static void card_control(lv_obj_t *parent,unsigned i,dsr_ui_icon_t icon,int x,in
 /* A second label per tile exhausted the fixed 128 KiB pool on a 24-card
  * dashboard. Draw the room row in the existing card's LVGL layer instead.
  * The stable index is owned by the same render lifecycle as its controls. */
-typedef struct {int name_w,name_h,body,row_y,room_w,room_max,state_x,state_w,metric_x,metric_y,metric_w,height;} card_layout_t;
+typedef struct {int name_w,name_h,body,row_y,room_w,room_max,room_h,state_x,state_w,metric_x,metric_y,metric_w,height;} card_layout_t;
 #define CARD_ROW_X 76
 static const lv_font_t *card_name_font(void){return dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?&dsr_roboto_18:&dsr_roboto_16;}
 /* Never read, out of date and no Wi-Fi are different facts, not one "offline". */
@@ -347,6 +347,8 @@ static int card_room_text(const dsr_mobile_device_t *d,char *text,size_t size,in
 }
 static bool card_state_box(const dsr_mobile_device_t *d)
 {return !trv_device(d)&&(d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR)&&(d->has_contact||(d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.flags&DSR_BLU_HAS_MOTION)))&&d->online;}
+static bool card_contact_columns(const dsr_mobile_device_t *d)
+{return card_state_box(d)&&d->has_contact&&d->error==DSR_OK&&!unbound(d)&&(d->endpoint_kind!=DSR_ENDPOINT_BLU||(cyber_blu_live(d)&&(d->blu.flags&DSR_BLU_HAS_OPEN)));}
 static void card_sensor_text(const dsr_mobile_device_t *d,char *text,size_t capacity)
 {
  text[0]=0;
@@ -358,7 +360,8 @@ static void card_sensor_text(const dsr_mobile_device_t *d,char *text,size_t capa
 /* One geometry for every skin: name, then a 52 px icon square with the
  * "room • state" row and value pill beside it, and the device's single action
  * (power / up-down / state tile) on the right. A thermostat adds its setpoint
- * bar below; values too wide for the pill get their own full row. */
+ * bar below; values too wide for the pill get their own full row. Contacts
+ * stack the room, lx and battery between their two state graphics. */
 static const char *not_online(const dsr_mobile_device_t *d);
 static const char *card_state(const dsr_mobile_device_t *d,unsigned fields)
 {
@@ -375,6 +378,11 @@ static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
  lv_point_t s;lv_text_get_size(&s,dsr_sc_tr(dsr_sc_name(d->name)),font,0,0,l.name_w,LV_TEXT_FLAG_NONE);l.name_h=s.y>line?2*line:line;
  l.body=8+l.name_h+6;l.row_y=l.body+3;
  int right=trv||cover?104:(sensor&&!box)?0:box?84:58,row=width-CARD_ROW_X-12-(right?right+8:0);
+ if(card_contact_columns(d)){
+  const char *room=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");
+  lv_text_get_size(&s,room,dsr_sc_font(&dsr_roboto_14),0,0,row,LV_TEXT_FLAG_NONE);
+  l.room_w=row;l.room_h=s.y;l.metric_x=CARD_ROW_X;l.metric_y=l.body+l.room_h+6;l.metric_w=row;l.height=l.body+l.room_h+74;return l;
+ }
  char text[160];l.room_max=row*11/20;l.room_w=card_warn(d)?0:card_room_text(d,text,sizeof(text),l.room_max);
  /* A long state (waiting, sending) keeps the whole row; the room yields. */
  lv_text_get_size(&s,dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
@@ -404,6 +412,31 @@ static void device_room_draw(lv_event_t *event)
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.text=text;label.text_local=1;label.font=font;
  label.color=dsr_sc_text_color(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?0x6fd3ff:DSR_SC_MUTED);
  lv_draw_label(lv_event_get_layer(event),&label,&a);
+}
+static void contact_metric_draw(lv_obj_t *card,lv_layer_t *layer,dsr_ui_icon_t icon,const char *text,int x,int y,int width,uint32_t color)
+{
+ const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);lv_point_t size;lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ if(size.x+44>width){font=dsr_sc_font(&dsr_roboto_12);lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);}
+ int w=size.x+44;lv_area_t frame={x+(width-w)/2,y,x+(width-w)/2+w-1,y+23};
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
+ else{lv_draw_rect_dsc_t border;lv_draw_rect_dsc_init(&border);border.base.obj=card;border.bg_opa=LV_OPA_TRANSP;border.border_width=1;border.border_color=dsr_sc_color(DSR_SC_GLOW);border.radius=8;lv_draw_rect(layer,&border,&frame);}
+ lv_area_t a={frame.x1+6,y,frame.x1+29,y+23};dsr_sc_draw_icon(card,layer,icon,&a,color);
+ int h=lv_font_get_line_height(font);a=(lv_area_t){frame.x1+38,y+(24-h)/2,frame.x2-6,y+(24-h)/2+h-1};
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);lv_draw_label(layer,&label,&a);
+}
+static void card_contact_draw(lv_event_t *event)
+{
+ unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(i>=model.device_count)return;
+ const dsr_mobile_device_t *d=&model.devices[i];lv_obj_t *card=lv_event_get_target(event);card_layout_t l=card_layout(d,lv_obj_get_width(card));
+ lv_layer_t *layer=lv_event_get_layer(event);lv_area_t a;lv_obj_get_content_coords(card,&a);int x=a.x1+CARD_ROW_X,y=a.y1+l.body;
+ a=(lv_area_t){x,y,x+l.room_w-1,y+l.room_h-1};lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);
+ label.base.obj=card;label.text=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");label.text_local=1;label.font=dsr_sc_font(&dsr_roboto_14);label.align=LV_TEXT_ALIGN_CENTER;label.color=dsr_sc_text_color(DSR_SC_MUTED);lv_draw_label(layer,&label,&a);
+ char text[40];bool lux=d->has_illuminance&&isfinite(d->illuminance_lux)&&d->illuminance_lux>=0;
+ if(lux)snprintf(text,sizeof(text),d->illuminance_lux<1e6?"%.0f lx":"%.3g lx",d->illuminance_lux);else snprintf(text,sizeof(text),"— lx");
+ contact_metric_draw(card,layer,DSR_ICON_ILLUMINANCE,text,x,y+l.room_h+6,l.metric_w,lux?DSR_SC_GLOW:DSR_SC_OFF);
+ bool battery=d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100;
+ if(battery)snprintf(text,sizeof(text),"%.0f%%",d->battery_pct);else snprintf(text,sizeof(text),"—");
+ contact_metric_draw(card,layer,DSR_ICON_BATTERY,text,x,y+l.room_h+36,l.metric_w,battery?(d->battery_pct<=20?0xf0a020:DSR_SC_GLOW):DSR_SC_OFF);
 }
 /* Draw readouts in their existing card/frame rather than allocating three
  * more objects per TRV. The fixed 128 KiB pool must also fit a full dashboard. */
@@ -490,10 +523,16 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     card_layout_t layout=card_layout(d,width);int body=layout.body;
     bool state_box=card_state_box(d);
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),12,8,layout.name_w,card_name_font(),DSR_SC_TEXT);truncate(name,layout.name_h);
-    lv_obj_t *thumb=dsr_sc_panel(card,12,body,52,52,0x17191c,10);
+    bool columns=card_contact_columns(d);int group_h=columns?layout.room_h+60:52;
+    lv_obj_t *thumb=dsr_sc_panel(card,12,body+(group_h-52)/2,52,52,0x17191c,10);
     if(hud)dsr_ui_cyber_inset(thumb);
     bool contact=d->endpoint_kind==DSR_ENDPOINT_BLU&&cyber_contact(d);
     dsr_sc_icon_centered(thumb,contact?cyber_contact_icon(d):d->has_contact?contact_icon(d,d->contact_open):device_icon(d),32,contact?cyber_contact_color(d):d->online?(on?DSR_SC_GLOW:dsr_sc_icon_accent()):DSR_SC_OFF);
+    if(columns){
+     lv_obj_t *box=dsr_sc_panel(card,width-96,body+(group_h-64)/2,84,64,0x1d2124,10);edge(box,d->contact_open?0xf0a020:DSR_SC_GLOW,1);
+     dsr_sc_icon_centered(box,contact?cyber_contact_icon(d):contact_icon(d,d->contact_open),52,contact?cyber_contact_color(d):d->contact_open?0xf0a020:DSR_SC_GLOW);
+     lv_obj_add_event_cb(card,card_contact_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)i);return card;
+    }
     const lv_font_t *state_font=&dsr_roboto_14;lv_point_t state_size;lv_text_get_size(&state_size,dsr_sc_tr(state),dsr_sc_font(state_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(state_size.x>layout.state_w)state_font=&dsr_roboto_12;
     if(state_font==&dsr_roboto_12){lv_text_get_size(&state_size,dsr_sc_tr(state),dsr_sc_font(state_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(state_size.x>layout.state_w)state_font=&dsr_roboto_11;}
     lv_obj_t *status=dsr_sc_text(card,state,layout.state_x,layout.row_y+(state_font==&dsr_roboto_14?0:state_font==&dsr_roboto_12?1:2),layout.state_w,state_font,warn?0xffc18c:on?(hud?DSR_SC_GLOW:DSR_SC_BLUE):hud?0x6fd3ff:DSR_SC_MUTED);truncate(status,lv_font_get_line_height(dsr_sc_font(&dsr_roboto_14)));

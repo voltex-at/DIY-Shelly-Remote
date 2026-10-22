@@ -134,28 +134,73 @@ static void thermostat_card(unsigned theme,unsigned language)
   printf("Thermostat dashboard: %u devices, %lu bytes free, largest %lu; unchanged 128 KiB LVGL pool\n",m.device_count,(unsigned long)memory.free_size,(unsigned long)memory.free_biggest_size);
  }
 }
+typedef struct {char room[96],lux[40],battery[16];lv_area_t room_area,lux_area,battery_area,icons[2];const lv_font_t *room_font,*lux_font,*battery_font;unsigned icon_count;} contact_content_t;
+static lv_obj_t *contact_graphic(lv_obj_t *card)
+{
+ for(unsigned i=0;i<lv_obj_get_child_count(card);i++){lv_obj_t *o=lv_obj_get_child(card,(int)i);if(lv_obj_get_width(o)==84&&lv_obj_get_height(o)==64)return o;}return NULL;
+}
+static void contact_content_drawn(lv_event_t *event)
+{
+ contact_content_t *r=lv_event_get_user_data(event);lv_draw_task_t *task=lv_event_get_draw_task(event);lv_draw_label_dsc_t *label=lv_draw_task_get_label_dsc(task);
+ if(label){
+  if(strstr(label->text," lx")){snprintf(r->lux,sizeof(r->lux),"%s",label->text);r->lux_font=label->font;lv_draw_task_get_area(task,&r->lux_area);}
+  else if(strchr(label->text,'%')||!strcmp(label->text,"—")){snprintf(r->battery,sizeof(r->battery),"%s",label->text);r->battery_font=label->font;lv_draw_task_get_area(task,&r->battery_area);}
+  else{snprintf(r->room,sizeof(r->room),"%s",label->text);r->room_font=label->font;lv_draw_task_get_area(task,&r->room_area);}
+ }
+ lv_draw_image_dsc_t *image=lv_draw_task_get_image_dsc(task);
+ if(image&&r->icon_count<2){const lv_image_dsc_t *src=image->src;lv_area_t *a=&r->icons[r->icon_count++];lv_draw_task_get_area(task,a);a->x2=a->x1+(int)(src->header.w*image->scale_x/256)-1;a->y2=a->y1+(int)(src->header.h*image->scale_y/256)-1;}
+}
+static void contact_content_check(lv_obj_t *card,const char *room,const char *lux,const char *battery)
+{
+ contact_content_t r={0};lv_obj_add_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);lv_obj_add_event_cb(card,contact_content_drawn,LV_EVENT_DRAW_TASK_ADDED,&r);
+ lv_obj_invalidate(card);lv_refr_now(display);lv_obj_remove_event_cb(card,contact_content_drawn);lv_obj_remove_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+ CHECK(!strcmp(r.room,room)&&!strcmp(r.lux,lux)&&!strcmp(r.battery,battery));CHECK(r.icon_count==2&&r.room_font&&r.lux_font&&r.battery_font);
+ lv_area_t a=rect(card),title=rect(lv_obj_get_child(card,0)),thumb=rect(lv_obj_get_child(card,1)),graphic=rect(contact_graphic(card));
+ CHECK(r.room_area.x1>=thumb.x2+8&&r.room_area.x2<=graphic.x1-4&&r.room_area.y1-title.y2>=4);
+ CHECK(r.lux_area.y1-r.room_area.y2>=4&&r.battery_area.y1-r.lux_area.y2>=6&&a.y2-r.battery_area.y2>=12);
+ lv_point_t size;lv_text_get_size(&size,room,r.room_font,0,0,lv_area_get_width(&r.room_area),LV_TEXT_FLAG_NONE);CHECK(lv_area_get_height(&r.room_area)>=size.y);
+ const lv_area_t values[]={r.lux_area,r.battery_area};const char *texts[]={lux,battery};const lv_font_t *fonts[]={r.lux_font,r.battery_font};
+ for(unsigned i=0;i<2;i++){
+  CHECK(lv_area_get_width(&r.icons[i])==24&&lv_area_get_height(&r.icons[i])==24&&r.icons[i].x2<values[i].x1-4);
+  CHECK(r.icons[i].x1-6>=r.room_area.x1&&values[i].x2+6<=r.room_area.x2);
+  CHECK(abs(r.icons[i].x1-6+values[i].x2+6-r.room_area.x1-r.room_area.x2)<=1);
+  lv_text_get_size(&size,texts[i],fonts[i],0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(lv_area_get_width(&values[i])>=size.x&&lv_area_get_height(&values[i])>=size.y);
+ }
+}
 static void contact_cards(unsigned theme)
 {
  dsr_ui_open_settings();dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop};dsr_mobile_bind(&actions);
  unsigned door=0;for(unsigned k=0;k<DSR_SC_DEVICE_ICONS;k++)if(dsr_sc_device_icons[k]==DSR_ICON_DOOR)door=k+1;CHECK(door);
  dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Schlafzimmer"}},.device_count=1};
- m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="contact-review",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}};
+ m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="contact-review",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.has_illuminance=true,.illuminance_lux=0,.has_battery=true,.battery_pct=92,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}};
  for(unsigned language=0;language<3;language++){
   dsr_sc_appearance(DSR_SC_BLUE,theme,language);
   for(unsigned kind=0;kind<2;kind++)for(unsigned open=0;open<2;open++){
    snprintf(m.devices[0].name,sizeof(m.devices[0].name),"%s",kind?"Tür Schlafzimmer":"Fenster Schlafzimmer");
    m.devices[0].icon=kind?door:0;m.devices[0].contact_open=open;m.devices[0].blu.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|(open?DSR_BLU_OPEN:0);
    dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
-   lv_obj_t *name=find_label(lv_screen_active(),m.devices[0].name),*card=lv_obj_get_parent(name),*box=lv_obj_get_child(card,3);
+   lv_obj_t *name=find_label(lv_screen_active(),m.devices[0].name),*card=lv_obj_get_parent(name),*box=contact_graphic(card);
    lv_area_t a=rect(card),b=rect(box);CHECK(b.y1>rect(name).y2&&a.y2-b.y2>=12&&a.x2-b.x2>=8);
+   contact_content_check(card,m.rooms[0].name,"0 lx","92%");
    CHECK(has_icon(box,kind?(open?DSR_ICON_DOOR_OPEN:DSR_ICON_DOOR_CLOSED):(open?DSR_ICON_WINDOW_OPEN:DSR_ICON_WINDOW_CLOSED),52));
-   lv_obj_t *state=find_label(card,open?"Otwarte":"Zamknięte");CHECK(state&&!find_label(box,open?"Otwarte":"Zamknięte"));CHECK(rect(state).x2<b.x1-4);
+   CHECK(!find_label(box,open?"Otwarte":"Zamknięte"));
    CHECK(!find_label(card,"Brak dodatkowych pomiarów"));
    if(language==2){char path[48];snprintf(path,sizeof(path),"contact-%s-%s",kind?"door":"window",open?"open":"closed");shot(path,theme);}
   }
  }
  m.devices[0].has_battery=true;m.devices[0].battery_pct=92;m.devices[0].has_illuminance=true;m.devices[0].illuminance_lux=0;
- snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Terrassentür im großen Wohnzimmer");dsr_mobile_update(&m);CHECK(containing(lv_screen_active(),"0 lx")&&containing(lv_screen_active(),"92%"));shot("contact-long-name-readings",theme);
+ snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Terrassentür im großen Wohnzimmer");snprintf(m.rooms[0].name,sizeof(m.rooms[0].name),"Wohnzimmer und offene Küche im Erdgeschoss");
+ dsr_mobile_update(&m);contact_content_check(lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name)),m.rooms[0].name,"0 lx","92%");shot("contact-long-name-readings",theme);
+ memset(m.rooms[0].name,'W',sizeof(m.rooms[0].name)-1);m.rooms[0].name[sizeof(m.rooms[0].name)-1]=0;dsr_mobile_update(&m);contact_content_check(lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name)),m.rooms[0].name,"0 lx","92%");
+ m.devices[0].has_battery=m.devices[0].has_illuminance=false;dsr_mobile_update(&m);contact_content_check(lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name)),m.rooms[0].name,"— lx","—");
+ m.devices[0].online=false;m.devices[0].has_sample_time=true;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),theme==3?"Brak danych":"Odczyt nieaktualny"));CHECK(!contact_graphic(lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name))));
+ if(theme==3){
+  m.devices[0].online=true;m.devices[0].has_battery=m.devices[0].has_illuminance=true;m.devices[0].battery_pct=100;m.device_count=DSR_UI_MAX_DEVICES;
+  snprintf(m.rooms[0].name,sizeof(m.rooms[0].name),"Schlafzimmer");
+  for(unsigned i=1;i<m.device_count;i++){m.devices[i]=m.devices[0];m.devices[i].id=30+i;snprintf(m.devices[i].name,sizeof(m.devices[i].name),"Fenster %u",i);}
+  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_refr_now(display);lv_mem_monitor_t memory;lv_mem_monitor(&memory);CHECK(memory.free_size>4096&&memory.free_biggest_size>4096);
+  printf("Contact dashboard: %u devices, %lu bytes free, largest %lu; unchanged 128 KiB LVGL pool\n",m.device_count,(unsigned long)memory.free_size,(unsigned long)memory.free_biggest_size);
+ }
 }
 static void dashboard(unsigned theme)
 {
@@ -172,7 +217,7 @@ static void dashboard(unsigned theme)
  thermostat_card(theme,2);
  dsr_mobile_bind(&actions);
  m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="dev069-window",.name="Fenster Schlafzimmer",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.contact_open=true,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_OPEN}};
- dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(!find_label(lv_screen_active(),"Brak dodatkowych pomiarów"));card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_obj_t *box=lv_obj_get_child(card,3);a=rect(card);v=rect(box);CHECK(lv_obj_get_height(box)>=56&&lv_obj_get_height(card)<=132&&v.y1>a.y1+24);CHECK(has_icon(box,DSR_ICON_WINDOW_OPEN,52)&&!find_label(box,"Otwarte"));CHECK(a.y2-v.y2>=12);shot("dashboard-window",theme);
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(!find_label(lv_screen_active(),"Brak dodatkowych pomiarów"));card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_obj_t *box=contact_graphic(card);a=rect(card);v=rect(box);CHECK(lv_obj_get_height(box)>=56&&lv_obj_get_height(card)<=156&&v.y1>a.y1+24);CHECK(has_icon(box,DSR_ICON_WINDOW_OPEN,52)&&!find_label(box,"Otwarte"));CHECK(a.y2-v.y2>=12);shot("dashboard-window",theme);
  dsr_mobile_show(DSR_MOBILE_DEVICES,0);shot("devices-tabs",theme);
  /* Both states and both owner-selected contact icons share the same graphic tile. */
  unsigned door=0;for(unsigned k=0;k<DSR_SC_DEVICE_ICONS;k++)if(dsr_sc_device_icons[k]==DSR_ICON_DOOR)door=k+1;CHECK(door);
@@ -180,12 +225,12 @@ static void dashboard(unsigned theme)
   snprintf(m.devices[0].name,sizeof(m.devices[0].name),"%s",kind?"Tür Schlafzimmer":"Fenster Schlafzimmer");
   m.devices[0].icon=kind?door:0;m.devices[0].contact_open=open;
   m.devices[0].blu.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|(open?DSR_BLU_OPEN:0);
-  dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));box=lv_obj_get_child(card,3);
+  dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));box=contact_graphic(card);
   CHECK(has_icon(box,kind?(open?DSR_ICON_DOOR_OPEN:DSR_ICON_DOOR_CLOSED):(open?DSR_ICON_WINDOW_OPEN:DSR_ICON_WINDOW_CLOSED),52));
   CHECK(!find_label(box,open?"Otwarte":"Zamknięte"));
   if(theme==3){char state_shot[40];snprintf(state_shot,sizeof(state_shot),"%s-%s",kind?"door":"window",open?"open":"closed");shot(state_shot,theme);}
  }
- m.devices[0].has_illuminance=true;m.devices[0].illuminance_lux=0;strcpy(m.devices[0].name,"Deckenbeleuchtung im großen Wohnzimmer");dsr_mobile_update(&m);CHECK(containing(lv_screen_active(),"0 lx"));shot("window-long-name-real-reading",theme);
+ m.devices[0].has_illuminance=true;m.devices[0].illuminance_lux=0;strcpy(m.devices[0].name,"Deckenbeleuchtung im großen Wohnzimmer");dsr_mobile_update(&m);contact_content_check(lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name)),m.rooms[0].name,"0 lx","—");shot("window-long-name-real-reading",theme);
  m.devices[0]=(dsr_mobile_device_t){.id=4,.identity="dev069-moving-cover",.name="Rollladen Terrasse",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.can_stop_cover=true,.cover_state=DSR_COVER_OPENING};
  dsr_mobile_update(&m);lv_obj_t *stop=lv_obj_get_parent(find_label(lv_screen_active(),"Stop"));CHECK(stop);a=rect(stop);v=rect(lv_obj_get_parent(stop));CHECK(lv_area_get_height(&a)>=44&&a.x1-v.x1>=3&&v.x2-a.x2>=3&&a.y1-v.y1>=3&&v.y2-a.y2>=3);
 }
