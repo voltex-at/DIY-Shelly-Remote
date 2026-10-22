@@ -83,10 +83,10 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | **Karty zaakceptowane na podglądzie przez właściciela**: nazwa u góry, mała ikona po lewej, duża po prawej, pośrodku pomieszczenie → ikona z lx → bateria z procentem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | **Cały punkt zaakceptowany na podglądzie przez właściciela**: przyciski, odstęp od nawigacji, skala, animacja oraz karta Dashboardu z pomieszczeniem zamiast stanu, pozycją i sterowaniem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; dodano podwójny kontur i grubszą strzałkę górnego przycisku powrotu — do oceny podglądu. Końcowy przegląd całej skórki przed DEV |
+| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; podwójny kontur i grubsza strzałka górnego przycisku powrotu **zaakceptowane na podglądzie**. Końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Przycisk Dalej i znacznik wybranej metody zaakceptowane na podglądzie**. Naprawiono przycięcie pola kanału, przewijanie opisu/komunikatów i kolizję przy klawiaturze. Ostatnia uwaga właściciela do formularza dotyczy górnego przycisku powrotu Cyber Blue; poprawiony podgląd czeka na ocenę. Pozostały odbiór kreatora i sprawdzenie na sprzęcie pozostają otwarte |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Przycisk Dalej, znacznik wybranej metody i górny przycisk powrotu Cyber Blue zaakceptowane na podglądzie**. Naprawiono przycięcie pola kanału, przewijanie opisu/komunikatów i kolizję przy klawiaturze. Pozostały odbiór kreatora i sprawdzenie na sprzęcie pozostają otwarte |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -315,7 +315,7 @@ Po podglądzie formularza właściciel wskazał jako jedyne zastrzeżenie brak p
 
 Górny przycisk otrzymał wewnętrzny sfazowany kontur przy zachowaniu dotychczasowej ramki zewnętrznej. Strzałka w istniejącym obszarze ikony ma teraz zaokrąglony obrys 3 px. Zmiana dotyczy wspólnego nagłówka Cyber Blue; pozostałe skórki i zaakceptowane karty zachowują wygląd. Nie dodano obiektów LVGL, zasobów bitmapowych ani timerów. Obszar dotyku i przypisywanie funkcji powrotu pozostają bez zmian.
 
-Walidacja: `DSR_UI_FOCUS_HEADER_BACK=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek ograniczony do przycisku nagłówka, trzy skórki i PL/EN/DE, cztery klatki. Sprawdzono stan naciśnięcia i rzeczywisty powrót z formularza do listy przez zdarzenia wskaźnika. Obejrzano rzeczywiste piksele LVGL 9.3, w tym porównanie przed/po i stan naciśnięty. Podgląd poprawki czeka na ocenę właściciela. Bez pełnego atlasu, nowego DEV i odbioru na fizycznym pilocie.
+Walidacja: `DSR_UI_FOCUS_HEADER_BACK=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek ograniczony do przycisku nagłówka, trzy skórki i PL/EN/DE, cztery klatki. Sprawdzono stan naciśnięcia i rzeczywisty powrót z formularza do listy przez zdarzenia wskaźnika. Obejrzano rzeczywiste piksele LVGL 9.3, w tym porównanie przed/po i stan naciśnięty. Właściciel potwierdził „Tak, przycisk zaakceptowany”. Bez pełnego atlasu, nowego DEV i odbioru na fizycznym pilocie.
 
 ## Porządkowanie — wykonane
 
