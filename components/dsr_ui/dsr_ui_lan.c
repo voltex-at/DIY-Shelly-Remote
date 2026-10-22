@@ -17,6 +17,8 @@ static lv_obj_t *form_body,*identity_card;
 static int form_height;
 static uint32_t room_ids[9];
 static uint8_t channels[64],channel_count;
+/* UI-owned input survives a credential retry for the same selected device. */
+static struct {char name[48],auto_name[48];uint32_t room;uint8_t channel;bool valid;} draft;
 static void show_results(void);
 static void show_credentials(void);
 static void show_components(void);
@@ -26,7 +28,7 @@ bool dsr_ui_lan_active(void){return active;}
 void dsr_ui_lan_reset(void)
 {
     active=false;notice=username=password=name=room=channel=save_button=form_body=identity_card=NULL;
-    if(!building){memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;}
+    if(!building){memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));waiting_scan=waiting_inspect=false;}
 }
 static char auto_name[48];
 static dsr_blu_labels_t blu_labels;
@@ -44,6 +46,25 @@ static void channel_changed(lv_event_t *e)
     (void)e;unsigned i=lv_dropdown_get_selected(channel);if(i>=channel_count||strcmp(lv_textarea_get_text(name),auto_name))return;
     char next[48];if(channels[i]&32)blu_label(channels[i]&15,next,sizeof(next));else snprintf(next,sizeof(next),"%s",selected.name);
     lv_textarea_set_text(name,next);snprintf(auto_name,sizeof(auto_name),"%s",next);
+}
+static void remember_draft(void)
+{
+    if(!name||!room||!channel)return;
+    unsigned ri=lv_dropdown_get_selected(room),ci=lv_dropdown_get_selected(channel);
+    const char *text=lv_textarea_get_text(name);
+    if(ri>=9||ci>=channel_count||!text[0]||strlen(text)>=sizeof(draft.name))return;
+    snprintf(draft.name,sizeof(draft.name),"%s",text);snprintf(draft.auto_name,sizeof(draft.auto_name),"%s",auto_name);
+    draft.room=room_ids[ri];draft.channel=channels[ci];draft.valid=true;
+}
+static void restore_draft(void)
+{
+    if(!draft.valid)return;
+    unsigned ci=0;for(;ci<channel_count;ci++)if(channels[ci]==draft.channel)break;
+    /* Fresh capabilities are authoritative: never restore a removed endpoint. */
+    if(ci==channel_count){memset(&draft,0,sizeof(draft));return;}
+    lv_dropdown_set_selected(channel,ci);
+    unsigned count=lv_dropdown_get_option_count(room);for(unsigned ri=0;ri<count&&ri<9;ri++)if(room_ids[ri]==draft.room){lv_dropdown_set_selected(room,ri);break;}
+    lv_textarea_set_text(name,draft.name);snprintf(auto_name,sizeof(auto_name),"%s",draft.auto_name);
 }
 static lv_obj_t *screen(const char *title,unsigned step)
 {building=true;lv_obj_t *root=dsr_onboarding_screen(title,step);building=false;active=true;return root;}
@@ -135,12 +156,12 @@ static void inspect(lv_event_t *event)
 static void choose(lv_event_t *event)
 {
     unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(index>=snapshot.count)return;
-    selected=snapshot.devices[index];memset(&credentials,0,sizeof(credentials));
+    selected=snapshot.devices[index];memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));
     if(selected.auth_required)show_credentials();else{username=password=NULL;inspect(NULL);}
 }
 static void start(lv_event_t *event)
 {
-    (void)event;bool ok=dsr_lan_scan();dsr_lan_snapshot(&snapshot);waiting_scan=ok||snapshot.phase==DSR_LAN_SCANNING;waiting_inspect=false;observed=0;
+    (void)event;memset(&draft,0,sizeof(draft));bool ok=dsr_lan_scan();dsr_lan_snapshot(&snapshot);waiting_scan=ok||snapshot.phase==DSR_LAN_SCANNING;waiting_inspect=false;observed=0;
     const char *message=waiting_scan?"Wyszukiwanie mDNS i weryfikacja API…":!dsr_wifi_connected()?"Najpierw połącz Wi-Fi":snapshot.result==DSR_IO?"Usługa LAN niedostępna. Sprawdź firmware.":"Operacja w toku. Poczekaj.";
     lv_obj_t *root=screen("Szukaj Shelly w sieci",2),*card=dsr_sc_panel(root,12,104,296,296,DSR_SC_CARD,12);notice=dsr_sc_text(card,message,12,16,268,&dsr_roboto_14,DSR_SC_TEXT);
     if(ok){lv_obj_t *spinner=lv_spinner_create(card);lv_obj_set_pos(spinner,124,108);lv_obj_set_size(spinner,48,48);lv_spinner_set_anim_params(spinner,1000,200);}
@@ -175,6 +196,7 @@ static void bind(lv_event_t *event)
     unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=channel_count)return;
     unsigned code=channels[selected_channel];bool supported=(code&32)?(capabilities.blu&(1u<<(code&15)))!=0:(code&16)?capabilities.ht:((((code&192)==192)?capabilities.rgbs:code&128?capabilities.covers:code&64?capabilities.lights:capabilities.switches)&(1u<<(code&15)))!=0;if(!supported)return;
     const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){bind_notice("Wpisz nazwę do 47 bajtów.");return;}
+    remember_draft();
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
     c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=code&32?DSR_ENDPOINT_BLU:code&16?DSR_ENDPOINT_HT:(code&192)==192?DSR_ENDPOINT_RGB:(code&128)?DSR_ENDPOINT_COVER:(code&64)?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
@@ -182,7 +204,7 @@ static void bind(lv_event_t *event)
     else bind_notice(failure(result));
 }
 void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage)
-{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY)show_credentials();bind_notice(stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
+{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY){remember_draft();show_credentials();}bind_notice(stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
 static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie",3);identity(root);
@@ -201,6 +223,7 @@ static void show_components(void)
     for(unsigned i=0;i<16&&count<sizeof(channels);i++)if(selected.generation>=2&&(capabilities.blu&(1u<<i))){char label[48],text[52];blu_label(i,label,sizeof(label));snprintf(text,sizeof(text),"%s%s",count?"\n":"",label);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(32|i);}
     channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,156);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     snprintf(auto_name,sizeof(auto_name),"%s",lv_textarea_get_text(name));lv_obj_add_event_cb(channel,channel_changed,LV_EVENT_VALUE_CHANGED,NULL);if(count)channel_changed(NULL);
+    restore_draft();
     notice=dsr_sc_text(body,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,212,288,&dsr_roboto_12,DSR_SC_MUTED);
     save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);if(!count||(blu_gateway()&&!capabilities.blu)){lv_obj_add_state(save_button,LV_STATE_DISABLED);reveal_notice();}keyboard(root,name,NULL);
 }
@@ -220,7 +243,7 @@ void dsr_ui_lan_tick(void)
 }
 
 void dsr_ui_lan_adopt(const dsr_lan_device_t *device,const dsr_lan_capabilities_t *caps)
-{if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&blu_labels,0,sizeof(blu_labels));memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;show_components();}
+{if(!device||!caps)return;selected=*device;capabilities=*caps;memset(&blu_labels,0,sizeof(blu_labels));memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));waiting_scan=waiting_inspect=false;show_components();}
 void dsr_ui_lan_adopt_blu(const dsr_lan_device_t *device,const dsr_credentials_t *auth,unsigned cid,const char *label)
 {
  if(!device||!auth||cid<200||cid>=216)return;

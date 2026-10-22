@@ -76,7 +76,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | --- | --- | --- |
 | UI-01 | Trzy skórki i ich nazwy: Cyber Blue, Grafit, Jasny | Oczekuje na ocenę |
 | UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | **Status bar zaakceptowany na podglądzie w trzech skórkach:** wyrównanie i pokazane stany baterii/Wi-Fi. Zgodnie z decyzją właściciela usunięto nazwę urządzenia obok zegara w szczegółach dimmera/RGB. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | **Dolna nawigacja zaakceptowana na podglądzie:** ikony, odstępy, aktywna zakładka, naciśnięcie i niedostępne akcje; pola dotyku 64×47 px. Ikona procesora pozostaje. Właściciel zlecił dodatkowo zwiększenie odstępu pól V/A w szczegółach przekaźnika Cyber Blue do 16 px; nowy układ tego ekranu do oceny |
+| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | **Dolna nawigacja oraz układ szczegółów przekaźnika Cyber Blue zaakceptowane na podglądzie:** ikony, odstępy, aktywna zakładka, naciśnięcie, niedostępne akcje i odstęp V/A od paska 16 px. Pola dotyku 64×47 px; ikona procesora pozostaje. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | **Poprawki zaakceptowane na podglądzie:** sześć pozycji na jednym ekranie, mniejsze odstępy, Netzwerk und Verbindungen w jednej linii; ikona dodawania Shelly w podmenu Cyber Blue. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | **Układ zaakceptowany na podglądzie:** jeden wiersz z akcjami i przewijaną nazwą bez wielokropka. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | **Pokazane karty przekaźników/gniazdek zaakceptowane na podglądzie:** osobne wiersze pełnego pomieszczenia, stanu i pomiarów, przyciski oraz pionowe wyśrodkowanie W/V także po aktualizacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
@@ -431,11 +431,30 @@ Dodatkowa uwaga z sąsiedztwa paska: dolne pola napięcia i natężenia w szczeg
 
 ### UI-03 — akceptacja nawigacji i odstęp 16 px przy pomiarach przekaźnika
 
-Właściciel potwierdził „Tak, dolna nawigacja zaakceptowana na podglądzie” oraz „Tak, zwiększyć do 16 px” dla pól V/A w szczegółach przekaźnika Cyber Blue. Odbiór samego paska jest zamknięty na poziomie podglądu; nowy układ sąsiedniego ekranu oczekuje na ocenę.
+Właściciel potwierdził „Tak, dolna nawigacja zaakceptowana na podglądzie” oraz „Tak, zwiększyć do 16 px” dla pól V/A w szczegółach przekaźnika Cyber Blue. Odbiór samego paska jest zamknięty na poziomie podglądu; po wykonaniu poprawki zaakceptowano także układ sąsiedniego ekranu, jak odnotowano poniżej.
 
 Pola V/A przesunięto na y=364 przy wysokości 48 px, co daje dokładnie 16 px pustego miejsca do nawigacji na y=428. Wiersz ostatniego odczytu przesunięto na y=328, zachowując 8 px odstępu nad polami V/A. Główny panel ma wysokość 192 px, a napis Włącz/Wyłącz wykorzystuje wolną przestrzeń po lewej stronie przycisku zasilania i jest wyśrodkowany na jego osi. Przycisk odświeżania wyrównano w tym samym wierszu. Układ mieści duży przycisk 86 px i dotychczasowe rozmiary tekstów pomiarowych.
 
 Walidacja: `DSR_UI_FOCUS_RELAY_SPACING=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko szczegóły przekaźnika Cyber Blue dla PL/EN/DE, siedem wybranych klatek. Sprawdzono odstęp 16 px, brak kolizji paneli, pomiarów i opisu akcji, pełne napisy Włącz/Wyłącz w trzech językach, pojedyncze wywołanie sterowania i odświeżania, potwierdzenie stanu po aktualizacji modelu oraz stany oczekiwania, offline i braku odczytu. Obejrzano rzeczywiste piksele LVGL 9.3. Operacje i odczyty Shelly są modelami hosta. Bez ponawiania zaakceptowanego paska, innych skórek, pełnego atlasu, builda docelowego i CI; odbiór na pilocie po nowym DEV pozostaje otwarty.
+
+**Odbiór układu przekaźnika:** właściciel potwierdził „Tak, ten układ zaakceptowany na podglądzie” dla wariantu PL/EN/DE z odstępem V/A 16 px, wierszem ostatniego odczytu wyżej oraz napisem Włącz/Wyłącz po lewej stronie przycisku zasilania. Zamyka to UI-03 na poziomie podglądu. Zmiana kodu jest zapisana w lokalnym commicie `3ede008`; odbiór na pilocie po nowym DEV pozostaje otwarty. Przy zapisie tej akceptacji sprawdzono tylko dokumentację i diff, bez ponawiania testów firmware ani renderów.
+
+### NET-01 — konfiguracja i zapis urządzenia
+
+Po akceptacji nawigacji i szczegółów przekaźnika właściciel wybrał formularz konfiguracji i zapis. Przygotowano rzeczywiste podglądy LVGL 9.3 w trzech skórkach z niemieckimi etykietami: nazwa, pomieszczenie i kanał zgłoszony przez API; weryfikacja; niepotwierdzony zapis i ponowienie; zakończenie dodawania z nową kartą na Dashboardzie; ponowne logowanie oraz brak obsługiwanego kanału. Użyto wyłącznie danych przykładowych i dostawców hosta, bez odczytu danych pilota.
+
+**Wykryty i poprawiony błąd:** błąd uwierzytelniania podczas weryfikacji zapisu powodował utratę wpisanej nazwy, wybranego pomieszczenia i kanału po ponownym logowaniu. Formularz zachowuje teraz te wartości dla tego samego wybranego urządzenia. Aktualna lista możliwości API pozostaje rozstrzygająca: usunięty kanał nie jest przywracany. Szkic jest czyszczony po opuszczeniu kreatora, ponownym skanowaniu, wybraniu innego urządzenia lub zakończeniu dodawania. Nie obejmuje haseł i nie zmienia modelu trwałego zapisu.
+
+Walidacja: `DSR_UI_FOCUS_ADD_SAVE=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek, 257 sprawdzeń i 27 wybranych klatek, trzy skórki, język DE. Przed poprawką test wykazał utratę szkicu we wszystkich trzech skórkach. Po korekcie sprawdzono zachowanie pól po logowaniu, odrzucenie nieaktualnego kanału, czyszczenie szkicu dla innego urządzenia, blokadę podwójnego zapisu, brak zmiany dotychczasowej konfiguracji przy symulowanym błędzie jej zapisu oraz udane ponowienie. Osobne potwierdzenie zadania publikacji prywatnego połączenia poprzedza powrót do Dashboardu; wcześniejsze urządzenie pozostaje w konfiguracji. Test korzysta z rzeczywistej ścieżki UI i modelu zapisu, lecz radio, pamięć i odpowiedzi Shelly zastępują dostawcy hosta. Nie potwierdza to działania na fizycznym urządzeniu. Nie ponawiano pełnego atlasu, regresji ani builda docelowego i CI.
+
+**Niespójności wizualne pozostawione do oceny w ankiecie:**
+
+- Błąd zapisu i komunikat o nieobsługiwanym typie używają małego, przygaszonego tekstu. Brakuje wyróżnienia ważnej informacji, podobnego do zaakceptowanej złotej ramki AP.
+- W Cyber Blue nieaktywne „Zapisz” nadal wygląda jak aktywna niebieska akcja; dotknięcie jest zablokowane. Grafit i Jasny pokazują przygaszenie.
+- Po przewinięciu do komunikatu górna część pola nazwy wychodzi poza widoczny obszar formularza. Nie zachodzi na kartę tożsamości, ale widoczny fragment wymaga oceny wyglądu.
+- Podczas oczekiwania na końcowe potwierdzenie nadal widnieje ogólny tekst sprawdzania przed zapisem. Po sukcesie następuje powrót do Dashboardu z nową kartą, bez osobnego okna sukcesu.
+
+**Odbiór:** formularz, przebieg zapisu i powyższe komunikaty oczekują na ocenę właściciela. Wcześniejsze akceptacje pokazanych ekranów LAN, Bluetooth i AP pozostają w mocy. NET-01 jako całość, pozostałe kroki konfiguracji AP/BLE i odbiór na pilocie po nowym DEV pozostają otwarte.
 
 ## Porządkowanie — wykonane
 

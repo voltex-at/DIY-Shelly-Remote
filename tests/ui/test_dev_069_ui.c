@@ -723,13 +723,74 @@ static void relay_spacing_review(unsigned language)
  d->online=true;d->error=DSR_OK;d->has_sample_time=false;dsr_mobile_update(&m);relay_spacing_geometry("— V","— A",NULL);CHECK(lv_obj_has_state(relay_spacing_power(),LV_STATE_DISABLED));if(language==2)shot("relay-spacing-missing",3);
  dsr_ui_open_settings();
 }
+static unsigned add_save_draft_issues;
+static void add_save_idle(void)
+{
+ wifi.connected=false;dsr_network_home(NULL);tick();
+ if(in_flight){CHECK(submitted.kind==DSR_JOB_PROBE);response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
+ wifi.connected=true;dsr_ui_open_settings();
+}
+static void add_save_fields(lv_obj_t **field,lv_obj_t **room_field,lv_obj_t **channel_field)
+{
+ *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(*field);unsigned skip=0;
+ *room_field=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);skip=1;*channel_field=nth_type(lv_screen_active(),&lv_dropdown_class,&skip);CHECK(*room_field&&*channel_field);
+}
+static void add_save_review(unsigned theme)
+{
+ add_save_idle();cJSON *r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("de"));
+ cJSON *rooms=cJSON_GetObjectItemCaseSensitive(r,"rooms"),*devices=cJSON_GetObjectItemCaseSensitive(r,"devices");
+ if(!cJSON_GetArraySize(rooms))cJSON_AddItemToArray(rooms,cJSON_Parse("{\"id\":1,\"name\":\"Wohnzimmer\",\"icon\":0,\"photo\":\"\"}"));
+ if(!cJSON_GetArraySize(devices))cJSON_AddItemToArray(devices,cJSON_Parse("{\"id\":1,\"name\":\"Licht Flur\",\"host\":\"192.0.2.10\",\"kind\":\"relay\",\"channel\":0,\"room\":1}"));
+ cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"dashboards"),0),"name",cJSON_CreateString("Mein Dashboard"));publish_document(r);
+ dsr_sc_appearance(DSR_SC_BLUE,theme,2);dsr_ui_apply_theme();
+ dsr_lan_device_t device={.name="Shelly Plus 2PM",.model="SNSW-002P16EU",.generation=2};
+ snprintf(device.id,sizeof(device.id),"shellyplus2pm-aabbccddee%02u",theme);snprintf(device.mac,sizeof(device.mac),"aabbccddee%02u",theme);snprintf(device.host,sizeof(device.host),"192.0.2.%u",20+theme);
+ char identity[240];snprintf(identity,sizeof(identity),"{\"gen\":2,\"id\":\"%s\",\"mac\":\"%s\",\"model\":\"%s\",\"name\":\"%s\",\"auth_en\":false}",device.id,device.mac,device.model,device.name);test_lan_found(identity,device.host);
+ dsr_lan_capabilities_t caps={.switches=(1u<<1)|(1u<<4)};dsr_ui_lan_adopt(&device,&caps);
+ lv_obj_t *field,*room_field,*channel_field;add_save_fields(&field,&room_field,&channel_field);CHECK(lv_dropdown_get_option_count(channel_field)==2);
+ char local_name[48];snprintf(local_name,sizeof(local_name),"Licht Küche %u",theme);lv_textarea_set_text(field,local_name);lv_dropdown_set_selected(room_field,1);lv_dropdown_set_selected(channel_field,1);
+ lv_obj_t *save=lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"));CHECK(save&&!lv_obj_has_state(save,LV_STATE_DISABLED));shot("add-save-form",theme);
+ lv_dropdown_open(channel_field);shot("add-save-channels",theme);lv_dropdown_close(channel_field);
+ char *before_document=dsr_workspace_snapshot();CHECK(before_document);unsigned before=job_counts[DSR_JOB_BIND],published=publish_jobs;
+ test_workspace_defer(true);tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND&&submitted.connection.device.channel==4&&job_counts[DSR_JOB_BIND]==before+1);CHECK(!strcmp(submitted.connection.device.name,local_name));
+ tap(238,444);CHECK(job_counts[DSR_JOB_BIND]==before+1);CHECK(lv_obj_has_state(save,LV_STATE_DISABLED));shot("add-save-verifying",theme);
+ response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_voltage=true,.voltage_v=231.8,.has_current=true,.current_a=.041}};response.device.online=response.device.has_switch=response.device.has_power=true;response.device.power_w=9.5;deliver(DSR_OK,DSR_WIFI_IDLE);
+ bool pending_save;char status[96];dsr_workspace_status(&pending_save,status);CHECK(pending_save&&dsr_network_bind_busy()&&publish_jobs==published);
+ test_workspace_finish(false);test_workspace_defer(false);for(unsigned i=0;i<12&&dsr_network_bind_busy();i++){tick();}CHECK(!dsr_network_bind_busy()&&!in_flight&&publish_jobs==published);
+ char *after_document=dsr_workspace_snapshot();CHECK(after_document&&!strcmp(before_document,after_document));free(after_document);free(before_document);
+ CHECK(find_label(lv_screen_active(),dsr_network_bind_result_text(DSR_IO,DSR_BIND_WORKSPACE)));CHECK(!lv_obj_has_state(save,LV_STATE_DISABLED));shot("add-save-workspace-error",theme);
+ add_save_fields(&field,&room_field,&channel_field);CHECK(!strcmp(lv_textarea_get_text(field),local_name)&&lv_dropdown_get_selected(room_field)==1&&lv_dropdown_get_selected(channel_field)==1);
+ hold_maintenance=true;tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);
+ response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_voltage=true,.voltage_v=231.8,.has_current=true,.current_a=.041}};response.device.online=response.device.has_switch=response.device.has_power=true;response.device.power_w=9.5;deliver(DSR_OK,DSR_WIFI_IDLE);
+ for(unsigned i=0;i<12&&!maintenance_ready;i++){tick();}
+ CHECK(maintenance_ready&&dsr_network_bind_busy()&&publish_jobs==published+1);shot("add-save-publishing",theme);
+ r=room_document();bool found=false,previous=false;const cJSON *entry;cJSON_ArrayForEach(entry,cJSON_GetObjectItemCaseSensitive(r,"devices")){
+  const char *label=cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(entry,"name"));if(label&&!strcmp(label,"Licht Flur"))previous=true;
+  if(label&&!strcmp(label,local_name)){CHECK(cJSON_GetObjectItemCaseSensitive(entry,"channel")->valueint==4&&cJSON_GetObjectItemCaseSensitive(entry,"room")->valueint==1);found=true;}
+ }CHECK(found&&previous);cJSON_Delete(r);
+ hold_maintenance=false;tick();CHECK(!dsr_network_bind_busy()&&dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME&&dsr_sc_style()==theme);
+ lv_obj_t *added=find_label(lv_screen_active(),local_name);CHECK(added);lv_obj_scroll_to_view(lv_obj_get_parent(added),LV_ANIM_OFF);shot("add-save-success",theme);
+ add_save_idle();dsr_ui_lan_adopt(&device,&caps);add_save_fields(&field,&room_field,&channel_field);lv_textarea_set_text(field,local_name);lv_dropdown_set_selected(room_field,1);lv_dropdown_set_selected(channel_field,1);
+ tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);response=(dsr_event_t){0};deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));shot("add-save-auth",theme);
+ click("Sprawdź");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false},\"switch:4\":{\"id\":4,\"output\":false}}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));
+ add_save_fields(&field,&room_field,&channel_field);shot("add-save-after-auth",theme);
+ if(strcmp(lv_textarea_get_text(field),local_name)||lv_dropdown_get_selected(room_field)!=1||lv_dropdown_get_selected(channel_field)!=1){add_save_draft_issues++;printf("ADD issue theme=%u: reauthentication loses name, room or channel draft\n",theme);}
+ /* A later API response may remove a channel: use that new list, not the draft. */
+ tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);response=(dsr_event_t){0};deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);
+ click("Sprawdź");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();add_save_fields(&field,&room_field,&channel_field);
+ CHECK(lv_dropdown_get_option_count(channel_field)==1&&lv_dropdown_get_selected(channel_field)==0&&!strcmp(lv_textarea_get_text(field),device.name));
+ dsr_lan_device_t another=device;strcpy(another.id,"shellyplus1-112233445566");strcpy(another.name,"New Shelly");dsr_lan_capabilities_t unsupported={0};dsr_ui_lan_adopt(&another,&unsupported);
+ save=lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"));CHECK(save&&lv_obj_has_state(save,LV_STATE_DISABLED));field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field&&!strcmp(lv_textarea_get_text(field),another.name));shot("add-save-unsupported",theme);
+ dsr_ui_open_settings();fflush(stdout);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_RELAY_SPACING")){for(unsigned language=0;language<3;language++)relay_spacing_review(language);}
+ if(getenv("DSR_UI_FOCUS_ADD_SAVE")){for(unsigned i=0;i<3;i++)add_save_review(themes[i]);CHECK(add_save_draft_issues==0);}
+ else if(getenv("DSR_UI_FOCUS_RELAY_SPACING")){for(unsigned language=0;language<3;language++)relay_spacing_review(language);}
  else if(getenv("DSR_UI_FOCUS_NAVIGATION")){for(unsigned i=0;i<3;i++)navigation_review(themes[i]);CHECK(navigation_issues==0);}
  else if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_STATUS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_review(themes[i],language);}
