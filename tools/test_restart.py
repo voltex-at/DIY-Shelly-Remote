@@ -3,7 +3,7 @@
 import argparse,os,re,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');p.add_argument('--backend-case',choices=['confirmed-busy','confirmed-notify-fail','confirmed-boot-lost']);args=p.parse_args()
 with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     tmp=Path(directory);flags=['-std=c11','-Wall','-Wextra','-Werror','-Wpedantic','-g','-pthread']
     if args.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
@@ -11,12 +11,14 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     flags+=['-I',str(tmp)]
     for folder in ['tests/restart','tests/support','components/dsr_platform/include','components/dsr_platform']:flags+=['-I',str(ROOT/folder)]
     suites=[('activity',['tests/test_restart.c'],['basic','fault','pending-fault','writer-race','restart-race','writers']),
-            ('backend',['components/dsr_platform/dsr_restart.c','tests/restart/backend.c'],['before-start','create-fail','boot','busy','notify-fail','boot-lost','spurious','once','race'])]
+            ('backend',['components/dsr_platform/dsr_restart.c','tests/restart/backend.c'],['before-start','create-fail','boot','busy','notify-fail','boot-lost','spurious','once','race','confirmed-busy','confirmed-notify-fail','confirmed-boot-lost'])]
+    if args.backend_case:suites=[(suites[1][0],suites[1][1],[args.backend_case])]
     for name,sources,cases in suites:
         binary=tmp/name
         subprocess.run([os.environ.get('CC','cc'),*flags,str(ROOT/'components/dsr_platform/dsr_activity.c'),*[str(ROOT/s) for s in sources],'-o',str(binary)],check=True)
         # Fresh process per scenario preserves the production no-reset contract.
         for case in cases:subprocess.run([str(binary),case],check=True)
+    if args.backend_case:raise SystemExit(0)
     panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
     for name in ['pair','restart']:
         start=panel.index(f'static esp_err_t {name}(httpd_req_t *r)')

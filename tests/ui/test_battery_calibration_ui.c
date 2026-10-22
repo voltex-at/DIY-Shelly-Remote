@@ -100,7 +100,7 @@ static void cycles(void)
 static uint32_t header_pixels(void)
 {
  lv_refr_now(display);uint32_t hash=2166136261u;
- for(unsigned y=0;y<24;y++)for(unsigned x=276;x<320;x++)for(unsigned c=0;c<3;c++)hash=(hash^canvas[(y*320+x)*3+c])*16777619u;
+ for(unsigned y=10;y<33;y++)for(unsigned x=256;x<308;x++)for(unsigned c=0;c<3;c++)hash=(hash^canvas[(y*320+x)*3+c])*16777619u;
  return hash;
 }
 static void trend_animation(void)

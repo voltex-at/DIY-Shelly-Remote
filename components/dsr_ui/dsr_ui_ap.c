@@ -1,4 +1,5 @@
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include "dsr_workspace.h"
 #include "dsr_activity.h"
 #include <stdio.h>
@@ -19,8 +20,20 @@ static dsr_result_t request(dsr_job_kind_t kind,const dsr_wifi_ap_t *ap,const ds
 static void show_scan(lv_event_t *event);
 static void cancel(lv_event_t *event);
 static void show_disclose(void);
+static void retry(lv_event_t *event);
 static void line(lv_obj_t *root,const char *text,int y,const lv_font_t *font,uint32_t color)
-{lv_obj_t *label=dsr_sc_text(root,text,16,y,288,font,color);lv_label_set_long_mode(label,LV_LABEL_LONG_DOT);lv_obj_set_height(label,26);}
+{
+ bool full=root==lv_screen_active();int width=full?288:268;
+ lv_point_t size;lv_text_get_size(&size,text,dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ if(size.x>width)font=&dsr_roboto_12;
+ lv_obj_t *label=dsr_sc_text(root,dsr_sc_user(text),full?16:12,y,width,font,color);lv_label_set_long_mode(label,LV_LABEL_LONG_WRAP);
+}
+static lv_obj_t *content(lv_obj_t *root)
+{
+ lv_obj_t *card=dsr_sc_panel(root,12,88,296,312,DSR_SC_CARD,12);
+ dsr_sc_border_width(card,1,0);dsr_sc_border_color(card,dsr_sc_color(DSR_SC_EDGE),0);
+ return card;
+}
 static void release(void)
 {free(lan_copy);lan_copy=NULL;if(lease){lease=false;dsr_activity_end();}if(!active)dsr_ap_visibility(false);}
 bool dsr_ui_ap_active(void){return active||cleanup||lease;}
@@ -40,15 +53,24 @@ static lv_obj_t *screen(const char *title)
  return root;
 }
 static void message(const char *title,const char *text)
-{lv_obj_t *root=screen(title);notice=dsr_sc_text(root,text,16,105,288,&dsr_roboto_16,DSR_SC_TEXT);dsr_onboarding_footer(root,"Anuluj",cancel,NULL,NULL);}
+{
+ lv_obj_t *root=screen(title),*card=content(root);lv_obj_t *spinner=lv_spinner_create(card);lv_obj_set_pos(spinner,126,16);lv_obj_set_size(spinner,40,40);lv_spinner_set_anim_params(spinner,1200,240);
+ lv_obj_set_style_arc_width(spinner,4,LV_PART_MAIN);lv_obj_set_style_arc_width(spinner,4,LV_PART_INDICATOR);
+ lv_obj_set_style_arc_color(spinner,dsr_sc_color(DSR_SC_EDGE),LV_PART_MAIN);lv_obj_set_style_arc_color(spinner,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);
+ notice=dsr_sc_text(card,text,12,76,268,&dsr_roboto_16,DSR_SC_TEXT);dsr_onboarding_footer(root,"Anuluj",cancel,NULL,NULL);
+}
 static void error(dsr_result_t result)
 {
  if(dsr_wifi_temporary_active()){
   deferred_error=result;cleanup=true;cleanup_retry_at=lv_tick_get();return_after_restore=false;phase=AP_RESTORING;dsr_ap_cancel();message("Powrót do domu","Przywracanie domowego Wi-Fi. Nie wyłączaj pilota.");return;
  }
  phase=AP_ERROR;
+ if(lan_started||waiting_lan_inspect){dsr_lan_cancel();lan_started=waiting_lan_inspect=false;}
  const char *text=result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane.":result==DSR_AUTH_REQUIRED?"AP wymaga logowania. Obsługiwane są fabryczne AP bez hasła API.":result==DSR_UNSUPPORTED?"Ten AP lub tryb Wi-Fi nie jest obsługiwany. Dane pilota zachowane.":"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane.";
- message("Wi-Fi AP • wynik",text);
+ lv_obj_t *root=screen("Wi-Fi AP • wynik"),*card=content(root);dsr_sc_icon(card,DSR_ICON_WARNING,126,16,40,0xffb466);
+ notice=dsr_sc_text(card,text,12,76,268,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_update_layout(notice);
+ dsr_sc_text(card,"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.",12,76+lv_obj_get_height(notice)+24,268,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_onboarding_footer(root,"Anuluj",cancel,"Ponów",retry);
  if(!dsr_wifi_temporary_active())release();
 }
 static void leave(void)
@@ -78,10 +100,10 @@ static void choose(lv_event_t *event)
  unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(index>=scan.count)return;selected=scan.items[index];
  if(selected.security!=DSR_WIFI_OPEN){error(DSR_UNSUPPORTED);return;}
  bool valid=dsr_network_ap_home(NULL);if(!valid){error(DSR_OFFLINE);return;}
- phase=AP_CONNECT_CONFIRM;lv_obj_t *root=screen("Połączyć z AP?");
- line(root,selected.ssid,100,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(root,"Pilot tymczasowo opuści domową sieć. Sterowanie Shelly i Web Panel będą niedostępne.",16,154,288,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(root,"Wybierz własne urządzenie. Sama nazwa AP nie potwierdza jego autentyczności.",16,263,288,&dsr_roboto_14,DSR_SC_MUTED);
+ phase=AP_CONNECT_CONFIRM;lv_obj_t *root=screen("Połączyć z AP?"),*card=content(root);
+ line(card,selected.ssid,16,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(card,"Pilot tymczasowo opuści domową sieć. Sterowanie Shelly i Web Panel będą niedostępne.",12,80,268,&dsr_roboto_16,DSR_SC_TEXT);
+ dsr_sc_text(card,"Wybierz własne urządzenie. Sama nazwa AP nie potwierdza jego autentyczności.",12,200,268,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Połącz z AP",connect_ap);
 }
 static void show_results(void)
@@ -90,15 +112,27 @@ static void show_results(void)
  unsigned count=0;
  for(unsigned i=0;i<scan.count;i++)if(dsr_ap_candidate(scan.items[i].ssid)){
   char detail[48];snprintf(detail,sizeof(detail),"RSSI %d dBm",scan.items[i].rssi);
-  dsr_onboarding_result(list,(int)count++*96,DSR_ICON_WIFI,scan.items[i].ssid,detail,scan.items[i].security==DSR_WIFI_OPEN?"Otwarty AP • do sprawdzenia":"AP chroniony • nieobsługiwany",false,choose,(void *)(uintptr_t)i);
+  lv_obj_t *row=dsr_sc_button(list,0,(int)count++*112,296,104,DSR_SC_CARD,12,choose,(void *)(uintptr_t)i);
+  dsr_sc_icon(row,DSR_ICON_WIFI,12,36,28,DSR_SC_BLUE);
+  lv_obj_t *ssid=dsr_sc_text(row,dsr_sc_user(scan.items[i].ssid),52,10,228,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(ssid,36);lv_label_set_long_mode(ssid,LV_LABEL_LONG_MODE_WRAP);
+  dsr_sc_text(row,dsr_sc_user(detail),52,50,228,&dsr_roboto_12,DSR_SC_MUTED);
+  dsr_sc_text(row,scan.items[i].security==DSR_WIFI_OPEN?"Otwarty AP • do sprawdzenia":"AP chroniony • nieobsługiwany",52,74,228,&dsr_roboto_12,DSR_SC_MUTED);
  }
- if(!count)dsr_sc_text(list,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",8,30,280,&dsr_roboto_16,DSR_SC_TEXT);
+ if(!count){lv_obj_t *empty=dsr_sc_panel(list,0,0,296,274,DSR_SC_CARD,12);dsr_sc_icon(empty,DSR_ICON_WIFI,124,24,48,DSR_SC_MUTED);dsr_sc_text(empty,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",12,100,268,&dsr_roboto_16,DSR_SC_TEXT);}
+ char count_text[48];snprintf(count_text,sizeof(count_text),dsr_sc_tr("Znaleziono AP: %u"),count);dsr_sc_text(root,dsr_sc_user(count_text),16,378,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Ponów",show_scan);
 }
 static void show_scan(lv_event_t *event)
 {
  (void)event;dsr_result_t result=request(DSR_JOB_AP_SCAN,NULL,NULL,NULL,false);
  if(result!=DSR_OK){error(result);return;}phase=AP_SCAN;message("Fabryczne AP Shelly","Skanowanie Wi-Fi. Pilot pozostaje w domowej sieci.");
+}
+static void retry(lv_event_t *event)
+{
+ (void)event;if(phase!=AP_ERROR||waiting||cleanup||lease||dsr_wifi_temporary_active())return;
+ /* Retry only discovery. Never replay the credential write or reuse identity. */
+ memset(&identity,0,sizeof(identity));memset(&selected,0,sizeof(selected));memset(&scan,0,sizeof(scan));deferred_error=DSR_OK;
+ show_scan(NULL);
 }
 void dsr_ui_ap_open(lv_event_t *event)
 {
@@ -108,10 +142,10 @@ void dsr_ui_ap_open(lv_event_t *event)
   cleanup=true;cleanup_retry_at=lv_tick_get();return_after_restore=false;phase=AP_RESTORING;dsr_ap_cancel();message("Powrót do domu","Kończenie poprzedniej operacji i przywracanie domowego Wi-Fi.");return;
  }
  deferred_error=DSR_OK;phase=AP_INTRO;cleanup=return_after_restore=lan_started=waiting_lan_inspect=false;memset(&scan,0,sizeof(scan));memset(&identity,0,sizeof(identity));
- lv_obj_t *root=screen("Dodaj przez Wi-Fi AP");
- dsr_sc_text(root,"Fabryczne urządzenie Shelly",16,99,288,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(root,"Najpierw wyszukamy AP i sprawdzimy lokalne API. Dane domowej sieci wyślesz dopiero po osobnym potwierdzeniu na ekranie.",16,148,288,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(root,"Pilot musi mieć działające domowe Wi-Fi. Obsługiwane są otwarte, fabryczne AP bez hasła API.",16,281,288,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_t *root=screen("Dodaj przez Wi-Fi AP"),*card=content(root);
+ dsr_sc_icon(card,DSR_ICON_WIFI,12,12,32,DSR_SC_BLUE);dsr_sc_text(card,"Fabryczne urządzenie Shelly",56,16,224,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(card,"Najpierw wyszukamy AP i sprawdzimy lokalne API. Dane domowej sieci wyślesz dopiero po osobnym potwierdzeniu na ekranie.",12,72,268,&dsr_roboto_16,DSR_SC_TEXT);
+ dsr_sc_text(card,"Pilot musi mieć działające domowe Wi-Fi. Obsługiwane są otwarte, fabryczne AP bez hasła API.",12,216,268,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Szukaj AP",show_scan);
 }
 void dsr_ui_ap_scan_open(lv_event_t *event)
@@ -125,10 +159,15 @@ static void apply(lv_event_t *event)
 static void show_disclose(void)
 {
  phase=AP_DISCLOSE;deadline=lv_tick_get()+120000;lv_obj_t *root=screen("Przekazać dane Wi-Fi?");
- line(root,identity.model,92,&dsr_roboto_18,DSR_SC_TEXT);line(root,identity.id,125,&dsr_roboto_12,DSR_SC_MUTED);
- char home_ssid[33]={0};(void)dsr_network_ap_home(home_ssid);line(root,home_ssid,161,&dsr_roboto_16,DSR_SC_TEXT);memset(home_ssid,0,sizeof(home_ssid));
- dsr_sc_text(root,"Przekaż nazwę i hasło zapisanej domowej sieci temu urządzeniu. Otwarty AP i HTTP nie zapewniają kryptograficznego uwierzytelnienia.",16,205,288,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_sc_text(root,"Potwierdź tylko dla własnego Shelly. Podgląd WWW jest wstrzymany.",16,324,288,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *body=dsr_sc_panel(root,12,88,296,312,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+ lv_obj_t *device=dsr_sc_panel(body,0,0,296,112,DSR_SC_CARD,12);
+ line(device,identity.model,12,&dsr_roboto_18,DSR_SC_TEXT);line(device,identity.id,44,&dsr_roboto_12,DSR_SC_MUTED);
+ char home_ssid[33]={0};(void)dsr_network_ap_home(home_ssid);line(device,home_ssid,76,&dsr_roboto_16,DSR_SC_TEXT);memset(home_ssid,0,sizeof(home_ssid));
+ lv_obj_t *consent=dsr_sc_panel(body,0,120,296,1,DSR_SC_CARD,12);
+ lv_obj_t *text=dsr_sc_text(consent,"Przekaż nazwę i hasło zapisanej domowej sieci temu urządzeniu. Otwarty AP i HTTP nie zapewniają kryptograficznego uwierzytelnienia.",12,12,268,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_update_layout(text);int height=lv_obj_get_height(text)+28;lv_obj_set_height(consent,height);
+ /* Apply the normal Cyber frame after the final panel height is known. */
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(consent,false);
+ dsr_sc_text(body,"Potwierdź tylko dla własnego Shelly. Podgląd WWW jest wstrzymany.",12,120+height+8,268,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Przekaż Wi-Fi",apply);
 }
 void dsr_ui_ap_result(const dsr_event_t *event,dsr_job_kind_t kind)

@@ -18,4 +18,10 @@ esp_err_t dsr_restart_start(void);
  * claims once. Boot loss cancels; no automatic retry. This does not promise
  * an HTTP response was delivered or an LCD frame was physically rendered. */
 dsr_restart_result_t dsr_restart_request(void);
+/* Physical, explicitly confirmed local restart. Blocks new activity, keeps
+ * existing lease counts intact, and dispatches after the same fixed 500 ms
+ * display grace even if an operation is stuck. No wait for network/BLE success.
+ * A hardware RTC watchdog guards SDK shutdown (3 s system, then 3 s RTC reset).
+ * Web and automatic OTA requests continue to use dsr_restart_request(). */
+dsr_restart_result_t dsr_restart_request_confirmed(void);
 #endif

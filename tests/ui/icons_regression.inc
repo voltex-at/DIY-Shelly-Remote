@@ -28,7 +28,7 @@ static void icons_regression(void)
  CHECK(lv_obj_get_style_border_width(icon_choice(11),0)==3&&lv_obj_get_style_border_width(icon_choice(0),0)==1);screenshot("270-device-icon-gallery");
  click("Zapisz");dsr_ui_workspace_tick();tick();CHECK(workspace_icon(a)==11);
  dsr_mobile_device_t d;CHECK(dsr_network_typed_device(a,&d)&&d.icon==11);
- dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);lv_obj_update_layout(lv_screen_active());CHECK(has_icon(lv_screen_active(),DSR_ICON_THERMOSTAT,30));screenshot("271-device-card-chosen-icon");
+ dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);lv_obj_update_layout(lv_screen_active());CHECK(has_icon(lv_screen_active(),DSR_ICON_THERMOSTAT,32));screenshot("271-device-card-chosen-icon");
  /* Device lists show a scroll position bar on the right. */
  lv_obj_t *list=lv_obj_get_parent(find_label(lv_screen_active(),"Relay A"));while(list&&!lv_obj_has_flag(list,LV_OBJ_FLAG_SCROLLABLE))list=lv_obj_get_parent(list);
  CHECK(list&&lv_obj_get_style_width(list,LV_PART_SCROLLBAR)==2&&lv_obj_get_scrollbar_mode(list)==LV_SCROLLBAR_MODE_AUTO);

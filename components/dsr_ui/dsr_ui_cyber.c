@@ -170,24 +170,25 @@ static void panel_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(e);
  uintptr_t flags=(uintptr_t)lv_event_get_user_data(e);bool disabled=lv_obj_has_state(o,LV_STATE_DISABLED);
+ bool danger=lv_color_eq(lv_obj_get_style_border_color(o,0),lv_color_hex(DSR_CYBER_DANGER));uint32_t contour=danger?DSR_CYBER_DANGER:DSR_CYBER_CYAN;
  int w=lv_area_get_width(&a),h=lv_area_get_height(&a);
  /* Machined top bevel + inset contour. Both draw directly into the normal
   * layer; no extra object, shadow buffer or offscreen surface is required. */
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.radius=6;
- d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=lv_color_hex(DSR_CYBER_CYAN);d.border_opa=disabled?LV_OPA_20:LV_OPA_40;
+ d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=lv_color_hex(contour);d.border_opa=disabled?LV_OPA_20:LV_OPA_40;
  lv_area_t inner={a.x1+3,a.y1+3,a.x2-3,a.y2-3};lv_draw_rect(layer,&d,&inner);
- line(layer,a.x1+12,a.y1+2,a.x2-16,a.y1+2,disabled?0x2c4056:(flags&1)?0x48d9ff:0x4d7897);
+ line(layer,a.x1+12,a.y1+2,a.x2-16,a.y1+2,disabled?0x2c4056:danger?0xff9a9f:(flags&1)?0x48d9ff:0x4d7897);
  /* Brushed, diagonal inlays occupy the right third beneath the labels. */
  int span=h>90?46:24;if(span>w/3)span=w/3;
  for(int i=0;i<5;i++){
   int end=a.x2-10-i*7;
-  line(layer,end-span,a.y1+5,end,a.y1+5+span,disabled?0x21344a:0x254a68);
+  line(layer,end-span,a.y1+5,end,a.y1+5+span,disabled?0x21344a:danger?0x9b2536:0x254a68);
  }
  if(flags&2){
   d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x4a7092);d.bg_opa=LV_OPA_COVER;d.border_width=0;d.radius=2;
   lv_area_t strip={a.x1+6,a.y1+15,a.x1+8,a.y2-15};lv_draw_rect(layer,&d,&strip);
  }
- line(layer,a.x1+12,a.y2-2,a.x1+38,a.y2-2,disabled?0x36556d:DSR_CYBER_CYAN);
+ line(layer,a.x1+12,a.y2-2,a.x1+38,a.y2-2,disabled?0x36556d:contour);
 }
 void dsr_ui_cyber_contour(lv_obj_t *o){init();lv_obj_add_style(o,&hud.contour,0);}
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
@@ -213,7 +214,7 @@ void dsr_ui_cyber_power(lv_obj_t *o,bool on,bool enabled)
  dsr_ui_cyber_glow(o,on&&enabled);lv_obj_add_event_cb(o,power_draw,LV_EVENT_DRAW_MAIN_END,NULL);
 }
 void dsr_ui_cyber_inset(lv_obj_t *o){init();lv_obj_remove_style(o,&hud.contour,0);lv_obj_add_style(o,&hud.inset,0);}
-void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger)lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);}
+void dsr_ui_cyber_warning(lv_obj_t *o,bool danger){init();lv_obj_add_style(o,danger?&hud.danger:&hud.warning,0);if(danger){lv_obj_add_style(o,&hud.danger,LV_STATE_PRESSED);lv_obj_set_style_bg_color(o,lv_color_hex(0xb42332),0);lv_obj_set_style_bg_grad_color(o,lv_color_hex(0x8f1d2b),0);lv_obj_set_style_border_color(o,lv_color_hex(DSR_CYBER_DANGER),0);lv_obj_set_style_bg_color(o,lv_color_hex(0x8f1d2b),LV_STATE_PRESSED);}}
 /* Touch buttons share one state style; native fields retain their focus style. */
 void dsr_ui_cyber_button(lv_obj_t *o){init();lv_obj_add_style(o,&hud.press_edge,LV_STATE_PRESSED);}
 /* One retained state; pixels are read directly from the native Flash texture. */
@@ -227,9 +228,22 @@ static void shutter_delete(lv_event_t *e)
 {shutter_t *s=lv_event_get_user_data(e);lv_anim_delete(s,shutter_frame);lv_free(s);}
 static lv_area_t shutter_aperture(const shutter_t *s)
 {lv_area_t a;lv_obj_get_coords(s->well,&a);return (lv_area_t){a.x1+12,a.y1+22,a.x2-12,a.y2-12};}
+/* Same shutter mechanics in all skins; neutral metal in Graphite/Light,
+ * their configured accent on the guide rails. The outdoor image stays fixed. */
+static uint32_t shutter_color(uint32_t color)
+{
+ unsigned theme=dsr_sc_style();if(theme==DSR_SC_STYLE_CYBER_BLUE)return color;
+ if(color==DSR_CYBER_CYAN||color==0x00bfe9||color==0x006a9d)return lv_color_to_u32(dsr_sc_text_color(DSR_SC_BLUE))&0xffffff;
+ if(color==0xffc65b)return lv_color_to_u32(dsr_sc_text_color(0xffb466))&0xffffff;
+ unsigned luma=(((color>>16)&255)*3+((color>>8)&255)*6+(color&255))/10;
+ unsigned value=theme==DSR_SC_STYLE_LIGHT?224-luma/2:12+luma*3/4;
+ return (value<<16)|(value<<8)|value;
+}
+static void shutter_line(lv_layer_t *layer,int x1,int y1,int x2,int y2,uint32_t color)
+{line(layer,x1,y1,x2,y2,shutter_color(color));}
 static void shutter_rect(lv_layer_t *layer,lv_area_t a,uint32_t fill,uint32_t border,int radius)
 {
- lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(fill);d.bg_opa=LV_OPA_COVER;d.border_width=1;d.border_color=lv_color_hex(border);d.radius=radius;lv_draw_rect(layer,&d,&a);
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(shutter_color(fill));d.bg_opa=LV_OPA_COVER;d.border_width=1;d.border_color=lv_color_hex(shutter_color(border));d.radius=radius;lv_draw_rect(layer,&d,&a);
 }
 static void cover_draw(lv_event_t *e)
 {
@@ -246,30 +260,30 @@ static void cover_draw(lv_event_t *e)
   lv_area_t source={glass.x1,glass.y1,glass.x1+151,glass.y1+127};lv_draw_image(layer,&image,&source);
  }else{
   shutter_rect(layer,glass,0x101f2c,0x38536a,0);
-  for(int y=top+8;y<bottom;y+=18)line(layer,glass.x1+4,y,glass.x2-4,y,0x243b4c);
+  for(int y=top+8;y<bottom;y+=18)shutter_line(layer,glass.x1+4,y,glass.x2-4,y,0x243b4c);
  }
  if(s->known&&edge>top){
   lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_COVER;d.bg_grad.dir=LV_GRAD_DIR_VER;d.bg_grad.stops_count=2;
-  d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(0x098aca),.opa=LV_OPA_COVER,.frac=0};
-  d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(0x035491),.opa=LV_OPA_COVER,.frac=255};
+  d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x098aca)),.opa=LV_OPA_COVER,.frac=0};
+  d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x035491)),.opa=LV_OPA_COVER,.frac=255};
   /* Each seam follows the bottom rail; the curtain disappears into the top cassette. */
-  for(int end=edge-1;end>=top;end-=10){int start=end-9;if(start<top)start=top;lv_area_t slat={glass.x1,start,glass.x2,end};lv_draw_rect(layer,&d,&slat);line(layer,glass.x1,end,glass.x2,end,0x032c4b);if(start>top)line(layer,glass.x1,start,glass.x2,start,0x51d6f4);}
+  for(int end=edge-1;end>=top;end-=10){int start=end-9;if(start<top)start=top;lv_area_t slat={glass.x1,start,glass.x2,end};lv_draw_rect(layer,&d,&slat);shutter_line(layer,glass.x1,end,glass.x2,end,0x032c4b);if(start>top)shutter_line(layer,glass.x1,start,glass.x2,start,0x51d6f4);}
  }
  /* Machined guide profiles remain above the texture and moving slats. */
  for(unsigned i=0;i<2;i++){int x=i?glass.x2+1:glass.x1-6;
   shutter_rect(layer,(lv_area_t){x,top-2,x+5,bottom+4},0x17374d,0x4a819e,1);
-  line(layer,x+2,top,x+2,bottom+2,0x9bb9c8);line(layer,i?x+5:x,top,i?x+5:x,bottom+3,DSR_CYBER_CYAN);
+  shutter_line(layer,x+2,top,x+2,bottom+2,0x9bb9c8);shutter_line(layer,i?x+5:x,top,i?x+5:x,bottom+3,DSR_CYBER_CYAN);
  }
  if(s->known){
   int rail=edge;if(rail>bottom)rail=bottom;if(rail<top+1)rail=top+1;
   shutter_rect(layer,(lv_area_t){glass.x1,rail-1,glass.x2,rail+2},0x72bdd7,s->preview?0xffc65b:DSR_CYBER_CYAN,1);
-  line(layer,glass.x1+5,rail,glass.x2-5,rail,0xc0f5ff);
-  if(s->preview){int actual=top+height*(10000-s->confirmed)/10000;if(actual>bottom)actual=bottom;line(layer,glass.x2+2,actual,glass.x2+8,actual,0xffffff);}
+  shutter_line(layer,glass.x1+5,rail,glass.x2-5,rail,0xc0f5ff);
+  if(s->preview){int actual=top+height*(10000-s->confirmed)/10000;if(actual>bottom)actual=bottom;shutter_line(layer,glass.x2+2,actual,glass.x2+8,actual,0xffffff);}
  }
  shutter_rect(layer,(lv_area_t){a.x1+3,a.y1+3,a.x2-3,top-2},0x15314b,0x83bad0,4);
- line(layer,a.x1+8,a.y1+5,a.x2-8,a.y1+5,0xb8d9e6);line(layer,a.x1+7,top-4,a.x2-7,top-4,0x006a9d);
+ shutter_line(layer,a.x1+8,a.y1+5,a.x2-8,a.y1+5,0xb8d9e6);shutter_line(layer,a.x1+7,top-4,a.x2-7,top-4,0x006a9d);
  shutter_rect(layer,(lv_area_t){a.x1+5,bottom+5,a.x2-5,a.y2-2},0x1f4359,0x72bed7,1);
- line(layer,a.x1+10,a.y2-3,a.x2-10,a.y2-3,DSR_CYBER_CYAN);
+ shutter_line(layer,a.x1+10,a.y2-3,a.x2-10,a.y2-3,DSR_CYBER_CYAN);
 }
 static int shutter_percent(int percent){return percent<0?0:percent>100?100:percent;}
 dsr_cyber_shutter_t *dsr_ui_cyber_cover_transition(lv_obj_t *o,int from,int percent,bool known,bool moving)

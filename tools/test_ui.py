@@ -12,8 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
+p.add_argument("--keep-going", action="store_true", help="Collect failing UI cases in one final run; rerun only those cases after fixes")
 p.add_argument("--jobs", type=int, default=6, help="Parallel compiler processes (use 1 on constrained hosts)")
-p.add_argument("--case", choices=["test_blu_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_skin_atlas_ui","test_layout_cache_ui"], help="Run one focused regression after compiling production UI")
+case_argument = p.add_argument("--case", choices=["test_ui","test_cover_ui","test_blu_ui","test_ht_ui","test_light_ui","test_rgb_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui"], help="Run one focused regression after compiling production UI")
+p.add_argument("--cases", nargs="+", choices=case_argument.choices, help="Run only these affected regressions in one compiler pass")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
 args = p.parse_args()
@@ -84,17 +86,30 @@ def compile_source(source):
     return obj
 with ThreadPoolExecutor(max_workers=args.jobs) as pool:
     objects = list(pool.map(compile_source, sources))
-if args.case:
-    selected=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT/"tests/ui"/(args.case+".c"))]
-    binary=build/args.case
-    counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if args.case=="test_layout_cache_ui" else []
-    subprocess.run([cc,*flags,*counter_flags,*map(str,selected),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True)
-    subprocess.run([str(binary),str(screens)],check=True,cwd=build)
-    raise SystemExit(0)
+failures = []
+def execute(binary, *extra):
+    result = subprocess.run([str(binary), str(screens), *extra], check=not args.keep_going, cwd=build,
+                            env=dict(os.environ, TMPDIR=str(build)))
+    if result.returncode:
+        failures.append(binary.name + (":" + ":".join(extra) if extra else ""))
+        print("FAILED UI CASE: " + failures[-1], flush=True)
+
+if args.case or args.cases:
+    if args.case and args.cases:
+        p.error("Choose either --case or --cases")
+    for name in ([args.case] if args.case else args.cases):
+        selected=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT/"tests/ui"/(name+".c"))]
+        binary=build/name
+        counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
+        subprocess.run([cc,*flags,*counter_flags,*map(str,selected),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True)
+        execute(binary)
+    if failures:
+        print("FAILED UI CASES: " + ", ".join(failures))
+    raise SystemExit(bool(failures))
 binary = build / "test_ui"
 subprocess.run([cc, *flags, *map(str, objects), "-lm", "-l:libcjson.so.1", "-o", str(binary)], check=True,
                env=dict(os.environ, TMPDIR=str(build)))
-subprocess.run([str(binary), str(screens)], check=True, cwd=build)
+execute(binary)
 
 # Independent fresh processes model reboot boundaries using the same genuine
 # UI/fleet objects; no production reset hook or simulated physical acceptance.
@@ -105,35 +120,38 @@ if not args.review:
     boot_binary=build / "test_bind_boot"
     subprocess.run([cc,*flags,*map(str,boot_objects),"-lm","-l:libcjson.so.1","-o",str(boot_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
     for mode in range(4):
-        subprocess.run([str(boot_binary),str(screens),str(mode)],check=True,cwd=build)
+        execute(boot_binary,str(mode))
     cover_object=compile_source(ROOT / "tests/ui/test_cover_ui.c")
     cover_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[cover_object]
     cover_binary=build / "test_cover_ui"
     subprocess.run([cc,*flags,*map(str,cover_objects),"-lm","-l:libcjson.so.1","-o",str(cover_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(cover_binary),str(screens)],check=True,cwd=build)
+    execute(cover_binary)
     late_bind_object=compile_source(ROOT / "tests/ui/test_onboarding_late_bind.c")
     late_bind_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[late_bind_object]
     late_bind_binary=build / "test_onboarding_late_bind"
     subprocess.run([cc,*flags,*map(str,late_bind_objects),"-lm","-l:libcjson.so.1","-o",str(late_bind_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(late_bind_binary),str(screens)],check=True,cwd=build)
+    execute(late_bind_binary)
     light_object=compile_source(ROOT / "tests/ui/test_light_ui.c")
     light_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[light_object]
     light_binary=build / "test_light_ui"
     subprocess.run([cc,*flags,*map(str,light_objects),"-lm","-l:libcjson.so.1","-o",str(light_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(light_binary),str(screens)],check=True,cwd=build)
+    execute(light_binary)
 
 if not args.review:
     rgb_object=compile_source(ROOT / "tests/ui/test_rgb_ui.c")
     rgb_objects=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[rgb_object]
     rgb_binary=build / "test_rgb_ui"
     subprocess.run([cc,*flags,*map(str,rgb_objects),"-lm","-l:libcjson.so.1","-o",str(rgb_binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-    subprocess.run([str(rgb_binary),str(screens)],check=True,cwd=build)
+    execute(rgb_binary)
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_skin_atlas_ui","test_layout_cache_ui"]:
+    for name in ["test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
         subprocess.run([cc,*flags,*counter_flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
-        subprocess.run([str(binary),str(screens)],check=True,cwd=build)
+        execute(binary)
+
+if failures:
+    raise SystemExit("FAILED UI CASES: " + ", ".join(failures))

@@ -77,6 +77,7 @@ static unsigned ready_count;
 static unsigned restart_requests;
 static dsr_restart_result_t restart_response=DSR_RESTART_BUSY;
 dsr_restart_result_t dsr_restart_request(void){restart_requests++;return restart_response;}
+dsr_restart_result_t dsr_restart_request_confirmed(void){restart_requests++;return restart_response;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y)
@@ -212,6 +213,15 @@ static lv_obj_t *power_target(lv_obj_t *root)
 {
  if(lv_obj_get_width(root)==86&&lv_obj_get_height(root)==86&&lv_obj_has_flag(root,LV_OBJ_FLAG_CLICKABLE))return root;
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=power_target(lv_obj_get_child(root,(int)i));if(o)return o;}return NULL;
+}
+static lv_obj_t *card_power_target(lv_obj_t *root)
+{
+ if(lv_obj_get_width(root)==64&&lv_obj_get_height(root)==64&&lv_obj_has_flag(root,LV_OBJ_FLAG_CLICKABLE))return root;
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=card_power_target(lv_obj_get_child(root,(int)i));if(o)return o;}return NULL;
+}
+static void tap_card_power(void)
+{
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *button=card_power_target(lv_screen_active());CHECK(button);lv_obj_scroll_to_view(button,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());lv_area_t a;lv_obj_get_coords(button,&a);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);
 }
 static lv_obj_t *nth_type(lv_obj_t *root,const lv_obj_class_t *type,unsigned *skip)
 {
@@ -349,10 +359,10 @@ static void global_settings_regression(void)
  dsr_ui_open_settings();click("Odrzuć");dsr_sc_appearance(DSR_SC_BLUE,false,0);dsr_ui_open_settings();
  dsr_ui_edit_dashboard();CHECK(!find_label(lv_screen_active(),"Wygląd i język")&&!find_label(lv_screen_active(),"Urządzenia")&&!find_label(lv_screen_active(),"Zezwól na OTA • 2 minuty"));dsr_ui_open_settings();
  tap_row("System");tap_row("Konfiguracja wpisów i scen");CHECK(find_label(lv_screen_active(),"Urządzenia")&&find_label(lv_screen_active(),"Sceny"));click("Wstecz");
- for(unsigned i=0;i<10;i++){tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
+ for(unsigned i=0;i<10;i++){tap_row("Panel WWW / bezpieczeństwo");click("Wstecz");tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
  lv_mem_monitor_t a,b;lv_mem_monitor(&a);
  for(unsigned i=0;i<40;i++){tap_row("Panel WWW / bezpieczeństwo");click("Wstecz");tap_row("System");tap_row("Informacje i diagnostyka");click("Wstecz");}
- lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Global Settings heap before=%lu after=%lu;40 web/system cycles; host only\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
+ lv_mem_monitor(&b);CHECK(a.free_size==b.free_size);printf("Global Settings heap before=%lu after=%lu;40 warmed web/system cycles; host only\n",(unsigned long)a.free_size,(unsigned long)b.free_size);
  test_workspace_disable();
 }
 static void native_ota_regression(void)
@@ -533,7 +543,7 @@ static void storage_error_regression(void)
  /* All three real pointer targets still open the form with healthy storage. */
  dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);
  for(unsigned surface=0;surface<3;surface++){dsr_network_rooms();tap(surface==2?280:160,surface==0?116:surface==1?380:450);CHECK(find_label(lv_screen_active(),"Nowe pomieszczenie"));click("Wstecz");}
- dsr_network_home(NULL);tap(224,66);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
+ dsr_network_home(NULL);tap(160,126);CHECK(find_label(lv_screen_active(),"Edytuj pilot"));CHECK(!find_label(lv_screen_active(),"Web Panel • parowanie"));
  dsr_ui_open_settings();test_panel_ready(false);click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"Nie utworzono kodu. HTTPS niedostępny lub zajęty."));CHECK(!find_label(lv_screen_active(),"0123456789abcdef"));screenshot("124-storage-https-unavailable");test_panel_ready(true);click("Wstecz");
  click("Panel WWW / bezpieczeństwo");click("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));click("Wstecz");CHECK(requests==before);test_workspace_disable();
  test_workspace_enable();
@@ -607,7 +617,7 @@ static void rooms_regression(void)
  dsr_network_rooms();dsr_ui_edit_room(1);click("Wstecz");lv_refr_now(display);lv_mem_monitor_t memory_before,memory_after;lv_mem_monitor(&memory_before);
  for(unsigned i=0;i<40;i++){dsr_ui_edit_room(1);click("Wstecz");}lv_refr_now(display);lv_mem_monitor(&memory_after);CHECK(memory_after.free_size==memory_before.free_size);CHECK(memory_after.free_biggest_size>32000);
  printf("Rooms UI heap before=%u after=%u largest=%u; 40 edit/back cycles, 8 rooms\n",(unsigned)memory_before.free_size,(unsigned)memory_after.free_size,(unsigned)memory_after.free_biggest_size);
- test_workspace_photos(false);dsr_network_home(NULL);tap(188,66);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
+ test_workspace_photos(false);dsr_network_home(NULL);tap(58,126);CHECK(find_label(lv_screen_active(),"Bluetooth"));dsr_network_home(NULL);
 }
 static void p0_generic(const char *collection,const char *name)
 {dsr_ui_edit_dashboard();click(collection);if(name)click(name);}
@@ -675,18 +685,18 @@ static void polling_regression(void)
  unsigned before=requests;
  for(unsigned i=0;i<2;i++){
   lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);
-  CHECK(find_label(lv_screen_active(),"Desk lamp")==name);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Włączone"));CHECK(!find_label(lv_screen_active(),"Odczyt stanu…"));
+  CHECK(find_label(lv_screen_active(),"Desk lamp")==name);CHECK(find_label(lv_screen_active(),"Włączone"));CHECK(!find_label(lv_screen_active(),"Odczyt stanu…"));
   response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Desk lamp")==name);
  }
  CHECK(requests==before+2);screenshot("70-home-poll-stable");
  lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);before=requests;
- tap(274,140);CHECK(submitted.kind==DSR_JOB_PROBE&&requests==before);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wysyłanie polecenia…"));screenshot("71-command-queued-behind-read");
- tap(274,140);CHECK(requests==before); /* disabled duplicate, never lost/replayed */
- deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!submitted.on);CHECK(requests==before+1);CHECK(!find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
- response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nieprzypisane • Wyłączone"));
- tap(274,140);CHECK(submitted.kind==DSR_JOB_SET_OUTPUT&&submitted.on);response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ tap_card_power();CHECK(submitted.kind==DSR_JOB_PROBE&&requests==before);CHECK(find_label(lv_screen_active(),"Wysyłanie polecenia…"));screenshot("71-command-queued-behind-read");
+ tap_card_power();CHECK(requests==before); /* disabled duplicate, never lost/replayed */
+ deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!submitted.on);CHECK(requests==before+1);CHECK(!find_label(lv_screen_active(),"Wyłączone"));
+ response.device.output=false;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Wyłączone"));
+ tap_card_power();CHECK(submitted.kind==DSR_JOB_SET_OUTPUT&&submitted.on);response.device.output=true;deliver(DSR_OK,DSR_WIFI_IDLE);
  /* A failed read cancels the queued intent, rather than blindly sending SET. */
- lv_tick_inc(5000);tick();before=requests;tap(274,140);response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
+ lv_tick_inc(5000);tick();before=requests;tap_card_power();response.device.online=false;deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(requests==before);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
  click("Desk lamp");click("Odśwież stan");response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
  lv_obj_t *label=find_label(lv_screen_active(),"230.4 V");CHECK(label);
  lv_tick_inc(5000);tick();CHECK(submitted.kind==DSR_JOB_PROBE);CHECK(find_label(lv_screen_active(),"230.4 V")==label);CHECK(find_label(lv_screen_active(),"Włączone • Online"));

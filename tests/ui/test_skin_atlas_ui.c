@@ -67,6 +67,10 @@ static void audit(lv_obj_t *o)
 /* Untouched production pixels: no test badge, no Cyber-only atlas copy. */
 static void shot(const char *name)
 {
+ /* An optional exact route list refreshes only affected frames after the full
+  * stage. The default CI atlas and its assertions still cover every route. */
+ const char *filter=getenv("DSR_UI_ATLAS_SCREENS");
+ if(filter&&*filter){bool selected=false;const char *p=filter;while(*p){const char *end=strchr(p,',');size_t n=end?(size_t)(end-p):strlen(p);if(strlen(name)==n&&!strncmp(name,p,n))selected=true;if(!end)break;p=end+1;}if(!selected)return;}
  lv_obj_update_layout(lv_screen_active());lv_refr_now(display);
  snprintf(screen_id,sizeof(screen_id),"%s-%s-%s",theme_names[theme_at],lang_names[lang_at],name);
  audit(lv_screen_active());audit(lv_layer_top());
@@ -144,7 +148,7 @@ static void apply(void)
 static void system_routes(void)
 {
  dsr_network_home(NULL);tick();shot("00-home-network");
- dsr_ui_open_settings();shot("01-settings");press("Sieć i połączenia");shot("02-network");
+ dsr_ui_open_settings();shot("01-settings");lv_obj_scroll_to_view(lv_obj_get_parent(find_label(lv_screen_active(),"System")),LV_ANIM_OFF);shot("74-settings-bottom");press("Sieć i połączenia");shot("02-network");
  dsr_ui_open_settings();press("Wygląd i język");shot("03-appearance");
  dsr_ui_open_settings();press("Ekran i komfort");press("Ekran");shot("04-display");
  dsr_ui_open_settings();press("Panel WWW / bezpieczeństwo");shot("05-web-panel");
@@ -166,6 +170,10 @@ static void onboarding_routes(void)
  dsr_network_home(NULL);tick();dsr_ui_ble_open(NULL);shot("19-ble");
  dsr_network_home(NULL);tick();dsr_ui_lan_open(NULL);shot("20-lan");
  dsr_network_home(NULL);tick();dsr_ui_ap_open(NULL);shot("21-ap");
+ click("Szukaj AP");shot("63-ap-scanning");response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);shot("64-ap-empty");
+ click("Ponów");response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);shot("65-ap-error");
+ click("Ponów");response=(dsr_event_t){.scan={.count=2,.items={{.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN,.bssid={1,2,3,4,5,6},.channel=6},{.ssid="ShellyPlus1-AABBCCDDEEFF",.security=DSR_WIFI_WPA2}}}};deliver(DSR_OK,DSR_WIFI_IDLE);shot("66-ap-found");
+ click("ShellyPlus1-112233445566");shot("67-ap-connect-consent");ap_disclose();shot("68-ap-share-consent");ap_cancel_finish();wifi.connected=true;
  dsr_network_home(NULL);tick();
 }
 static void editing_routes(void)
@@ -184,6 +192,10 @@ static void device_routes(void)
  dsr_ui_open_settings();dsr_mobile_bind(&stub_actions);
  dsr_mobile_model_t m=model_all();dsr_mobile_update(&m);
  dsr_mobile_show(DSR_MOBILE_HOME,0);shot("30-home");
+ dsr_mobile_model_t one=m;one.device_count=1;one.devices[0]=m.devices[12];dsr_mobile_update(&one);dsr_mobile_show(DSR_MOBILE_HOME,0);shot("70-home-trv");
+ one.devices[0]=m.devices[10];dsr_mobile_update(&one);shot("71-home-window");
+ snprintf(one.devices[0].name,sizeof(one.devices[0].name),"Deckenbeleuchtung im großen Wohnzimmer");snprintf(one.dashboard_name,sizeof(one.dashboard_name),"Mein Dashboard im Erdgeschoss");dsr_mobile_update(&one);shot("72-home-long-names");
+ dsr_mobile_update(&m);
  dsr_mobile_show(DSR_MOBILE_ROOMS,0);shot("31-rooms");
  dsr_mobile_show(DSR_MOBILE_ROOM,0);shot("32-room");
  dsr_mobile_show(DSR_MOBILE_DEVICES,0);shot("33-devices");
@@ -205,7 +217,7 @@ int main(int argc,char **argv)
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
- char path[512];snprintf(path,sizeof(path),"%s/skin-audit.tsv",output);report=fopen(path,"w");CHECK(report);
+ char path[512];snprintf(path,sizeof(path),"%s/skin-audit%s.tsv",output,getenv("DSR_UI_ATLAS_SCREENS")?"-focused":"");report=fopen(path,"w");CHECK(report);
  fprintf(report,"screen\tfinding\tx,y,w,h\ttext\n");
  setup();
  for(theme_at=0;theme_at<3;theme_at++)for(lang_at=0;lang_at<3;lang_at++){apply();system_routes();onboarding_routes();editing_routes();device_routes();}

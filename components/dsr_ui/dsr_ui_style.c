@@ -94,6 +94,9 @@ const char *dsr_sc_tr(const char *text)
 {
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
+ {"Temperatura zadana","Target temperature","Solltemperatur"},
+ {"Znaleziono AP: %u","Access points found: %u","Zugangspunkte gefunden: %u"},
+ {"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.","Check Shelly setup mode. If its AP disappeared after sharing Wi-Fi, find the device on the local network.","Shelly-Konfigurationsmodus prüfen. Ist der AP nach der WLAN-Einrichtung verschwunden, das Gerät im lokalen Netzwerk suchen."},
  {"Poczekaj na zakończenie dodawania urządzenia.","Wait until device onboarding finishes.","Warten, bis das Hinzufügen abgeschlossen ist."},
  {"Usuwanie urządzenia","Removing device","Gerät entfernen"},
  {"Usuwane są tylko ta karta, jej powiązanie i odwołania. Pozostałe kanały, pokoje i sceny zostają zachowane.","Only this card, binding and references are removed. Other channels, rooms and scenes are preserved.","Nur diese Karte, Bindung und Verweise werden entfernt. Andere Kanäle, Räume und Szenen bleiben erhalten."},
@@ -606,7 +609,7 @@ static void icon_draw(lv_event_t *event)
     lv_obj_t *obj=lv_event_get_target(event);
     unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
     if(kind>=DSR_ICON_COUNT)return;
-    if(style==DSR_SC_STYLE_CYBER_BLUE){
+    if(style==DSR_SC_STYLE_CYBER_BLUE||kind>=DSR_ICON_CPU){
      int side=lv_obj_get_width(obj);const lv_image_dsc_t *asset=dsr_ui_cyber_icon((dsr_ui_icon_t)kind,(unsigned)side);
      if(asset){
       lv_area_t a;lv_obj_get_coords(obj,&a);unsigned pixels=asset->header.w;
@@ -680,14 +683,14 @@ void dsr_sc_header_back(lv_obj_t *root,lv_event_cb_t back,void *context)
 }
 void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context)
 {
- if(back){header_callback=back;lv_obj_t *b=dsr_sc_button(root,0,0,56,44,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);lv_obj_set_ext_click_area(b,2);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
+ if(back){header_callback=back;lv_obj_t *b=dsr_sc_button(root,12,0,44,DSR_SC_STATUS_H,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());}
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
  if(demo){lv_obj_t *badge=dsr_sc_panel(root,256,9,54,21,0x5c492a,5);dsr_sc_border_width(badge,1,0);dsr_sc_border_color(badge,lv_color_hex(0xe1bb70),0);dsr_sc_text(badge,"DEMO",10,4,40,&dsr_roboto_12,0xffd68a);}
  else {
-  lv_obj_set_x(name,back?140:92);lv_obj_set_width(name,back?98:146);
-  clock_label=dsr_sc_text(root,"",back?60:12,8,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_LEFT,0);
+  lv_obj_set_x(name,back?140:92);lv_obj_set_width(name,back?76:124);
+  clock_label=dsr_sc_text(root,"",back?64:12,9,68,&dsr_roboto_22,DSR_SC_TEXT);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_LEFT,0);
   lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();
-  dsr_sc_icon(root,DSR_ICON_WIFI,246,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
+  dsr_sc_icon(root,DSR_ICON_WIFI,224,10,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
 #ifndef DSR_UI_REVIEW_DEMO
   dsr_ui_battery_header(root);
 #endif
@@ -696,13 +699,9 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
 /* Compact Cyber BLU header: keep the shared clock and its delete lifetime. */
 void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context,lv_event_cb_t help)
 {
- lv_obj_t *b=dsr_sc_button(root,0,0,40,42,DSR_SC_BG,8,back,context);dsr_sc_icon_centered(b,DSR_ICON_BACK,24,dsr_sc_icon_accent());
- if(demo)dsr_sc_text(root,"DEMO",44,12,58,&dsr_roboto_14,0xffb52e);
- else{clock_label=dsr_sc_text(root,"",45,9,57,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_add_event_cb(clock_label,clock_deleted,LV_EVENT_DELETE,NULL);dsr_sc_clock_tick();}
- dsr_sc_panel(root,104,9,1,25,DSR_SC_BLUE,0);
- lv_obj_t *name=dsr_sc_text(root,title,111,12,130,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,20);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
- dsr_sc_icon(root,DSR_ICON_WIFI,247,9,24,wifi?DSR_SC_BLUE:DSR_SC_OFF);
- b=dsr_sc_button(root,280,0,40,42,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,dsr_sc_icon_accent());
+ /* The full device name is the control tab below this shared status row. */
+ (void)title;dsr_sc_header(root,"",demo,wifi,back,context);
+ lv_obj_t *b=dsr_sc_button(root,164,0,44,44,DSR_SC_BG,8,help,NULL);dsr_sc_icon_centered(b,DSR_ICON_INFO,24,dsr_sc_icon_accent());
 }
 static void plus_feedback(lv_event_t *event)
 {
@@ -712,15 +711,15 @@ static void plus_feedback(lv_event_t *event)
 }
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback)
 {
- lv_obj_t *bar=dsr_sc_panel(root,0,428,320,52,DSR_SC_NAV,0);
+ lv_obj_t *bar=dsr_sc_panel(root,0,DSR_SC_NAV_TOP,320,52,DSR_SC_NAV,0);
  if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_navigation(bar,current);
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
  lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
- const dsr_ui_icon_t icons[]={style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_GRID:DSR_ICON_DASHBOARD,DSR_ICON_HOME,style==DSR_SC_STYLE_CYBER_BLUE?DSR_ICON_CPU:DSR_ICON_BATTERY,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
+ const dsr_ui_icon_t icons[]={DSR_ICON_HOME,DSR_ICON_GRID,DSR_ICON_CPU,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-  if(i==4){if(style==DSR_SC_STYLE_CYBER_BLUE){lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESS_LOST,NULL);}lv_obj_t *circle=dsr_sc_panel(b,0,0,style==DSR_SC_STYLE_CYBER_BLUE?42:36,style==DSR_SC_STYLE_CYBER_BLUE?42:36,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_power(circle,true,true);dsr_sc_icon_centered(circle,icons[i],style==DSR_SC_STYLE_CYBER_BLUE?28:20,dsr_sc_icon_accent());}
+  if(i==4){lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESS_LOST,NULL);lv_obj_t *circle=dsr_sc_panel(b,0,0,42,42,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_power(circle,true,true);dsr_sc_icon_centered(circle,icons[i],28,dsr_sc_icon_accent());}
   else dsr_sc_icon_centered(b,icons[i],26,style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED);
   if(!(enabled&(1u<<i)))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
@@ -789,17 +788,21 @@ static int segments(lv_obj_t *pill,const char *const *texts,unsigned count,int m
 {
  /* One pill + one recoloured label (separators inline): two objects per row.
   * 14 px since 0.7.51 (owner: larger, more readable values). */
- int widths[6],total=0;if(count>6)count=6;
- for(unsigned i=0;i<count;i++){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(texts[i]),&dsr_roboto_14,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);widths[i]=size.x+16;total+=widths[i];}
- /* Values that do not fit are left out (never squeezed to "..."); the first
-  * one is kept and truncated so the row always says something. */
- while(count>1&&total>max_width)total-=widths[--count];
- if(total>max_width){widths[0]=max_width;total=max_width;}
- char line[200];line[0]=0;
- for(unsigned i=0;i<count;i++){if(i)strncat(line,"  #5a6066 |#  ",sizeof(line)-strlen(line)-1);strncat(line,dsr_sc_tr(texts[i]),sizeof(line)-strlen(line)-1);}
- lv_obj_set_width(pill,total);lv_obj_t *label=lv_obj_get_child(pill,0);lv_obj_set_width(label,total-12);
- lv_label_set_recolor(label,true);if(strcmp(lv_label_get_text(label),line))lv_label_set_text(label,line);
- lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
+ if(count>6)count=6;
+ char line[240];int total=0;lv_point_t size;const lv_font_t *font=&dsr_roboto_14;
+ /* Measure the exact joined string with the actual skin font, including
+  * separators, border and padding. The old sum undercounted all of these. */
+ do{
+  line[0]=0;for(unsigned i=0;i<count;i++){if(i)strncat(line,"  |  ",sizeof(line)-strlen(line)-1);strncat(line,dsr_sc_tr(texts[i]),sizeof(line)-strlen(line)-1);}
+  lv_text_get_size(&size,line,dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);total=size.x+20;
+  if(total>max_width&&font==&dsr_roboto_14){font=&dsr_roboto_12;continue;}
+  if(total<=max_width||count<=1)break;
+  count--;
+ }while(count);
+ if(total>max_width)total=max_width;
+ lv_obj_set_width(pill,total);lv_obj_t *label=lv_obj_get_child(pill,0);lv_obj_set_width(label,total-20);lv_obj_set_style_text_font(label,dsr_sc_font(font),0);
+ if(strcmp(lv_label_get_text(label),line))lv_label_set_text(label,line);
+ lv_obj_set_height(label,18);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
  return total;
 }
 int dsr_sc_segments(lv_obj_t *parent,const char *const *texts,unsigned count,int x,int y,int max_width,uint32_t color)
@@ -830,8 +833,12 @@ lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int 
  lv_obj_t *badge=dsr_sc_panel(parent,x,y,width,28,DSR_SC_PANEL,7);
  uint32_t contour=color==DSR_SC_TEXT?DSR_SC_GLOW:color;
  dsr_sc_border_color(badge,dsr_sc_color(contour),0);dsr_sc_border_width(badge,1,0);
- dsr_sc_icon(badge,icon,6,4,20,contour);
- lv_obj_t *label=dsr_sc_text(badge,text,31,6,width-37,&dsr_roboto_12,color);
+ /* 20 px requests become 24 px in Cyber Blue. Use an explicit 16 px glyph
+  * and an 8 px gap, so icon and caption never share the same pixels. */
+ dsr_sc_icon(badge,icon,8,4,16,contour);
+ lv_obj_t *label=dsr_sc_text(badge,text,32,5,width-44,&dsr_roboto_12,color);
+ lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),dsr_sc_font(&dsr_roboto_12),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ if(size.x>width-44)lv_obj_set_style_text_font(label,dsr_sc_font(&dsr_roboto_11),0);
  lv_obj_set_height(label,17);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);
  return badge;
 }

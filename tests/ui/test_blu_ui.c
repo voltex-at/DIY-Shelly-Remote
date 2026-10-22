@@ -70,8 +70,8 @@ int main(int argc,char **argv)
  CHECK(!in_flight&&find_label(lv_screen_active(),cyber?"Temperatura zmierzona":"Temperatura"));
  /* Room list: TRV row has the Shelly pill (-, target, +) and sends the same way. Polls are automatic (no refresh button, as in the app). */
  lv_tick_inc(31000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.0f,40,DSR_OK);tick(); /* after a failed write the poll backs off to 30 s */
- dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.0")&&find_label(lv_screen_active(),"°C"));screenshot("368-trv-list-pill");
- trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"21.5")&&!in_flight);lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==43);trv_response(21.5f,40,DSR_OK);tick();
+ dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.0 °C"));screenshot("368-trv-list-pill");
+ trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"21.5 °C")&&!in_flight);lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==43);trv_response(21.5f,40,DSR_OK);tick();
  /* Offline TRV: -/+ do nothing. */
  lv_tick_inc(16000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.5f,40,DSR_OFFLINE);tick();
  CHECK(!find_label(lv_screen_active(),"21 lx")&&!find_label(lv_screen_active(),"22 lx")); /* offline TRV: target never shown as lux */

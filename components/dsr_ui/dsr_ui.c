@@ -27,20 +27,17 @@ static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
 /* Accepted is process-lifetime state, not a screen state. Navigating away must
  * neither cancel backend admission nor submit a second request on reopening. */
 static bool restart_accepted;
-static bool restart_waiting;
-static uint32_t restart_wait_started,restart_wait_tick;
 static void restart_confirm(lv_event_t *event);
 static lv_obj_t *revoke_state_label,*revoke_status,*revoke_confirm_button,*revoke_cancel_button;
 static lv_obj_t *web_pairing_state,*web_pairing_generate;
 static bool revoke_pending;
 static const char *revoke_message="Potwierdź unieważnienie przyciskiem poniżej.";
 void dsr_ui_settings_hide(void)
-{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;restart_waiting=false;
+{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
  revoke_state_label=revoke_status=revoke_confirm_button=revoke_cancel_button=NULL;
  web_pairing_state=web_pairing_generate=NULL;}
 void dsr_ui_settings_tick(void)
 {
- if(restart_waiting&&restart_status&&(uint32_t)(lv_tick_get()-restart_wait_tick)>=100){restart_wait_tick=lv_tick_get();restart_confirm(NULL);}
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
   dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");expiry_label=NULL;
  }
@@ -102,7 +99,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
      else if(!strcmp(text,"Wstecz")||!strcmp(text,"Back"))icon=DSR_ICON_BACK;
      if(icon==DSR_ICON_COUNT)icon=section_icon(text);
      if(width<170&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
-     if(icon!=DSR_ICON_COUNT){bool compact=icon==DSR_ICON_BACK&&width<130;lv_obj_set_width(caption,width-(compact?44:58));lv_obj_align(caption,LV_ALIGN_RIGHT_MID,compact?-4:-8,0);dsr_sc_icon(obj,icon,compact?8:14,10,compact?24:28,dsr_sc_icon_accent());}
+     if(icon!=DSR_ICON_COUNT){bool compact=icon==DSR_ICON_BACK&&width<130;lv_obj_set_width(caption,width-(compact?44:58));lv_obj_align(caption,LV_ALIGN_RIGHT_MID,compact?-4:-8,0);dsr_sc_icon(obj,icon,compact?8:14,10,compact?24:28,icon==DSR_ICON_TRASH?0xffffff:dsr_sc_icon_accent());}
     }
     return obj;
 }
@@ -155,7 +152,8 @@ lv_obj_t *dsr_ui_screen(const char *title, bool navigation)
     bool marked=hud&&icon!=DSR_ICON_COUNT;
     if(marked)dsr_sc_icon(root,icon,12,47,24,DSR_SC_GLOW);
     int heading_width=marked?264:296;const lv_font_t *heading_font=hud?&dsr_roboto_22:&dsr_roboto_18;
-    if(hud){lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(title),heading_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>heading_width)heading_font=&dsr_roboto_18;}
+    lv_point_t heading_size;lv_text_get_size(&heading_size,dsr_sc_tr(title),dsr_sc_font(heading_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+    if(heading_size.x>heading_width){heading_font=&dsr_roboto_18;lv_text_get_size(&heading_size,dsr_sc_tr(title),dsr_sc_font(heading_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(heading_size.x>heading_width)heading_font=&dsr_roboto_16;}
     lv_obj_t *heading=dsr_sc_text(root,title,marked?44:12,46,heading_width,heading_font,DSR_SC_TEXT);
     lv_obj_set_height(heading,hud?27:24);lv_label_set_long_mode(heading,LV_LABEL_LONG_MODE_DOTS);
     dsr_sc_panel(root,12,75,296,1,DSR_SC_BLUE,0);
@@ -338,28 +336,23 @@ static void restart_cancel(lv_event_t *event)
 static void restart_confirm(lv_event_t *event)
 {
  (void)event;if(restart_accepted||!restart_status||!restart_confirm_button||!restart_cancel_button)return;
- if(!restart_waiting)dsr_ble_cancel();
- dsr_restart_result_t result=dsr_restart_request();
+ dsr_restart_result_t result=dsr_restart_request_confirmed();
  const char *text="Restart jest niedostępny. Spróbuj później.";
  if(result==DSR_RESTART_ACCEPTED){
-  restart_waiting=false;restart_accepted=true;text="Przyjęto żądanie restartu.";
+  restart_accepted=true;text="Przyjęto żądanie restartu.";
   lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);
  }else if(result==DSR_RESTART_BUSY){
-  if(!restart_waiting&&(dsr_blu_active()||dsr_ble_rpc_active()||dsr_ui_ble_rpc_active())){
-   dsr_ble_rpc_snapshot_t rpc;dsr_ble_rpc_snapshot(&rpc);dsr_ble_rpc_cancel(rpc.generation);dsr_blu_close();dsr_ble_cancel();
-   restart_waiting=true;restart_wait_started=restart_wait_tick=lv_tick_get();
-  }
-  if(restart_waiting&&(uint32_t)(lv_tick_get()-restart_wait_started)<10000){text="Kończenie Bluetooth przed restartem…";lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);}
-  else {restart_waiting=false;text="Pilot jest zajęty. Spróbuj ponownie.";lv_obj_remove_state(restart_confirm_button,LV_STATE_DISABLED);}
- }else {restart_waiting=false;lv_obj_remove_state(restart_confirm_button,LV_STATE_DISABLED);}
+  text="Pilot jest zajęty. Spróbuj ponownie.";
+ }
  dsr_sc_label_set_text(restart_status,text);
 }
 static void restart_screen(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("Restart pilota");
- dsr_sc_text(body,"Czy uruchomić pilot ponownie?",4,6,284,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(body,"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
- restart_status=dsr_sc_text(body,restart_accepted?"Przyjęto żądanie restartu.":"Potwierdź restart przyciskiem poniżej.",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
+ lv_obj_t *card=dsr_sc_panel(body,0,0,296,200,DSR_SC_CARD,12);
+ dsr_sc_text(card,"Czy uruchomić pilot ponownie?",12,12,268,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(card,"Ustawienia i zdjęcia pozostaną. Niezapisane zmiany zostaną utracone.",12,66,268,&dsr_roboto_14,DSR_SC_MUTED);
+ restart_status=dsr_sc_text(card,restart_accepted?"Przyjęto żądanie restartu.":"Potwierdź restart przyciskiem poniżej.",12,144,268,&dsr_roboto_14,DSR_SC_TEXT);
  restart_confirm_button=row(body,"Uruchom ponownie",210,restart_confirm);dsr_ui_primary(restart_confirm_button);
  restart_cancel_button=row(body,"Anuluj",268,restart_cancel);
  if(restart_accepted){lv_obj_add_state(restart_confirm_button,LV_STATE_DISABLED);lv_obj_add_state(restart_cancel_button,LV_STATE_DISABLED);}
@@ -418,18 +411,20 @@ static void screen_settings(lv_event_t *event)
 static void menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *root=dsr_ui_screen("Ustawienia pilota",true);
- lv_obj_t *body=dsr_sc_panel(root,12,86,296,330,DSR_SC_BG,0);
+ lv_obj_t *body=dsr_sc_panel(root,DSR_SC_MARGIN,86,296,DSR_SC_NAV_TOP-86-DSR_SC_MARGIN,DSR_SC_BG,0);
  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+ lv_obj_set_style_pad_bottom(body,DSR_SC_GAP,0);
  const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
- const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_GRID,DSR_ICON_DASHBOARD,DSR_ICON_BATTERY,DSR_ICON_HOME,DSR_ICON_SETTINGS};
- const dsr_ui_icon_t cyber_icons[]={DSR_ICON_WIFI,DSR_ICON_PALETTE,DSR_ICON_DISPLAY,DSR_ICON_BATTERY,DSR_ICON_SHIELD,DSR_ICON_CPU};
+ const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_PALETTE,DSR_ICON_DISPLAY,DSR_ICON_BATTERY,DSR_ICON_SHIELD,DSR_ICON_CPU};
  const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
  for(unsigned i=0;i<6;i++){
-  lv_obj_t *button=row(body,names[i],(int)i*58,callbacks[i]);lv_obj_t *caption=lv_obj_get_child(button,0);
+  lv_obj_t *button=dsr_sc_button(body,0,(int)i*64,296,56,DSR_SC_CARD,DSR_SC_RADIUS,callbacks[i],NULL);
   bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-  lv_obj_set_width(caption,hud?214:236);lv_obj_set_style_text_align(caption,LV_TEXT_ALIGN_LEFT,0);lv_obj_align(caption,LV_ALIGN_LEFT_MID,48,0);
-  if(hud){lv_obj_t *badge=dsr_sc_panel(button,5,5,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);dsr_sc_icon(button,DSR_ICON_NEXT,266,12,24,DSR_SC_MUTED);}
-  dsr_sc_icon(button,hud?cyber_icons[i]:icons[i],hud?11:12,hud?12:13,hud?24:22,DSR_SC_BLUE);
+  lv_obj_t *caption=dsr_sc_text(button,names[i],56,0,196,&dsr_roboto_16,DSR_SC_TEXT);
+  lv_obj_align(caption,LV_ALIGN_LEFT_MID,56,0);
+  if(hud){lv_obj_t *badge=dsr_sc_panel(button,8,8,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);}
+  dsr_sc_icon(button,DSR_ICON_NEXT,260,14,24,DSR_SC_MUTED);
+  dsr_sc_icon(button,icons[i],14,16,24,DSR_SC_BLUE);
  }
 }
 

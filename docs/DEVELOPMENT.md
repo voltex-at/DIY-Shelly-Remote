@@ -1,5 +1,20 @@
 # Development
 
+## 0.7.69-dev — UI/UX i lokalny restart
+
+Kontynuacja `work/dev-0.7.68`; dokładnie Cyber Blue (3), Grafit (0), Jasny (2).
+Zakres oraz walidacja: [DEV_0_7_69_PL.md](DEV_0_7_69_PL.md). Lokalny potwierdzony
+restart ma niezależną rezerwację z zachowaniem liczników aktywności i RTC watchdog
+przed zamykaniem SDK. WWW/OTA nadal wymagają wyłączności. Tylko tag `dev-v0.7.69`
+po CI 5/5 tego samego SHA, dotychczasowy klucz i chronione środowisko `release`.
+
+Bieżąca poprawka UI: `python3 tools/test_ui.py --case test_dev_069_ui`.
+Kilka zależnych przypadków: `--cases <nazwy>`. Po pełnym etapie atlasu zmienna
+`DSR_UI_ATLAS_SCREENS` wybiera dokładne nazwy zmienionych tras rozdzielone
+przecinkami; domyślny atlas CI nadal obejmuje wszystkie ekrany i trzy języki.
+Restart: `python3 tools/test_restart.py`; skupiony przypadek
+`--backend-case confirmed-busy`.
+
 ## 0.7.68-dev — kontynuacja i trzy skórki
 
 Gałąź `work/dev-0.7.68` kontynuuje wcześniejsze etapy bez zmiany partycji,

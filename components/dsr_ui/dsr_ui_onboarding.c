@@ -56,13 +56,14 @@ lv_obj_t *dsr_onboarding_screen(const char *title,unsigned step)
  lv_obj_t *root=dsr_ui_screen(title,false);
  for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
   lv_obj_t *child=lv_obj_get_child(root,(int)i);
-  if(lv_obj_check_type(child,&lv_label_class)&&lv_obj_get_style_y(child,0)==46){lv_obj_set_width(child,184);lv_label_set_long_mode(child,LV_LABEL_LONG_CLIP);dsr_sc_label_set_text(child,title);}
+  if(lv_obj_check_type(child,&lv_label_class)&&lv_obj_get_style_y(child,0)==46){lv_label_set_long_mode(child,LV_LABEL_LONG_CLIP);dsr_sc_label_set_text(child,title);}
   if(lv_obj_get_style_y(child,0)==75)lv_obj_add_flag(child,LV_OBJ_FLAG_HIDDEN);
  }
  if(step<1)step=1;
  if(step>3)step=3;
  char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),step);
- lv_obj_t *label=dsr_sc_text(root,caption,204,53,104,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);
+ /* Progress uses the free status slot, leaving the entire heading readable. */
+ lv_obj_t *label=dsr_sc_text(root,caption,136,16,80,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
  segments(root,step,76);return root;
 }
 lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t back_cb,const char *forward,lv_event_cb_t forward_cb)

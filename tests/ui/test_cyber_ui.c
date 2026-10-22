@@ -16,7 +16,7 @@ static lv_obj_t *theme_choice(void)
 static void select_skin(unsigned row)
 {
  dsr_ui_open_settings();tap_row("Wygląd i język");lv_obj_t *o=theme_choice();
- CHECK(strstr(lv_dropdown_get_options(o),"Shelly HUD — Cyber Blue"));
+ CHECK(strstr(lv_dropdown_get_options(o),"Cyber Blue"));
  lv_dropdown_set_selected(o,row);lv_obj_send_event(o,LV_EVENT_VALUE_CHANGED,NULL);click("Zapisz");tick();
  CHECK(dsr_sc_style()==skin_ids[row]&&style_hint==skin_ids[row]);
  cJSON *doc=room_document();CHECK(dsr_sc_style_from_name(cJSON_GetObjectItemCaseSensitive(doc,"theme")->valuestring)==skin_ids[row]);cJSON_Delete(doc);
@@ -121,7 +121,7 @@ static void gallery(void)
  m.devices[0].output=false;dsr_mobile_update(&m);screenshot("624-cyber-home-off");m.devices[0].output=true;dsr_mobile_update(&m);
  dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_update_layout(lv_screen_active());lv_area_t pa;lv_obj_get_coords(power,&pa);tap((pa.x1+pa.x2)/2,(pa.y1+pa.y2)/2);CHECK(hits==1);screenshot("601-cyber-relay");
  dsr_mobile_show(DSR_MOBILE_DETAILS,1);CHECK(find_label(lv_screen_active(),"Pozycja 84%"));screenshot("602-cyber-cover");
- lv_obj_update_layout(lv_screen_active());lv_obj_t *rail=sized(lv_screen_active(),176,162);CHECK(rail);
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *rail=sized(lv_screen_active(),176,154);CHECK(rail);
  lv_area_t well;lv_obj_get_coords(lv_obj_get_child(rail,0),&well);
  const unsigned targets[]={0,50,100};
  for(unsigned i=0;i<3;i++){

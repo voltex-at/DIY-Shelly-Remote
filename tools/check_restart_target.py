@@ -26,13 +26,16 @@ require(args.max_frame > 0, "Invalid own-frame budget")
 required = {
     "dsr_restart": {
         "dsr_boot_ready", "dsr_activity_restart_reserve", "dsr_activity_restart_cancel",
-        "dsr_activity_restart_dispatch", "esp_restart", "xTaskCreatePinnedToCore",
+        "dsr_activity_restart_dispatch", "dsr_activity_restart_confirmed_reserve", "esp_restart", "xTaskCreatePinnedToCore",
         "xTaskGenericNotify", "ulTaskGenericNotifyTake", "vTaskDelay",
+        "rtc_clk_slow_freq_get_hz", "wdt_hal_init", "wdt_hal_write_protect_disable",
+        "wdt_hal_config_stage", "wdt_hal_set_flashboot_en", "wdt_hal_enable",
+        "wdt_hal_feed", "wdt_hal_write_protect_enable",
     },
     "dsr_activity": set(),
 }
 public = {
-    "dsr_restart": {"dsr_restart_start", "dsr_restart_request"},
+    "dsr_restart": {"dsr_restart_start", "dsr_restart_request", "dsr_restart_request_confirmed"},
     "dsr_activity": {"dsr_activity_begin", "dsr_activity_end",
                      "dsr_activity_restart_reserve", "dsr_activity_restart_cancel", "dsr_activity_restart_dispatch"},
 }
@@ -120,5 +123,6 @@ args.out.write_text(json.dumps({
     "storage_erase_network_and_timer_dispatch_direct_dependencies_absent": True,
     "tcb_allocator_shutdown_and_transitive_stack_peak_measured": False,
     "physical_restart_or_data_retention_verified": False,
+    "sdk_shutdown_guard": "RTC watchdog armed before esp_restart: 3 s system reset then 3 s RTC reset; physical expiry unmeasured",
 }, indent=2) + "\n")
 print(f"PASS: real target restart/activity frames<={args.max_frame} B; actual aligned internalBSS state; compiled dispatcher<=16 B/task stack4096 B priority1; 32-bit atomic gate with IDF wrappers permitted; no lock-free/peak claim")

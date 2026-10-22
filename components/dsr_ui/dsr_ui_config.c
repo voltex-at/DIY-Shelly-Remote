@@ -238,8 +238,9 @@ static void config_error(open_result_t result)
  lv_obj_t *root=screen("Konfiguracja niedostępna");dsr_sc_label_set_text(status_label,"Nie można otworzyć edytora");
  dsr_config_health_t h;dsr_config_health_snapshot(&h);
  const char *reason=result==OPEN_PANEL?"Serwer HTTPS jest niedostępny. Kod parowania nie został utworzony.":result==OPEN_STORAGE?(h.storage==DSR_STORAGE_NONEMPTY?"Magazyn konfiguracji niedostępny: niepusta partycja SPIFFS nie została zamontowana.":"Magazyn konfiguracji jest niedostępny."):result==OPEN_PARSE||result==OPEN_INVALID?"Nie można odczytać poprawnej konfiguracji. Sprawdź pamięć i kopię danych.":"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.";
- dsr_sc_text(body,reason,4,16,284,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(body,"Dane nie zostały skasowane. Szczegóły są w diagnostyce i logu USB.",4,137,284,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_t *message=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_panel(body,0,0,296,284,DSR_SC_CARD,12):body;
+ dsr_sc_text(message,reason,12,16,268,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_text(message,"Dane nie zostały skasowane. Szczegóły są w diagnostyce i logu USB.",12,153,268,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_ui_button(root,"Wstecz",12,420,140,error_back,NULL);dsr_ui_button(root,"Diagnostyka",168,420,140,diagnostics,NULL);config_log("open_failed",result);
 }
 /* Transactional open: no expired/partial draft survives an error. */
@@ -290,7 +291,7 @@ static void select_changed(lv_event_t *event)
 static void add_choice(const char *caption,const choice_t *choice,int y)
 {
  dsr_sc_text(body,caption,2,y-1,284,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *d=lv_dropdown_create(body);lv_obj_set_pos(d,0,y+21);lv_obj_set_size(d,284,44);
- const char *options=!strcmp(choice->key,"kind")?"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik":!strcmp(choice->key,"theme")?"Grafitowy\nJasny\nShelly HUD — Cyber Blue":!strcmp(choice->key,"language")?"Polski\nEnglish\nDeutsch":choice->options;
+ const char *options=!strcmp(choice->key,"kind")?"Oświetlenie\nPrzekaźnik\nGniazdko\nRoleta\nCzujnik otwarcia\nCzujnik":!strcmp(choice->key,"theme")?"Grafit\nJasny\nCyber Blue":!strcmp(choice->key,"language")?"Polski\nEnglish\nDeutsch":choice->options;
  lv_dropdown_set_options(d,dsr_sc_tr(options));lv_obj_set_style_text_font(d,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?&dsr_roboto_16:&dsr_roboto_14,0);
  if(choice->numeric)lv_dropdown_set_selected(d,(uint32_t)integer(editing,choice->key));else{char *options=malloc(strlen(choice->options)+1);strcpy(options,choice->options);unsigned at=0;for(char *v=strtok(options,"\n");v;v=strtok(NULL,"\n"),at++)if(!strcmp(v,string(editing,choice->key))){lv_dropdown_set_selected(d,at);break;}free(options);}
  lv_obj_add_event_cb(d,select_changed,LV_EVENT_VALUE_CHANGED,(void *)choice);

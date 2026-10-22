@@ -108,15 +108,15 @@ static __attribute__((noinline)) int object_card(lv_obj_t *list,const cJSON *r,c
 }
 static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 {
- lv_obj_t *add=button(root,page?"+ Scena":"+ Grupa",12,94,112,edit,0);dsr_ui_primary(add);
- browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,94);lv_obj_set_size(browse.search,176,44);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
+ lv_obj_t *add=button(root,page?"+ Scena":"+ Grupa",12,104,112,edit,0);dsr_ui_primary(add);
+ browse.search=lv_textarea_create(root);dsr_ui_textarea(browse.search);lv_obj_set_pos(browse.search,132,104);lv_obj_set_size(browse.search,176,44);lv_textarea_set_one_line(browse.search,true);lv_textarea_set_max_length(browse.search,47);lv_textarea_set_placeholder_text(browse.search,dsr_sc_tr("Szukaj"));lv_textarea_set_text(browse.search,browse.query);
  lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_FOCUSED,NULL);lv_obj_add_event_cb(browse.search,search_focus,LV_EVENT_CLICKED,NULL);
- lv_obj_t *list=body=dsr_sc_panel(root,12,190,296,s->active?182:218,DSR_SC_BG,0);lv_obj_set_style_bg_opa(list,LV_OPA_TRANSP,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+ lv_obj_t *list=body=dsr_sc_panel(root,12,208,296,s->active?156:192,DSR_SC_BG,0);lv_obj_set_style_bg_opa(list,LV_OPA_TRANSP,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  char *json=dsr_workspace_snapshot();cJSON *r=json?cJSON_Parse(json):NULL;free(json);char error[96];
  if(!r||!dsr_config_validate(r,error)){cJSON_Delete(r);dsr_sc_text(list,"Konfiguracja niedostępna",8,20,270,&dsr_roboto_14,DSR_SC_MUTED);return;}
  char options[512];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Cały dom"));unsigned index=0,selected=0;const cJSON *v;
  cJSON_ArrayForEach(v,get(r,"rooms")){strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,text(v,"name"),sizeof(options)-strlen(options)-1);index++;if((uint32_t)number(v,"id")==browse.room)selected=index;}
- lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,142);lv_obj_set_size(filter,296,44);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
+ lv_obj_t *filter=lv_dropdown_create(root);lv_obj_set_pos(filter,12,156);lv_obj_set_size(filter,296,44);lv_obj_set_style_text_font(filter,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(filter),&dsr_roboto_14,0);lv_dropdown_set_options(filter,options);lv_dropdown_set_selected(filter,selected);lv_obj_add_event_cb(filter,room_filter,LV_EVENT_VALUE_CHANGED,NULL);
  unsigned i=0;int y=0;cJSON_ArrayForEach(v,get(r,page?"scenes":"groups")){
   if(browse.room&&browse.room!=(uint32_t)number(v,"room"))continue;
   if(!dsr_ui_search_match(text(v,"name"),browse.query))continue;
@@ -124,7 +124,7 @@ static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_s
  }
  if(!i){dsr_sc_icon(list,page?DSR_ICON_SCENES:DSR_ICON_GRID,116,24,48,DSR_SC_MUTED);dsr_sc_text(list,"Dodaj pierwszy wpis przyciskiem + u góry.",12,92,260,&dsr_roboto_16,DSR_SC_TEXT);}
  browse.revision=(uint32_t)number(r,"revision");cJSON_Delete(r);
- if(s->active)button(root,"Pokaż bieżące wykonanie",12,380,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,414,296,&dsr_roboto_11,DSR_SC_MUTED);
+ if(s->active)button(root,"Pokaż bieżące wykonanie",12,372,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,410,296,&dsr_roboto_11,DSR_SC_MUTED);
  browse.keyboard=lv_keyboard_create(root);dsr_ui_keyboard(browse.keyboard);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(browse.keyboard,LV_OBJ_FLAG_HIDDEN);
 }
 static void draw(void)

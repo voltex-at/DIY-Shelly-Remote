@@ -13,9 +13,12 @@
 #define DSR_SC_NAV 0x303638
 #define DSR_SC_OFF 0x81878e
 #define DSR_SC_GAP 8
+#define DSR_SC_SPACE_SM 4
 #define DSR_SC_MARGIN 12
 #define DSR_SC_RADIUS 14
 #define DSR_SC_TOUCH_MIN 44
+#define DSR_SC_STATUS_H 44
+#define DSR_SC_NAV_TOP 428
 extern const lv_font_t dsr_roboto_11, dsr_roboto_12, dsr_roboto_14;
 extern const lv_font_t dsr_roboto_16, dsr_roboto_18, dsr_roboto_28;
 extern const lv_font_t dsr_roboto_22;

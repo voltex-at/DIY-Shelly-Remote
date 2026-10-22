@@ -7,7 +7,8 @@
 #define PENDING UINT32_C(0x80000000)
 #define DISPATCHED UINT32_C(0x40000000)
 #define FAULT UINT32_C(0x20000000)
-#define COUNT UINT32_C(0x1fffffff)
+#define CONFIRMED UINT32_C(0x10000000)
+#define COUNT UINT32_C(0x0fffffff)
 static _Atomic uint32_t activity_state;
 /* IDF's PSRAM workaround may route C11 atomics through its atomic32 wrappers.
  * Correct single-word atomicity is required, not an unproved lock-free ABI.
@@ -35,7 +36,28 @@ bool dsr_activity_restart_pending(void)
 {return (atomic_load(&activity_state)&~COUNT)!=0;}
 bool dsr_activity_restart_reserve(void)
 {uint32_t expected=0;return atomic_compare_exchange_strong(&activity_state,&expected,PENDING);}
+bool dsr_activity_restart_confirmed_reserve(void)
+{
+ uint32_t old=atomic_load(&activity_state);
+ do{if(old&(PENDING|DISPATCHED))return false;}
+ while(!atomic_compare_exchange_weak(&activity_state,&old,old|PENDING|CONFIRMED));
+ return true;
+}
 void dsr_activity_restart_cancel(void)
-{uint32_t expected=PENDING;(void)atomic_compare_exchange_strong(&activity_state,&expected,0);}
+{
+ uint32_t old=atomic_load(&activity_state);
+ for(;;){
+  if((old&(PENDING|DISPATCHED))!=PENDING)return;
+  if(!(old&CONFIRMED)&&old!=PENDING)return;
+  uint32_t next=old&~(PENDING|CONFIRMED);
+  if(atomic_compare_exchange_weak(&activity_state,&old,next))return;
+ }
+}
 bool dsr_activity_restart_dispatch(void)
-{uint32_t expected=PENDING;return atomic_compare_exchange_strong(&activity_state,&expected,DISPATCHED);}
+{
+ uint32_t old=atomic_load(&activity_state);
+ do{
+  if(old!=PENDING&&((old&(PENDING|CONFIRMED|DISPATCHED))!=(PENDING|CONFIRMED)))return false;
+ }while(!atomic_compare_exchange_weak(&activity_state,&old,(old&~(PENDING|CONFIRMED))|DISPATCHED));
+ return true;
+}

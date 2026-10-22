@@ -19,7 +19,7 @@ static void repaint_regression(void)
 {
  dsr_mobile_model_t m={.device_count=2};
  for(unsigned i=0;i<2;i++){m.devices[i]=(dsr_mobile_device_t){.id=42+i,.kind=DSR_DEVICE_RELAY,.online=true,.can_switch=true,.has_power=true,.power_w=10};snprintf(m.devices[i].name,48,"Latency relay %u",i);strcpy(m.devices[i].identity,"latency-fixture");}
- dsr_mobile_bind(NULL);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());tap(284,66);
+ dsr_mobile_bind(NULL);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());tap(260,126);
  lv_obj_t *close=find_label(lv_screen_active(),"Zamknij");CHECK(close);lv_area_t a;lv_obj_get_coords(close,&a);dial_pointer((a.x1+a.x2)/2,(a.y1+a.y2)/2,true);
  m.devices[1].power_w=11;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Zamknij")==close);
  dial_pointer((a.x1+a.x2)/2,(a.y1+a.y2)/2,false);CHECK(!find_label(lv_screen_active(),"Zamknij"));
@@ -39,7 +39,7 @@ static bool sleep_has_text(lv_obj_t *o,const char *text)
 }
 static lv_obj_t *cover_well(lv_obj_t *o)
 {
- if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==162&&!lv_obj_get_child_count(o))return o;
+ if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==154&&!lv_obj_get_child_count(o))return o;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *well=cover_well(lv_obj_get_child(o,(int)i));if(well)return well;}return NULL;
 }
 static void sleep_repaint_regression(void)
@@ -145,10 +145,10 @@ int main(int argc,char **argv)
   * battery screen and is covered by the Cyber suites. */
  for(unsigned language=0;language<3;language++)for(unsigned theme=0;theme<2;theme++){
   doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==0?"graphite":"light"));publish_document(doc);dsr_network_home(NULL);lv_obj_update_layout(lv_screen_active());CHECK(!labels(lv_screen_active(),"Mój dom")&&labels(lv_screen_active(),"Mój pulpit")==1);
-  lv_obj_t *power=NULL;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);for(unsigned j=0;j<lv_obj_get_child_count(o);j++){lv_obj_t *c=lv_obj_get_child(o,(int)j);for(unsigned k=0;k<lv_obj_get_child_count(c);k++){lv_obj_t *b=lv_obj_get_child(c,(int)k);if(lv_obj_get_width(b)==56&&lv_obj_get_height(b)==56&&lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))power=b;}}}CHECK(power);lv_area_t p,c;lv_obj_get_coords(power,&p);lv_obj_get_coords(lv_obj_get_parent(power),&c);CHECK(abs((p.y1+p.y2)-(c.y1+c.y2))<=1&&p.y2<=c.y2-12);
+  lv_obj_t *power=NULL;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);for(unsigned j=0;j<lv_obj_get_child_count(o);j++){lv_obj_t *c=lv_obj_get_child(o,(int)j);for(unsigned k=0;k<lv_obj_get_child_count(c);k++){lv_obj_t *b=lv_obj_get_child(c,(int)k);if(lv_obj_get_width(b)==64&&lv_obj_get_height(b)==64&&lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))power=b;}}}CHECK(power);lv_area_t p,c;lv_obj_get_coords(power,&p);lv_obj_get_coords(lv_obj_get_parent(power),&c);CHECK(p.y1>=c.y1+40&&p.y2<=c.y2-8&&p.x2<=c.x2-8);
   dsr_ui_edit_room(1);red_button("Usuń pomieszczenie");dsr_ui_open_settings();dsr_ui_config_registry(NULL);click("Urządzenia");click("Owner relay");red_button("Usuń urządzenie");
   dsr_ui_open_settings();lv_obj_update_layout(lv_screen_active());tap(160,452);CHECK(find_label(lv_screen_active(),"Napięcie wejścia BAT"));
-  dsr_onboarding_screen("Bluetooth LE",2);lv_obj_update_layout(lv_screen_active());char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *step=find_label(lv_screen_active(),caption);CHECK(step&&lv_obj_get_y(step)>=50);CHECK(!labels(lv_screen_active(),"Mój dom"));tap(52,20);CHECK(dsr_mobile_active());
+  dsr_onboarding_screen("Bluetooth LE",2);lv_obj_update_layout(lv_screen_active());char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *step=find_label(lv_screen_active(),caption);CHECK(step&&lv_obj_get_y(step)>=8&&lv_obj_get_y(step)+lv_obj_get_height(step)<=32);CHECK(!labels(lv_screen_active(),"Mój dom"));tap(52,20);CHECK(dsr_mobile_active());
  }
  dsr_sc_appearance(DSR_SC_BLUE,false,2);CHECK(!strcmp(dsr_sc_tr("Paruj BLU"),"BLU koppeln"));CHECK(!strstr(dsr_sc_tr("Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly."),"Sparuj"));
  lv_obj_t *root=dsr_ui_screen("Scroll test",false),*list=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_scrollbar(list);dsr_sc_panel(list,0,0,296,900,DSR_SC_CARD,8);lv_obj_update_layout(root);lv_area_t h,v;lv_obj_get_scrollbar_area(list,&h,&v);CHECK(lv_area_get_width(&v)==2&&lv_area_get_height(&v)==36&&v.x1>307&&v.x2<320);lv_obj_invalidate(root);lv_refr_now(display);unsigned pixel=((unsigned)((v.y1+v.y2)/2)*320u+(unsigned)v.x1)*3u;CHECK(canvas[pixel]>60&&canvas[pixel+1]>60&&canvas[pixel+2]>60);screenshot("502-owner-scrollbar");

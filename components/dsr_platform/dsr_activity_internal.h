@@ -4,6 +4,7 @@
 /* Restart backend ONLY. Public callers use dsr_restart_request, which also
  * requires boot readiness and a live deferred dispatcher. */
 bool dsr_activity_restart_reserve(void);
+bool dsr_activity_restart_confirmed_reserve(void);
 void dsr_activity_restart_cancel(void);
 bool dsr_activity_restart_dispatch(void);
 #endif

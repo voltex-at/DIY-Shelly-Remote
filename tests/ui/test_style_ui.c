@@ -68,7 +68,7 @@ int main(int argc,char **argv)
  /* Any legacy style id 1 (old hint or caller) renders graphite. */
  dsr_sc_appearance(DSR_SC_BLUE,1,0);CHECK(dsr_sc_style()==DSR_SC_STYLE_GRAPHITE);CHECK(dsr_sc_style_from_name("midnight")==DSR_SC_STYLE_GRAPHITE);
  /* The LCD theme picker offers exactly three skins in PL/EN/DE. */
- const char *picker[]={"Grafitowy\nJasny\nShelly HUD — Cyber Blue","Graphite\nLight\nShelly HUD — Cyber Blue","Graphit\nHell\nShelly HUD — Cyber Blue"};
+ const char *picker[]={"Grafit\nJasny\nCyber Blue","Graphite\nLight\nCyber Blue","Graphit\nHell\nCyber Blue"};
  for(unsigned language=0;language<3;language++){
   cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);tick();
   dsr_ui_open_settings();tick();tap_row("Wygląd i język");tick();

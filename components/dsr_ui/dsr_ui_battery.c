@@ -67,13 +67,13 @@ static void battery_draw(lv_event_t *event)
  lv_obj_t *o=lv_event_get_target(event);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(event);
  uint32_t color=header_low?DSR_CYBER_DANGER:DSR_SC_GLOW;
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=dsr_sc_color(color);d.radius=3;
- lv_area_t cell={a.x1+5,a.y1+3,a.x1+35,a.y1+20};lv_draw_rect(layer,&d,&cell);
+ lv_area_t cell={a.x1+1,a.y1+10,a.x1+46,a.y1+32};lv_draw_rect(layer,&d,&cell);
  d.border_width=0;d.radius=1;d.bg_opa=LV_OPA_COVER;d.bg_color=dsr_sc_color(color);
- lv_area_t tip={a.x1+36,a.y1+8,a.x1+38,a.y1+15};lv_draw_rect(layer,&d,&tip);
- if(header_fill>0){lv_area_t fill={cell.x1+4,cell.y1+4,cell.x1+3+23*header_fill/100,cell.y2-4};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
- /* Unknown level: an empty outline. A "?" read as a help button in the
-  * status bar; the value below already shows "—". */
- if(header_charging){lv_draw_label_dsc_t t;lv_draw_label_dsc_init(&t);t.text=header_inferred?"~":"+";t.font=&dsr_roboto_12;t.color=dsr_sc_color(DSR_SC_TEXT);t.align=LV_TEXT_ALIGN_CENTER;lv_draw_label(layer,&t,&cell);}
+ lv_area_t tip={a.x1+47,a.y1+17,a.x1+49,a.y1+25};lv_draw_rect(layer,&d,&tip);
+ /* The dim fill stays behind the percentage: no second row or charge glyph
+  * competes with the value. Unknown level remains an empty outline + dash. */
+ d.bg_opa=LV_OPA_30;
+ if(header_fill>0){lv_area_t fill={cell.x1+3,cell.y1+3,cell.x1+2+40*header_fill/100,cell.y2-3};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
 }
 static void charge_frame(lv_timer_t *timer)
 {
@@ -221,11 +221,11 @@ static void show(void)
 }
 void dsr_ui_battery_header(lv_obj_t *root)
 {
- lv_obj_t *button=dsr_sc_button(root,276,0,44,44,DSR_SC_BG,0,dsr_ui_battery_open,NULL);
+ lv_obj_t *button=dsr_sc_button(root,256,0,52,DSR_SC_STATUS_H,DSR_SC_BG,0,dsr_ui_battery_open,NULL);
  lv_obj_set_style_bg_opa(button,LV_OPA_TRANSP,0);
  /* Empty icon is intentional when only a BAT voltage is known. */
  header_icon=button;lv_obj_add_event_cb(button,battery_draw,LV_EVENT_DRAW_MAIN_END,NULL);lv_obj_add_event_cb(button,icon_deleted,LV_EVENT_DELETE,NULL);
- header_fill=-2;header_value=dsr_sc_text(button,"—",0,26,44,&dsr_roboto_11,DSR_SC_TEXT);
+ header_fill=-2;header_value=dsr_sc_text(button,"—",5,15,38,&dsr_roboto_11,DSR_SC_TEXT);
  lv_obj_set_style_text_align(header_value,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);dsr_ui_battery_tick();
 }
