@@ -134,6 +134,29 @@ static void thermostat_card(unsigned theme,unsigned language)
   printf("Thermostat dashboard: %u devices, %lu bytes free, largest %lu; unchanged 128 KiB LVGL pool\n",m.device_count,(unsigned long)memory.free_size,(unsigned long)memory.free_biggest_size);
  }
 }
+static void contact_cards(unsigned theme)
+{
+ dsr_ui_open_settings();dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop};dsr_mobile_bind(&actions);
+ unsigned door=0;for(unsigned k=0;k<DSR_SC_DEVICE_ICONS;k++)if(dsr_sc_device_icons[k]==DSR_ICON_DOOR)door=k+1;CHECK(door);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Schlafzimmer"}},.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="contact-review",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}};
+ for(unsigned language=0;language<3;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,theme,language);
+  for(unsigned kind=0;kind<2;kind++)for(unsigned open=0;open<2;open++){
+   snprintf(m.devices[0].name,sizeof(m.devices[0].name),"%s",kind?"Tür Schlafzimmer":"Fenster Schlafzimmer");
+   m.devices[0].icon=kind?door:0;m.devices[0].contact_open=open;m.devices[0].blu.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|(open?DSR_BLU_OPEN:0);
+   dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
+   lv_obj_t *name=find_label(lv_screen_active(),m.devices[0].name),*card=lv_obj_get_parent(name),*box=lv_obj_get_child(card,3);
+   lv_area_t a=rect(card),b=rect(box);CHECK(b.y1>rect(name).y2&&a.y2-b.y2>=12&&a.x2-b.x2>=8);
+   CHECK(has_icon(box,kind?(open?DSR_ICON_DOOR_OPEN:DSR_ICON_DOOR_CLOSED):(open?DSR_ICON_WINDOW_OPEN:DSR_ICON_WINDOW_CLOSED),52));
+   lv_obj_t *state=find_label(card,open?"Otwarte":"Zamknięte");CHECK(state&&!find_label(box,open?"Otwarte":"Zamknięte"));CHECK(rect(state).x2<b.x1-4);
+   CHECK(!find_label(card,"Brak dodatkowych pomiarów"));
+   if(language==2){char path[48];snprintf(path,sizeof(path),"contact-%s-%s",kind?"door":"window",open?"open":"closed");shot(path,theme);}
+  }
+ }
+ m.devices[0].has_battery=true;m.devices[0].battery_pct=92;m.devices[0].has_illuminance=true;m.devices[0].illuminance_lux=0;
+ snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Terrassentür im großen Wohnzimmer");dsr_mobile_update(&m);CHECK(containing(lv_screen_active(),"0 lx")&&containing(lv_screen_active(),"92%"));shot("contact-long-name-readings",theme);
+}
 static void dashboard(unsigned theme)
 {
  dsr_ui_open_settings();dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop,.set_trv=trv_noop,.stop_cover=stop_noop};dsr_mobile_bind(&actions);
@@ -222,7 +245,8 @@ int main(int argc,char **argv)
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
+ if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
+ else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
  else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;

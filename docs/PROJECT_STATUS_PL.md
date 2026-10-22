@@ -81,7 +81,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
+| UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Aktywny punkt ankiety. Podgląd obu stanów w trzech skórkach gotowy; wykryto znikanie pomieszczenia przy „Geschlossen” i skracanie przy „Offen”. Wybór układu tekstu i ocena grafik oczekują na właściciela |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
@@ -149,6 +149,16 @@ Właściciel zaakceptował krótszą szerokość ramki baterii. Zlecił wyśrodk
 Walidacja: ten sam tryb `DSR_UI_FOCUS_TRV=1` — PASS; 10 podglądów zmienionej karty, trzy skórki i PL/EN/DE. Sprawdzono środek rzeczywistych pikseli obu znaków oraz wspólną oś pól. Ponieważ ten sam helper obsługuje również przyciski 48 px w szczegółach termostatu, sprawdzono ich wyśrodkowanie w trzech skórkach, bez generowania dodatkowego atlasu. Regresja przed poprawką wykazała przesunięte znaki. Dla 16 termostatów pozostaje 12 632 B wolnej pamięci, największy blok 12 576 B, w puli 128 KiB. Podgląd kodu roboczego do oceny; odbiór na pilocie i nowy DEV po zakończeniu ankiety.
 
 **Odbiór ankiety:** właściciel potwierdził „Tak, karta zaakceptowana” po wyśrodkowaniu ramki baterii względem temperatury i znaków +/−. Punkt UI-07 zamknięty na poziomie wyglądu podglądu; nie jest to potwierdzenie wdrożenia ani odbioru na fizycznym pilocie. Dalsza ankieta dotyczy kolejnych ekranów.
+
+### UI-08 — aktualny podgląd kart okna i drzwi
+
+Właściciel wybrał ten punkt jako następny po zaakceptowaniu karty termostatu. Przygotowano świeży podgląd okna i drzwi w obu stanach dla Cyber Blue, Grafit i Jasny, z dodatkowym przykładem dłuższej nazwy oraz rzeczywistych odczytów 0 lx i baterii 92% z modelu testowego.
+
+Wykryta niespójność: wiersz „pomieszczenie • stan” skraca pomieszczenie „Schlafzimmer” przy „Offen”, a dłuższe „Geschlossen” usuwa pomieszczenie z tego wiersza. Nazwa urządzenia i przypisanie do pomieszczenia są odrębnymi polami. Grafika po prawej poprawnie rozróżnia okno/drzwi i stan otwarty/zamknięty, bez powielania tekstu stanu w swoim panelu.
+
+Następna odpowiedź ankiety ustali układ czytelnego pomieszczenia i stanu oraz ocenę wielkości/wyglądu grafik. Ten etap dokumentuje aktualny wygląd przed korektą; nie oznacza akceptacji UI-08.
+
+Walidacja: `DSR_UI_FOCUS_CONTACT=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS na przypiętym LVGL 9.3. Tylko 15 podglądów wybranych kart: 12 kombinacji skórki/typu/stanu i trzy dłuższe nazwy z odczytami. Sprawdzono etykiety PL/EN/DE, grafikę 52 px, odstępy od ramek i brak pustego komunikatu o pomiarach. To host z modelem danych, bez odbioru na pilocie.
 
 ## Konsolidacja starych zgłoszeń
 
