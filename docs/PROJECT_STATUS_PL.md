@@ -80,7 +80,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
-| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Runda 4: wyśrodkowanie odczytu i położenie baterii zaakceptowane na podglądzie; dodano wspólną ramkę ikony i procentu baterii. „Soll” w ramce i sterowanie 104×56 jak roleta; odbiór na pilocie otwarty |
+| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Wyśrodkowanie odczytu i położenie baterii zaakceptowane na podglądzie; wspólna ramka baterii skrócona do szerokości zawartości. „Soll” w ramce i sterowanie 104×56 jak roleta; odbiór na pilocie otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
@@ -137,6 +137,8 @@ Walidacja: ten sam tryb `DSR_UI_FOCUS_TRV=1` — PASS, tylko 10 podglądów kart
 ### Runda 4 — ramka baterii termostatu
 
 Właściciel zaakceptował wyśrodkowanie temperatury odczytanej i położenie baterii z procentem. Dodatkowo zlecił wspólne obramowanie ikony i poziomu baterii. Dodano ramkę 92×24 px wokół obu elementów, zachowując ich położenie. Cyber Blue używa wspólnego turkusowego, sfazowanego konturu; Grafit i Jasny mają ramkę dopasowaną do swojej skórki.
+
+Korekta po kolejnym podglądzie: właściciel ocenił ramkę jako zbyt długą. Usunięto stałą szerokość 92 px; aktualna ramka zachowuje wysokość 24 px, a jej szerokość wynika z ikony, odstępu i zmierzonego tekstu procentu, z marginesem 6 px po obu stronach. Położenie ikony oraz procentu pozostaje zaakceptowane. Ta sama regresja przeszła dla trzech skórek i PL/EN/DE, potwierdzając skrócenie rzeczywiście rysowanych krawędzi oraz dopasowanie także dla 0%, 100% i braku odczytu. Zapas pamięci dla 16 termostatów pozostał bez zmian.
 
 Walidacja: `DSR_UI_FOCUS_TRV=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS; tylko 10 podglądów karty, trzy skórki i PL/EN/DE. Regresja sprawdza rzeczywiście narysowane cztery krawędzie ramki; przed poprawką wykazała ich brak. Ramka korzysta z istniejącej warstwy rysowania, bez dodatkowych obiektów LVGL. Dla 16 termostatów zapas pamięci pozostał bez zmian: 12 256 B, największy blok 12 200 B, pula 128 KiB. To walidacja hosta; odbiór na pilocie i nowy DEV pozostają po zakończeniu ankiety.
 

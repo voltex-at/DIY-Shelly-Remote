@@ -413,14 +413,15 @@ static void card_battery_draw(lv_event_t *event)
  const dsr_mobile_device_t *d=&model.devices[i];lv_obj_t *card=lv_event_get_target(event);card_layout_t l=card_layout(d,lv_obj_get_width(card));
  bool known=d->online&&d->error==DSR_OK&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100;
  uint32_t color=known?(d->battery_pct<=20?0xf0a020:DSR_SC_GLOW):DSR_SC_OFF;
+ char text[16];if(known)snprintf(text,sizeof(text),"%.0f%%",d->battery_pct);else snprintf(text,sizeof(text),"—");
+ const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);int h=lv_font_get_line_height(font);lv_point_t size;
+ lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
  lv_area_t a;lv_obj_get_content_coords(card,&a);
  a.x1+=CARD_ROW_X;a.y1+=l.body+60;a.x2=a.x1+23;a.y2=a.y1+23;
- lv_area_t frame={a.x1-6,a.y1,a.x1+85,a.y2};lv_layer_t *layer=lv_event_get_layer(event);
+ lv_area_t frame={a.x1-6,a.y1,a.x1+32+size.x+5,a.y2};lv_layer_t *layer=lv_event_get_layer(event);
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
  else{lv_draw_rect_dsc_t border;lv_draw_rect_dsc_init(&border);border.base.obj=card;border.bg_opa=LV_OPA_TRANSP;border.border_width=1;border.border_color=dsr_sc_color(DSR_SC_GLOW);border.radius=8;lv_draw_rect(layer,&border,&frame);}
  dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
- char text[16];if(known)snprintf(text,sizeof(text),"%.0f%%",d->battery_pct);else snprintf(text,sizeof(text),"—");
- const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);int h=lv_font_get_line_height(font);
  a.x1+=32;a.x2=frame.x2-6;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);
  lv_draw_label(lv_event_get_layer(event),&label,&a);

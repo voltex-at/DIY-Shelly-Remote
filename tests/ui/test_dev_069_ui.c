@@ -37,14 +37,14 @@ static bool frame_pixel(int x,int y)
  for(unsigned c=0;c<3;c++)distance+=abs((int)canvas[(y*320+x)*3+(int)c]-(int)((expected>>(16-c*8))&255));
  return distance<100; /* RGB565 + Cyber's translucent contour */
 }
-typedef struct {char target[48],battery[16];lv_area_t target_area,battery_area,icon_area;const lv_font_t *font;bool icon;} trv_readouts_t;
+typedef struct {char target[48],battery[16];lv_area_t target_area,battery_area,icon_area;const lv_font_t *font,*battery_font;bool icon;} trv_readouts_t;
 static void capture_trv_draw(lv_event_t *event)
 {
  trv_readouts_t *r=lv_event_get_user_data(event);lv_draw_task_t *task=lv_event_get_draw_task(event);
  lv_draw_label_dsc_t *label=lv_draw_task_get_label_dsc(task);
  if(label){
   if(strstr(label->text,"°C")){snprintf(r->target,sizeof(r->target),"%s",label->text);lv_draw_task_get_area(task,&r->target_area);r->font=label->font;}
-  else{snprintf(r->battery,sizeof(r->battery),"%s",label->text);lv_draw_task_get_area(task,&r->battery_area);}
+  else{snprintf(r->battery,sizeof(r->battery),"%s",label->text);lv_draw_task_get_area(task,&r->battery_area);r->battery_font=label->font;}
  }
  lv_draw_image_dsc_t *image=lv_draw_task_get_image_dsc(task);
  if(image){const lv_image_dsc_t *src=image->src;r->icon=true;lv_draw_task_get_area(task,&r->icon_area);r->icon_area.x2=r->icon_area.x1+(int)(src->header.w*image->scale_x/256)-1;r->icon_area.y2=r->icon_area.y1+(int)(src->header.h*image->scale_y/256)-1;}
@@ -88,10 +88,13 @@ static void thermostat_card(unsigned theme,unsigned language)
  CHECK(abs(reading_area.y1+reading_area.y2-reading_frame.y1-reading_frame.y2)<=1);
  CHECK(lv_obj_get_height(reading)==lv_font_get_line_height(lv_obj_get_style_text_font(reading,0)));
  CHECK(readout.icon_area.x1==reading_frame.x1); /* battery belongs under the reading column */
- int frame_left=readout.icon_area.x1-6,frame_right=frame_left+91;
+ lv_text_get_size(&text_size,readout.battery,readout.battery_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ CHECK(lv_area_get_width(&b)==text_size.x); /* no empty tail after the percentage */
+ int frame_left=readout.icon_area.x1-6,frame_right=b.x2+6;
  int inset=theme==3?1:0,mid_x=(frame_left+frame_right)/2,mid_y=(f.y1+f.y2)/2;
  CHECK(frame_pixel(mid_x,f.y1+inset)&&frame_pixel(mid_x,f.y2-inset));
  CHECK(frame_pixel(frame_left+inset,mid_y)&&frame_pixel(frame_right-inset,mid_y));
+ CHECK(frame_right-frame_left+1<92&&!frame_pixel(frame_left+91-inset,mid_y));
  CHECK(containing(card,"21.5 °C")&&lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));
  char name[48];snprintf(name,sizeof(name),"dashboard-trv-%u",language);shot(name,theme);
  /* Device battery, not the remote's status-bar estimate; redraw on new readings. */
@@ -99,6 +102,7 @@ static void thermostat_card(unsigned theme,unsigned language)
  for(unsigned k=0;k<sizeof(levels)/sizeof(levels[0]);k++){
   m.devices[0].battery_pct=levels[k];dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));
   capture_trv(card,&readout);CHECK(!strcmp(readout.battery,k==0?"0%":k==1?"100%":"—"));
+  lv_text_get_size(&text_size,readout.battery,readout.battery_font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(lv_area_get_width(&readout.battery_area)==text_size.x);
  }
  m.devices[0].has_battery=false;dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));capture_trv(card,&readout);CHECK(!strcmp(readout.battery,"—")&&readout.icon);
  if(theme==3&&language==2)shot("dashboard-trv-battery-unknown",theme);
