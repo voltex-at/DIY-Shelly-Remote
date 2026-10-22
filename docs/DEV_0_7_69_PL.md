@@ -18,7 +18,8 @@ wchodzą do firmware ani tego commitu.
   po prawej, bez powtórzonej ikony i pozycji zaworu na karcie TRV; zawór nadal
   w szczegółach. Brak pustego „Keine weiteren Messwerte”; rzeczywiste 0 lx,
   temperatury i baterie pozostają widoczne. Długie nazwy zwiększają wysokość.
-- Ikony pokoju, jego etykieta i edycja mają rozdzielone obszary. Nazwy pokojów
+- Ikony pokoju, jego etykieta i edycja mają rozdzielone obszary. Przycisk edycji
+  jest odsunięty 12 px od prawej i 8 px od górnej krawędzi kafelka. Nazwy pokojów
   są zawijane i pozostają tekstem użytkownika, bez tłumaczenia np. „Salon”.
 - Wspólna animacja rolety i obsługa podglądu w trzech skórkach. Nagłówek bez
   ołówka, wyśrodkowany większy tytuł, odstęp od powrotu, czytelna skala.

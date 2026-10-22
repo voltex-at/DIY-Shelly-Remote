@@ -501,7 +501,7 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
         lv_obj_t *window=dsr_sc_panel(card,0,0,width,height-90,DSR_SC_CARD,DSR_SC_RADIUS);lv_obj_set_style_clip_corner(window,true,0);lv_obj_t *image=lv_image_create(window);lv_image_set_src(image,&photos[i]);
         uint32_t scale=(uint32_t)width*256/photos[i].header.w,vertical=(uint32_t)(height-90)*256/photos[i].header.h;if(vertical>scale)scale=vertical;
         lv_image_set_scale(image,scale);lv_image_set_antialias(image,true);lv_obj_center(image);
-    }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-44)/2,30,44,44,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),28,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:0xe8edf2);}
+    }else{lv_obj_t *thumb=dsr_sc_panel(card,(width-88)/2,30,44,44,0x303943,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(thumb,room_icon(i),28,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:0xe8edf2);}
     lv_obj_t *tag=dsr_sc_panel(card,0,0,82,22,0x25292b,7);lv_obj_set_style_bg_opa(tag,220,0);dsr_sc_icon(tag,room_icon(i),4,3,16,dsr_sc_icon_accent());dsr_sc_text(tag,"Pokój",28,4,48,&dsr_roboto_12,DSR_SC_TEXT);
     const char *room=dsr_sc_name(model.rooms[i].name);const lv_font_t *font=&dsr_roboto_14;lv_point_t size;
     lv_text_get_size(&size,dsr_sc_tr(room),dsr_sc_font(font),0,0,width-16,LV_TEXT_FLAG_NONE);if(size.y>46)font=&dsr_roboto_12;
@@ -512,7 +512,7 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
     char text[32];if(count&&complete)snprintf(text,sizeof(text),"%.1f W",power);else snprintf(text,sizeof(text),"%u %s",count,dsr_sc_tr("urz."));
     dsr_sc_icon(badge,DSR_ICON_ENERGY,5,5,16,dsr_sc_icon_accent());center(dsr_sc_text(badge,text,23,6,55,&dsr_roboto_12,DSR_SC_TEXT));
     if(page==DSR_MOBILE_ROOMS){
-        lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-44,0,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
+        lv_obj_t *edit=icon_button(card,DSR_ICON_EDIT,width-56,8,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
         if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
     }
     return card;
