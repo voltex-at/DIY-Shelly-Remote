@@ -92,8 +92,8 @@ static void apply(lv_event_t *event)
 static void disclose(void)
 {
  phase=DISCLOSE;deadline=lv_tick_get()+120000;lv_obj_t *root=screen("Przekazać dane Wi-Fi?");
- line(root,session.device.model,92,&dsr_roboto_18);line(root,session.device.id,125,&dsr_roboto_12);
- char home[33]={0};(void)dsr_network_ap_home(home);line(root,home,161,&dsr_roboto_16);memset(home,0,sizeof(home));
+ line(root,session.device.model,104,&dsr_roboto_18);line(root,session.device.id,137,&dsr_roboto_12);
+ char home[33]={0};(void)dsr_network_ap_home(home);line(root,home,173,&dsr_roboto_16);memset(home,0,sizeof(home));
  dsr_sc_text(root,"Przekaż nazwę i hasło zapisanej sieci temu Shelly. Otwarte GATT nie uwierzytelnia kryptograficznie urządzenia; użyj tylko własnego sprzętu.",16,205,288,&dsr_roboto_14,DSR_SC_TEXT);
  dsr_sc_text(root,"Osobne potwierdzenie na pilocie. Podgląd WWW jest wstrzymany.",16,330,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Przekaż Wi-Fi",apply);
@@ -108,8 +108,8 @@ void dsr_ui_ble_rpc_open(const dsr_ble_device_t *candidate)
  if(dsr_ui_ap_active())return;
  selected=*candidate;memset(&session,0,sizeof(session));observed=0;phase=INTRO;
  lv_obj_t *root=screen("Dodać przez Bluetooth?");
- line(root,selected.name[0]?selected.name:"Shelly • reklamowane RPC",100,&dsr_roboto_18);
- dsr_sc_text(root,"Pilot pozostaje w domowej sieci. Najpierw sprawdzi rzeczywiste GATT i tożsamość. Sama reklama BLE nie potwierdza autentyczności.",16,151,288,&dsr_roboto_16,DSR_SC_TEXT);
+ line(root,selected.name[0]?selected.name:"Shelly • konfiguracja BLE",100,&dsr_roboto_18);
+ dsr_sc_text(root,"Pilot pozostaje w domowej sieci. Najpierw sprawdzi rzeczywiste GATT i tożsamość. Samo wykrycie urządzenia BLE nie potwierdza autentyczności.",16,151,288,&dsr_roboto_16,DSR_SC_TEXT);
  dsr_sc_text(root,"Tylko obsługiwany Shelly Gen2+ lub H&T Gen3 w otwartym setup. Hasło Wi-Fi wymaga kolejnej zgody.",16,294,288,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Sprawdź BLE",connect_device);
 }

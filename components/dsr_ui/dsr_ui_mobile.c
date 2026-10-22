@@ -374,14 +374,15 @@ static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
  const lv_font_t *font=dsr_sc_font(card_name_font());int line=lv_font_get_line_height(font);
  lv_point_t s;lv_text_get_size(&s,dsr_sc_tr(dsr_sc_name(d->name)),font,0,0,l.name_w,LV_TEXT_FLAG_NONE);l.name_h=s.y>line?2*line:line;
  l.body=8+l.name_h+6;l.row_y=l.body+3;
- int right=trv||(sensor&&!box)?0:cover?104:box?84:58,row=width-CARD_ROW_X-12-(right?right+8:0);
+ int right=trv||cover?104:(sensor&&!box)?0:box?84:58,row=width-CARD_ROW_X-12-(right?right+8:0);
  char text[160];l.room_max=row*11/20;l.room_w=card_warn(d)?0:card_room_text(d,text,sizeof(text),l.room_max);
  /* A long state (waiting, sending) keeps the whole row; the room yields. */
  lv_text_get_size(&s,dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
  l.state_x=CARD_ROW_X+l.room_w;l.state_w=row-l.room_w;
- l.metric_x=CARD_ROW_X;l.metric_y=l.body+29;l.metric_w=row;l.height=l.body+62;
- if(trv)l.height=l.body+124;
+ l.metric_x=CARD_ROW_X;l.metric_y=l.body+29;l.metric_w=row;l.height=l.body+68;
+ if(trv)l.height=l.body+90;
  else if(box){
+  l.height=l.body+76;
   card_sensor_text(d,text,sizeof(text));lv_text_get_size(&s,text,dsr_sc_font(&dsr_roboto_12),0,0,l.metric_w,LV_TEXT_FLAG_NONE);
   if(text[0]&&l.height<l.metric_y+s.y+10)l.height=l.metric_y+s.y+10;
  }
@@ -463,8 +464,8 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     if(cover){
      /* Framed pair of round up/down actions; STOP takes the whole frame while moving. */
      bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(model.demo||actions.set_cover);
-     lv_obj_t *pill=dsr_sc_panel(card,width-116,body-2,104,56,0x1d2124,hud?0:12);if(hud)lv_obj_set_style_radius(pill,12,0);
-     if(cover_moving(d)){stop_button(pill,4,4,96,48,d->can_stop_cover&&(model.demo||actions.stop_cover),card_stop,(void *)(uintptr_t)i);}
+     lv_obj_t *pill=dsr_sc_panel(card,width-116,body-2,104,56,0x1d2124,12);
+     if(cover_moving(d)){int border=lv_obj_get_style_border_width(pill,0);stop_button(pill,4,4,96-2*border,48-2*border,d->can_stop_cover&&(model.demo||actions.stop_cover),card_stop,(void *)(uintptr_t)i);}
      else{
       edge(pill,DSR_SC_GLOW,1);int border=lv_obj_get_style_border_width(pill,0),inner=104-2*border,left=(inner-96)/2,top=(56-2*border-44)/2;
       dsr_sc_panel(pill,left+47,top+6,1,32,hud?DSR_SC_GLOW:DSR_SC_EDGE,0);
@@ -475,21 +476,25 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
       }
      }
     }else if(trv){
-     /* Setpoint bar under the readings: -, target, + with full 44 px targets. */
-     lv_obj_t *bar=dsr_sc_panel(card,12,body+58,width-24,56,0x1d3f73,hud?0:12);if(hud)lv_obj_set_style_radius(bar,12,0);
-     edge(bar,DSR_SC_GLOW,1);bool valid=trv_can(d);int border=lv_obj_get_style_border_width(bar,0),inner=width-24-2*border,top=(56-2*border-48)/2;
-     trv_round(bar,i,2,top,48,false,valid);trv_round(bar,i,inner-50,top,48,true,valid);
+     /* Same 104x56 frame and 44 px controls as the cover pair. */
+     lv_obj_t *bar=dsr_sc_panel(card,width-116,body-2,104,56,0x1d2124,12);
+     edge(bar,DSR_SC_GLOW,1);bool valid=trv_can(d);int border=lv_obj_get_style_border_width(bar,0),inner=104-2*border,left=(inner-96)/2,top=(56-2*border-44)/2;
+     trv_round(bar,i,left,top,44,false,valid);trv_round(bar,i,left+52,top,44,true,valid);
      char t[20];if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(t,sizeof(t),"%u.%u °C",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(t,sizeof(t),"— °C");
-     center(dsr_sc_text(bar,t,54,top+1,inner-108,&dsr_roboto_22,DSR_SC_TEXT));
-     center(dsr_sc_text(bar,"Nastawa",54,top+30,inner-108,&dsr_roboto_12,DSR_SC_MUTED));
+     char target[48];snprintf(target,sizeof(target),"%s %s",dsr_sc_tr("Nastawa"),t);
+     center(dsr_sc_text(card,dsr_sc_user(target),width-116,body+60,104,&dsr_roboto_12,DSR_SC_TEXT));
     }else if(state_box){
-     /* Read-only state tile ("Geschlossen" in the app). */
+     /* A large state graphic; the room row already carries its text. */
      const char *what=hud&&cyber_blu(d)&&cyber_contact(d)&&(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))?"Brak danych":d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_MOTION)?"Ruch":"Brak ruchu";
      bool alert=d->has_contact?d->contact_open:(d->blu.flags&DSR_BLU_MOTION)!=0;
-     lv_obj_t *box=dsr_sc_panel(card,width-96,body-2,84,56,0x1d2124,hud?0:12);if(hud)lv_obj_set_style_radius(box,12,0);
-     edge(box,alert?0xf0a020:DSR_SC_GLOW,1);int border=lv_obj_get_style_border_width(box,0);
-     const lv_font_t *font=&dsr_roboto_16;lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(what),dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>76-2*border)font=&dsr_roboto_14;
-     lv_obj_t *label=dsr_sc_text(box,what,2,0,80-2*border,font,alert&&hud?0xffc65b:DSR_SC_TEXT);center(label);lv_obj_align(label,LV_ALIGN_LEFT_MID,2,0);
+     lv_obj_t *box=dsr_sc_panel(card,width-96,body-2,84,64,0x1d2124,10);
+     edge(box,alert?0xf0a020:DSR_SC_GLOW,1);
+     if(d->has_contact||contact){
+      dsr_ui_icon_t graphic=contact?cyber_contact_icon(d):contact_icon(d,d->contact_open);
+      dsr_sc_icon_centered(box,graphic,52,contact?cyber_contact_color(d):alert?0xf0a020:DSR_SC_GLOW);
+     }else{
+      const lv_font_t *font=&dsr_roboto_14;lv_obj_t *label=dsr_sc_text(box,what,2,0,76,font,alert&&hud?0xffc65b:DSR_SC_TEXT);center(label);lv_obj_center(label);
+     }
     }else if(!sensor){
      bool valid=d->online&&!d->busy&&d->can_switch;
      dsr_sc_power_button(card,width-70,body-3,58,on,valid,DSR_ICON_POWER,DSR_SC_GLOW,control,(void *)(uintptr_t)i);
@@ -507,7 +512,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
        if((fields&16)&&d->has_humidity)ADD_PART("%.0f%% RH",d->humidity_pct);
        if(d->endpoint_kind==DSR_ENDPOINT_BLU&&!trv&&d->has_illuminance)ADD_PART("%.0f lx",d->illuminance_lux);
       }
-      if((fields&4)&&d->has_battery)ADD_PART("%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
+      if(!trv&&(fields&4)&&d->has_battery)ADD_PART("%s %.0f%%",dsr_sc_tr("Bateria"),d->battery_pct);
     }else{
       if(fields&1){if(d->has_power)ADD_PART("%.1f W",d->power_w);else ADD_PART("— W");}
       if(fields&2){if(d->has_voltage)ADD_PART("%.1f V",d->voltage_v);else ADD_PART("— V");}

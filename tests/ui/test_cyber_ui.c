@@ -121,7 +121,7 @@ static void gallery(void)
  m.devices[0].output=false;dsr_mobile_update(&m);screenshot("624-cyber-home-off");m.devices[0].output=true;dsr_mobile_update(&m);
  dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_update_layout(lv_screen_active());lv_area_t pa;lv_obj_get_coords(power,&pa);tap((pa.x1+pa.x2)/2,(pa.y1+pa.y2)/2);CHECK(hits==1);screenshot("601-cyber-relay");
  dsr_mobile_show(DSR_MOBILE_DETAILS,1);CHECK(find_label(lv_screen_active(),"Pozycja 84%"));screenshot("602-cyber-cover");
- lv_obj_update_layout(lv_screen_active());lv_obj_t *rail=sized(lv_screen_active(),176,154);CHECK(rail);
+ lv_obj_update_layout(lv_screen_active());lv_obj_t *rail=sized(lv_screen_active(),176,142);CHECK(rail);
  lv_area_t well;lv_obj_get_coords(lv_obj_get_child(rail,0),&well);
  const unsigned targets[]={0,50,100};
  for(unsigned i=0;i<3;i++){

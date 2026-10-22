@@ -10,7 +10,7 @@ static lv_event_cb_t manual_open;
 static lv_obj_t *cards[4],*radios[4],*descriptions[3],*next_button,*hint;
 static const char footer_tag;
 static const char *names[]={"Bluetooth","Wi-Fi AP","Sieć lokalna","Dodaj ręcznie (IP)"};
-static const char *descriptions_ready[]={"Reklamy BLE • także bez Wi-Fi","Otwarty punkt dostępowy Shelly","Urządzenia w domowej sieci"};
+static const char *descriptions_ready[]={"Urządzenia BLE • także bez Wi-Fi","Otwarty punkt dostępowy Shelly","Urządzenia w domowej sieci"};
 bool dsr_ui_onboarding_active(void){return active;}
 void dsr_ui_onboarding_reset(void)
 {active=false;next_button=hint=NULL;for(unsigned i=0;i<4;i++)cards[i]=radios[i]=NULL;for(unsigned i=0;i<3;i++)descriptions[i]=NULL;}
@@ -62,18 +62,18 @@ lv_obj_t *dsr_onboarding_screen(const char *title,unsigned step)
  if(step<1)step=1;
  if(step>3)step=3;
  char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),step);
- /* Progress uses the free status slot, leaving the entire heading readable. */
- lv_obj_t *label=dsr_sc_text(root,caption,136,16,80,&dsr_roboto_11,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_CENTER,0);
- segments(root,step,76);return root;
+ /* A separate row below the heading keeps progress out of the status bar. */
+ dsr_sc_text(root,caption,16,72,288,&dsr_roboto_11,DSR_SC_MUTED);
+ segments(root,step,92);return root;
 }
 lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t back_cb,const char *forward,lv_event_cb_t forward_cb)
 {
  dsr_sc_header_back(root,back_cb,NULL);
  lv_obj_t *footer=dsr_sc_panel(root,0,408,320,72,DSR_SC_BG,0);lv_obj_set_user_data(footer,(void *)&footer_tag);lv_obj_add_flag(footer,LV_OBJ_FLAG_CLICKABLE);
  dsr_sc_panel(footer,12,0,296,1,DSR_SC_EDGE,0);
- if(!forward){dsr_ui_button(footer,back,12,12,296,back_cb,NULL);return NULL;}
- dsr_ui_button(footer,back,12,12,140,back_cb,NULL);
- lv_obj_t *button=dsr_ui_button(footer,forward,168,12,140,forward_cb,NULL);dsr_ui_primary(button);return button;
+ if(!forward){dsr_ui_button(footer,back,12,8,296,back_cb,NULL);return NULL;}
+ dsr_ui_button(footer,back,12,8,140,back_cb,NULL);
+ lv_obj_t *button=dsr_ui_button(footer,forward,168,8,140,forward_cb,NULL);dsr_ui_primary(button);return button;
 }
 void dsr_onboarding_keyboard(lv_obj_t *root,bool shown)
 {

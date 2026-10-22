@@ -561,7 +561,7 @@ static lv_obj_t *field(unsigned index, const char *caption, const char *text, un
 static void form_start(const char *title)
 {
     lv_obj_t *root = dsr_onboarding_screen(title,3);
-    message = dsr_ui_label(root, "Enter the device address and login.", 16, 91, 288);
+    message = dsr_ui_label(root, "Enter the device address and login.", 16, 104, 288);
     form = lv_obj_create(root); lv_obj_set_pos(form, 12, 134); lv_obj_set_size(form, 296, 268);
     lv_obj_set_style_pad_all(form, 8, 0); dsr_sc_border_width(form, 0, 0);
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_set_y(form,128);lv_obj_set_style_pad_all(form,4,0);}

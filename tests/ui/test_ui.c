@@ -714,14 +714,14 @@ static void polling_regression(void)
 }
 static void ble_regression(void)
 {
- dsr_network_device(NULL);choose_method("Bluetooth LE");CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("80-ble-start");tick();CHECK(find_label(lv_screen_active(),"Odbieranie reklam Bluetooth…"));screenshot("81-ble-scanning");
+ dsr_network_device(NULL);choose_method("Bluetooth LE");CHECK(find_label(lv_screen_active(),"Wyszukiwanie urządzeń Bluetooth…"));screenshot("80-ble-start");tick();CHECK(find_label(lv_screen_active(),"Wyszukiwanie urządzeń Bluetooth…"));screenshot("81-ble-scanning");
  const uint8_t rpc[]={17,7,0x5f,0x44,0x49,0x5f,0x43,0x56,0x53,0x5f,0x43,0x50,0x52,0x5f,0x53,0x4f,0x6d,0x5f};
  const uint8_t blu[]={6,0xff,0xa9,0x0b,0x0b,2,0},bthome[]={6,0x16,0xd2,0xfc,0x40,1,92};
  /* The native worker may keep polling the relay while BLE owns its own task. */
  wifi.connected=true;tick();if(in_flight){response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
  lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(dsr_ui_ble_active());
  test_ble_packet(rpc,sizeof(rpc),1);test_ble_packet(blu,sizeof(blu),2);test_ble_packet(bthome,sizeof(bthome),3);test_ble_finish(DSR_BLE_DONE);tick();
- CHECK(find_label(lv_screen_active(),"Shelly • RPC / konfiguracja"));CHECK(find_label(lv_screen_active(),"Shelly BLU DoorWindow"));CHECK(find_label(lv_screen_active(),"Pozostałe reklamy"));screenshot("82-ble-results");
+ CHECK(find_label(lv_screen_active(),"Shelly • RPC / konfiguracja"));CHECK(find_label(lv_screen_active(),"Shelly BLU DoorWindow"));CHECK(find_label(lv_screen_active(),"Pozostałe urządzenia"));screenshot("82-ble-results");
  click("Shelly BLU DoorWindow");tick();CHECK(find_label(lv_screen_active(),"Wykryto • nie sparowano"));screenshot("83-ble-detail");click("Wstecz");click("Ponów");click("Anuluj");tick();CHECK(find_label(lv_screen_active(),"Skan przerwany"));screenshot("84-ble-cancelled");
  click("Ponów");test_ble_finish(DSR_BLE_DONE);tick();CHECK(find_label(lv_screen_active(),"Nie znaleziono urządzeń BLE"));screenshot("85-ble-empty");
  click("Ponów");test_ble_finish(DSR_BLE_UNAVAILABLE);tick();CHECK(find_label(lv_screen_active(),"Bluetooth niedostępny"));screenshot("86-ble-unavailable");

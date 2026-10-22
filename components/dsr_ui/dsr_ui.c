@@ -122,6 +122,7 @@ void dsr_ui_textarea(lv_obj_t *obj)
     dsr_sc_border_width(obj, 1, 0);
     lv_obj_set_style_radius(obj, 10, 0);
     lv_obj_set_style_bg_color(obj, dsr_sc_color(0xf0f4fb), LV_PART_CURSOR);
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(obj,false);
 }
 
 static void shell_navigation(lv_event_t *event)

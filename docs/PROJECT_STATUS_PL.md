@@ -78,15 +78,15 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | Oczekuje na ocenę |
 | UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | Oczekuje na ocenę |
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
-| UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Pierwsza runda pytań wysłana |
-| UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Pierwsza runda pytań wysłana |
-| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Pierwsza runda pytań wysłana |
-| UI-08 | Okno: duża grafika, czytelne Offen i proporcje ramki | Pierwsza runda pytań wysłana |
-| UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Pierwsza runda pytań wysłana |
-| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Pierwsza runda pytań wysłana |
+| UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
+| UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
+| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Poprawiono kartę Dashboardu: sterowanie 104×56 jak roleta, bez baterii, podpis „Soll”; odbiór otwarty |
+| UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
+| UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
+| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Oczekuje na ocenę |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Kolejne kroki przeniesiono pod tytuł; etykiety mówią o urządzeniach; poprawiono kolizję RSSI i pomiar szerokości czcionki; odbiór sprzętowy otwarty |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -96,6 +96,22 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Oczekuje na ocenę |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
+
+### Runda 1 — uwagi właściciela z pilota 0.7.70-dev
+
+Potwierdzona zainstalowana wersja: **0.7.70-dev**. Poniższe poprawki powstają w kodzie roboczym; nie są jeszcze nowym wydaniem ani odbiorem na urządzeniu.
+
+1. Karty: co najmniej 12 px odstępu głównej akcji od dolnej ramki.
+2. Szczegóły rolety: co najmniej 16 px odstępu akcji od nawigacji, z zachowaniem rozdzielenia podglądu od potwierdzonej pozycji, wysyłania po puszczeniu oraz STOP.
+3. **Tylko karta termostatu na Dashboardzie**: ramka 104×56 px i dwa przyciski 44 px, jak sterowanie rolety. Temperatura bieżąca i nastawa pozostają widoczne; bateria znika z tej karty, pozostaje w szczegółach. Niemiecki podpis: **Soll**.
+4. Okno i drzwi: duża grafika prawego panelu dla obu stanów. Nie powielać napisu „Otwarte/Zamknięte” w prawym panelu; tekst pozostaje przy pomieszczeniu.
+5. Cyber Blue: sfazowane turkusowe obramowania dashboardu przenieść do wspólnych paneli, akcji i pól; zachować czytelne czerwone/żółte stany oraz własny wygląd pozostałych skórek.
+6. Kreator: **pierwszy ekran z „Krok 1 z 3” jest zaakceptowany**. Dopiero kolejne ekrany wyszukiwania i konfiguracji mają mieć numer kroku pod nagłówkiem, zamiast obok zegara. Przesunąć treść AP/BLE/LAN, aby uniknąć nowej kolizji.
+7. Etykiety dodawania BLE mają mówić o urządzeniach: **Urządzenie/Gerät/Device**. Zachować odrębne zgody oraz komunikaty o niepotwierdzonej tożsamości i niesparowanym urządzeniu.
+
+Stan tej rundy: powyższe poprawki są w kodzie roboczym. Oceny właściciela w tabeli pozostają otwarte do obejrzenia podglądu i późniejszego odbioru na pilocie.
+
+Walidacja: `test_dev_069_ui`, `test_cover_ui` i `test_cyber_ui` przeszły na przypiętym LVGL 9.3. Sprawdzono wybrane karty/kreator, oba stany okna i drzwi, napisy PL/EN/DE, wysyłanie pozycji po puszczeniu, priorytet STOP, natywne kontrolki i 24 kafelki w niezmienionej puli 128 KiB. Przełączanie skórek nie wykazało wzrostu użycia pamięci. To testy hosta z modelami radia i zapisu. Pełny atlas, build płyty i pełne CI należą do końcowej walidacji przed następnym DEV.
 
 ## Konsolidacja starych zgłoszeń
 

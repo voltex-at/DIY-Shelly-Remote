@@ -94,7 +94,7 @@ const char *dsr_sc_tr(const char *text)
 {
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
- {"Temperatura zadana","Target temperature","Solltemperatur"},
+ {"Temperatura zadana","Target temperature","Soll"},
  {"Znaleziono AP: %u","Access points found: %u","Zugangspunkte gefunden: %u"},
  {"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.","Check Shelly setup mode. If its AP disappeared after sharing Wi-Fi, find the device on the local network.","Shelly-Konfigurationsmodus prüfen. Ist der AP nach der WLAN-Einrichtung verschwunden, das Gerät im lokalen Netzwerk suchen."},
  {"Poczekaj na zakończenie dodawania urządzenia.","Wait until device onboarding finishes.","Warten, bis das Hinzufügen abgeschlossen ist."},
@@ -436,10 +436,10 @@ const char *dsr_sc_tr(const char *text)
  {"Wi-Fi offline • BLE dostępne","Wi-Fi offline • BLE available","WLAN offline • BLE verfügbar"},
  {"Nieznany model","Unknown model","Unbekanntes Modell"},
  {"Zatrzymywanie skanu…","Stopping scan…","Scan wird gestoppt…"},
- {"Shelly • reklamowane RPC","Shelly • advertised RPC","Shelly • RPC angekündigt"},
- {"Shelly BLU • reklama BLE","Shelly BLU • BLE advertisement","Shelly BLU • BLE-Werbung"},
+ {"Shelly • konfiguracja BLE","Shelly • BLE setup","Shelly • BLE-Einrichtung"},
+ {"Shelly BLU • urządzenie BLE","Shelly BLU • BLE device","Shelly BLU • BLE-Gerät"},
  {"BTHome • producent nieznany","BTHome • unknown vendor","BTHome • Hersteller unbekannt"},
- {"Niezidentyfikowana reklama","Unidentified advertisement","Nicht identifizierte Werbung"},
+ {"Nierozpoznane urządzenie BLE","Unrecognized BLE device","Unbekanntes BLE-Gerät"},
  {"Wykryto • nie sparowano","Detected • not paired","Erkannt • nicht gekoppelt"},
  {"BTHome v2 • szyfrowane","BTHome v2 • encrypted","BTHome v2 • verschlüsselt"},
  {"BTHome v2 • jawne","BTHome v2 • unencrypted","BTHome v2 • unverschlüsselt"},
@@ -447,19 +447,19 @@ const char *dsr_sc_tr(const char *text)
  {"Szukaj w LAN","Search LAN","LAN durchsuchen"},
  {"Shelly • RPC / konfiguracja","Shelly • RPC / setup","Shelly • RPC / Einrichtung"},
  {"Shelly BLU","Shelly BLU","Shelly BLU"},
- {"Pozostałe reklamy","Other advertisements","Weitere Werbung"},
+ {"Pozostałe urządzenia","Other devices","Weitere Geräte"},
  {"Wykryto • %d dBm • bez parowania","Detected • %d dBm • not paired","Erkannt • %d dBm • nicht gekoppelt"},
  {"Bluetooth niedostępny","Bluetooth unavailable","Bluetooth nicht verfügbar"},
  {"Nie znaleziono urządzeń BLE","No BLE devices found","Keine BLE-Geräte gefunden"},
  {"Skan przerwany","Scan cancelled","Scan abgebrochen"},
  {"Sprawdź firmware i spróbuj ponownie.","Check firmware and try again.","Firmware prüfen und erneut versuchen."},
  {"BLU może wymagać krótkiego naciśnięcia przycisku.","BLU may need a short button press to advertise.","BLU benötigt eventuell einen kurzen Tastendruck."},
- {"Odbieranie reklam Bluetooth…","Receiving Bluetooth advertisements…","Bluetooth-Werbung wird empfangen…"},
- {"Skan trwa do 20 s. Działa także bez Wi-Fi. Naciśnij krótko przycisk BLU, aby wysłać reklamę.","Scanning takes up to 20 s, also without Wi-Fi. Briefly press the BLU button to advertise.","Scan bis zu 20 s, auch ohne WLAN. BLU-Taste kurz drücken, um Werbung zu senden."},
+ {"Wyszukiwanie urządzeń Bluetooth…","Searching for Bluetooth devices…","Bluetooth-Geräte werden gesucht…"},
+ {"Skan trwa do 20 s. Działa także bez Wi-Fi. Naciśnij krótko przycisk BLU, aby wykryć urządzenie.","Scanning takes up to 20 s, also without Wi-Fi. Briefly press the BLU button to make the device discoverable.","Scan bis zu 20 s, auch ohne WLAN. BLU-Taste kurz drücken, damit das Gerät erkannt wird."},
  {"Wyszukaj urządzenia w pobliżu","Find nearby devices","Geräte in der Nähe suchen"},
- {"Shelly z reklamowanym RPC oraz Shelly BLU / BTHome. Wykrycie nie oznacza sparowania ani dodania do LAN.","Shelly advertising RPC and Shelly BLU / BTHome. Discovery does not mean pairing or LAN setup.","Shelly mit RPC-Werbung und Shelly BLU / BTHome. Erkennung bedeutet keine Kopplung oder LAN-Einrichtung."},
- {"Ostatnia reklama %u s temu. Możliwy brak zasięgu.","Last advertisement %u s ago. Possibly out of range.","Letzte Werbung vor %u s. Eventuell außer Reichweite."},
- {"Ostatnia reklama %u s temu.","Last advertisement %u s ago.","Letzte Werbung vor %u s."},
+ {"Urządzenia Shelly ogłaszające RPC oraz Shelly BLU / BTHome. Wykrycie nie oznacza sparowania ani dodania do LAN.","Shelly devices announcing RPC and Shelly BLU / BTHome. Discovery does not mean pairing or LAN setup.","Shelly-Geräte mit angekündigtem RPC und Shelly BLU / BTHome. Erkennung bedeutet keine Kopplung oder LAN-Einrichtung."},
+ {"Ostatni sygnał urządzenia %u s temu. Możliwy brak zasięgu.","Last device signal %u s ago. Possibly out of range.","Letztes Gerätesignal vor %u s. Eventuell außer Reichweite."},
+ {"Ostatni sygnał urządzenia %u s temu.","Last device signal %u s ago.","Letztes Gerätesignal vor %u s."},
  {"%u / 20 s • wykryto %u","%u / 20 s • found %u","%u / 20 s • %u erkannt"},
  {"LAN i skan BLE są dostępne.\nWi-Fi AP i parowanie BLE nie są jeszcze wdrożone.","LAN and BLE scan are available.\nWi-Fi AP and BLE pairing are not implemented yet.","LAN- und BLE-Scan sind verfügbar.\nWLAN-AP und BLE-Kopplung sind noch nicht implementiert."},
  {"Odczyt potwierdzony %u s temu","Reading confirmed %u s ago","Messung vor %u s bestätigt"},
@@ -539,7 +539,7 @@ lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int ra
     if(s)lv_obj_add_style(o,s,0);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
      lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
-    if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&w>=80&&h>=40)dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
+    if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&h>=20&&!(w==h&&radius>=w/2))dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
     else if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6)dsr_ui_cyber_contour(o);
     if(style==DSR_SC_STYLE_CYBER_BLUE&&color==DSR_SC_BG&&radius==0&&w>=280&&h>60)lv_obj_set_style_bg_opa(o,LV_OPA_TRANSP,0);
     return o;
@@ -733,10 +733,13 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color)
 {
  text=dsr_sc_tr(text);
- lv_point_t size;lv_text_get_size(&size,text,&dsr_roboto_12,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
- int width=size.x+14;if(width>max_width)width=max_width;
- lv_obj_t *chip=dsr_sc_panel(parent,x,y,width,20,0x292d30,6);
- lv_obj_t *label=dsr_sc_text(chip,dsr_sc_user(text),7,3,width-14,&dsr_roboto_12,color);lv_obj_set_height(label,15);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
+ const lv_font_t *font=dsr_sc_font(&dsr_roboto_12);int border=style==DSR_SC_STYLE_CYBER_BLUE?2:0;
+ /* Measure the same skin font that is rendered, including its frame inset. */
+ lv_point_t size;lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ int width=size.x+14+2*border;if(width>max_width)width=max_width;
+ int line=lv_font_get_line_height(font);
+ lv_obj_t *chip=dsr_sc_panel(parent,x,y,width,line+6+2*border,0x292d30,6);
+ lv_obj_t *label=dsr_sc_text(chip,dsr_sc_user(text),7,3,width-14-2*border,&dsr_roboto_12,color);lv_obj_set_height(label,line);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);return chip;
 }
 
 /* Owner 2026-10-18: a slim bar on the right shows the position on long pages.

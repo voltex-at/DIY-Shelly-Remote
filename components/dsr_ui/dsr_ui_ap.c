@@ -30,7 +30,7 @@ static void line(lv_obj_t *root,const char *text,int y,const lv_font_t *font,uin
 }
 static lv_obj_t *content(lv_obj_t *root)
 {
- lv_obj_t *card=dsr_sc_panel(root,12,88,296,312,DSR_SC_CARD,12);
+ lv_obj_t *card=dsr_sc_panel(root,12,104,296,296,DSR_SC_CARD,12);
  dsr_sc_border_width(card,1,0);dsr_sc_border_color(card,dsr_sc_color(DSR_SC_EDGE),0);
  return card;
 }
@@ -108,7 +108,7 @@ static void choose(lv_event_t *event)
 }
 static void show_results(void)
 {
- phase=AP_PICK;lv_obj_t *root=screen("Fabryczne AP Shelly");lv_obj_t *list=dsr_sc_panel(root,12,88,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+ phase=AP_PICK;lv_obj_t *root=screen("Fabryczne AP Shelly");lv_obj_t *list=dsr_sc_panel(root,12,104,296,258,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
  unsigned count=0;
  for(unsigned i=0;i<scan.count;i++)if(dsr_ap_candidate(scan.items[i].ssid)){
   char detail[48];snprintf(detail,sizeof(detail),"RSSI %d dBm",scan.items[i].rssi);
@@ -159,7 +159,7 @@ static void apply(lv_event_t *event)
 static void show_disclose(void)
 {
  phase=AP_DISCLOSE;deadline=lv_tick_get()+120000;lv_obj_t *root=screen("Przekazać dane Wi-Fi?");
- lv_obj_t *body=dsr_sc_panel(root,12,88,296,312,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+ lv_obj_t *body=dsr_sc_panel(root,12,104,296,296,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  lv_obj_t *device=dsr_sc_panel(body,0,0,296,112,DSR_SC_CARD,12);
  line(device,identity.model,12,&dsr_roboto_18,DSR_SC_TEXT);line(device,identity.id,44,&dsr_roboto_12,DSR_SC_MUTED);
  char home_ssid[33]={0};(void)dsr_network_ap_home(home_ssid);line(device,home_ssid,76,&dsr_roboto_16,DSR_SC_TEXT);memset(home_ssid,0,sizeof(home_ssid));

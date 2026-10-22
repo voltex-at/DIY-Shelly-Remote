@@ -48,7 +48,7 @@ static void surface(lv_style_t *s,uint32_t bg,uint32_t border)
 {
  lv_style_init(s);lv_style_set_bg_color(s,lv_color_hex(bg));lv_style_set_bg_opa(s,LV_OPA_COVER);
  lv_style_set_text_color(s,lv_color_hex(DSR_CYBER_TEXT));lv_style_set_border_color(s,lv_color_hex(border==DSR_CYBER_DANGER||border==0xffc107?border:DSR_CYBER_CYAN));
- lv_style_set_border_width(s,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(s,8);lv_style_set_shadow_width(s,0);
+ lv_style_set_border_width(s,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(s,18);lv_style_set_shadow_width(s,0);
  lv_style_set_bg_grad_dir(s,LV_GRAD_DIR_NONE);lv_style_set_transition(s,&hud.no_transition);
  lv_style_set_color_filter_opa(s,LV_OPA_TRANSP);
 }
@@ -77,11 +77,13 @@ static void init(void)
  lv_style_init(&hud.knob);lv_style_set_bg_color(&hud.knob,lv_color_hex(DSR_CYBER_CYAN));
  lv_style_set_arc_color(&hud.knob,lv_color_hex(DSR_CYBER_CYAN));lv_style_set_shadow_width(&hud.knob,0);
  lv_style_init(&hud.scroll);lv_style_set_bg_color(&hud.scroll,lv_color_hex(DSR_CYBER_CYAN));
- /* Decor does not change padding, radius or the caller's semantic fill. */
+ /* Shared chamfer surfaces keep padding and the caller's semantic fill. */
  lv_style_init(&hud.decor);lv_style_set_border_width(&hud.decor,DSR_CYBER_BORDER_WIDTH);
+ lv_style_set_border_opa(&hud.decor,LV_OPA_TRANSP);lv_style_set_radius(&hud.decor,18);
  lv_style_set_border_color(&hud.decor,lv_color_hex(DSR_CYBER_CYAN));
  lv_style_set_bg_grad_color(&hud.decor,lv_color_hex(0x08182b));lv_style_set_bg_grad_dir(&hud.decor,LV_GRAD_DIR_VER);
  lv_style_init(&hud.action);lv_style_set_border_width(&hud.action,DSR_CYBER_BORDER_WIDTH);
+ lv_style_set_border_opa(&hud.action,LV_OPA_TRANSP);lv_style_set_radius(&hud.action,18);
  lv_style_set_bg_color(&hud.action,lv_color_hex(0x0065ce));
  lv_style_set_border_color(&hud.action,lv_color_hex(DSR_CYBER_CYAN));
  lv_style_set_bg_grad_color(&hud.action,lv_color_hex(0x003688));lv_style_set_bg_grad_dir(&hud.action,LV_GRAD_DIR_VER);
@@ -103,7 +105,7 @@ static void init(void)
  surface(&hud.power_on,0x0079f2,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.power_on,lv_color_hex(0x0039a3));lv_style_set_bg_grad_dir(&hud.power_on,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_on,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_on,LV_RADIUS_CIRCLE);
  surface(&hud.power_off,0x123453,0x3387a7);lv_style_set_bg_grad_color(&hud.power_off,lv_color_hex(0x06182c));lv_style_set_bg_grad_dir(&hud.power_off,LV_GRAD_DIR_VER);lv_style_set_border_width(&hud.power_off,DSR_CYBER_BORDER_WIDTH);lv_style_set_radius(&hud.power_off,LV_RADIUS_CIRCLE);
  surface(&hud.power_disabled,0x243a51,0x304a65);lv_style_set_radius(&hud.power_disabled,LV_RADIUS_CIRCLE);lv_style_set_border_width(&hud.power_disabled,DSR_CYBER_BORDER_WIDTH);
- surface(&hud.inset,0x061425,0x284b6c);lv_style_set_bg_grad_color(&hud.inset,lv_color_hex(0x102a43));lv_style_set_bg_grad_dir(&hud.inset,LV_GRAD_DIR_VER);lv_style_set_radius(&hud.inset,7);
+ surface(&hud.inset,0x061425,0x284b6c);lv_style_set_bg_grad_color(&hud.inset,lv_color_hex(0x102a43));lv_style_set_bg_grad_dir(&hud.inset,LV_GRAD_DIR_VER);
  surface(&hud.warning,0x3e3415,0xffc107);lv_style_set_bg_grad_color(&hud.warning,lv_color_hex(0x1d241f));lv_style_set_bg_grad_dir(&hud.warning,LV_GRAD_DIR_VER);
  surface(&hud.danger,0x7d1c29,DSR_CYBER_DANGER);lv_style_set_bg_grad_color(&hud.danger,lv_color_hex(0x350e1c));lv_style_set_bg_grad_dir(&hud.danger,LV_GRAD_DIR_VER);
  lv_style_init(&hud.press_edge);lv_style_set_bg_color(&hud.press_edge,lv_color_hex(0x0084ee));lv_style_set_bg_grad_color(&hud.press_edge,lv_color_hex(0x00479b));lv_style_set_bg_grad_dir(&hud.press_edge,LV_GRAD_DIR_VER);
@@ -153,6 +155,7 @@ static void apply(lv_theme_t *theme,lv_obj_t *o)
     lv_obj_check_type(o,&lv_msgbox_header_button_class)||lv_obj_check_type(o,&lv_msgbox_footer_button_class)||
     lv_obj_check_type(o,&lv_roller_class)){
   lv_obj_add_style(o,&hud.card,0);states(o,LV_PART_MAIN);
+  if(!lv_obj_check_type(o,&lv_obj_class)&&!lv_obj_check_type(o,&lv_list_text_class))dsr_ui_cyber_panel(o,false);
  }
  if(lv_obj_check_type(o,&lv_dropdownlist_class)||lv_obj_check_type(o,&lv_roller_class)){
   lv_obj_add_style(o,&hud.card,LV_PART_SELECTED);states(o,LV_PART_SELECTED);
@@ -172,29 +175,26 @@ static void line(lv_layer_t *layer,int x1,int y1,int x2,int y2,uint32_t color)
  lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=lv_color_hex(color);d.width=1;
  d.p1=(lv_point_precise_t){x1,y1};d.p2=(lv_point_precise_t){x2,y2};lv_draw_line(layer,&d);
 }
+static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_t opa,int width);
 static void panel_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(e);
  uintptr_t flags=(uintptr_t)lv_event_get_user_data(e);bool disabled=lv_obj_has_state(o,LV_STATE_DISABLED);
- bool danger=lv_color_eq(lv_obj_get_style_border_color(o,0),lv_color_hex(DSR_CYBER_DANGER));uint32_t contour=danger?DSR_CYBER_DANGER:DSR_CYBER_CYAN;
+ uint32_t border=lv_color_to_u32(lv_obj_get_style_border_color(o,0))&0xffffff;
+ bool danger=border==DSR_CYBER_DANGER;
+ uint32_t contour=danger||border==0xffc107||border==0xf0a020||border==0xffc65b?border:DSR_CYBER_CYAN;
  int w=lv_area_get_width(&a),h=lv_area_get_height(&a);
- /* Machined top bevel + inset contour. Both draw directly into the normal
-  * layer; no extra object, shadow buffer or offscreen surface is required. */
- lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.radius=6;
- d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=lv_color_hex(contour);d.border_opa=disabled?LV_OPA_20:LV_OPA_40;
- lv_area_t inner={a.x1+3,a.y1+3,a.x2-3,a.y2-3};lv_draw_rect(layer,&d,&inner);
- line(layer,a.x1+12,a.y1+2,a.x2-16,a.y1+2,disabled?0x2c4056:danger?0xff9a9f:(flags&1)?0x48d9ff:0x4d7897);
- /* Brushed, diagonal inlays occupy the right third beneath the labels. */
- int span=h>90?46:24;if(span>w/3)span=w/3;
- for(int i=0;i<5;i++){
-  int end=a.x2-10-i*7;
-  line(layer,end-span,a.y1+5,end,a.y1+5+span,disabled?0x21344a:danger?0x9b2536:0x254a68);
+ /* Dashboard chamfers also frame fields and actions, preserving semantic
+  * fills and red/yellow feedback without allocating decorative objects. */
+ if(w<8||h<8)return;
+ int cut=h<40?4:9;if(cut>w/4)cut=w/4;
+ chamfer(layer,(lv_area_t){a.x1+1,a.y1+1,a.x2-1,a.y2-1},cut,contour,disabled?LV_OPA_20:LV_OPA_80,2);
+ if(w>=80&&h>=40){
+  chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},cut-2,contour,disabled?LV_OPA_10:LV_OPA_40,1);
+  int span=h>70?26:16;if(span>w/4)span=w/4;
+  for(int i=0;i<5;i++){int end=a.x2-12-i*6;line(layer,end-span,a.y1+6,end,a.y1+6+span,disabled?0x21344a:danger?0x9b2536:0x1b4568);}
  }
- if(flags&2){
-  d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x4a7092);d.bg_opa=LV_OPA_COVER;d.border_width=0;d.radius=2;
-  lv_area_t strip={a.x1+6,a.y1+15,a.x1+8,a.y2-15};lv_draw_rect(layer,&d,&strip);
- }
- line(layer,a.x1+12,a.y2-2,a.x1+38,a.y2-2,disabled?0x36556d:contour);
+ if(w>=56&&h>=28)line(layer,a.x1+14,a.y2-4,a.x1+40,a.y2-4,disabled?0x36556d:(flags&1)?0x48d9ff:contour);
 }
 void dsr_ui_cyber_contour(lv_obj_t *o){init();lv_obj_add_style(o,&hud.contour,0);}
 /* dsr_sc_panel falls back to local properties once its shared style table is
@@ -203,7 +203,7 @@ void dsr_ui_cyber_contour(lv_obj_t *o){init();lv_obj_add_style(o,&hud.contour,0)
 static void own_surface(lv_obj_t *o,bool radius)
 {lv_obj_remove_local_style_prop(o,LV_STYLE_BG_COLOR,0);if(radius)lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);}
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
-{init();if(primary)own_surface(o,false);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
+{init();if(primary)own_surface(o,false);lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
 void dsr_ui_cyber_glow(lv_obj_t *o,bool on)
 {init();if(on)lv_obj_add_style(o,&hud.glow,0);else lv_obj_remove_style(o,&hud.glow,0);}
 /* Chamfered contour of the owner's HUD reference: eight joined segments. */

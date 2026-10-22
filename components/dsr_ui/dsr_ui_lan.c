@@ -66,8 +66,8 @@ static lv_obj_t *field(lv_obj_t *root,const char *caption,int y,const char *text
 }
 /* Form below the 84 px device card; with the keyboard (240 px) it moves up
  * over the card so the focused field stays visible. */
-#define FORM_Y 176
-#define FORM_H 200
+#define FORM_Y 192
+#define FORM_H 184
 static void keyboard_close(lv_event_t *event){lv_obj_t *kb=lv_event_get_user_data(event);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_keyboard_set_textarea(kb,NULL);dsr_onboarding_keyboard(lv_screen_active(),false);if(form_body){lv_obj_set_y(form_body,FORM_Y);lv_obj_set_height(form_body,FORM_H);}}
 static void focus(lv_event_t *event)
 {lv_obj_t *kb=lv_event_get_user_data(event);dsr_onboarding_keyboard(lv_screen_active(),true);if(form_body){lv_obj_set_y(form_body,154);lv_obj_set_height(form_body,82);}dsr_ui_keyboard_focus(kb,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
@@ -86,7 +86,7 @@ static void line(lv_obj_t *card,const char *text,int y,const lv_font_t *font,uin
  * (name set in Shelly, SKU and line, address, MAC, channels, password). */
 static void identity(lv_obj_t *root)
 {
-    lv_obj_t *card=dsr_sc_panel(root,12,88,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,dsr_sc_icon_accent());
+    lv_obj_t *card=dsr_sc_panel(root,12,104,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,dsr_sc_icon_accent());
     char text[96];
     const char *friendly=dsr_device_model_name(selected.id);
     snprintf(text,sizeof(text),"%s",selected.name[0]?selected.name:friendly?friendly:selected.id);line(card,text,6,&dsr_roboto_16,DSR_SC_TEXT);
@@ -107,7 +107,7 @@ static void inspect(lv_event_t *event)
         strcpy(credentials.username,u);strcpy(credentials.password,p);}
     if(!dsr_lan_inspect(selected.host,selected.id,&credentials)){dsr_sc_label_set_text(notice,"Operacja w toku. Poczekaj.");return;}
     waiting_inspect=true;observed=0;lv_obj_t *root=screen("Sprawdź urządzenie",2);identity(root);
-    notice=dsr_sc_text(root,"Odczyt możliwości urządzenia…",16,190,288,&dsr_roboto_14,DSR_SC_MUTED);dsr_onboarding_footer(root,"Anuluj",leave,NULL,NULL);
+    notice=dsr_sc_text(root,"Odczyt możliwości urządzenia…",16,206,288,&dsr_roboto_14,DSR_SC_MUTED);dsr_onboarding_footer(root,"Anuluj",leave,NULL,NULL);
 }
 static void choose(lv_event_t *event)
 {
@@ -127,7 +127,7 @@ void dsr_ui_lan_open(lv_event_t *event){start(event);}
 static void show_results(void)
 {
     dsr_lan_snapshot(&snapshot);lv_obj_t *root=screen("Znalezione urządzenia",2);
-    lv_obj_t *list=dsr_sc_panel(root,12,86,296,274,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+    lv_obj_t *list=dsr_sc_panel(root,12,104,296,256,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
     for(unsigned i=0;i<snapshot.count;i++){
         const dsr_lan_device_t *d=&snapshot.devices[i];char text[120];if(d->model[0])snprintf(text,sizeof(text),"%s • %s • Gen %u",d->model,d->host,d->generation);else snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);
         const char *state=dsr_network_endpoint_added(d->id,d->generation==1?DSR_GEN1:DSR_GEN2_PLUS,UINT32_MAX)?"Już dodane":d->auth_required?"API • wymaga hasła":"Zweryfikowano API";
