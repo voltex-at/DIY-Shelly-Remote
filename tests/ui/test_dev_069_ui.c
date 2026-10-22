@@ -676,13 +676,61 @@ static void navigation_review(unsigned theme)
  CHECK(navigation_calls[2]+navigation_calls[3]+navigation_calls[4]+navigation_calls[5]==total&&dsr_mobile_page()==DSR_MOBILE_HOME);
  dsr_ui_open_settings();fflush(stdout);
 }
+static unsigned relay_spacing_switches,relay_spacing_refreshes;
+static bool relay_spacing_desired;
+static void relay_spacing_switch(unsigned index,bool on){CHECK(index==0);relay_spacing_switches++;relay_spacing_desired=on;}
+static void relay_spacing_refresh(uint32_t id){CHECK(id==31);relay_spacing_refreshes++;}
+static lv_obj_t *relay_spacing_power(void)
+{
+ lv_obj_t *root=lv_screen_active();
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
+  lv_obj_t *o=lv_obj_get_child(root,(int)i);
+  if(lv_obj_get_width(o)==86&&lv_obj_get_height(o)==86&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))return o;
+ }
+ CHECK(!"Relay power control missing");return NULL;
+}
+static void relay_spacing_geometry(const char *voltage,const char *current,const char *action)
+{
+ lv_obj_t *root=lv_screen_active(),*volts=find_label(root,voltage),*amps=find_label(root,current),*legend=find_label(root,"Moc chwilowa");CHECK(volts&&amps&&legend);
+ lv_area_t v=rect(lv_obj_get_parent(volts)),a=rect(lv_obj_get_parent(amps)),nav=rect(navigation_bar());
+ CHECK(nav.y1-v.y2-1==16&&nav.y1-a.y2-1==16&&v.y1==a.y1&&v.x2<a.x1);
+ CHECK(rect(volts).y2<=v.y2-3&&rect(amps).y2<=a.y2-3);
+ lv_obj_t *age=NULL;for(unsigned i=0;i<lv_obj_get_child_count(root);i++){lv_obj_t *o=lv_obj_get_child(root,(int)i);if(lv_obj_get_width(o)==304&&lv_obj_get_height(o)==28)age=o;}CHECK(age);
+ lv_area_t age_area=rect(age),power_field=rect(lv_obj_get_parent(legend)),panel=rect(lv_obj_get_parent(lv_obj_get_parent(legend))),button=rect(relay_spacing_power());
+ CHECK(v.y1-age_area.y2-1>=8&&age_area.y1-panel.y2-1>=6);
+ CHECK(button.y1-power_field.y2-1>=8&&panel.y2-button.y2>=12);
+ lv_obj_t *refresh_button=lv_obj_get_parent(find_label(root,"Odśwież stan"));lv_area_t r=rect(refresh_button);CHECK(abs((r.y1+r.y2)-(button.y1+button.y2))<=2&&r.x1>button.x2+8);
+ if(action){
+  lv_obj_t *label=find_label(root,action);CHECK(label);lv_area_t l=rect(label);const lv_font_t *font=lv_obj_get_style_text_font(label,0);
+  CHECK(l.x1>=panel.x1+6&&l.x2+8<button.x1&&l.y1>power_field.y2&&l.y2<panel.y2-6);
+  CHECK(abs((l.y1+l.y2)-(button.y1+button.y2))<=2&&lv_area_get_height(&l)==lv_font_get_line_height(font));
+ }
+}
+static void relay_spacing_review(unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,3,language);dsr_ui_apply_theme();
+ dsr_mobile_actions_t actions={.set_output=relay_spacing_switch,.refresh=relay_spacing_refresh,.open_settings=noop,.open_battery=noop,.add_device=noop};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.device_count=1};dsr_mobile_device_t *d=&m.devices[0];
+ *d=(dsr_mobile_device_t){.id=31,.identity="relay-spacing",.name="Deckenbeleuchtung Küche",.host="192.0.2.31",.generation=DSR_GEN2_PLUS,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true,.output=true,.can_switch=true,.can_refresh=true,.has_power=true,.power_w=3210.8,.has_voltage=true,.voltage_v=231.8,.has_current=true,.current_a=13.851,.has_sample_time=true,.sample_ms=lv_tick_get()};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);dsr_mobile_show(DSR_MOBILE_DETAILS,0);relay_spacing_geometry("231.8 V","13.851 A","Wyłącz");
+ const char *languages[]={"pl","en","de"};char name[48];snprintf(name,sizeof(name),"relay-spacing-on-%s",languages[language]);shot(name,3);
+ unsigned before=relay_spacing_switches;tap(160,262);CHECK(relay_spacing_switches==before+1&&!relay_spacing_desired&&find_label(lv_screen_active(),"Wyłącz"));
+ before=relay_spacing_refreshes;tap(259,262);CHECK(relay_spacing_refreshes==before+1);
+ d->output=false;d->power_w=0;d->current_a=0;dsr_mobile_update(&m);relay_spacing_geometry("231.8 V","0.000 A","Włącz");if(language==2)shot("relay-spacing-off",3);
+ d->busy=d->command_pending=true;dsr_mobile_update(&m);relay_spacing_geometry("231.8 V","0.000 A",NULL);CHECK(lv_obj_has_state(relay_spacing_power(),LV_STATE_DISABLED));if(language==2)shot("relay-spacing-busy",3);
+ d->busy=d->command_pending=false;d->online=false;d->error=DSR_OFFLINE;dsr_mobile_update(&m);relay_spacing_geometry("— V","— A",NULL);CHECK(lv_obj_has_state(relay_spacing_power(),LV_STATE_DISABLED));
+ before=relay_spacing_switches;tap(160,262);CHECK(relay_spacing_switches==before);if(language==2)shot("relay-spacing-offline",3);
+ d->online=true;d->error=DSR_OK;d->has_sample_time=false;dsr_mobile_update(&m);relay_spacing_geometry("— V","— A",NULL);CHECK(lv_obj_has_state(relay_spacing_power(),LV_STATE_DISABLED));if(language==2)shot("relay-spacing-missing",3);
+ dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_NAVIGATION")){for(unsigned i=0;i<3;i++)navigation_review(themes[i]);CHECK(navigation_issues==0);}
+ if(getenv("DSR_UI_FOCUS_RELAY_SPACING")){for(unsigned language=0;language<3;language++)relay_spacing_review(language);}
+ else if(getenv("DSR_UI_FOCUS_NAVIGATION")){for(unsigned i=0;i<3;i++)navigation_review(themes[i]);CHECK(navigation_issues==0);}
  else if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_STATUS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_LIGHTING")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lighting_review(themes[i],language);}

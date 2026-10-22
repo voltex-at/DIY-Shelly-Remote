@@ -76,7 +76,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | --- | --- | --- |
 | UI-01 | Trzy skórki i ich nazwy: Cyber Blue, Grafit, Jasny | Oczekuje na ocenę |
 | UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | **Status bar zaakceptowany na podglądzie w trzech skórkach:** wyrównanie i pokazane stany baterii/Wi-Fi. Zgodnie z decyzją właściciela usunięto nazwę urządzenia obok zegara w szczegółach dimmera/RGB. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | **Podgląd po poprawkach do oceny:** właściwa aktywna zakładka w szczegółach/ustawieniach urządzenia, anulowanie przeciągnięcia poza przycisk i odróżnienie niedostępnych akcji. Pola dotyku 64×47 px. Ikona procesora pozostaje zgodnie z decyzją właściciela. W szczegółach przekaźnika Cyber Blue odstęp pól V/A od paska ma 2 px — do oceny |
+| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | **Dolna nawigacja zaakceptowana na podglądzie:** ikony, odstępy, aktywna zakładka, naciśnięcie i niedostępne akcje; pola dotyku 64×47 px. Ikona procesora pozostaje. Właściciel zlecił dodatkowo zwiększenie odstępu pól V/A w szczegółach przekaźnika Cyber Blue do 16 px; nowy układ tego ekranu do oceny |
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | **Poprawki zaakceptowane na podglądzie:** sześć pozycji na jednym ekranie, mniejsze odstępy, Netzwerk und Verbindungen w jednej linii; ikona dodawania Shelly w podmenu Cyber Blue. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | **Układ zaakceptowany na podglądzie:** jeden wiersz z akcjami i przewijaną nazwą bez wielokropka. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | **Pokazane karty przekaźników/gniazdek zaakceptowane na podglądzie:** osobne wiersze pełnego pomieszczenia, stanu i pomiarów, przyciski oraz pionowe wyśrodkowanie W/V także po aktualizacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
@@ -428,6 +428,14 @@ Sprawdzono pięć nieprzecinających się pól 64×47 px, ikonę „+” 42 px w
 Walidacja: `DSR_UI_FOCUS_NAVIGATION=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko przypadek dolnej nawigacji, trzy skórki i 18 wybranych klatek z niemieckim interfejsem. Pasek nie ma etykiet zależnych od języka. Regresja przed poprawką wykazała oba błędy interakcji; po korekcie koloru ikon ponowiono tylko ten sam scenariusz. Obejrzano rzeczywiste piksele LVGL 9.3. Dostawcy operacji są modelami hosta; nie uruchamiano pełnego atlasu, pełnej regresji, builda docelowego ani CI. Wygląd czeka na ocenę właściciela, a odbiór na pilocie po nowym DEV pozostaje otwarty.
 
 Dodatkowa uwaga z sąsiedztwa paska: dolne pola napięcia i natężenia w szczegółach przekaźnika Cyber Blue kończą się na y=425, a nawigacja zaczyna na y=428, więc odstęp ma tylko 2 px. Nie ma nakładania, ale odstęp jest znacznie mniejszy od 16 px zaakceptowanych przy dolnych akcjach rolety/RGB. Ten układ pomiarów pozostawiono do osobnej oceny; pokazano właścicielowi rzeczywisty fragment ekranu.
+
+### UI-03 — akceptacja nawigacji i odstęp 16 px przy pomiarach przekaźnika
+
+Właściciel potwierdził „Tak, dolna nawigacja zaakceptowana na podglądzie” oraz „Tak, zwiększyć do 16 px” dla pól V/A w szczegółach przekaźnika Cyber Blue. Odbiór samego paska jest zamknięty na poziomie podglądu; nowy układ sąsiedniego ekranu oczekuje na ocenę.
+
+Pola V/A przesunięto na y=364 przy wysokości 48 px, co daje dokładnie 16 px pustego miejsca do nawigacji na y=428. Wiersz ostatniego odczytu przesunięto na y=328, zachowując 8 px odstępu nad polami V/A. Główny panel ma wysokość 192 px, a napis Włącz/Wyłącz wykorzystuje wolną przestrzeń po lewej stronie przycisku zasilania i jest wyśrodkowany na jego osi. Przycisk odświeżania wyrównano w tym samym wierszu. Układ mieści duży przycisk 86 px i dotychczasowe rozmiary tekstów pomiarowych.
+
+Walidacja: `DSR_UI_FOCUS_RELAY_SPACING=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko szczegóły przekaźnika Cyber Blue dla PL/EN/DE, siedem wybranych klatek. Sprawdzono odstęp 16 px, brak kolizji paneli, pomiarów i opisu akcji, pełne napisy Włącz/Wyłącz w trzech językach, pojedyncze wywołanie sterowania i odświeżania, potwierdzenie stanu po aktualizacji modelu oraz stany oczekiwania, offline i braku odczytu. Obejrzano rzeczywiste piksele LVGL 9.3. Operacje i odczyty Shelly są modelami hosta. Bez ponawiania zaakceptowanego paska, innych skórek, pełnego atlasu, builda docelowego i CI; odbiór na pilocie po nowym DEV pozostaje otwarty.
 
 ## Porządkowanie — wykonane
 
