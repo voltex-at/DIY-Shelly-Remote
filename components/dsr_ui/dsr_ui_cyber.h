@@ -13,6 +13,8 @@
 #define DSR_CYBER_BORDER_WIDTH 2
 /* One contour standard; semantic warnings/errors keep their own color. */
 void dsr_ui_cyber_contour(lv_obj_t *obj);
+/* Same panel contour in an existing object's draw layer; no extra widget. */
+void dsr_ui_cyber_draw_contour(lv_layer_t *layer,const lv_area_t *area,uint32_t color,lv_opa_t opacity);
 uint32_t dsr_ui_cyber_color(uint32_t token);
 lv_theme_t *dsr_ui_cyber_theme(lv_theme_t *base);
 void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);

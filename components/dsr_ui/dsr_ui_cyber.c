@@ -176,6 +176,12 @@ static void line(lv_layer_t *layer,int x1,int y1,int x2,int y2,uint32_t color)
  d.p1=(lv_point_precise_t){x1,y1};d.p2=(lv_point_precise_t){x2,y2};lv_draw_line(layer,&d);
 }
 static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_t opa,int width);
+void dsr_ui_cyber_draw_contour(lv_layer_t *layer,const lv_area_t *a,uint32_t color,lv_opa_t opacity)
+{
+ int w=lv_area_get_width(a),h=lv_area_get_height(a);if(w<8||h<8)return;
+ int cut=h<40?4:9;if(cut>w/4)cut=w/4;
+ chamfer(layer,(lv_area_t){a->x1+1,a->y1+1,a->x2-1,a->y2-1},cut,color,opacity,2);
+}
 static void panel_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(e);
@@ -188,7 +194,7 @@ static void panel_draw(lv_event_t *e)
   * fills and red/yellow feedback without allocating decorative objects. */
  if(w<8||h<8)return;
  int cut=h<40?4:9;if(cut>w/4)cut=w/4;
- chamfer(layer,(lv_area_t){a.x1+1,a.y1+1,a.x2-1,a.y2-1},cut,contour,disabled?LV_OPA_20:LV_OPA_80,2);
+ dsr_ui_cyber_draw_contour(layer,&a,contour,disabled?LV_OPA_20:LV_OPA_80);
  if(w>=80&&h>=40){
   chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},cut-2,contour,disabled?LV_OPA_10:LV_OPA_40,1);
   int span=h>70?26:16;if(span>w/4)span=w/4;

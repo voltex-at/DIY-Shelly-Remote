@@ -31,6 +31,12 @@ static lv_obj_t *containing(lv_obj_t *o,const char *text)
 static void noop(void){}
 static void stop_noop(unsigned index){(void)index;}
 static void trv_noop(unsigned index,uint8_t target){(void)index;(void)target;}
+static bool frame_pixel(int x,int y)
+{
+ uint32_t expected=lv_color_to_u32(dsr_sc_color(DSR_SC_GLOW));int distance=0;
+ for(unsigned c=0;c<3;c++)distance+=abs((int)canvas[(y*320+x)*3+(int)c]-(int)((expected>>(16-c*8))&255));
+ return distance<100; /* RGB565 + Cyber's translucent contour */
+}
 typedef struct {char target[48],battery[16];lv_area_t target_area,battery_area,icon_area;const lv_font_t *font;bool icon;} trv_readouts_t;
 static void capture_trv_draw(lv_event_t *event)
 {
@@ -82,6 +88,10 @@ static void thermostat_card(unsigned theme,unsigned language)
  CHECK(abs(reading_area.y1+reading_area.y2-reading_frame.y1-reading_frame.y2)<=1);
  CHECK(lv_obj_get_height(reading)==lv_font_get_line_height(lv_obj_get_style_text_font(reading,0)));
  CHECK(readout.icon_area.x1==reading_frame.x1); /* battery belongs under the reading column */
+ int frame_left=readout.icon_area.x1-6,frame_right=frame_left+91;
+ int inset=theme==3?1:0,mid_x=(frame_left+frame_right)/2,mid_y=(f.y1+f.y2)/2;
+ CHECK(frame_pixel(mid_x,f.y1+inset)&&frame_pixel(mid_x,f.y2-inset));
+ CHECK(frame_pixel(frame_left+inset,mid_y)&&frame_pixel(frame_right-inset,mid_y));
  CHECK(containing(card,"21.5 °C")&&lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));
  char name[48];snprintf(name,sizeof(name),"dashboard-trv-%u",language);shot(name,theme);
  /* Device battery, not the remote's status-bar estimate; redraw on new readings. */
