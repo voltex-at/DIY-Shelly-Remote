@@ -371,6 +371,36 @@ static void onboarding_next(unsigned theme,unsigned language)
  click("Bluetooth");method_selection_check(0);
  click("Dalej");CHECK(test_ble_scans()==scans+1&&!dsr_ui_onboarding_active());dsr_ui_open_settings();
 }
+static void lan_form_fields(lv_obj_t *body,lv_obj_t *field,lv_obj_t *channel)
+{
+ lv_area_t b=rect(body),n=rect(field),c=rect(channel);CHECK(lv_obj_get_width(field)==288&&lv_obj_get_width(channel)==288&&lv_obj_get_height(channel)==44);
+ CHECK(n.y1>=b.y1&&c.y2<=b.y2-8&&b.y2<=399);
+}
+static void lan_form_notice(lv_obj_t *body,const char *text)
+{
+ lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label&&lv_obj_get_parent(label)==body);lv_area_t a=rect(label),b=rect(body);
+ CHECK(a.y1>=b.y1&&a.y2<=b.y2-8&&a.x1>=16&&a.x2<=303);
+}
+static void lan_form(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_lan_device_t device={.id="shellyplus1-aabbccddeeff",.name="Shelly Plus 1",.host="192.0.2.20",.model="SNSW-001X16EU",.mac="AABBCCDDEEFF",.generation=2};dsr_lan_capabilities_t caps={.switches=3};
+ dsr_ui_lan_adopt(&device,&caps);lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class),*body=lv_obj_get_parent(field);unsigned skip=1;lv_obj_t *channel=nth_type(body,&lv_dropdown_class,&skip);lan_form_fields(body,field,channel);
+ if(language==2)shot("lan-form-fields",theme);
+ lv_obj_t *identity=lv_obj_get_parent(find_label(lv_screen_active(),device.name)),*kb=find_type(lv_screen_active(),&lv_keyboard_class);lv_obj_send_event(field,LV_EVENT_CLICKED,NULL);CHECK(!lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN)&&lv_obj_has_flag(identity,LV_OBJ_FLAG_HIDDEN)&&rect(field).y2<rect(kb).y1);
+ if(theme==3&&language==2)shot("lan-form-keyboard",theme);
+ lv_obj_send_event(kb,LV_EVENT_READY,NULL);CHECK(lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN)&&!lv_obj_has_flag(identity,LV_OBJ_FLAG_HIDDEN));lan_form_fields(body,field,channel);
+ lv_obj_t *help=find_label(lv_screen_active(),"Dodanie zachowuje poprzednie urządzenia i ich kanały.");CHECK(help&&lv_obj_get_parent(help)==body);lv_obj_scroll_to_view(help,LV_ANIM_OFF);lan_form_notice(body,"Dodanie zachowuje poprzednie urządzenia i ich kanały.");
+ if(theme==3&&language==2)shot("lan-form-help",theme);
+ unsigned writes=job_counts[DSR_JOB_BIND];lv_textarea_set_text(field,"");click("Zapisz");CHECK(job_counts[DSR_JOB_BIND]==writes);lan_form_notice(body,"Wpisz nazwę do 47 bajtów.");
+ dsr_ui_lan_bind_result(DSR_IO,DSR_BIND_WORKSPACE);lan_form_notice(body,dsr_network_bind_result_text(DSR_IO,DSR_BIND_WORKSPACE));
+ if(language==2)shot("lan-form-save-error",theme);
+ dsr_ui_lan_bind_result(DSR_FULL,DSR_BIND_VERIFY);lan_form_notice(body,"Limit 16 urządzeń. Usuń jedno, aby dodać nowe.");
+ dsr_ui_lan_bind_result(DSR_AUTH_REQUIRED,DSR_BIND_VERIFY);field=find_type(lv_screen_active(),&lv_textarea_class);body=lv_obj_get_parent(field);kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(lv_obj_get_height(body)==184&&find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));
+ lv_obj_send_event(field,LV_EVENT_CLICKED,NULL);lv_obj_send_event(kb,LV_EVENT_READY,NULL);CHECK(lv_obj_get_height(body)==184&&lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));
+ if(theme==3&&language==2)shot("lan-form-auth",theme);
+ dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -383,7 +413,8 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_ONBOARDING")){for(unsigned i=0;i<3;i++)onboarding_review(themes[i]);onboarding_labels();}
  else if(getenv("DSR_UI_FOCUS_ONBOARDING_NEXT")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_next(themes[i],language);}
- else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);}onboarding_labels();}
+ else if(getenv("DSR_UI_FOCUS_LAN_FORM")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lan_form(themes[i],language);}
+ else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
 }

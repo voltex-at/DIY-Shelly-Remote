@@ -13,7 +13,8 @@ static dsr_lan_device_t selected;
 static dsr_lan_capabilities_t capabilities;
 static dsr_credentials_t credentials;
 static lv_obj_t *notice,*username,*password,*name,*room,*channel,*save_button;
-static lv_obj_t *form_body;
+static lv_obj_t *form_body,*identity_card;
+static int form_height;
 static uint32_t room_ids[9];
 static uint8_t channels[64],channel_count;
 static void show_results(void);
@@ -24,7 +25,7 @@ bool dsr_ui_lan_active(void){return active;}
 
 void dsr_ui_lan_reset(void)
 {
-    active=false;notice=username=password=name=room=channel=save_button=form_body=NULL;
+    active=false;notice=username=password=name=room=channel=save_button=form_body=identity_card=NULL;
     if(!building){memset(&credentials,0,sizeof(credentials));waiting_scan=waiting_inspect=false;}
 }
 static char auto_name[48];
@@ -64,13 +65,28 @@ static lv_obj_t *field(lv_obj_t *root,const char *caption,int y,const char *text
     dsr_sc_text(root,caption,16,y-1,288,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_t *f=lv_textarea_create(root);dsr_ui_textarea(f);
     lv_obj_set_pos(f,16,y+18);lv_obj_set_size(f,288,44);lv_textarea_set_one_line(f,true);lv_textarea_set_max_length(f,secret?64:47);lv_textarea_set_password_mode(f,secret);lv_textarea_set_text(f,text);return f;
 }
-/* Form below the 84 px device card; with the keyboard (240 px) it moves up
- * over the card so the focused field stays visible. */
+/* Form below the 84 px device card. While typing, hide that card and show
+ * only the focused row above the 240 px keyboard. */
 #define FORM_Y 192
 #define FORM_H 184
-static void keyboard_close(lv_event_t *event){lv_obj_t *kb=lv_event_get_user_data(event);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_keyboard_set_textarea(kb,NULL);dsr_onboarding_keyboard(lv_screen_active(),false);if(form_body){lv_obj_set_y(form_body,FORM_Y);lv_obj_set_height(form_body,FORM_H);}}
+#define COMPONENT_FORM_H 208
+static void keyboard_close(lv_event_t *event)
+{
+    lv_obj_t *kb=lv_event_get_user_data(event);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);lv_keyboard_set_textarea(kb,NULL);
+    dsr_onboarding_keyboard(lv_screen_active(),false);if(identity_card)lv_obj_remove_flag(identity_card,LV_OBJ_FLAG_HIDDEN);
+    if(form_body){
+        lv_obj_set_y(form_body,FORM_Y);lv_obj_set_height(form_body,form_height);
+        lv_obj_set_style_pad_bottom(form_body,form_height==COMPONENT_FORM_H?8:0,0);
+        lv_obj_update_layout(form_body);lv_obj_scroll_to_y(form_body,0,LV_ANIM_OFF);
+    }
+}
 static void focus(lv_event_t *event)
-{lv_obj_t *kb=lv_event_get_user_data(event);dsr_onboarding_keyboard(lv_screen_active(),true);if(form_body){lv_obj_set_y(form_body,154);lv_obj_set_height(form_body,82);}dsr_ui_keyboard_focus(kb,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);}
+{
+    lv_obj_t *kb=lv_event_get_user_data(event);dsr_onboarding_keyboard(lv_screen_active(),true);
+    if(identity_card)lv_obj_add_flag(identity_card,LV_OBJ_FLAG_HIDDEN);
+    if(form_body){lv_obj_set_y(form_body,154);lv_obj_set_height(form_body,66);lv_obj_set_style_pad_bottom(form_body,0,0);}
+    dsr_ui_keyboard_focus(kb,lv_event_get_target(event));lv_obj_scroll_to_view(lv_event_get_target(event),LV_ANIM_OFF);
+}
 static void keyboard(lv_obj_t *root,lv_obj_t *a,lv_obj_t *b)
 {
     lv_obj_t *kb=lv_keyboard_create(root);dsr_ui_keyboard(kb);lv_obj_add_flag(kb,LV_OBJ_FLAG_HIDDEN);
@@ -78,15 +94,19 @@ static void keyboard(lv_obj_t *root,lv_obj_t *a,lv_obj_t *b)
     lv_obj_add_event_cb(a,focus,LV_EVENT_CLICKED,kb);lv_obj_add_event_cb(a,focus,LV_EVENT_FOCUSED,kb);if(b){lv_obj_add_event_cb(b,focus,LV_EVENT_CLICKED,kb);lv_obj_add_event_cb(b,focus,LV_EVENT_FOCUSED,kb);}
 }
 static void toggle_secret(lv_event_t *event){if(password)lv_textarea_set_password_mode(password,!lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED));}
-static lv_obj_t *form(lv_obj_t *root)
-{form_body=dsr_sc_panel(root,0,FORM_Y,320,FORM_H,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);dsr_sc_scrollbar(form_body);return form_body;}
+static lv_obj_t *form(lv_obj_t *root,int height)
+{form_height=height;form_body=dsr_sc_panel(root,0,FORM_Y,320,height,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);dsr_sc_scrollbar(form_body);return form_body;}
+static void reveal_notice(void)
+{if(form_body&&notice&&lv_obj_get_parent(notice)==form_body){lv_obj_update_layout(form_body);lv_obj_scroll_to_view(notice,LV_ANIM_OFF);}}
+static void bind_notice(const char *text)
+{dsr_sc_label_set_text(notice,text);reveal_notice();}
 static void line(lv_obj_t *card,const char *text,int y,const lv_font_t *font,uint32_t color)
 {lv_obj_t *l=dsr_sc_text(card,dsr_sc_user(text),52,y,236,font,color);lv_obj_set_height(l,font==&dsr_roboto_16?20:17);lv_label_set_long_mode(l,LV_LABEL_LONG_MODE_DOTS);}
 /* Owner 2026-10-18: show what the remote actually knows about the device
  * (name set in Shelly, SKU and line, address, MAC, channels, password). */
 static void identity(lv_obj_t *root)
 {
-    lv_obj_t *card=dsr_sc_panel(root,12,104,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,dsr_sc_icon_accent());
+    lv_obj_t *card=identity_card=dsr_sc_panel(root,12,104,296,84,DSR_SC_CARD,12);dsr_sc_icon(card,blu_gateway()?DSR_ICON_INFO:DSR_ICON_PLUG,10,24,32,dsr_sc_icon_accent());
     char text[96];
     const char *friendly=dsr_device_model_name(selected.id);
     snprintf(text,sizeof(text),"%s",selected.name[0]?selected.name:friendly?friendly:selected.id);line(card,text,6,&dsr_roboto_16,DSR_SC_TEXT);
@@ -140,7 +160,7 @@ static void show_results(void)
 static void show_credentials(void)
 {
     lv_obj_t *root=screen("Sprawdź urządzenie",2);identity(root);
-    lv_obj_t *body=form(root);username=field(body,"Login",0,"admin",false);password=field(body,"Hasło Shelly",76,"",true);
+    lv_obj_t *body=form(root,FORM_H);username=field(body,"Login",0,"admin",false);password=field(body,"Hasło Shelly",76,"",true);
     lv_obj_t *show=lv_checkbox_create(body);lv_obj_set_pos(show,16,152);lv_checkbox_set_text(show,dsr_sc_tr("Show"));lv_obj_add_event_cb(show,toggle_secret,LV_EVENT_VALUE_CHANGED,NULL);
     notice=dsr_sc_text(root,"Dane logowania służą tylko wybranemu urządzeniu.",16,378,288,&dsr_roboto_12,DSR_SC_MUTED);
     dsr_onboarding_footer(root,"Wstecz",results_back,"Sprawdź",inspect);keyboard(root,username,password);
@@ -148,22 +168,22 @@ static void show_credentials(void)
 static void bind(lv_event_t *event)
 {
     (void)event;bool blu_choice=channel_count&&lv_dropdown_get_selected(channel)<channel_count&&(channels[lv_dropdown_get_selected(channel)]&32);
-    if((blu_gateway()&&!blu_choice)||!channel_count){dsr_sc_label_set_text(notice,blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
+    if((blu_gateway()&&!blu_choice)||!channel_count){bind_notice(blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
     unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=channel_count)return;
     unsigned code=channels[selected_channel];bool supported=(code&32)?(capabilities.blu&(1u<<(code&15)))!=0:(code&16)?capabilities.ht:((((code&192)==192)?capabilities.rgbs:code&128?capabilities.covers:code&64?capabilities.lights:capabilities.switches)&(1u<<(code&15)))!=0;if(!supported)return;
-    const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){dsr_sc_label_set_text(notice,"Wpisz nazwę do 47 bajtów.");return;}
+    const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){bind_notice("Wpisz nazwę do 47 bajtów.");return;}
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
     c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=code&32?DSR_ENDPOINT_BLU:code&16?DSR_ENDPOINT_HT:(code&192)==192?DSR_ENDPOINT_RGB:(code&128)?DSR_ENDPOINT_COVER:(code&64)?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
-    if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);dsr_sc_label_set_text(notice,"Sprawdzanie urządzenia przed zapisem…");}
-    else dsr_sc_label_set_text(notice,failure(result));
+    if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);bind_notice("Sprawdzanie urządzenia przed zapisem…");}
+    else bind_notice(failure(result));
 }
 void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage)
-{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY)show_credentials();dsr_sc_label_set_text(notice,stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
+{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY)show_credentials();bind_notice(stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
 static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie",3);identity(root);
-    lv_obj_t *body=form(root);name=field(body,"Nazwa",0,selected.name,false);dsr_sc_text(body,"Pomieszczenie",16,68,288,&dsr_roboto_14,DSR_SC_MUTED);
+    lv_obj_t *body=form(root,COMPONENT_FORM_H);lv_obj_set_style_pad_bottom(body,8,0);name=field(body,"Nazwa",0,selected.name,false);dsr_sc_text(body,"Pomieszczenie",16,68,288,&dsr_roboto_14,DSR_SC_MUTED);
     static char options[1024];snprintf(options,sizeof(options),"%s",dsr_sc_tr("Nieprzypisane"));room_ids[0]=0;unsigned count=1;
     char *configuration=dsr_workspace_snapshot();if(configuration){cJSON *r=cJSON_Parse(configuration);free(configuration);const cJSON *v;cJSON_ArrayForEach(v,cJSON_GetObjectItemCaseSensitive(r,"rooms")){
         if(count>=9)break;
@@ -178,8 +198,8 @@ static void show_components(void)
     for(unsigned i=0;i<16&&count<sizeof(channels);i++)if(selected.generation>=2&&(capabilities.blu&(1u<<i))){char label[48],text[52];blu_label(i,label,sizeof(label));snprintf(text,sizeof(text),"%s%s",count?"\n":"",label);strncat(options,text,sizeof(options)-strlen(options)-1);channels[count++]=(uint8_t)(32|i);}
     channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,156);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     snprintf(auto_name,sizeof(auto_name),"%s",lv_textarea_get_text(name));lv_obj_add_event_cb(channel,channel_changed,LV_EVENT_VALUE_CHANGED,NULL);if(count)channel_changed(NULL);
-    notice=dsr_sc_text(root,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,378,288,&dsr_roboto_12,DSR_SC_MUTED);
-    save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);if(!count||(blu_gateway()&&!capabilities.blu))lv_obj_add_state(save_button,LV_STATE_DISABLED);keyboard(root,name,NULL);
+    notice=dsr_sc_text(body,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,212,288,&dsr_roboto_12,DSR_SC_MUTED);
+    save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);if(!count||(blu_gateway()&&!capabilities.blu)){lv_obj_add_state(save_button,LV_STATE_DISABLED);reveal_notice();}keyboard(root,name,NULL);
 }
 void dsr_ui_lan_tick(void)
 {
