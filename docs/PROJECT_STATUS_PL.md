@@ -76,7 +76,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | --- | --- | --- |
 | UI-01 | Trzy skórki i ich nazwy: Cyber Blue, Grafit, Jasny | Oczekuje na ocenę |
 | UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | **Status bar zaakceptowany na podglądzie w trzech skórkach:** wyrównanie i pokazane stany baterii/Wi-Fi. Zgodnie z decyzją właściciela usunięto nazwę urządzenia obok zegara w szczegółach dimmera/RGB. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | Oczekuje na ocenę |
+| UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | **Podgląd po poprawkach do oceny:** właściwa aktywna zakładka w szczegółach/ustawieniach urządzenia, anulowanie przeciągnięcia poza przycisk i odróżnienie niedostępnych akcji. Pola dotyku 64×47 px. Ikona procesora pozostaje zgodnie z decyzją właściciela. W szczegółach przekaźnika Cyber Blue odstęp pól V/A od paska ma 2 px — do oceny |
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | **Poprawki zaakceptowane na podglądzie:** sześć pozycji na jednym ekranie, mniejsze odstępy, Netzwerk und Verbindungen w jednej linii; ikona dodawania Shelly w podmenu Cyber Blue. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | **Układ zaakceptowany na podglądzie:** jeden wiersz z akcjami i przewijaną nazwą bez wielokropka. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | **Pokazane karty przekaźników/gniazdek zaakceptowane na podglądzie:** osobne wiersze pełnego pomieszczenia, stanu i pomiarów, przyciski oraz pionowe wyśrodkowanie W/V także po aktualizacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
@@ -416,6 +416,18 @@ Walidacja: `DSR_UI_FOCUS_STATUS=1 python3 tools/dev/run_host.py test_ui.py --job
 Właściciel potwierdził „Tak, status bar zaakceptowany na podglądzie” i zamiast przewijania nazwy dimmera/RGB wybrał „usuńmy tę nazwę”. Nagłówki szczegółów dimmera i RGB pokazują teraz powrót, zegar, Wi-Fi oraz baterię, bez nazwy urządzenia pomiędzy nimi. Zmiana dotyczy wszystkich trzech skórek.
 
 Walidacja poprawki: `DSR_UI_FOCUS_STATUS_NAME=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko nagłówki dimmera i RGB, trzy skórki i PL/EN/DE, sześć wybranych klatek. Obejrzano rzeczywiste piksele LVGL 9.3; nie ponawiano pozostałych stanów status bara ani zaakceptowanych ekranów sterowania. Poprawiono również dane scenariusza: Light/RGB są alternatywnymi polami unii modelu, więc wypełnia się je osobno. To zmiana kodu roboczego, bez nowego DEV i odbioru na fizycznym pilocie.
+
+### UI-03 — dolna nawigacja: ikony, odstępy i dotyk
+
+Właściciel wybrał przegląd dolnej nawigacji. Dashboard ma ikonę domu, Pomieszczenia siatkę, trzeci przycisk otwiera „Bateria i zasilanie”, dalej są Ustawienia i kontekstowe „+”. Po przedstawieniu znaczenia trzeciego przycisku właściciel wybrał **„Pozostawić ikonę procesora”**; nie zmieniano tej ikony ani przypisanej funkcji.
+
+Ukierunkowany scenariusz rzeczywistego dotyku potwierdził w trzech skórkach dwa błędy: szczegóły otwarte z Dashboardu podświetlały Pomieszczenia, a przeciągnięcie poza „+” nadal uruchamiało dodawanie. Poprawiono zachowanie wspólnego paska: szczegóły i ustawienia urządzenia zachowują kontekst strony wejścia, również przy bezpośrednim otwarciu ustawień urządzenia; wyjście palca poza pole anuluje dotknięcie. Niedostępne akcje są teraz przygaszone i mają kolor nieaktywnej ikony. Samo przygaszenie rodzica nie wystarczało dla ręcznie rysowanych ikon, dlatego korekta koloru jest lokalna dla paska.
+
+Sprawdzono pięć nieprzecinających się pól 64×47 px, ikonę „+” 42 px wewnątrz większego pola dotyku, stany aktywne Dashboard/Pomieszczenia/Ustawienia, szczegóły i powroty do strony wejścia, pojedyncze wywołanie po dotknięciu, punkty na granicy sąsiednich pól, przeciągnięcie do treści i sąsiedniego przycisku bez przypadkowej akcji, dodawanie urządzenia versus pomieszczenia oraz brak działania niedostępnych przycisków. Kontrola pikseli potwierdza odmienny wygląd niedostępnych akcji w każdej skórce.
+
+Walidacja: `DSR_UI_FOCUS_NAVIGATION=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko przypadek dolnej nawigacji, trzy skórki i 18 wybranych klatek z niemieckim interfejsem. Pasek nie ma etykiet zależnych od języka. Regresja przed poprawką wykazała oba błędy interakcji; po korekcie koloru ikon ponowiono tylko ten sam scenariusz. Obejrzano rzeczywiste piksele LVGL 9.3. Dostawcy operacji są modelami hosta; nie uruchamiano pełnego atlasu, pełnej regresji, builda docelowego ani CI. Wygląd czeka na ocenę właściciela, a odbiór na pilocie po nowym DEV pozostaje otwarty.
+
+Dodatkowa uwaga z sąsiedztwa paska: dolne pola napięcia i natężenia w szczegółach przekaźnika Cyber Blue kończą się na y=425, a nawigacja zaczyna na y=428, więc odstęp ma tylko 2 px. Nie ma nakładania, ale odstęp jest znacznie mniejszy od 16 px zaakceptowanych przy dolnych akcjach rolety/RGB. Ten układ pomiarów pozostawiono do osobnej oceny; pokazano właścicielowi rzeczywisty fragment ekranu.
 
 ## Porządkowanie — wykonane
 

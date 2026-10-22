@@ -742,10 +742,14 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
  const dsr_ui_icon_t icons[]={DSR_ICON_HOME,DSR_ICON_GRID,DSR_ICON_CPU,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
+  bool available=(enabled&(1u<<i))!=0;
+  uint32_t icon_color=!available?DSR_SC_OFF:i==4?dsr_sc_icon_accent():style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED;
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
-  if(i==4){lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESS_LOST,NULL);lv_obj_t *circle=dsr_sc_panel(b,0,0,42,42,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_power(circle,true,true);dsr_sc_icon_centered(circle,icons[i],28,dsr_sc_icon_accent());}
-  else dsr_sc_icon_centered(b,icons[i],26,style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED);
-  if(!(enabled&(1u<<i)))lv_obj_add_state(b,LV_STATE_DISABLED);
+  /* Leaving a navigation target cancels the tap instead of retaining it. */
+  lv_obj_remove_flag(b,LV_OBJ_FLAG_PRESS_LOCK);
+  if(i==4){lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(b,plus_feedback,LV_EVENT_PRESS_LOST,NULL);lv_obj_t *circle=dsr_sc_panel(b,0,0,42,42,DSR_SC_BLUE,LV_RADIUS_CIRCLE);lv_obj_center(circle);if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_power(circle,true,true);dsr_sc_icon_centered(circle,icons[i],28,icon_color);}
+  else dsr_sc_icon_centered(b,icons[i],26,icon_color);
+  if(!available){lv_obj_add_state(b,LV_STATE_DISABLED);lv_obj_set_style_opa(b,LV_OPA_40,LV_STATE_DISABLED);}
  }
 }
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color)

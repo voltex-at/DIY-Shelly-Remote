@@ -245,7 +245,8 @@ static void bottom_action(lv_event_t *event)
 static void bottom(lv_obj_t *root)
 {
  unsigned enabled=3u|(actions.open_battery?4u:0u)|(actions.open_settings?8u:0u)|((page==DSR_MOBILE_GROUPS||page==DSR_MOBILE_SCENES?!model.demo&&actions.edit_action!=NULL:page==DSR_MOBILE_ROOMS?!model.demo&&actions.add_room!=NULL:actions.add_device!=NULL)?16u:0u);
- dsr_sc_navigation(root,page==DSR_MOBILE_HOME?0:1,enabled,bottom_action);
+ dsr_mobile_page_t context=page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS?previous_page:page;
+ dsr_sc_navigation(root,context==DSR_MOBILE_HOME?0:1,enabled,bottom_action);
 }
 void dsr_mobile_actions_shell(lv_obj_t *root,uint8_t kind)
 {
@@ -1235,7 +1236,7 @@ void dsr_mobile_show(dsr_mobile_page_t p,unsigned index)
     if(actions.leave_actions)actions.leave_actions();
     repaint_pending=false;trv_reset();info_open=false;
     if(cover_preview&&p!=DSR_MOBILE_DETAILS)end_preview();
-    if(p==DSR_MOBILE_DETAILS&&page!=DSR_MOBILE_DETAILS&&page!=DSR_MOBILE_DEVICE_SETTINGS){previous_page=page;previous_selected=selected;}
+    if((p==DSR_MOBILE_DETAILS||p==DSR_MOBILE_DEVICE_SETTINGS)&&page!=DSR_MOBILE_DETAILS&&page!=DSR_MOBILE_DEVICE_SETTINGS){previous_page=page;previous_selected=selected;}
     rgb_dirty=rgb_color_view=false;content=NULL;page=p;selected=index;active=true;render();
 }
 void dsr_mobile_show_device_settings(uint32_t id)

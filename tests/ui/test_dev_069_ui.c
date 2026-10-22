@@ -600,13 +600,90 @@ static void status_review(unsigned theme,unsigned language)
  display_sleeping=true;dsr_ui_battery_tick();first=status_fill_pixels();lv_tick_inc(400);dsr_ui_battery_tick();CHECK(status_fill_pixels()==first);display_sleeping=false;
  e.battery.charging=false;dsr_ui_battery_result(&e);dsr_ui_open_settings();
 }
+static unsigned navigation_calls[6],navigation_issues;
+static void navigation_battery(void){navigation_calls[2]++;}
+static void navigation_settings(void){navigation_calls[3]++;dsr_ui_open_settings();}
+static void navigation_add_device(void){navigation_calls[4]++;}
+static void navigation_add_room(void){navigation_calls[5]++;}
+static lv_obj_t *navigation_bar(void)
+{
+ lv_obj_t *root=lv_screen_active();lv_obj_update_layout(root);
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
+  lv_obj_t *o=lv_obj_get_child(root,(int)i);
+  if(lv_obj_get_y(o)==DSR_SC_NAV_TOP&&lv_obj_get_width(o)==320&&lv_obj_get_height(o)==52)return o;
+ }
+ CHECK(!"Bottom navigation missing");return NULL;
+}
+static unsigned navigation_current(void)
+{
+ lv_obj_t *bar=navigation_bar();
+ for(unsigned i=0;i<lv_obj_get_child_count(bar);i++){
+  lv_obj_t *o=lv_obj_get_child(bar,(int)i);
+  if(lv_obj_get_width(o)==32&&lv_obj_get_height(o)==3)return (unsigned)(lv_obj_get_x(o)-16)/64;
+ }
+ CHECK(!"Active navigation marker missing");return 5;
+}
+static uint32_t navigation_pixels(unsigned index)
+{
+ lv_refr_now(display);uint32_t hash=2166136261u;
+ for(int y=432;y<479;y++)for(int x=(int)index*64;x<(int)(index+1)*64;x++)for(int c=0;c<3;c++)hash=(hash^canvas[(y*320+x)*3+c])*16777619u;
+ return hash;
+}
+static void navigation_geometry(void)
+{
+ lv_obj_t *bar=navigation_bar();lv_area_t b=rect(bar);unsigned count=0;
+ CHECK(b.y1==428&&b.y2==479);
+ for(unsigned i=0;i<lv_obj_get_child_count(bar);i++){
+  lv_obj_t *o=lv_obj_get_child(bar,(int)i);if(!lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))continue;
+  lv_area_t a=rect(o);CHECK(count<5&&a.x1==(int)count*64&&a.x2==(int)(count+1)*64-1);
+  CHECK(a.y1>=b.y1+4&&a.y2<b.y2&&lv_area_get_width(&a)>=44&&lv_area_get_height(&a)>=44);count++;
+ }
+ CHECK(count==5);
+}
+static void navigation_review(unsigned theme)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,2);dsr_ui_apply_theme();memset(navigation_calls,0,sizeof(navigation_calls));
+ dsr_mobile_actions_t actions={.open_battery=navigation_battery,.open_settings=navigation_settings,.add_device=navigation_add_device,.add_room=navigation_add_room};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.device_count=1,.room_count=1,.rooms={{.id=1,.name="Wohnzimmer"}}};
+ m.devices[0]=(dsr_mobile_device_t){.id=31,.identity="navigation-review",.name="Deckenbeleuchtung Küche",.room=0,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);navigation_geometry();CHECK(navigation_current()==0);shot("navigation-home",theme);
+ tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS&&navigation_current()==1);navigation_geometry();shot("navigation-rooms",theme);
+ tap(288,455);CHECK(navigation_calls[5]==1&&navigation_calls[4]==0); /* + adds a room here */
+ tap(32,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME&&navigation_current()==0);tap(160,455);CHECK(navigation_calls[2]==1);
+ unsigned before=navigation_calls[4];pointer_move(288,455,true);shot("navigation-add-pressed",theme);pointer_move(288,455,false);CHECK(navigation_calls[4]==before+1);
+ dsr_mobile_show(DSR_MOBILE_DETAILS,0);navigation_geometry();shot("navigation-home-details",theme);
+ if(navigation_current()!=0){navigation_issues++;printf("NAV issue theme=%u: details opened from Dashboard select Rooms\n",theme);}
+ tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);dsr_mobile_show(DSR_MOBILE_DETAILS,0);CHECK(navigation_current()==1);
+ tap(32,455);dsr_mobile_show(DSR_MOBILE_DEVICE_SETTINGS,0);CHECK(navigation_current()==0);
+ tap(32,22);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS&&navigation_current()==0);tap(32,22);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+ tap(96,455);dsr_mobile_show(DSR_MOBILE_DEVICE_SETTINGS,0);CHECK(navigation_current()==1);
+ tap(32,22);CHECK(dsr_mobile_page()==DSR_MOBILE_DETAILS&&navigation_current()==1);tap(32,22);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ tap(224,455);CHECK(navigation_calls[3]==1&&find_label(lv_screen_active(),"Ustawienia pilota"));navigation_geometry();CHECK(navigation_current()==3);shot("navigation-settings",theme);
+ /* Real shared shell callbacks return from settings to the mobile pages. */
+ tap(32,455);CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME);tap(96,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);
+ /* The real shell reloaded its stored appearance; restore this review skin. */
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,2);dsr_ui_apply_theme();dsr_mobile_bind(&actions);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(dsr_sc_style()==theme);
+ before=navigation_calls[4];pointer_move(288,455,true);pointer_move(288,400,true);pointer_move(288,400,false);
+ if(navigation_calls[4]!=before){navigation_issues++;printf("NAV issue theme=%u: dragging outside + still invokes add\n",theme);}
+ before=navigation_calls[4];unsigned settings_before=navigation_calls[3];pointer_move(288,455,true);pointer_move(224,455,true);pointer_move(224,455,false);
+ CHECK(navigation_calls[4]==before&&navigation_calls[3]==settings_before&&dsr_mobile_page()==DSR_MOBILE_HOME);
+ /* Adjacent edge points belong to different 64 px targets. */
+ tap(63,455);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);tap(64,455);CHECK(dsr_mobile_page()==DSR_MOBILE_ROOMS);tap(0,478);CHECK(dsr_mobile_page()==DSR_MOBILE_HOME);
+ uint32_t enabled_pixels[3];for(unsigned i=0;i<3;i++)enabled_pixels[i]=navigation_pixels(i+2);
+ dsr_mobile_actions_t disabled={0};dsr_mobile_bind(&disabled);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(dsr_sc_style()==theme);navigation_geometry();shot("navigation-disabled",theme);
+ for(unsigned i=0;i<3;i++)CHECK(navigation_pixels(i+2)!=enabled_pixels[i]);
+ unsigned total=navigation_calls[2]+navigation_calls[3]+navigation_calls[4]+navigation_calls[5];tap(160,455);tap(224,455);tap(288,455);
+ CHECK(navigation_calls[2]+navigation_calls[3]+navigation_calls[4]+navigation_calls[5]==total&&dsr_mobile_page()==DSR_MOBILE_HOME);
+ dsr_ui_open_settings();fflush(stdout);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
+ if(getenv("DSR_UI_FOCUS_NAVIGATION")){for(unsigned i=0;i<3;i++)navigation_review(themes[i]);CHECK(navigation_issues==0);}
+ else if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_STATUS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_LIGHTING")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lighting_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_SETTINGS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)settings_review(themes[i],language);}
