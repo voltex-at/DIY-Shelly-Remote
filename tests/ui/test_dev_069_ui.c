@@ -253,6 +253,32 @@ static void position_set(unsigned index,uint8_t target){CHECK(index==0);position
 static void cover_set(unsigned index,int direction){CHECK(index==0&&(direction==1||direction==-1));}
 static void pointer_move(int x,int y,bool down)
 {touch=(lv_point_t){x,y};pressed=down;lv_tick_inc(20);lv_indev_read(pointer);lv_timer_handler();lv_refr_now(display);}
+static void cover_room_check(const dsr_mobile_model_t *m,const char *room)
+{
+ lv_obj_t *card=lv_obj_get_parent(find_label(lv_screen_active(),m->devices[0].name)),*label=containing(card,room);CHECK(label&&!strcmp(lv_label_get_text(label),room));
+ lv_point_t size;lv_text_get_size(&size,room,lv_obj_get_style_text_font(label,0),0,0,lv_obj_get_width(label),LV_TEXT_FLAG_NONE);
+ CHECK(lv_label_get_long_mode(label)==LV_LABEL_LONG_MODE_WRAP&&lv_obj_get_height(label)>=size.y);
+ lv_obj_t *position=containing(card,"50%");CHECK(position);lv_area_t r=rect(label),p=rect(lv_obj_get_parent(position)),c=rect(card);
+ CHECK(r.x1>=c.x1+76&&r.x2<=c.x2-116&&p.y1>=r.y2+6&&c.y2-p.y2>=12);
+ CHECK(!find_label(card,"Zatrzymano")&&!find_label(card,"Otwieranie")&&!find_label(card,"Zamykanie"));
+}
+static void cover_cards(unsigned theme)
+{
+ dsr_ui_open_settings();dsr_mobile_actions_t a={.set_cover=cover_set,.stop_cover=stop_noop};dsr_mobile_bind(&a);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Wohnzimmer"}},.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=4,.identity="dev069-cover",.name="Rollladen Terrasse",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.can_cover=true,.can_stop_cover=true,.has_position=true,.position_pct=50};
+ const uint8_t states[]={DSR_COVER_STOPPED,DSR_COVER_OPENING,DSR_COVER_CLOSING};
+ for(unsigned language=0;language<3;language++){
+  dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
+  for(unsigned k=0;k<3;k++){m.devices[0].cover_state=states[k];dsr_mobile_update(&m);cover_room_check(&m,m.rooms[0].name);if(language==2&&k<2)shot(k?"cover-card-moving":"cover-card-stopped",theme);}
+ }
+ snprintf(m.rooms[0].name,sizeof(m.rooms[0].name),"Schlafzimmer im oberen Stockwerk");dsr_mobile_update(&m);cover_room_check(&m,m.rooms[0].name);shot("cover-card-long-room",theme);
+ memset(m.rooms[0].name,'W',sizeof(m.rooms[0].name)-1);m.rooms[0].name[sizeof(m.rooms[0].name)-1]=0;dsr_mobile_update(&m);cover_room_check(&m,m.rooms[0].name);
+ m.devices[0].room=DSR_UI_NO_ROOM;dsr_mobile_update(&m);cover_room_check(&m,dsr_sc_tr("Nieprzypisane"));
+ m.devices[0].online=false;m.devices[0].has_sample_time=true;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Odczyt nieaktualny"));
+ m.devices[0].online=true;m.devices[0].error=DSR_AUTH_REQUIRED;dsr_mobile_update(&m);
+ CHECK(find_label(lv_screen_active(),"Błąd logowania"));
+}
 static void cover_animation(unsigned theme,const char *direction)
 {
  unsigned previous=0;
@@ -313,6 +339,7 @@ int main(int argc,char **argv)
  const unsigned themes[]={0,2,3};
  if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_COVER_CARD")){for(unsigned i=0;i<3;i++)cover_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}
  else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
