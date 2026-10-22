@@ -465,13 +465,36 @@ static void header_back_review(unsigned theme,unsigned language)
  pressed=false;lv_tick_inc(20);lv_indev_read(pointer);tick();CHECK(!find_type(lv_screen_active(),&lv_textarea_class)); /* real header callback returns to results */
  dsr_ui_open_settings();
 }
+static void settings_swipe(void)
+{
+ pointer_move(158,362,true);for(int i=1;i<=9;i++)pointer_move(158,362-i*24,true);pointer_move(158,146,false);lv_tick_inc(500);lv_timer_handler();lv_refr_now(display);
+}
+static void settings_review(unsigned theme,unsigned language)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();dsr_ui_open_settings();CHECK(dsr_sc_style()==theme);
+ const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
+ for(unsigned i=0;i<6;i++){
+  lv_obj_t *label=find_label(lv_screen_active(),names[i]);CHECK(label);lv_area_t l=rect(label),b=rect(lv_obj_get_parent(label));
+  CHECK(l.x1>=b.x1+52&&l.x2<=b.x2-36&&l.y1>=b.y1+5&&l.y2<=b.y2-5&&abs(l.y1+l.y2-b.y1-b.y2)<=2);
+  CHECK(b.y1>=86&&b.y2<=DSR_SC_NAV_TOP-13&&lv_obj_get_height(lv_obj_get_parent(label))>=44); /* every section is visible before any swipe */
+ }
+ lv_obj_t *network_label=find_label(lv_screen_active(),names[0]);CHECK(lv_obj_get_height(network_label)==lv_font_get_line_height(lv_obj_get_style_text_font(network_label,0)));
+ if(language==2)shot("settings-review-top",theme);
+ lv_obj_t *last=lv_obj_get_parent(find_label(lv_screen_active(),"System")),*body=lv_obj_get_parent(last);settings_swipe();CHECK(lv_obj_is_valid(body));CHECK(lv_obj_get_scroll_y(body)==0);lv_area_t b=rect(body),l=rect(last);CHECK(l.y1>=b.y1&&l.y2<=b.y2-6&&l.y2<=DSR_SC_NAV_TOP-12);
+ tap((l.x1+l.x2)/2,(l.y1+l.y2)/2);CHECK(find_label(lv_screen_active(),"Firmware Update")&&find_label(lv_screen_active(),"Restart pilota"));if(language==2)shot("settings-review-system",theme);
+ click("Wstecz");lv_obj_t *network=lv_obj_get_parent(find_label(lv_screen_active(),"Sieć i połączenia"));l=rect(network);tap((l.x1+l.x2)/2,(l.y1+l.y2)/2);CHECK(find_label(lv_screen_active(),"Wi-Fi setup"));if(language==2)shot("settings-review-network-top",theme);
+ if(theme==3)CHECK(has_icon(lv_obj_get_parent(find_label(lv_screen_active(),"Dodaj urządzenie Shelly")),DSR_ICON_PLUS,24));
+ body=lv_obj_get_parent(lv_obj_get_parent(find_label(lv_screen_active(),"Odśwież")));settings_swipe();last=lv_obj_get_parent(find_label(lv_screen_active(),"Odśwież"));l=rect(last);b=rect(body);CHECK(l.y1>=b.y1&&l.y2<=b.y2&&l.y2<420);if(language==2)shot("settings-review-network-bottom",theme);
+ click("Wstecz");CHECK(find_label(lv_screen_active(),"System"));
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_DASHBOARD")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_review(themes[i],language);}
+ if(getenv("DSR_UI_FOCUS_SETTINGS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)settings_review(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_DASHBOARD")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_COVER_CARD")){for(unsigned i=0;i<3;i++)cover_cards(themes[i]);}

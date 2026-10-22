@@ -96,6 +96,7 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
      else if(!strcmp(text,"Wi-Fi setup"))icon=DSR_ICON_SETTINGS;
      else if(!strcmp(text,"Bluetooth LE • skan i setup"))icon=DSR_ICON_BLUETOOTH;
      else if(!strcmp(text,"Wi-Fi AP • dodaj Shelly"))icon=DSR_ICON_ROUTER;
+     else if(!strcmp(text,"Dodaj urządzenie Shelly"))icon=DSR_ICON_PLUS;
      else if(!strcmp(text,"Wstecz")||!strcmp(text,"Back"))icon=DSR_ICON_BACK;
      if(icon==DSR_ICON_COUNT)icon=section_icon(text);
      if(width<170&&icon!=DSR_ICON_SAVE&&icon!=DSR_ICON_BACK)icon=DSR_ICON_COUNT;
@@ -413,19 +414,23 @@ static void menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *root=dsr_ui_screen("Ustawienia pilota",true);
  lv_obj_t *body=dsr_sc_panel(root,DSR_SC_MARGIN,86,296,DSR_SC_NAV_TOP-86-DSR_SC_MARGIN,DSR_SC_BG,0);
- lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
- lv_obj_set_style_pad_bottom(body,DSR_SC_GAP,0);
+ /* Six 48 px touch targets and five 6 px gaps fit above navigation. */
  const char *names[]={"Sieć i połączenia","Wygląd i język","Ekran i komfort","Bateria i zasilanie","Panel WWW / bezpieczeństwo","System"};
  const dsr_ui_icon_t icons[]={DSR_ICON_WIFI,DSR_ICON_PALETTE,DSR_ICON_DISPLAY,DSR_ICON_BATTERY,DSR_ICON_SHIELD,DSR_ICON_CPU};
  const lv_event_cb_t callbacks[]={dsr_ui_settings_network,dsr_ui_config_appearance,screen_settings,dsr_ui_battery_open,web_panel,system_menu};
  for(unsigned i=0;i<6;i++){
-  lv_obj_t *button=dsr_sc_button(body,0,(int)i*64,296,56,DSR_SC_CARD,DSR_SC_RADIUS,callbacks[i],NULL);
+  lv_obj_t *button=dsr_sc_button(body,0,(int)i*54,296,48,DSR_SC_CARD,DSR_SC_RADIUS,callbacks[i],NULL);
+  /* Leaving a fixed row while dragging must cancel its press. */
+  lv_obj_remove_flag(button,LV_OBJ_FLAG_PRESS_LOCK);
   bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-  lv_obj_t *caption=dsr_sc_text(button,names[i],56,0,196,&dsr_roboto_16,DSR_SC_TEXT);
+  const lv_font_t *font=&dsr_roboto_16;lv_point_t size;
+  lv_text_get_size(&size,dsr_sc_tr(names[i]),dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+  if(size.x>196)font=&dsr_roboto_14;
+  lv_obj_t *caption=dsr_sc_text(button,names[i],56,0,196,font,DSR_SC_TEXT);
   lv_obj_align(caption,LV_ALIGN_LEFT_MID,56,0);
-  if(hud){lv_obj_t *badge=dsr_sc_panel(button,8,8,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);}
-  dsr_sc_icon(button,DSR_ICON_NEXT,260,14,24,DSR_SC_MUTED);
-  dsr_sc_icon(button,icons[i],14,16,24,DSR_SC_BLUE);
+  if(hud){lv_obj_t *badge=dsr_sc_panel(button,8,6,36,36,DSR_SC_PANEL,8);dsr_ui_cyber_inset(badge);}
+  dsr_sc_icon(button,DSR_ICON_NEXT,260,12,24,DSR_SC_MUTED);
+  dsr_sc_icon(button,icons[i],14,12,24,DSR_SC_BLUE);
  }
 }
 

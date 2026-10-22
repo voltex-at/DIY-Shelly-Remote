@@ -77,9 +77,9 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-01 | Trzy skórki i ich nazwy: Cyber Blue, Grafit, Jasny | Oczekuje na ocenę |
 | UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | Oczekuje na ocenę |
 | UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | Oczekuje na ocenę |
-| UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
-| UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel wybrał jeden wiersz z akcjami i przewijaną nazwą. Wdrożono poziome przewijanie bez wielokropka; nowy podgląd do oceny |
-| UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Właściciel zatwierdził osobne wiersze pełnego pomieszczenia, stanu i pomiarów oraz **zaakceptował przyciski**. Wdrożono układ przekaźników/gniazdek i pionowe wyśrodkowanie W/V także po aktualizacji; nowy podgląd do oceny |
+| UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | **Poprawione według uwag, oczekuje na odbiór:** sześć pozycji na jednym ekranie, mniejsze odstępy, Netzwerk und Verbindungen w jednej linii; ikona dodawania Shelly w podmenu Cyber Blue. Podgląd i obsługa gestów sprawdzone na hoście |
+| UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | **Układ zaakceptowany na podglądzie:** jeden wiersz z akcjami i przewijaną nazwą bez wielokropka. Odbiór na pilocie po nowym DEV pozostaje otwarty |
+| UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | **Pokazane karty przekaźników/gniazdek zaakceptowane na podglądzie:** osobne wiersze pełnego pomieszczenia, stanu i pomiarów, przyciski oraz pionowe wyśrodkowanie W/V także po aktualizacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | **Karty zaakceptowane na podglądzie przez właściciela**: nazwa u góry, mała ikona po lewej, duża po prawej, pośrodku pomieszczenie → ikona z lx → bateria z procentem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | **Cały punkt zaakceptowany na podglądzie przez właściciela**: przyciski, odstęp od nawigacji, skala, animacja oraz karta Dashboardu z pomieszczeniem zamiast stanu, pozycją i sterowaniem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
@@ -351,7 +351,27 @@ Wdrożono wybrany układ. Selektor zachowuje 146×44 px i sąsiednie akcje 44 px
 
 Karty urządzeń z przełączanym wyjściem mają pełne pomieszczenie w osobnym, zawijanym wierszu, pod nim stan oraz pomiary. Wysokość karty wynika z wysokości tekstu, z odstępem pod ramką pomiarów. Dotyczy przekaźników, gniazdek i świateł powiązanych z endpointem Switch; zaakceptowane układy termostatu, kontaktów i rolety nie zostały przebudowane. Pełne pomieszczenie jest rysowane w istniejącej warstwie karty, bez dodatkowego obiektu etykiety. W/V mają wysokość tekstu dopasowaną do fontu i pionowy środek ramki zarówno po utworzeniu, jak i aktualizacji wartości. Przyciski zachowują zaakceptowany rozmiar i położenie.
 
-Walidacja poprawki: ten sam tryb `DSR_UI_FOCUS_DASHBOARD=1` — PASS, trzy skórki i PL/EN/DE, 17 wybranych klatek (w tym osiem klatek fragmentu przewijania Cyber Blue). Regresja na poprzednim kodzie wykazała brak przewijania nazwy. Sprawdzono pełną nazwę pomieszczenia w zadaniach rysowania LVGL, odstępy pomieszczenie–stan–pomiary, pionowy środek tekstu W/V przed i po zmianie liczb, rzeczywisty ruch animacji i jej usunięcie po wyjściu. Obejrzano rzeczywiste rendery LVGL 9.3. Nowy podgląd układu i wyrównania pomiarów oczekuje oceny właściciela; bez nowego DEV i fizycznego odbioru.
+Walidacja poprawki: ten sam tryb `DSR_UI_FOCUS_DASHBOARD=1` — PASS, trzy skórki i PL/EN/DE, 17 wybranych klatek (w tym osiem klatek fragmentu przewijania Cyber Blue). Regresja na poprzednim kodzie wykazała brak przewijania nazwy. Sprawdzono pełną nazwę pomieszczenia w zadaniach rysowania LVGL, odstępy pomieszczenie–stan–pomiary, pionowy środek tekstu W/V przed i po zmianie liczb, rzeczywisty ruch animacji i jej usunięcie po wyjściu. Obejrzano rzeczywiste rendery LVGL 9.3. Właściciel potwierdził „Tak, układ Dashboardu zaakceptowany” oraz „Tak, pomiary zaakceptowane”. Akceptacja obejmuje pokazany układ i pomiary; bez nowego DEV i fizycznego odbioru.
+
+### UI-04 — listy ustawień i przewijanie
+
+Właściciel wybrał przegląd ustawień. Sprawdzono menu główne, podmenu System oraz Sieć i połączenia w trzech skórkach i PL/EN/DE. Rzeczywiste zdarzenia wskaźnika przewijają menu do całej pozycji System nad dolną nawigacją; dotknięcie tej pozycji otwiera właściwe podmenu. W ustawieniach sieci ostatni przycisk Odśwież jest w pełni dostępny nad stałą stopką Wstecz. Sprawdzono również powrót między ekranami.
+
+W pokazanych stanach nie wykryto kolizji list ze stopką ani agresywnego skracania nazw. Dłuższe niemieckie etykiety zawijają się w wierszach. Nie zmieniano kodu interfejsu; dodano ograniczony scenariusz przeglądu z kontrolą odstępów etykiet od ikon i strzałek oraz dostępności końca listy.
+
+Walidacja: `DSR_UI_FOCUS_SETTINGS=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS; jeden przypadek ograniczony do ustawień, trzy skórki i PL/EN/DE, 15 wybranych klatek po niemiecku. Obejrzano rzeczywiste rendery LVGL 9.3. Nie oznacza to odbioru pozostałych ekranów ustawień ani fizycznego dotyku na pilocie. Bez pełnego atlasu, ponawiania zaakceptowanych kart, pełnego CI i nowego DEV.
+
+Odbiór 2026-10-23: dla głównej listy oraz pokazanych podmenu System i Sieć właściciel wybrał „Wymagają korekty — opiszę”. Oba punkty pozostają otwarte do czasu doprecyzowania uwag i poprawionego podglądu. Nie zmieniano układu ani nie ponawiano testów na podstawie samej tej odpowiedzi.
+
+### UI-04 — sześć pozycji bez przewijania i ikona dodawania Shelly
+
+Właściciel doprecyzował dwie zmiany: nieco mniejsze ramki i odstępy mają zmieścić wszystkie sześć sekcji ustawień na jednym ekranie, a Netzwerk und Verbindungen ma wrócić do jednej linii; na podstronie brakuje ikony przy Shelly-Gerät hinzufügen.
+
+Główne menu używa teraz przycisków 48 px z odstępem 6 px. Cała lista mieści się nad nawigacją, z 24 px odstępu pod ostatnim przyciskiem. Zachowano marginesy ikony, tekstu i strzałki oraz podwójne sfazowane ramki Cyber Blue. Etykiety zachowują font 16 px, a dłuższe napisy korzystają z 14 px po pomiarze ich szerokości; nazwa sieci jest pełna i jednoliniowa w PL/EN/DE. Lista nie wymaga przewijania. W Cyber Blue przycisk dodawania Shelly dostał istniejącą ikonę plus, tak jak pozostałe akcje tej skórki. Podmenu System oraz przewijana zawartość Sieci zachowują dotychczasowy układ.
+
+Kontrola gestów wykryła, że domyślna blokada naciśnięcia LVGL na nieruchomej liście mogła otworzyć pierwotnie dotkniętą pozycję po przeciągnięciu poza nią. Wyłączono ją lokalnie dla sześciu przycisków menu. Przeciągnięcie nie zmienia już ekranu, a zwykłe dotknięcie Systemu i Sieci nadal otwiera odpowiednie podmenu.
+
+Walidacja poprawki: `DSR_UI_FOCUS_SETTINGS=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, trzy skórki i PL/EN/DE, 12 wybranych klatek po niemiecku. Regresja przed poprawką wykazała brak widoczności wszystkich sekcji. Sprawdzono dostępność sześciu pozycji bez gestu, jednoliniową nazwę sieci, odstępy tekstu od ramek, zachowanie przy przeciąganiu, wejście do Systemu/Sieci, powrót i dostępność ostatniej akcji podmenu Sieć. Obejrzano rzeczywiste piksele LVGL 9.3. Poprawiony podgląd czeka na ocenę właściciela; bez pełnego atlasu, pełnego CI, nowego DEV i odbioru na urządzeniu.
 
 ## Porządkowanie — wykonane
 
