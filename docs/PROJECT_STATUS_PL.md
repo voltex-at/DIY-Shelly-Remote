@@ -86,7 +86,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Kolejne kroki przeniesiono pod tytuł; etykiety mówią o urządzeniach; poprawiono kolizję RSSI i pomiar szerokości czcionki; odbiór sprzętowy otwarty |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | Aktualne podglądy kroków, napisów i ramek do oceny właściciela. **Wykryto przycięte pole wyboru kanału w formularzu „Nazwa i pomieszczenie”** — poprawka otwarta. Odbiór sprzętowy pozostaje otwarty |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -181,6 +181,14 @@ Walidacja pierwszego podglądu: `DSR_UI_FOCUS_COVER=1 python3 tools/dev/run_host
 Istniejąca regresja `python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_cover_ui` — PASS, osiem klatek. Potwierdza pojedyncze żądanie po puszczeniu, pierwszeństwo STOP i końcowy potwierdzony odczyt, odzyskanie odczytu bez powtarzania ruchu po błędzie oraz blokady przy kalibracji i błędzie autoryzacji. Napisy sprawdza w PL/EN/DE. Radio, worker i zapis pozostają modelem hosta.
 
 Walidacja zmienionej karty: `DSR_UI_FOCUS_COVER_CARD=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko dziewięć klatek kart, bez powtarzania animacji ani szczegółów. Sprawdzono trzy skórki i PL/EN/DE, spoczynek/otwieranie/zamykanie, pełne nazwy do granicy pola modelu, brak przypisania oraz zachowanie ostrzeżeń offline i błędu logowania. Regresja przed poprawką wykazała brak pomieszczenia; podczas korekty wykazała też przycięty niemiecki komunikat błędu. Rzeczywiste piksele krótkiego i długiego pomieszczenia sprawdzono na renderach LVGL 9.3. To wynik hosta, bez wdrożenia na pilocie i bez nowego DEV.
+
+### NET-01 / UI-10 — podgląd dodawania urządzeń
+
+Po akceptacji rolety właściciel wybrał dodawanie urządzeń: kroki, napisy i ramki. Przygotowano świeży podgląd wyboru metody, ręcznego IP, AP oraz LAN w trzech skórkach, a także etykiet BLE w PL/EN/DE w Cyber Blue. Pierwszy ekran zachowuje zaakceptowane położenie „Krok 1 z 3”. Na kolejnych ekranach numer kroku znajduje się pod nagłówkiem, a nie obok zegara. Zgody połączenia z AP i wysłania Wi-Fi oraz ekran błędu mają turkusowe, sfazowane ramki Cyber Blue. Etykiety BLE mówią „urządzenie / device / Gerät”; RSSI i opis typu mają oddzielne, czytelne ramki.
+
+**Wykryta niespójność:** w kroku LAN „Nazwa i pomieszczenie” dolna część pola kanału jest ucięta przez przewijany kontener formularza. Kontener ma wysokość 184 px, a pole kanału zaczyna się na 156 px i ma wysokość 44 px, więc jego dolne 16 px wykracza poza początkowy obszar widoczny. Opis pomocniczy pod formularzem pozostawia zbyt mało miejsca na pełny widok wszystkich pól. Problem występuje we wszystkich trzech skórkach. Propozycja do ankiety: zachować pełną szerokość i dotychczasową wysokość pól, powiększyć widoczny obszar formularza, a opis pomocniczy przenieść za pola do jego przewijanej treści; komunikaty wyniku zapisu muszą pozostać widoczne po operacji. Kod firmware tego formularza nie został jeszcze zmieniony.
+
+Walidacja podglądu: `DSR_UI_FOCUS_ONBOARDING=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek ograniczony do dodawania urządzeń, 48 wybranych klatek, bez pełnego atlasu ani ponawiania zaakceptowanych kart. Obejmuje pustą listę AP, błąd i ponowienie, dwie odrębne zgody, anulowanie z powrotem do domowego Wi-Fi w modelu hosta, wyniki LAN i konfigurację oraz rozpoznane/nierozpoznane BLE i języki PL/EN/DE. Obejrzenie rzeczywistych pikseli ujawniło opisane przycięcie pola kanału mimo przejścia dotychczasowych sprawdzeń. To walidacja hosta z atrapami radia i zapisu; akceptacja wyglądu oraz rzeczywiste dodawanie urządzeń na pilocie pozostają otwarte. Żaden nowy DEV nie został opublikowany.
 
 ## Konsolidacja starych zgłoszeń
 

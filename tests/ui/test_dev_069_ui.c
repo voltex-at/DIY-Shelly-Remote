@@ -331,6 +331,17 @@ static void onboarding_labels(void)
   snprintf(name,sizeof(name),"manual-form-%u",lang);shot(name,3);
  }
 }
+static void onboarding_review(unsigned theme)
+{
+ cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString("de"));publish_document(doc);dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==theme);
+ dsr_event_t e={.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=3902,.has_percent=true,.percent=63,.percent_estimated=true}};dsr_ui_battery_result(&e);
+ dsr_network_device(NULL);shot("add-methods",theme);choose_method("Dodaj ręcznie (IP)");shot("manual-ip",theme);
+ access_point(theme);
+ wifi.connected=true;dsr_network_home(NULL);tick();dsr_ui_lan_open(NULL);shot("lan-scanning",theme);
+ test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-001X16EU\",\"name\":\"Shelly Plus 1\",\"auth_en\":false}","192.0.2.20");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Shelly Plus 1"));shot("lan-results",theme);
+ click("Shelly Plus 1");test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));shot("lan-configure",theme);
+ dsr_network_home(NULL);tick();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -341,6 +352,7 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_COVER_CARD")){for(unsigned i=0;i<3;i++)cover_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}
+ else if(getenv("DSR_UI_FOCUS_ONBOARDING")){for(unsigned i=0;i<3;i++)onboarding_review(themes[i]);onboarding_labels();}
  else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
