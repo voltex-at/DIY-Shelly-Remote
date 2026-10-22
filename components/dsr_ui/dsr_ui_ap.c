@@ -34,6 +34,30 @@ static lv_obj_t *content(lv_obj_t *root)
  dsr_sc_border_width(card,1,0);dsr_sc_border_color(card,dsr_sc_color(DSR_SC_EDGE),0);
  return card;
 }
+static void large_icon_draw(lv_event_t *event)
+{
+ lv_obj_t *icon=lv_event_get_target(event);lv_area_t a;lv_obj_get_coords(icon,&a);lv_layer_t *layer=lv_event_get_layer(event);lv_color_t color=lv_obj_get_style_line_color(icon,0);
+ lv_draw_rect_dsc_t dot;lv_draw_rect_dsc_init(&dot);dot.bg_color=color;dot.bg_opa=LV_OPA_COVER;dot.radius=LV_RADIUS_CIRCLE;
+ if((uintptr_t)lv_event_get_user_data(event)==DSR_ICON_WIFI){
+  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.color=color;arc.width=4;arc.rounded=1;arc.center=(lv_point_t){a.x1+36,a.y1+58};arc.start_angle=220;arc.end_angle=320;
+  for(unsigned r=12;r<=36;r+=12){arc.radius=(uint16_t)r;lv_draw_arc(layer,&arc);}
+  lv_area_t point={a.x1+32,a.y1+54,a.x1+39,a.y1+61};lv_draw_rect(layer,&dot,&point);
+ }else{
+  lv_draw_line_dsc_t line;lv_draw_line_dsc_init(&line);line.color=color;line.width=3;line.round_start=line.round_end=1;
+  const lv_point_precise_t points[4]={{a.x1+32,a.y1+6},{a.x1+59,a.y1+54},{a.x1+5,a.y1+54},{a.x1+32,a.y1+6}};
+  for(unsigned i=0;i<3;i++){line.p1=points[i];line.p2=points[i+1];lv_draw_line(layer,&line);}
+  line.width=4;line.p1=(lv_point_precise_t){a.x1+32,a.y1+23};line.p2=(lv_point_precise_t){a.x1+32,a.y1+36};lv_draw_line(layer,&line);
+  lv_area_t point={a.x1+30,a.y1+43,a.x1+34,a.y1+47};lv_draw_rect(layer,&dot,&point);
+ }
+}
+static void large_icon(lv_obj_t *card,dsr_ui_icon_t kind,int y,int size,uint32_t color)
+{
+ if(dsr_sc_style()!=DSR_SC_STYLE_CYBER_BLUE&&kind==DSR_ICON_WIFI){dsr_sc_icon(card,kind,(296-size)/2,y,size,color);return;}
+ /* Draw at the final size instead of magnifying the compact 24/32 px mask. */
+ lv_obj_t *icon=lv_obj_create(card);lv_obj_remove_style_all(icon);lv_obj_set_size(icon,size,size);lv_obj_set_style_line_color(icon,dsr_sc_text_color(color),0);
+ lv_obj_remove_flag(icon,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_obj_align(icon,LV_ALIGN_TOP_MID,0,y);
+ lv_obj_add_event_cb(icon,large_icon_draw,LV_EVENT_DRAW_MAIN,(void *)(uintptr_t)kind);
+}
 static void release(void)
 {free(lan_copy);lan_copy=NULL;if(lease){lease=false;dsr_activity_end();}if(!active)dsr_ap_visibility(false);}
 bool dsr_ui_ap_active(void){return active||cleanup||lease;}
@@ -54,9 +78,7 @@ static lv_obj_t *screen(const char *title)
 }
 static void message(const char *title,const char *text)
 {
- lv_obj_t *root=screen(title),*card=content(root);lv_obj_t *spinner=lv_spinner_create(card);lv_obj_set_pos(spinner,126,16);lv_obj_set_size(spinner,40,40);lv_spinner_set_anim_params(spinner,1200,240);
- lv_obj_set_style_arc_width(spinner,4,LV_PART_MAIN);lv_obj_set_style_arc_width(spinner,4,LV_PART_INDICATOR);
- lv_obj_set_style_arc_color(spinner,dsr_sc_color(DSR_SC_EDGE),LV_PART_MAIN);lv_obj_set_style_arc_color(spinner,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);
+ lv_obj_t *root=screen(title),*card=content(root);lv_obj_t *spinner=lv_spinner_create(card);lv_obj_set_pos(spinner,124,16);lv_obj_set_size(spinner,48,48);lv_spinner_set_anim_params(spinner,1000,200);
  notice=dsr_sc_text(card,text,12,76,268,&dsr_roboto_16,DSR_SC_TEXT);dsr_onboarding_footer(root,"Anuluj",cancel,NULL,NULL);
 }
 static void error(dsr_result_t result)
@@ -67,9 +89,13 @@ static void error(dsr_result_t result)
  phase=AP_ERROR;
  if(lan_started||waiting_lan_inspect){dsr_lan_cancel();lan_started=waiting_lan_inspect=false;}
  const char *text=result==DSR_IDENTITY_MISMATCH?"Tożsamość urządzenia nie zgadza się. Dalsze wysyłanie zablokowane.":result==DSR_AUTH_REQUIRED?"AP wymaga logowania. Obsługiwane są fabryczne AP bez hasła API.":result==DSR_UNSUPPORTED?"Ten AP lub tryb Wi-Fi nie jest obsługiwany. Dane pilota zachowane.":"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane.";
- lv_obj_t *root=screen("Wi-Fi AP • wynik"),*card=content(root);dsr_sc_icon(card,DSR_ICON_WARNING,126,16,40,0xffb466);
- notice=dsr_sc_text(card,text,12,76,268,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_update_layout(notice);
- dsr_sc_text(card,"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.",12,76+lv_obj_get_height(notice)+24,268,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_t *root=screen("Wi-Fi AP • wynik"),*card=content(root);uint32_t gold=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107;
+ large_icon(card,DSR_ICON_WARNING,8,64,gold);
+ lv_obj_t *warning=dsr_sc_panel(card,12,84,268,24,DSR_SC_PANEL,8);
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(warning,false);
+ else{dsr_sc_border_width(warning,1,0);dsr_sc_border_color(warning,dsr_sc_color(gold),0);}
+ notice=dsr_sc_text(warning,text,12,10,240,&dsr_roboto_16,gold);lv_obj_update_layout(notice);int height=lv_obj_get_height(notice)+24;lv_obj_set_height(warning,height);
+ dsr_sc_text(card,"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.",12,84+height+16,268,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Ponów",retry);
  if(!dsr_wifi_temporary_active())release();
 }
@@ -118,7 +144,7 @@ static void show_results(void)
   dsr_sc_text(row,dsr_sc_user(detail),52,50,228,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_text(row,scan.items[i].security==DSR_WIFI_OPEN?"Otwarty AP • do sprawdzenia":"AP chroniony • nieobsługiwany",52,74,228,&dsr_roboto_12,DSR_SC_MUTED);
  }
- if(!count){lv_obj_t *empty=dsr_sc_panel(list,0,0,296,258,DSR_SC_CARD,12);dsr_sc_icon(empty,DSR_ICON_WIFI,124,24,48,DSR_SC_MUTED);dsr_sc_text(empty,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",12,100,268,&dsr_roboto_16,DSR_SC_TEXT);}
+ if(!count){lv_obj_t *empty=dsr_sc_panel(list,0,0,296,258,DSR_SC_CARD,12);large_icon(empty,DSR_ICON_WIFI,20,72,DSR_SC_MUTED);dsr_sc_text(empty,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",12,112,268,&dsr_roboto_16,DSR_SC_TEXT);}
  char count_text[48];snprintf(count_text,sizeof(count_text),dsr_sc_tr("Znaleziono AP: %u"),count);dsr_sc_text(root,dsr_sc_user(count_text),16,378,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Ponów",show_scan);
 }

@@ -244,7 +244,7 @@ static void access_point(unsigned theme)
  char step[40];snprintf(step,sizeof(step),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *progress=find_label(lv_screen_active(),step);CHECK(progress&&rect(progress).y1>=70);lv_obj_t *scan_button=lv_obj_get_parent(find_label(lv_screen_active(),"Szukaj AP"));CHECK(rect(scan_button).y2<=463);
  shot("ap-intro",theme);click("Szukaj AP");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);shot("ap-scanning",theme);
  response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia."));shot("ap-empty",theme);
- click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Ponów"));lv_obj_t *notice=find_label(lv_screen_active(),"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane.");CHECK(notice);lv_obj_t *frame=lv_obj_get_parent(notice);CHECK(lv_obj_get_width(frame)==296&&lv_obj_get_x(notice)>=12);if(theme==3)CHECK(lv_obj_get_style_border_width(frame,0)>=2);shot("ap-error",theme);
+ click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Ponów"));lv_obj_t *notice=find_label(lv_screen_active(),"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane.");CHECK(notice);lv_obj_t *frame=lv_obj_get_parent(notice);CHECK(lv_obj_get_width(frame)==268&&lv_obj_get_x(notice)>=12);if(theme==3)CHECK(lv_obj_get_style_border_width(frame,0)>=2);shot("ap-error",theme);
  unsigned writes=job_counts[DSR_JOB_AP_PROVISION];click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN&&job_counts[DSR_JOB_AP_PROVISION]==writes);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);click("Anuluj");
  ap_pick();shot("ap-connect-consent",theme);ap_disclose();shot("ap-share-consent",theme);ap_cancel_finish();CHECK(job_counts[DSR_JOB_AP_PROVISION]==writes&&dsr_sc_style()==theme);
 }
@@ -407,9 +407,10 @@ static void onboarding_states(unsigned theme,unsigned language)
  wifi.connected=false;dsr_network_home(NULL);tick();if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}wifi.connected=true;
  unsigned writes=job_counts[DSR_JOB_AP_PROVISION];dsr_ui_ap_scan_open(NULL);CHECK(dsr_sc_style()==theme&&in_flight&&submitted.kind==DSR_JOB_AP_SCAN);if(language==2)shot("review-ap-scanning",theme);
  response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);lv_obj_t *empty=find_label(lv_screen_active(),"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.");CHECK(empty);lv_obj_t *empty_card=lv_obj_get_parent(empty);CHECK(rect(empty_card).y2<=rect(lv_obj_get_parent(empty_card)).y2);if(language==2)shot("review-ap-empty",theme);
- click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane."));if(language==2)shot("review-ap-error",theme);
+ click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);lv_obj_t *warning=find_label(lv_screen_active(),"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane."),*help=find_label(lv_screen_active(),"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.");CHECK(warning&&help);lv_area_t w=rect(lv_obj_get_parent(warning)),h=rect(help),c=rect(lv_obj_get_parent(help));CHECK(rect(warning).y2<=w.y2-8&&h.y1>=w.y2+12&&h.y2<=c.y2-12);if(language==2)shot("review-ap-error",theme);
  click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN&&job_counts[DSR_JOB_AP_PROVISION]==writes);
  response=(dsr_event_t){.scan={.count=1,.items={{.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN,.rssi=-48,.channel=6}}}};deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"ShellyPlus1-112233445566"));if(language==2)shot("review-ap-found",theme);click("Anuluj");
+ if(getenv("DSR_UI_FOCUS_AP_STATES")){dsr_ui_open_settings();return;}
  dsr_ui_lan_open(NULL);CHECK(find_label(lv_screen_active(),"Wyszukiwanie mDNS i weryfikacja API…"));if(language==2)shot("review-lan-scanning",theme);
  /* Provider ends discovery without an identity accepted by the real parser. */
  test_lan_found("{}","192.0.2.20");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nie znaleziono Shelly. Sprawdź sieć i ponów."));if(language==2)shot("review-lan-empty",theme);
@@ -447,7 +448,7 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_ONBOARDING_NEXT")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_next(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_LAN_FORM")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lan_form(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_HEADER_BACK")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)header_back_review(themes[i],language);}
- else if(getenv("DSR_UI_FOCUS_ONBOARDING_STATES")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_states(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_ONBOARDING_STATES")||getenv("DSR_UI_FOCUS_AP_STATES")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_states(themes[i],language);}
  else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);header_back_review(themes[i],2);onboarding_states(themes[i],2);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
