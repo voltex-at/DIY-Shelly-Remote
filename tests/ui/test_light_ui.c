@@ -9,6 +9,11 @@ static void light_response(bool on,uint8_t brightness,uint8_t conditions)
 }
 static void point(int x,int y,bool down)
 {touch=(lv_point_t){x,y};pressed=down;lv_tick_inc(20);lv_indev_read(pointer);lv_obj_update_layout(lv_screen_active());}
+static lv_obj_t *light_input(lv_obj_t *o)
+{
+ if(lv_obj_check_type(o,&lv_arc_class)&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))return o;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *input=light_input(lv_obj_get_child(o,(int)i));if(input)return input;}return NULL;
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -24,17 +29,17 @@ int main(int argc,char **argv)
  cJSON *r=room_document(),*entry=cJSON_GetObjectItemCaseSensitive(r,"devices")->child;CHECK(entry&&!strcmp(cJSON_GetObjectItemCaseSensitive(entry,"kind")->valuestring,"light"));uint32_t id=(uint32_t)cJSON_GetObjectItemCaseSensitive(entry,"id")->valueint;cJSON_Delete(r);CHECK(id&&dsr_network_layout_reserved(id));
  dsr_mobile_device_t typed;CHECK(dsr_network_typed_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_LIGHT&&typed.can_light);
  dsr_ui_usage_open(id);CHECK(find_label(lv_screen_active(),"Zużycie"));screenshot("265-light-history-unsupported");dsr_network_device_control(id);CHECK(find_label(lv_screen_active(),"38%")&&!find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("260-light-confirmed-readback");
- lv_obj_t *slider=find_type(lv_screen_active(),&lv_slider_class);CHECK(slider&&!lv_obj_has_state(slider,LV_STATE_DISABLED));lv_area_t bounds;lv_obj_get_coords(slider,&bounds);int y=(bounds.y1+bounds.y2)/2;
- unsigned before=requests,intents=test_light_requests();point(130,y,true);point(200,y,true);CHECK(requests==before&&test_light_requests()==intents&&find_label(lv_screen_active(),"38%"));int selected=lv_slider_get_value(slider);CHECK(selected>=0&&selected<=100&&selected!=38);screenshot("261-light-preview-no-POST");
+ lv_obj_t *dial=light_input(lv_screen_active());CHECK(dial&&!lv_obj_has_state(dial,LV_STATE_DISABLED));lv_area_t bounds;lv_obj_get_coords(dial,&bounds);int cx=(bounds.x1+bounds.x2)/2,cy=(bounds.y1+bounds.y2)/2,radius=lv_area_get_width(&bounds)/2-15,sx=cx-radius,ex=cx-radius*7/10,ey=cy-radius*7/10;
+ unsigned before=requests,intents=test_light_requests();point(sx,cy,true);point(ex,ey,true);CHECK(requests==before&&test_light_requests()==intents&&dsr_network_typed_device(id,&typed)&&typed.light.brightness==38);int selected=lv_arc_get_value(dial);CHECK(selected>=0&&selected<=100&&selected!=38);screenshot("261-light-preview-no-POST");
  /* Poll and locale changes preserve the native widget and its visible value. */
- tick();CHECK(find_type(lv_screen_active(),&lv_slider_class)==slider&&lv_slider_get_value(slider)==selected);r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("de"));publish_document(r);tick();CHECK(find_type(lv_screen_active(),&lv_slider_class)==slider&&lv_slider_get_value(slider)==selected&&requests==before);
- point(200,y,false);tick();CHECK(test_light_requests()==intents+1&&in_flight&&submitted.kind==DSR_JOB_LIGHT&&submitted.light.command==DSR_LIGHT_SET_BRIGHTNESS&&submitted.light.brightness==selected);light_response(true,(uint8_t)selected,0);screenshot("262-light-readback-de");
+ tick();CHECK(light_input(lv_screen_active())==dial&&lv_arc_get_value(dial)==selected);r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("de"));publish_document(r);tick();CHECK(light_input(lv_screen_active())==dial&&lv_arc_get_value(dial)==selected&&requests==before);
+ point(ex,ey,false);tick();CHECK(test_light_requests()==intents+1&&in_flight&&submitted.kind==DSR_JOB_LIGHT&&submitted.light.command==DSR_LIGHT_SET_BRIGHTNESS&&submitted.light.brightness==selected);light_response(true,(uint8_t)selected,0);screenshot("262-light-readback-de");
  r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("en"));publish_document(r);tick();screenshot("263-light-readback-en");r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString("pl"));publish_document(r);tick();
  /* Release outside the enlarged native touch area cancels the intent. */
- slider=find_type(lv_screen_active(),&lv_slider_class);lv_obj_get_coords(slider,&bounds);y=(bounds.y1+bounds.y2)/2;intents=test_light_requests();point(130,y,true);point(200,y,true);point(200,y+70,false);tick();CHECK(test_light_requests()==intents&&!in_flight);
+ dial=light_input(lv_screen_active());lv_obj_get_coords(dial,&bounds);intents=test_light_requests();point(sx,cy,true);point(ex,ey,true);point(ex,bounds.y2+70,false);tick();CHECK(test_light_requests()==intents&&!in_flight);
  /* A stale gesture must not survive an offline/online round trip. */
- slider=find_type(lv_screen_active(),&lv_slider_class);lv_obj_get_coords(slider,&bounds);y=(bounds.y1+bounds.y2)/2;point(130,y,true);point(200,y,true);intents=test_light_requests();wifi.connected=false;tick();point(200,y,false);tick();CHECK(test_light_requests()==intents&&!in_flight);wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);light_response(true,0,DSR_LIGHT_UNCALIBRATED);CHECK(find_label(lv_screen_active(),"0%")&&find_label(lv_screen_active(),"Sterowanie światłem zablokowane")&&lv_obj_has_state(find_type(lv_screen_active(),&lv_slider_class),LV_STATE_DISABLED));screenshot("264-light-uncalibrated-blocked");
- before=requests;click("Wyłącz");point(160,y,true);point(160,y,false);tick();CHECK(requests==before&&test_light_requests()==intents);wifi.connected=false;tick();CHECK(!in_flight&&dsr_activity_restart_reserve());dsr_activity_restart_cancel();
+ dial=light_input(lv_screen_active());point(sx,cy,true);point(ex,ey,true);intents=test_light_requests();wifi.connected=false;tick();point(ex,ey,false);tick();CHECK(test_light_requests()==intents&&!in_flight);wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);light_response(true,0,DSR_LIGHT_UNCALIBRATED);CHECK(find_label(lv_screen_active(),"0%")&&find_label(lv_screen_active(),"Sterowanie światłem zablokowane")&&lv_obj_has_state(light_input(lv_screen_active()),LV_STATE_DISABLED));screenshot("264-light-uncalibrated-blocked");
+ before=requests;click("Włączony");point(sx,cy,true);point(ex,ey,false);tick();CHECK(requests==before&&test_light_requests()==intents);wifi.connected=false;tick();CHECK(!in_flight&&dsr_activity_restart_reserve());dsr_activity_restart_cancel();
  for(unsigned i=0;i<2;i++){dsr_network_device_control(id);dsr_network_home(NULL);}lv_mem_monitor_t before_memory,after_memory;lv_mem_monitor(&before_memory);for(unsigned i=0;i<40;i++){dsr_network_device_control(id);dsr_network_home(NULL);}lv_mem_monitor(&after_memory);CHECK(before_memory.free_size==after_memory.free_size);printf("Light UI heap %lu→%lu;40 navigation cycles; MODEL backend\n",(unsigned long)before_memory.free_size,(unsigned long)after_memory.free_size);
  /* Light cannot be newly assigned to Switch groups. Existing legacy entries
   * remain removable; a second click must not re-add the unsupported family. */

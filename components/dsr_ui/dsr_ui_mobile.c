@@ -57,10 +57,10 @@ static uint8_t rgb_draft[3];
 static lv_obj_t *rgb_swatch,*rgb_values[3],*rgb_apply_button;
 static bool light_drag;
 static uint32_t light_drag_id;
-static lv_obj_t *light_slider,*light_preview_label;
+static lv_obj_t *light_slider;
 static lv_obj_t *light_knob,*light_value,*wheel_knob,*rgb_text;
-static bool cyber_lighting(void);
-static void cyber_light_tabs(lv_obj_t *root);
+static bool lighting_page(void);
+static void lighting_light_tabs(lv_obj_t *root);
 static void render(void);
 static void trv_reset(void);
 #ifdef ESP_PLATFORM
@@ -111,7 +111,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_preview_label=light_knob=light_value=wheel_knob=rgb_text=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
@@ -220,7 +220,7 @@ static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event
 static void tabs(lv_obj_t *root)
 {
     bool cover=page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER;
-    if(cyber_lighting()){cyber_light_tabs(root);return;}
+    if(lighting_page()){lighting_light_tabs(root);return;}
     if(page!=DSR_MOBILE_HOME)dsr_sc_panel(root,12,cover?95:page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS?87:99,296,1,DSR_SC_BLUE,0);
     /* Groups and scenes live under Pomieszczenia (owner 2026-10-18). */
     if(page==DSR_MOBILE_HOME)return;
@@ -760,13 +760,12 @@ static void light_drag_event(lv_event_t *event)
 {
  if(selected>=model.device_count)return;
  dsr_mobile_device_t *d=&model.devices[selected];lv_event_code_t code=lv_event_get_code(event);
- if(code==LV_EVENT_PRESS_LOST||!light_enabled(d)){light_drag=false;if(light_preview_label)lv_label_set_text(light_preview_label,"");if(light_slider)lv_slider_set_value(light_slider,brightness(d),LV_ANIM_OFF);return;}
+ if(code==LV_EVENT_PRESS_LOST||!light_enabled(d)){light_drag=false;if(light_slider)lv_slider_set_value(light_slider,brightness(d),LV_ANIM_OFF);return;}
  if(code==LV_EVENT_PRESSED){light_drag=true;light_drag_id=d->id;}
  if(!light_drag||light_drag_id!=d->id)return;
  int value=lv_slider_get_value(lv_event_get_target(event));if(value<0||value>100){light_drag=false;return;}
- if(light_preview_label){char text[48];snprintf(text,sizeof(text),"%s %d%%",dsr_sc_tr("Podgląd"),value);lv_label_set_text(light_preview_label,text);}
  if(code==LV_EVENT_RELEASED){
-  light_drag=false;if(light_preview_label)lv_label_set_text(light_preview_label,"");
+  light_drag=false;
   lv_indev_t *input=lv_indev_active();lv_point_t point;lv_area_t area;lv_obj_get_coords(lv_event_get_target(event),&area);
   if(!input)return;
   lv_indev_get_point(input,&point);
@@ -775,31 +774,9 @@ static void light_drag_event(lv_event_t *event)
  }
 }
 static void rgb_view(lv_event_t *event);
-static void cyber_light_details(lv_obj_t *root);
+static void lighting_light_details(lv_obj_t *root);
 static void light_details(lv_obj_t *root)
-{
- const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK;char text[80];
- if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_light_details(root);return;}
- lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
- dsr_sc_text(panel,d->endpoint_kind==DSR_ENDPOINT_RGB?"Jasność • RGB RPC":"Jasność • Light RPC",12,12,272,&dsr_roboto_16,DSR_SC_TEXT);
- const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?"Wysyłanie polecenia…":(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_ERROR)!=0:d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":d->output?"Włączone • Online":"Wyłączone • Online";
- center(dsr_sc_text(panel,state,8,42,280,&dsr_roboto_12,DSR_SC_MUTED));
- if(readable&&(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_VALID):(d->light.flags&DSR_LIGHT_BRIGHTNESS)))snprintf(text,sizeof(text),"%u%%",brightness(d));else snprintf(text,sizeof(text),"—");
- center(dsr_sc_text(panel,text,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
- light_preview_label=dsr_sc_text(panel,"",8,106,280,&dsr_roboto_14,DSR_SC_BLUE);center(light_preview_label);
- light_slider=lv_slider_create(panel);lv_obj_set_pos(light_slider,24,145);lv_obj_set_size(light_slider,248,24);lv_slider_set_range(light_slider,0,100);lv_slider_set_value(light_slider,readable?brightness(d):0,LV_ANIM_OFF);
- lv_obj_set_ext_click_area(light_slider,12);lv_obj_set_style_bg_color(light_slider,dsr_sc_color(DSR_SC_OFF),LV_PART_KNOB|LV_STATE_DISABLED);lv_obj_set_style_bg_color(light_slider,dsr_sc_color(DSR_SC_OFF),LV_PART_INDICATOR|LV_STATE_DISABLED);
- lv_obj_remove_flag(light_slider,LV_OBJ_FLAG_SCROLL_CHAIN_HOR|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
- lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_VALUE_CHANGED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(light_slider,light_drag_event,LV_EVENT_PRESS_LOST,NULL);
- if(!light_enabled(d))lv_obj_add_state(light_slider,LV_STATE_DISABLED);
- if(readable&&d->endpoint_kind==DSR_ENDPOINT_RGB&&(d->rgb.flags&DSR_RGB_TRANSITION))snprintf(text,sizeof(text),"%s",dsr_sc_tr("Przejście • poczekaj na odczyt"));else if(readable&&d->endpoint_kind==DSR_ENDPOINT_LIGHT&&(d->light.flags&DSR_LIGHT_TRANSITION))snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Przejście do"),d->light.target);else snprintf(text,sizeof(text),"%s",dsr_sc_tr("0% jasności nie oznacza OFF"));
- center(dsr_sc_text(panel,text,8,184,280,&dsr_roboto_12,DSR_SC_MUTED));
- sample_age=dsr_sc_text(panel,"",8,226,280,&dsr_roboto_12,DSR_SC_MUTED);center(sample_age);update_sample_age();
- lv_obj_t *controls=dsr_sc_panel(root,12,355,296,62,DSR_SC_CARD,10);power_button(controls,selected,12,6,48);
- if(d->endpoint_kind==DSR_ENDPOINT_RGB){lv_obj_t *color=dsr_sc_button(controls,68,7,130,48,DSR_SC_PANEL,10,rgb_view,NULL);center(dsr_sc_text(color,"Kolor RGB",4,15,122,&dsr_roboto_14,DSR_SC_TEXT));}
- else center(dsr_sc_text(controls,d->output?"Wyłącz":"Włącz",68,22,132,&dsr_roboto_14,DSR_SC_TEXT));
- lv_obj_t *read=dsr_sc_button(controls,206,7,82,48,DSR_SC_PANEL,10,refresh,NULL);center(dsr_sc_text(read,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT));if(d->busy||!d->can_refresh)lv_obj_add_state(read,LV_STATE_DISABLED);
-}
+{lighting_light_details(root);}
 static bool rgb_enabled(const dsr_mobile_device_t *d)
 {return d->endpoint_kind==DSR_ENDPOINT_RGB&&!model.demo&&d->online&&d->error==DSR_OK&&!d->busy&&d->can_rgb&&actions.set_rgb;}
 static void rgb_view(lv_event_t *event)
@@ -831,19 +808,7 @@ static void rgb_details(lv_obj_t *root)
 {
  const dsr_mobile_device_t *d=&model.devices[selected];bool readable=d->online&&d->error==DSR_OK&&(d->rgb.flags&DSR_RGB_VALID);
  rgb_draft[0]=readable?d->rgb.r:0;rgb_draft[1]=readable?d->rgb.g:0;rgb_draft[2]=readable?d->rgb.b:0;rgb_draft_id=d->id;
- if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_rgb_details(root);return;}
- lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
- dsr_sc_text(panel,"Kolor • RGB RPC",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
- rgb_swatch=dsr_sc_panel(panel,12,40,272,24,0,6);
- for(unsigned i=0;i<3;i++){
-  rgb_values[i]=dsr_sc_text(panel,"",12,74+(int)i*51,272,&dsr_roboto_12,DSR_SC_TEXT);
-  lv_obj_t *slider=lv_slider_create(panel);lv_obj_set_pos(slider,24,98+(int)i*51);lv_obj_set_size(slider,248,18);lv_slider_set_range(slider,0,255);lv_slider_set_value(slider,rgb_draft[i],LV_ANIM_OFF);lv_obj_set_ext_click_area(slider,12);
-  lv_obj_add_event_cb(slider,rgb_color_event,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)i);lv_obj_add_event_cb(slider,rgb_color_event,LV_EVENT_PRESS_LOST,(void *)(uintptr_t)i);if(!rgb_enabled(d))lv_obj_add_state(slider,LV_STATE_DISABLED);
- }
- sample_age=dsr_sc_text(panel,readable?((d->rgb.flags&DSR_RGB_TRANSITION)?"Przejście • poczekaj na odczyt":"Podgląd • Zastosuj wysyła kolor"):"Brak aktualnego odczytu",8,225,280,&dsr_roboto_12,DSR_SC_MUTED);center(sample_age);sample_age=NULL;
- lv_obj_t *controls=dsr_sc_panel(root,12,355,296,62,DSR_SC_CARD,10);power_button(controls,selected,12,6,48);
- lv_obj_t *level=dsr_sc_button(controls,68,7,130,48,DSR_SC_PANEL,10,rgb_view,NULL);center(dsr_sc_text(level,"Jasność",4,15,122,&dsr_roboto_14,DSR_SC_TEXT));
- rgb_apply_button=dsr_sc_button(controls,206,7,82,48,DSR_SC_BLUE,10,rgb_apply,NULL);center(dsr_sc_text(rgb_apply_button,"Zastosuj",4,15,74,&dsr_roboto_12,DSR_SC_TEXT));rgb_preview();
+ lighting_rgb_details(root);
 }
 static void ht_details(lv_obj_t *root)
 {
@@ -1214,7 +1179,7 @@ static void render(void)
     if(!active)return;
     if(dsr_board_display_sleeping()){wake_repaint=true;return;}
     wake_repaint=false;
-    trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_preview_label=light_knob=light_value=wheel_knob=rgb_text=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
+    trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;placed_count=0;lv_obj_clean(root);lv_obj_remove_style_all(root);
     dsr_sc_background(root);
     lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
@@ -1222,7 +1187,7 @@ static void render(void)
     const char *title=(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS)&&selected<model.device_count?model.devices[selected].name:
         page==DSR_MOBILE_ROOM&&selected<model.room_count?model.rooms[selected].name:fallback_title;
     if(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&cyber_blu(&model.devices[selected]))dsr_sc_blu_header(root,dsr_sc_name(title),model.demo,model.wifi,navigate,(void *)(uintptr_t)98,blu_info);
-    else header(root,cyber_lighting()?dsr_sc_name(model.devices[selected].name):"",page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||page==DSR_MOBILE_ROOM);
+    else header(root,lighting_page()?dsr_sc_name(model.devices[selected].name):"",page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||page==DSR_MOBILE_ROOM);
     tabs(root);
     if(page==DSR_MOBILE_DEVICE_SETTINGS){device_settings(root);if(content)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);}
     else if(page==DSR_MOBILE_DETAILS){details(root);if(content)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);}
@@ -1292,7 +1257,6 @@ static void translate_draft(void)
 {
  if(rendered_language==dsr_sc_language())return;
  translate_labels(lv_screen_active());rendered_language=dsr_sc_language();
- if(light_drag&&light_preview_label&&light_slider){char text[48];snprintf(text,sizeof(text),"%s %d%%",dsr_sc_tr("Podgląd"),(int)lv_slider_get_value(light_slider));lv_label_set_text(light_preview_label,text);}
 }
 /* Same screen structure, only device values differ: rebuild just those cards
  * (and room cards, whose badge sums device power). Anything else, or any doubt,

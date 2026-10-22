@@ -487,13 +487,59 @@ static void settings_review(unsigned theme,unsigned language)
  body=lv_obj_get_parent(lv_obj_get_parent(find_label(lv_screen_active(),"Odśwież")));settings_swipe();last=lv_obj_get_parent(find_label(lv_screen_active(),"Odśwież"));l=rect(last);b=rect(body);CHECK(l.y1>=b.y1&&l.y2<=b.y2&&l.y2<420);if(language==2)shot("settings-review-network-bottom",theme);
  click("Wstecz");CHECK(find_label(lv_screen_active(),"System"));
 }
+static unsigned lighting_level_writes,lighting_color_writes;
+static uint8_t lighting_level,lighting_color[3];
+static void lighting_set_level(unsigned index,uint8_t value)
+{CHECK(index==0&&value<=100);lighting_level_writes++;lighting_level=value;}
+static void lighting_set_color(unsigned index,uint8_t r,uint8_t g,uint8_t b)
+{CHECK(index==0);lighting_color_writes++;lighting_color[0]=r;lighting_color[1]=g;lighting_color[2]=b;}
+static void lighting_output(unsigned index,bool on){CHECK(index==0);(void)on;}
+static void lighting_refresh(uint32_t id){CHECK(id==31);}
+static void lighting_actions(uint8_t kind){(void)kind;}
+static lv_obj_t *lighting_dial(lv_obj_t *o)
+{
+ if(lv_obj_check_type(o,&lv_arc_class)&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE))return o;
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *dial=lighting_dial(lv_obj_get_child(o,(int)i));if(dial)return dial;}return NULL;
+}
+static void lighting_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_mobile_actions_t actions={.set_brightness=lighting_set_level,.set_rgb=lighting_set_color,.set_output=lighting_output,.refresh=lighting_refresh,.open_usage=lighting_refresh,.open_actions=lighting_actions,.device_settings=lighting_refresh};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.device_count=1,.room_count=1,.rooms={{.id=1,.name="Wohnzimmer"}}};
+ dsr_mobile_device_t *d=&m.devices[0];*d=(dsr_mobile_device_t){.id=31,.name="Dimmer Esszimmer",.identity="review-light",.host="192.0.2.31",.generation=DSR_GEN2_PLUS,.room=0,.endpoint_kind=DSR_ENDPOINT_LIGHT,.kind=DSR_DEVICE_LIGHT,.online=true,.output=true,.can_switch=true,.can_light=true,.can_refresh=true,.has_power=true,.power_w=24.8,.has_voltage=true,.voltage_v=232.1,.has_current=true,.current_a=.11,.has_sample_time=true,.sample_ms=lv_tick_get(),.light={.brightness=75,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS}};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);CHECK(dsr_sc_style()==theme&&find_label(lv_screen_active(),"75%"));
+ lv_obj_t *watts=find_label(lv_screen_active(),"24.8 W"),*legend=find_label(lv_screen_active(),"Moc");CHECK(watts&&legend);lv_area_t v=rect(watts),f=rect(lv_obj_get_parent(watts));CHECK(rect(legend).y2<v.y1&&v.y2<=f.y2-5);
+ if(language==2)shot("lighting-dimmer",theme);
+ lv_obj_t *input=lighting_dial(lv_screen_active());CHECK(input&&!lv_obj_has_state(input,LV_STATE_DISABLED));lv_area_t a=rect(input);int x,y;
+ unsigned quick=lighting_level_writes;click("+");CHECK(lighting_level_writes==quick+1&&lighting_level==80);click("-");CHECK(lighting_level_writes==quick+2&&lighting_level==70);click("50%");CHECK(lighting_level_writes==quick+3&&lighting_level==50);
+ unsigned before=lighting_level_writes;
+ int cx=(a.x1+a.x2)/2,cy=(a.y1+a.y2)/2,r=lv_area_get_width(&a)/2-15;pointer_move(cx-r,cy,true);x=cx-r*7/10;y=cy-r*7/10;
+ pointer_move(x,y,true);CHECK(lighting_level_writes==before);if(language==2)shot("lighting-dimmer-preview",theme);pointer_move(x,y,false);
+ CHECK(lighting_level_writes==before+1&&lighting_level!=75&&find_label(lv_screen_active(),"75%"));d->light.brightness=lighting_level;dsr_mobile_update(&m);char value[12];snprintf(value,sizeof(value),"%u%%",lighting_level);CHECK(find_label(lv_screen_active(),value));
+ strcpy(d->name,"LED Wohnzimmer");d->endpoint_kind=DSR_ENDPOINT_RGB;d->kind=DSR_DEVICE_RGB;d->can_rgb=true;d->rgb=(dsr_rgb_status_t){.r=0,.g=180,.b=255,.brightness=78,.flags=DSR_RGB_VALID};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);CHECK(find_label(lv_screen_active(),"78%"));if(language==2)shot("lighting-rgb",theme);
+ lv_obj_t *power=lv_obj_get_parent(find_label(lv_screen_active(),"Wyłącz"));CHECK(lv_obj_get_height(power)>=44&&rect(power).y2<=DSR_SC_NAV_TOP-17);
+ {
+  before=lighting_color_writes;pointer_move(218,198,true);pointer_move(201,156,true);CHECK(lighting_color_writes==before);pointer_move(201,156,false);CHECK(lighting_color_writes==before+1);
+  before=lighting_color_writes;click("Relaks");CHECK(lighting_color_writes==before+1&&lighting_color[0]==150&&lighting_color[1]==60&&lighting_color[2]==255);
+  dsr_mobile_show(DSR_MOBILE_DETAILS,0);
+ }
+ click("Kolor");input=find_type(lv_screen_active(),&lv_slider_class);CHECK(input&&!lv_obj_has_state(input,LV_STATE_DISABLED));CHECK(rect(lv_obj_get_parent(find_label(lv_screen_active(),"Zastosuj"))).y2<=DSR_SC_NAV_TOP-17);if(language==2)shot("lighting-rgb-values",theme);
+ a=rect(input);y=(a.y1+a.y2)/2;x=a.x1+lv_area_get_width(&a)*8/10;before=lighting_color_writes;pointer_move((a.x1+a.x2)/2,y,true);pointer_move(x,y,true);pointer_move(x,y,false);int red=lv_slider_get_value(input);
+ CHECK(red>0&&lighting_color_writes==before&&!lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Zastosuj")),LV_STATE_DISABLED));if(language==2)shot("lighting-rgb-preview",theme);
+ click("Zastosuj");CHECK(lighting_color_writes==before+1&&lighting_color[0]==red&&lighting_color[1]==180&&lighting_color[2]==255);
+ d->rgb.r=lighting_color[0];dsr_mobile_update(&m);input=find_type(lv_screen_active(),&lv_slider_class);CHECK(input&&lv_slider_get_value(input)==red);
+ d->online=false;d->error=DSR_OFFLINE;d->can_switch=d->can_light=d->can_rgb=false;dsr_mobile_update(&m);input=find_type(lv_screen_active(),&lv_slider_class);CHECK(input&&lv_obj_has_state(input,LV_STATE_DISABLED));before=lighting_color_writes;click("Zastosuj");CHECK(lighting_color_writes==before);if(language==2)shot("lighting-offline",theme);
+ dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_SETTINGS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)settings_review(themes[i],language);}
+ if(getenv("DSR_UI_FOCUS_LIGHTING")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lighting_review(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_SETTINGS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)settings_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_DASHBOARD")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
