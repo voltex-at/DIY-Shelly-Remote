@@ -342,17 +342,33 @@ static void onboarding_review(unsigned theme)
  click("Shelly Plus 1");test_lan_inspected(DSR_OK,"{\"switch:0\":{\"id\":0,\"output\":false}}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));shot("lan-configure",theme);
  dsr_network_home(NULL);tick();
 }
+static void method_selection_check(int selected)
+{
+ const char *names[]={"Bluetooth","Wi-Fi AP","Sieć lokalna"};
+ for(unsigned i=0;i<3;i++){
+  lv_obj_t *row=lv_obj_get_parent(find_label(lv_screen_active(),names[i])),*radio=NULL;
+  for(unsigned k=0;k<lv_obj_get_child_count(row);k++){lv_obj_t *child=lv_obj_get_child(row,(int)k);if(lv_obj_get_width(child)==18&&lv_obj_get_height(child)==18)radio=child;}
+  lv_area_t a=rect(radio);lv_refr_now(display);int x=(a.x1+a.x2)/2,y=(a.y1+a.y2)/2;bool white=true;
+  for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)for(int c=0;c<3;c++)if(canvas[((y+dy)*320+x+dx)*3+c]<245)white=false;
+  CHECK(white==((int)i==selected));
+ }
+}
 static void onboarding_next(unsigned theme,unsigned language)
 {
+ wifi.connected=true; /* AP/LAN choices need the fixture's home connection. */
  cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);dsr_network_home(NULL);tick();
  dsr_network_device(NULL);lv_obj_t *label=find_label(lv_screen_active(),"Dalej"),*button=lv_obj_get_parent(label);CHECK(label&&lv_obj_has_state(button,LV_STATE_DISABLED));
  unsigned scans=test_ble_scans(),jobs=requests;click("Dalej");CHECK(test_ble_scans()==scans&&requests==jobs&&dsr_ui_onboarding_active());
+ method_selection_check(-1);
  if(language==2)shot("next-disabled",theme);
  click("Bluetooth");CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED)&&test_ble_scans()==scans&&requests==jobs);
  lv_obj_t *reference=lv_obj_create(NULL),*save=dsr_ui_button(reference,"Zapisz",0,0,140,NULL,NULL);dsr_ui_primary(save);
  CHECK(lv_color_eq(lv_obj_get_style_bg_color(button,0),lv_obj_get_style_bg_color(save,0))&&lv_color_eq(lv_obj_get_style_bg_grad_color(button,0),lv_obj_get_style_bg_grad_color(save,0))&&lv_obj_get_style_bg_grad_dir(button,0)==lv_obj_get_style_bg_grad_dir(save,0));
- lv_obj_delete(reference);char name[40];snprintf(name,sizeof(name),"next-selected-%u",language);shot(name,theme);
- CHECK(has_icon(button,DSR_ICON_NEXT,theme==3?24:28));lv_area_t b=rect(button),t=rect(label);lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(size.x<=lv_obj_get_width(label)&&t.x1>=b.x1+48&&t.x2<=b.x2-4&&b.y2<=463);
+ lv_obj_delete(reference);char name[40];snprintf(name,sizeof(name),"next-selected-%u",language);if(language==2||theme==3)shot(name,theme);
+ CHECK(has_icon(button,DSR_ICON_NEXT,theme==3?24:28));lv_area_t b=rect(button),t=rect(label),icon=rect(lv_obj_get_child(button,-1));lv_point_t size;lv_text_get_size(&size,lv_label_get_text(label),lv_obj_get_style_text_font(label,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(size.x<=lv_obj_get_width(label)&&t.x1>=b.x1+4&&t.x2+4<icon.x1&&icon.x2<=b.x2-8&&abs(icon.y1+icon.y2-b.y1-b.y2)<=2&&b.y2<=463);
+ const char *methods[]={"Bluetooth","Wi-Fi AP","Sieć lokalna"};
+ for(unsigned i=0;i<3;i++){click(methods[i]);method_selection_check((int)i);CHECK(test_ble_scans()==scans&&requests==jobs);if(language==2&&i){snprintf(name,sizeof(name),"next-method-%u",i);shot(name,theme);}}
+ click("Bluetooth");method_selection_check(0);
  click("Dalej");CHECK(test_ble_scans()==scans+1&&!dsr_ui_onboarding_active());dsr_ui_open_settings();
 }
 int main(int argc,char **argv)

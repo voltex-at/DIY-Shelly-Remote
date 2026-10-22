@@ -17,6 +17,13 @@ void dsr_ui_onboarding_reset(void)
 {active=false;next_button=hint=NULL;for(unsigned i=0;i<4;i++)cards[i]=radios[i]=NULL;for(unsigned i=0;i<3;i++)descriptions[i]=NULL;}
 static bool available(unsigned method){return method==0||method==3||dsr_wifi_connected();}
 static bool cleanup_pending(void){return dsr_network_bind_busy()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_network_ota_busy()||dsr_worker_stop_pending();}
+static void selected_dot(lv_event_t *event)
+{
+ lv_obj_t *radio=lv_event_get_target(event);if(!lv_obj_has_state(radio,LV_STATE_CHECKED))return;
+ lv_area_t a;lv_obj_get_coords(radio,&a);a.x1+=(lv_area_get_width(&a)-8)/2;a.y1+=(lv_area_get_height(&a)-8)/2;a.x2=a.x1+7;a.y2=a.y1+7;
+ lv_draw_rect_dsc_t dot;lv_draw_rect_dsc_init(&dot);dot.bg_color=lv_color_hex(0xffffff);dot.bg_opa=LV_OPA_COVER;dot.radius=LV_RADIUS_CIRCLE;
+ lv_draw_rect(lv_event_get_layer(event),&dot,&a);
+}
 static void refresh_selection(void)
 {
  last_wifi=dsr_wifi_connected();last_cleanup=cleanup_pending();
@@ -27,6 +34,7 @@ static void refresh_selection(void)
   dsr_sc_border_color(cards[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_EDGE),0);
   lv_obj_set_style_bg_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_CARD),0);
   dsr_sc_border_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_MUTED),0);
+  if(chosen)lv_obj_add_state(radios[i],LV_STATE_CHECKED);else lv_obj_remove_state(radios[i],LV_STATE_CHECKED);
   if(i<3)dsr_sc_label_set_text(descriptions[i],enabled?descriptions_ready[i]:"Najpierw połącz domowe Wi-Fi");
  }
  bool ready=selected>=0&&available((unsigned)selected)&&!cleanup_pending();
@@ -76,8 +84,8 @@ lv_obj_t *dsr_onboarding_footer(lv_obj_t *root,const char *back,lv_event_cb_t ba
  dsr_ui_button(footer,back,12,8,140,back_cb,NULL);
  lv_obj_t *button=dsr_ui_button(footer,forward,168,8,140,forward_cb,NULL);dsr_ui_primary(button);
  if(!strcmp(forward,"Dalej")){
-  lv_obj_t *caption=lv_obj_get_child(button,0);lv_obj_set_width(caption,82);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-8,0);
-  dsr_sc_icon(button,DSR_ICON_NEXT,14,10,28,dsr_sc_icon_accent());
+  lv_obj_t *caption=lv_obj_get_child(button,0);lv_obj_set_width(caption,82);lv_obj_align(caption,LV_ALIGN_LEFT_MID,8,0);
+  lv_obj_t *icon=dsr_sc_icon(button,DSR_ICON_NEXT,0,0,28,dsr_sc_icon_accent());lv_obj_align(icon,LV_ALIGN_RIGHT_MID,-12,0);
  }
  return button;
 }
@@ -116,6 +124,7 @@ void dsr_ui_onboarding_open(lv_event_cb_t manual)
   dsr_sc_text(row,names[i],48,i<3?9:15,206,&dsr_roboto_16,DSR_SC_TEXT);
   if(i<3)descriptions[i]=dsr_sc_text(row,descriptions_ready[i],48,35,206,&dsr_roboto_12,DSR_SC_MUTED);
   radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);dsr_sc_border_width(radios[i],1,0);
+  lv_obj_add_event_cb(radios[i],selected_dot,LV_EVENT_DRAW_MAIN_END,NULL);
  }
  hint=dsr_sc_text(sheet,"Więcej opcji poniżej",128,57,176,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_RIGHT,0);
  next_button=dsr_onboarding_footer(overlay,"Anuluj",cancel,"Dalej",next);refresh_selection();
