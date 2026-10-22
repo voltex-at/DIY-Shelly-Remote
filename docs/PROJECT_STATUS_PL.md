@@ -75,7 +75,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | ID | Co oceniamy | Ocena właściciela / problem |
 | --- | --- | --- |
 | UI-01 | Trzy skórki i ich nazwy: Cyber Blue, Grafit, Jasny | Oczekuje na ocenę |
-| UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | Oczekuje na ocenę |
+| UI-02 | Status bar: bateria z procentem wewnątrz, zegar i Wi-Fi | **Status bar zaakceptowany na podglądzie w trzech skórkach:** wyrównanie i pokazane stany baterii/Wi-Fi. Zgodnie z decyzją właściciela usunięto nazwę urządzenia obok zegara w szczegółach dimmera/RGB. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-03 | Nawigacja: dom/grid, odstępy i pola dotyku | Oczekuje na ocenę |
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | **Poprawki zaakceptowane na podglądzie:** sześć pozycji na jednym ekranie, mniejsze odstępy, Netzwerk und Verbindungen w jednej linii; ikona dodawania Shelly w podmenu Cyber Blue. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | **Układ zaakceptowany na podglądzie:** jeden wiersz z akcjami i przewijaną nazwą bez wielokropka. Odbiór na pilocie po nowym DEV pozostaje otwarty |
@@ -83,8 +83,8 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | **Karty zaakceptowane na podglądzie przez właściciela**: nazwa u góry, mała ikona po lewej, duża po prawej, pośrodku pomieszczenie → ikona z lx → bateria z procentem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | **Cały punkt zaakceptowany na podglądzie przez właściciela**: przyciski, odstęp od nawigacji, skala, animacja oraz karta Dashboardu z pomieszczeniem zamiast stanu, pozycją i sterowaniem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; podwójny kontur i grubsza strzałka górnego przycisku powrotu **zaakceptowane na podglądzie**. Panele dimmera/RGB korzystają już ze wspólnych podwójnych ramek; nowy podgląd i końcowy przegląd skórki pozostają otwarte |
-| UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | **Wdrożone lokalnie, oczekuje na ocenę podglądu:** właściciel wybrał pokrętło i koło barw Cyber Blue również dla Grafit/Jasny oraz zaakceptował rozmiary sterowania. Wszystkie trzy mają pomiary, szybkie akcje i wspólny układ; poprawiono ramki Cyber Blue i odstęp dolnych akcji RGB |
+| UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; podwójny kontur i grubsza strzałka górnego przycisku powrotu oraz pokazane panele dimmera/RGB **zaakceptowane na podglądzie**. Końcowy przegląd całej skórki pozostaje otwarty |
+| UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | **Dimmer i RGB zaakceptowane na podglądzie we wszystkich trzech skórkach:** wspólny układ, pomiary, szybkie akcje, ramki, kontrast, edytor R/G/B, offline i odstęp 16 px od nawigacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
 | NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Zaakceptowane na podglądzie:** Dalej, znacznik metody, górny powrót Cyber Blue; pokazane ekrany wyszukiwania, pustej listy i błędu logowania LAN z pełnym IP/MAC; wyszukiwanie, komunikat bez Wi-Fi, pusta lista i niedostępność Bluetooth; **pokazane ekrany AP ze wskaźnikiem jak LAN, większymi ikonami i złotym komunikatem w ramce**. Pozostały odbiór kreatora i sprawdzenie na sprzęcie pozostają otwarte |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
@@ -396,6 +396,26 @@ Dolny przycisk RGB ma wysokość 44 px i pozycję y=368; przyciski powrotu i Zas
 W regresjach Light/RGB zachowano sprawdzenie rzeczywistego wiązania urządzenia, wysyłania po puszczeniu, zatwierdzania koloru, zachowania podglądu przy zmianie języka/odpytywaniu, anulowania po utracie połączenia i blokady przejścia/kalibracji. Test Light korzysta teraz z rzeczywistego pokrętła, a RGB z aktualnych przycisków Kolor/Powrót. Nowy scenariusz podglądu sprawdza szybkie akcje we wszystkich skórkach, geometrię pomiarów oraz odstęp dolnych akcji.
 
 Walidacja poprawki: `DSR_UI_FOCUS_LIGHTING=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, trzy skórki i PL/EN/DE, 18 wybranych klatek po niemiecku. Regresja przed zmianą wykazała brak pokrętła w Grafit. `python3 tools/dev/run_host.py test_ui.py --jobs 4 --cases test_light_ui test_rgb_ui` — PASS obu istniejących regresji; kontrola pamięci po 40 cyklach nawigacji w każdym przypadku nie wykazała ubytku. Przy końcowej korekcie kontrastu wskaźnika i geometrii pomiarów ponawiano tylko scenariusz podglądu, nie cały zestaw. Użyto zgodnego z LVGL 9.3 deskryptora przejścia zeroczasowego zamiast nieobsługiwanego pustego wskaźnika. Obejrzano rzeczywiste piksele końcowych renderów LVGL 9.3. Nowy podgląd oczekuje na ocenę właściciela; akcje sieciowe są modelami hosta, bez nowego DEV, pełnego atlasu, pełnego CI i fizycznego testu Shelly.
+
+Odbiór tej rundy: właściciel potwierdził „Tak, dimmer zaakceptowany na podglądzie” oraz „Tak, RGB zaakceptowane na podglądzie”. Akceptacja obejmuje pokazane widoki trzech skórek, pomiary, pokrętło i −/+, szybkie poziomy, koło barw i gotowe kolory, edytor R/G/B, stan offline, ramki i odstęp dolnych akcji. Zmiany są zapisane lokalnie w commicie `6f5b077`; nie opublikowano nowego DEV ani nie potwierdzono jeszcze działania na fizycznym Shelly.
+
+### UI-02 — status bar: bateria, zegar i Wi-Fi
+
+Po akceptacji dimmera i RGB właściciel wybrał status bar. Przygotowano rzeczywiste wycinki LVGL 9.3 dla Grafit, Jasny i Cyber Blue: Dashboard, ustawienia z powrotem oraz szczegóły dimmera z długą nazwą urządzenia. Nie zmieniano kodu produktu w tej rundzie.
+
+Procent pozostaje wewnątrz obrysu baterii, także dla najdłuższego `~100%`. W tym samym miejscu mieszczą się `0%`, `5%`, napięcie `3.90V` i kreska dla błędu/odczytu starszego niż 30 s. Sprawdzono środki pola tekstowego, odstęp od Wi-Fi, miejsce dla zegara `23:59` oraz brak kolizji z przyciskiem powrotu i następnym wierszem treści. Niski poziom ma czerwony obrys. Zmienność wypełnienia oraz zatrzymanie podczas uśpienia sprawdzono na modelu dostawcy stanu ładowania; nie potwierdza to wykrywania ładowarki przez sprzęt.
+
+Ujawniona niespójność: w szczegółach dimmera/RGB nazwa między zegarem i Wi-Fi ma 92 px szerokości. Dla „Deckenbeleuchtung Küche” dwa wiersze fontu 12 łamią pierwsze słowo. Tekst nie nachodzi na zegar ani Wi-Fi, ale jest trudniej czytelny. Do oceny właściciela pozostaje zachowanie dwóch linii albo przewijanie jednego wiersza, jak w zaakceptowanym wyborze Dashboardu; nie zmieniano zaakceptowanego układu sterowania.
+
+Ikona Wi-Fi w status barze obecnie rozróżnia połączenie i jego brak kolorem (akcent/szary). Wspólny nagłówek otrzymuje tylko `bool wifi`, nie RSSI. Ten przegląd nie udaje wizualizacji siły sygnału ani nie rozszerza backendu.
+
+Walidacja: `DSR_UI_FOCUS_STATUS=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, wyłącznie przypadek status bara dla trzech skórek i PL/EN/DE. Obejrzano rzeczywiste piksele normalnego nagłówka, nagłówka z długą nazwą, stanów baterii i dwóch faz wypełnienia. Podglądy ograniczono do paska oraz sąsiedztwa nagłówka; bez pełnego atlasu, pełnego builda i CI. Ocena właściciela pozostaje otwarta; nowy DEV po zakończeniu uzgodnionych poprawek i walidacji wydania.
+
+### UI-02 — akceptacja status bara i usunięcie nazwy przy zegarze
+
+Właściciel potwierdził „Tak, status bar zaakceptowany na podglądzie” i zamiast przewijania nazwy dimmera/RGB wybrał „usuńmy tę nazwę”. Nagłówki szczegółów dimmera i RGB pokazują teraz powrót, zegar, Wi-Fi oraz baterię, bez nazwy urządzenia pomiędzy nimi. Zmiana dotyczy wszystkich trzech skórek.
+
+Walidacja poprawki: `DSR_UI_FOCUS_STATUS_NAME=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, tylko nagłówki dimmera i RGB, trzy skórki i PL/EN/DE, sześć wybranych klatek. Obejrzano rzeczywiste piksele LVGL 9.3; nie ponawiano pozostałych stanów status bara ani zaakceptowanych ekranów sterowania. Poprawiono również dane scenariusza: Light/RGB są alternatywnymi polami unii modelu, więc wypełnia się je osobno. To zmiana kodu roboczego, bez nowego DEV i odbioru na fizycznym pilocie.
 
 ## Porządkowanie — wykonane
 

@@ -532,13 +532,83 @@ static void lighting_review(unsigned theme,unsigned language)
  d->online=false;d->error=DSR_OFFLINE;d->can_switch=d->can_light=d->can_rgb=false;dsr_mobile_update(&m);input=find_type(lv_screen_active(),&lv_slider_class);CHECK(input&&lv_obj_has_state(input,LV_STATE_DISABLED));before=lighting_color_writes;click("Zastosuj");CHECK(lighting_color_writes==before);if(language==2)shot("lighting-offline",theme);
  dsr_ui_open_settings();
 }
+static lv_obj_t *status_battery(void)
+{
+ lv_obj_t *root=lv_screen_active();
+ for(unsigned i=0;i<lv_obj_get_child_count(root);i++){
+  lv_obj_t *o=lv_obj_get_child(root,(int)i);lv_area_t a=rect(o);
+  if(a.x1==256&&a.y1==0&&lv_obj_has_flag(o,LV_OBJ_FLAG_CLICKABLE)&&lv_obj_get_width(o)==52)return o;
+ }
+ CHECK(!"Battery header missing");return NULL;
+}
+static void status_value(const char *expected)
+{
+ lv_obj_t *battery=status_battery(),*value=lv_obj_get_child(battery,0);CHECK(value&&lv_obj_check_type(value,&lv_label_class));
+ CHECK(!strcmp(lv_label_get_text(value),expected));lv_area_t b=rect(battery),v=rect(value);lv_point_t text;
+ lv_text_get_size(&text,expected,lv_obj_get_style_text_font(value,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ CHECK(text.x<=lv_area_get_width(&v)&&text.y==lv_area_get_height(&v));
+ CHECK(v.x1>=b.x1+4&&v.x2<=b.x1+43&&v.y1>=b.y1+13&&v.y2<=b.y1+29);
+ CHECK(abs((v.x1+v.x2)-(b.x1*2+47))<=2&&abs((v.y1+v.y2)-(b.y1*2+42))<=2);
+ lv_obj_t *clock=find_label(lv_screen_active(),"14:34");CHECK(clock);lv_area_t c=rect(clock);
+ lv_text_get_size(&text,"23:59",lv_obj_get_style_text_font(clock,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ CHECK(text.x<=lv_area_get_width(&c)&&c.y2<DSR_SC_STATUS_H);
+ CHECK(b.x1-248>=8&&b.x2<=307&&lv_obj_get_height(battery)>=44);
+}
+static uint32_t status_fill_pixels(void)
+{
+ lv_refr_now(display);uint32_t hash=2166136261u;
+ for(int y=13;y<30;y++)for(int x=260;x<300;x++)for(int c=0;c<3;c++)hash=(hash^canvas[(y*320+x)*3+c])*16777619u;
+ return hash;
+}
+static void status_lighting_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=31,.identity="status-lighting",.name="Deckenbeleuchtung Küche",.kind=DSR_DEVICE_LIGHT,.endpoint_kind=DSR_ENDPOINT_LIGHT,.online=true,.can_light=true,.light={.brightness=75,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS}};
+ dsr_event_t e={.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=3902,.has_percent=true,.percent=63,.percent_estimated=true}};
+ for(unsigned rgb=0;rgb<2;rgb++){
+  if(rgb){m.devices[0].kind=DSR_DEVICE_RGB;m.devices[0].endpoint_kind=DSR_ENDPOINT_RGB;m.devices[0].can_rgb=true;m.devices[0].rgb=(dsr_rgb_status_t){.r=0,.g=180,.b=255,.brightness=78,.flags=DSR_RGB_VALID};}
+  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);dsr_ui_battery_result(&e);status_value("~63%");
+  if(language==2)shot(rgb?"status-rgb":"status-device",theme);
+ }
+}
+static void status_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Küche"}},.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=31,.identity="status-review",.name="Deckenbeleuchtung Küche",.room=0,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
+ dsr_event_t e={.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=3902,.has_percent=true,.percent=63,.percent_estimated=true}};
+ dsr_ui_battery_result(&e);status_value("~63%");if(language==2)shot("status-home",theme);
+ e.battery.percent=100;dsr_ui_battery_result(&e);status_value("~100%");if(language==2)shot("status-full",theme);
+ e.battery.percent=5;e.battery.percent_estimated=false;dsr_ui_battery_result(&e);status_value("5%");if(language==2)shot("status-low",theme);
+ e.battery.percent=0;dsr_ui_battery_result(&e);status_value("0%");
+ e.battery.has_percent=false;dsr_ui_battery_result(&e);status_value("3.90V");if(language==2)shot("status-voltage",theme);
+ e.result=DSR_IO;dsr_ui_battery_result(&e);status_value("—");
+ e.result=DSR_OK;e.battery.has_percent=true;e.battery.percent=63;e.battery.percent_estimated=true;dsr_ui_battery_result(&e);
+ lv_tick_inc(30000);dsr_ui_battery_tick();status_value("—");
+ m.wifi=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);status_value("—");if(language==2)shot("status-disconnected",theme);
+ m.wifi=true;dsr_mobile_update(&m);dsr_ui_open_settings();dsr_ui_battery_result(&e);status_value("~63%");if(language==2)shot("status-settings",theme);
+ status_lighting_review(theme,language);
+ /* A charger-capable provider is a model here, not a claim about board GPIOs. */
+ e.battery.has_charge_state=true;e.battery.charging=true;dsr_ui_battery_result(&e);
+ lv_tick_inc((2300-lv_tick_get()%2000)%2000);dsr_ui_battery_tick();status_value("~63%");uint32_t first=status_fill_pixels();
+ if(language==2)shot("status-charge-start",theme);
+ lv_tick_inc(800);dsr_ui_battery_tick();CHECK(status_fill_pixels()!=first);status_value("~63%");if(language==2)shot("status-charge-end",theme);
+ display_sleeping=true;dsr_ui_battery_tick();first=status_fill_pixels();lv_tick_inc(400);dsr_ui_battery_tick();CHECK(status_fill_pixels()==first);display_sleeping=false;
+ e.battery.charging=false;dsr_ui_battery_result(&e);dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_LIGHTING")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lighting_review(themes[i],language);}
+ if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_STATUS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_review(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_LIGHTING")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lighting_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_SETTINGS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)settings_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_DASHBOARD")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_review(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
