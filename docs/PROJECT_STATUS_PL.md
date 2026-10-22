@@ -80,7 +80,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
-| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Szerokość ramki baterii zaakceptowana; ramka wyśrodkowana pod odczytem temperatury, widoczne znaki +/− wyśrodkowane w przyciskach. „Soll” w ramce i sterowanie 104×56 jak roleta; odbiór na pilocie otwarty |
+| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
@@ -147,6 +147,8 @@ Walidacja: `DSR_UI_FOCUS_TRV=1 python3 tools/dev/run_host.py test_ui.py --jobs 4
 Właściciel zaakceptował krótszą szerokość ramki baterii. Zlecił wyśrodkowanie całego pola baterii względem pola temperatury odczytanej „21.5 °C” oraz wyśrodkowanie znaków + i − wewnątrz przycisków. Ramka baterii wraz z zawartością ma teraz środek zgodny ze środkiem rzeczywistego pola odczytu, także dla 0%, 100% i braku danych. Przyciski pozycjonują widoczny kształt znaku z uwzględnieniem jego wymiarów i linii bazowej fontu, zamiast stałego przesunięcia etykiety.
 
 Walidacja: ten sam tryb `DSR_UI_FOCUS_TRV=1` — PASS; 10 podglądów zmienionej karty, trzy skórki i PL/EN/DE. Sprawdzono środek rzeczywistych pikseli obu znaków oraz wspólną oś pól. Ponieważ ten sam helper obsługuje również przyciski 48 px w szczegółach termostatu, sprawdzono ich wyśrodkowanie w trzech skórkach, bez generowania dodatkowego atlasu. Regresja przed poprawką wykazała przesunięte znaki. Dla 16 termostatów pozostaje 12 632 B wolnej pamięci, największy blok 12 576 B, w puli 128 KiB. Podgląd kodu roboczego do oceny; odbiór na pilocie i nowy DEV po zakończeniu ankiety.
+
+**Odbiór ankiety:** właściciel potwierdził „Tak, karta zaakceptowana” po wyśrodkowaniu ramki baterii względem temperatury i znaków +/−. Punkt UI-07 zamknięty na poziomie wyglądu podglądu; nie jest to potwierdzenie wdrożenia ani odbioru na fizycznym pilocie. Dalsza ankieta dotyczy kolejnych ekranów.
 
 ## Konsolidacja starych zgłoszeń
 
