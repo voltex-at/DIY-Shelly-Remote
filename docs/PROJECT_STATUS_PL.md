@@ -80,7 +80,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
-| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Runda 2: sterowanie 104×56 jak roleta, „Soll” z temperaturą w ramce, ikona i poziom baterii po lewej; odbiór otwarty |
+| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Runda 3: odczyt wyśrodkowany w ramce, bateria przesunięta pod kolumnę odczytu; „Soll” w ramce i sterowanie 104×56 jak roleta; odbiór otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
@@ -127,6 +127,12 @@ Walidacja tej poprawki: `DSR_UI_FOCUS_TRV=1 python3 tools/dev/run_host.py test_u
 Wspólne rysowanie ikon sprawdzono osobno: `DSR_UI_FOCUS_ICONS=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_cyber_ui` — PASS, jedna galeria, bez pozostałych ekranów tego zestawu. `python3 tools/check_docs.py` i `git diff --check` również przeszły.
 
 Stan: kod roboczy do oceny na podglądzie, następnie na pilocie. To wynik hosta z modelem urządzenia, bez potwierdzenia na sprzęcie. Nowy DEV pozostaje odłożony do końca uzgodnionych poprawek i pełnej walidacji wydania.
+
+### Runda 3 — wyrównanie odczytu i baterii termostatu
+
+Po obejrzeniu podglądu właściciel zlecił wyśrodkowanie temperatury odczytanej wewnątrz jej ramki oraz przesunięcie ikony baterii wraz z procentem w prawo. Etykieta odczytu korzysta teraz z rzeczywistej wysokości tekstu i jest wyśrodkowana w obu osiach, z uwzględnieniem obramowania. Bateria jest wyrównana do lewej krawędzi kolumny odczytu, z odstępem przed ramką nastawy.
+
+Walidacja: ten sam tryb `DSR_UI_FOCUS_TRV=1` — PASS, tylko 10 podglądów karty w trzech skórkach i PL/EN/DE. Regresja sprawdza środek etykiety względem ramki oraz wyrównanie baterii; przed poprawką wykazała błędny środek etykiety. Dashboard z 16 termostatami pozostawia 12 256 B wolnej pamięci, największy blok 12 200 B, przy puli 128 KiB. Odbiór wyglądu na podglądzie i później na pilocie pozostaje otwarty; nowy DEV po zakończeniu ankiety.
 
 ## Konsolidacja starych zgłoszeń
 

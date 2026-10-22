@@ -76,6 +76,12 @@ static void thermostat_card(unsigned theme,unsigned language)
  CHECK(!strcmp(readout.battery,"64%"));lv_area_t b=readout.battery_area;
  CHECK(readout.icon_area.x2<b.x1-4&&readout.icon_area.y1==f.y1&&readout.icon_area.y2==f.y2);
  CHECK(b.x1>=a.x1+40&&b.x2<=f.x1-12&&b.y1>=f.y1&&b.y2<=f.y2&&a.y2-b.y2>=12);
+ lv_obj_t *reading=containing(card,"21.5 °C");CHECK(reading);
+ lv_area_t reading_area=rect(reading),reading_frame=rect(lv_obj_get_parent(reading));
+ CHECK(abs(reading_area.x1+reading_area.x2-reading_frame.x1-reading_frame.x2)<=1);
+ CHECK(abs(reading_area.y1+reading_area.y2-reading_frame.y1-reading_frame.y2)<=1);
+ CHECK(lv_obj_get_height(reading)==lv_font_get_line_height(lv_obj_get_style_text_font(reading,0)));
+ CHECK(readout.icon_area.x1==reading_frame.x1); /* battery belongs under the reading column */
  CHECK(containing(card,"21.5 °C")&&lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));
  char name[48];snprintf(name,sizeof(name),"dashboard-trv-%u",language);shot(name,theme);
  /* Device battery, not the remote's status-bar estimate; redraw on new readings. */

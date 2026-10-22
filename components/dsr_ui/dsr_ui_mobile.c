@@ -413,11 +413,12 @@ static void card_battery_draw(lv_event_t *event)
  const dsr_mobile_device_t *d=&model.devices[i];lv_obj_t *card=lv_event_get_target(event);card_layout_t l=card_layout(d,lv_obj_get_width(card));
  bool known=d->online&&d->error==DSR_OK&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100;
  uint32_t color=known?(d->battery_pct<=20?0xf0a020:DSR_SC_GLOW):DSR_SC_OFF;
- lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=12;a.y1+=l.body+60;a.x2=a.x1+23;a.y2=a.y1+23;
+ lv_area_t a;lv_obj_get_content_coords(card,&a);int text_right=a.x1+lv_obj_get_width(card)-116-DSR_SC_MARGIN-1;
+ a.x1+=CARD_ROW_X;a.y1+=l.body+60;a.x2=a.x1+23;a.y2=a.y1+23;
  dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
  char text[16];if(known)snprintf(text,sizeof(text),"%.0f%%",d->battery_pct);else snprintf(text,sizeof(text),"—");
  const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);int h=lv_font_get_line_height(font);
- a.x1+=32;a.x2=a.x1+lv_obj_get_width(card)-185;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
+ a.x1+=32;a.x2=text_right;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);
  lv_draw_label(lv_event_get_layer(event),&label,&a);
 }
@@ -546,7 +547,10 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     }
 #undef ADD_PART
     if(n){if(state_box){char text[240]="";for(unsigned k=0;k<n;k++){if(k)strncat(text," • ",sizeof(text)-strlen(text)-1);strncat(text,texts[k],sizeof(text)-strlen(text)-1);}dsr_sc_text(card,dsr_sc_user(text),layout.metric_x,layout.metric_y,layout.metric_w,&dsr_roboto_12,DSR_SC_TEXT);}
-     else dsr_sc_segments(card,texts,n,layout.metric_x,layout.metric_y,layout.metric_w,d->online?DSR_SC_TEXT:0xffc18c);}
+     else{
+      dsr_sc_segments(card,texts,n,layout.metric_x,layout.metric_y,layout.metric_w,d->online?DSR_SC_TEXT:0xffc18c);
+      if(trv){lv_obj_t *reading=lv_obj_get_child(lv_obj_get_child(card,-1),0);lv_obj_set_height(reading,LV_SIZE_CONTENT);center(reading);lv_obj_center(reading);}
+     }}
     return card;
 }
 bool dsr_ui_photo_source(const char *id,lv_image_dsc_t *out)
