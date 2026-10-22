@@ -401,6 +401,37 @@ static void lan_form(unsigned theme,unsigned language)
  if(theme==3&&language==2)shot("lan-form-auth",theme);
  dsr_ui_open_settings();
 }
+typedef struct {char text[96];lv_area_t area;} dashboard_room_t;
+static void dashboard_room_capture(lv_event_t *event)
+{
+ lv_draw_label_dsc_t *label=lv_draw_task_get_label_dsc(lv_event_get_draw_task(event));if(!label)return;
+ dashboard_room_t *r=lv_event_get_user_data(event);snprintf(r->text,sizeof(r->text),"%s",label->text);lv_draw_task_get_area(lv_event_get_draw_task(event),&r->area);
+}
+static void dashboard_card_check(const dsr_mobile_model_t *m)
+{
+ lv_obj_t *card=lv_obj_get_parent(find_label(lv_screen_active(),m->devices[0].name));dashboard_room_t room={0};
+ lv_obj_add_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);lv_obj_add_event_cb(card,dashboard_room_capture,LV_EVENT_DRAW_TASK_ADDED,&room);lv_obj_invalidate(card);lv_refr_now(display);lv_obj_remove_event_cb(card,dashboard_room_capture);lv_obj_remove_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+ CHECK(!strcmp(room.text,m->rooms[0].name));lv_obj_t *state=find_label(card,m->devices[0].output?"Włączone":"Wyłączone"),*value=containing(card," V");CHECK(state&&value);lv_area_t s=rect(state),v=rect(value),pill=rect(lv_obj_get_parent(value));
+ CHECK(room.area.y2<s.y1-4&&s.y2<pill.y1-4&&abs(v.y1+v.y2-pill.y1-pill.y2)<=1);
+ CHECK(pill.y2<=rect(card).y2-10);lv_point_t size;lv_text_get_size(&size,room.text,dsr_sc_font(&dsr_roboto_14),0,0,lv_area_get_width(&room.area),LV_TEXT_FLAG_NONE);CHECK(lv_area_get_height(&room.area)>=size.y);
+}
+static void dashboard_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
+ dsr_mobile_actions_t a={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop,.open_settings=noop,.open_battery=noop};dsr_mobile_bind(&a);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard im Erdgeschoss",.room_count=1,.rooms={{.id=1,.name="Küche und Esszimmer"}},.device_count=3};
+ m.devices[0]=(dsr_mobile_device_t){.id=1,.identity="survey-switch-1",.name="Deckenbeleuchtung Küche",.room=0,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.online=true,.can_switch=true,.has_power=true,.power_w=0,.has_voltage=true,.voltage_v=231.8,.fields=255};
+ m.devices[1]=m.devices[0];m.devices[1].id=2;snprintf(m.devices[1].identity,sizeof(m.devices[1].identity),"survey-switch-2");snprintf(m.devices[1].name,sizeof(m.devices[1].name),"Steckdose Terrasse");m.devices[1].output=true;m.devices[1].power_w=83.4;
+ m.devices[2]=m.devices[0];m.devices[2].id=3;snprintf(m.devices[2].identity,sizeof(m.devices[2].identity),"survey-switch-3");snprintf(m.devices[2].name,sizeof(m.devices[2].name),"Beleuchtung Arbeitszimmer");m.devices[2].online=false;m.devices[2].has_sample_time=true;
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(dsr_sc_style()==theme);lv_obj_t *selector=find_label(lv_screen_active(),m.dashboard_name);CHECK(selector&&lv_label_get_long_mode(selector)==LV_LABEL_LONG_MODE_SCROLL&&lv_anim_get(selector,NULL));dashboard_card_check(&m);if(language==2)shot("dashboard-review-normal",theme);
+ m.device_count=1;snprintf(m.dashboard_name,sizeof(m.dashboard_name),"Erdgeschoss – Wohnen, Küche und Terrasse");snprintf(m.devices[0].name,sizeof(m.devices[0].name),"Wärmepumpe Küche und Hauswirtschaftsraum");snprintf(m.rooms[0].name,sizeof(m.rooms[0].name),"Wohnzimmer und offene Küche im Erdgeschoss");
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);dashboard_card_check(&m);if(language==2)shot("dashboard-review-long-names",theme);
+ selector=find_label(lv_screen_active(),m.dashboard_name);CHECK(selector&&lv_label_get_long_mode(selector)==LV_LABEL_LONG_MODE_SCROLL);lv_anim_t *animation=lv_anim_get(selector,NULL);CHECK(animation&&animation->end_value<0);int32_t start=animation->current_value;
+ for(unsigned frame=0;frame<8;frame++){lv_tick_inc(750);lv_timer_handler();lv_refr_now(display);if(theme==3&&language==2){char path[48];snprintf(path,sizeof(path),"dashboard-name-scroll-%u",frame);shot(path,theme);}}
+ CHECK(lv_anim_get(selector,NULL)&&lv_anim_get(selector,NULL)->current_value!=start);
+ m.devices[0].power_w=12345.6;m.devices[0].voltage_v=240.2;dsr_mobile_update(&m);CHECK(containing(lv_screen_active(),"12345.6 W")&&containing(lv_screen_active(),"240.2 V"));dashboard_card_check(&m);if(language==2)shot("dashboard-review-large-values",theme);
+ selector=find_label(lv_screen_active(),m.dashboard_name);CHECK(selector);dsr_ui_open_settings();CHECK(!lv_anim_get(selector,NULL));
+}
 static void onboarding_states(unsigned theme,unsigned language)
 {
  cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);
@@ -440,7 +471,8 @@ int main(int argc,char **argv)
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
+ if(getenv("DSR_UI_FOCUS_DASHBOARD")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_review(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_COVER_CARD")){for(unsigned i=0;i<3;i++)cover_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}

@@ -273,10 +273,11 @@ static void toolbar(lv_obj_t *root,const char *title)
      if(hud)dsr_ui_cyber_frame(choose,true);else edge(choose,DSR_SC_EDGE,1);
      int room=actions.select_dashboard?100:122;const lv_font_t *font=&dsr_roboto_16;lv_point_t size;const char *shown=dsr_sc_tr(title);
      lv_text_get_size(&size,shown,dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>room)font=&dsr_roboto_14;
-     if(font==&dsr_roboto_14){lv_text_get_size(&size,shown,dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>room)font=&dsr_roboto_12;}
-     /* Long names: two 12 px lines inside the selector before any ellipsis. */
-     lv_text_get_size(&size,shown,dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);int line=lv_font_get_line_height(dsr_sc_font(font));
-     lv_obj_t *name=dsr_sc_text(choose,dsr_sc_user(shown),12,0,room,font,DSR_SC_TEXT);truncate(name,size.x>room?2*line:line);lv_obj_align(name,LV_ALIGN_LEFT_MID,12,0);
+     /* Keep the owner's single toolbar row; long titles scroll in their
+      * own clipped label, with LVGL's pauses at both ends. */
+     int line=lv_font_get_line_height(dsr_sc_font(font));
+     lv_obj_t *name=dsr_sc_text(choose,dsr_sc_user(shown),12,0,room,font,DSR_SC_TEXT);lv_obj_set_height(name,line);
+     lv_obj_set_style_anim_duration(name,lv_anim_speed_clamped(32,900,16000),0);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_SCROLL);lv_obj_align(name,LV_ALIGN_LEFT_MID,12,0);
      if(actions.select_dashboard)dsr_sc_icon(choose,DSR_ICON_CHEVRON,118,14,16,hud?DSR_SC_GLOW:DSR_SC_MUTED);
     }else dsr_sc_text(root,title,12,116,136,&dsr_roboto_16,DSR_SC_TEXT);
     const dsr_ui_icon_t icons[]={DSR_ICON_PLUS,DSR_ICON_EDIT,DSR_ICON_INFO};
@@ -353,6 +354,10 @@ static bool card_state_box(const dsr_mobile_device_t *d)
 {return !trv_device(d)&&(d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR)&&(d->has_contact||(d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.flags&DSR_BLU_HAS_MOTION)))&&d->online;}
 static bool card_contact_columns(const dsr_mobile_device_t *d)
 {return card_state_box(d)&&d->has_contact&&d->error==DSR_OK&&!unbound(d)&&(d->endpoint_kind!=DSR_ENDPOINT_BLU||(cyber_blu_live(d)&&(d->blu.flags&DSR_BLU_HAS_OPEN)));}
+static bool card_switch_rows(const dsr_mobile_device_t *d)
+{return d->endpoint_kind==DSR_ENDPOINT_SWITCH&&(d->kind==DSR_DEVICE_RELAY||d->kind==DSR_DEVICE_PLUG||d->kind==DSR_DEVICE_LIGHT);}
+static void card_switch_metric_center(lv_obj_t *pill)
+{lv_obj_t *value=lv_obj_get_child(pill,0);lv_obj_set_height(value,LV_SIZE_CONTENT);lv_obj_align(value,LV_ALIGN_LEFT_MID,8,0);}
 static void card_sensor_text(const dsr_mobile_device_t *d,char *text,size_t capacity)
 {
  text[0]=0;
@@ -362,8 +367,9 @@ static void card_sensor_text(const dsr_mobile_device_t *d,char *text,size_t capa
  if(d->has_battery)snprintf(text+strlen(text),capacity-strlen(text),"%s%s %.0f%%",text[0]?" • ":"",dsr_sc_tr("Bateria"),d->battery_pct);
 }
 /* One geometry for every skin: name, then a 52 px icon square with the
- * "room • state" row and value pill beside it, and the device's single action
- * (power / up-down / state tile) on the right. A thermostat adds its setpoint
+ * room/state rows and value pill beside it, and the device's single action
+ * (power / up-down / state tile) on the right. Switch cards wrap the full room
+ * above the state and values. A thermostat adds its setpoint
  * bar below; values too wide for the pill get their own full row. Contacts
  * stack the room, lx and battery between their two state graphics. Covers
  * use the room alone above position; this text can wrap beside the controls. */
@@ -395,6 +401,16 @@ static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
   lv_text_get_size(&s,room,dsr_sc_font(&dsr_roboto_14),0,0,row,LV_TEXT_FLAG_NONE);
   l.room_w=row;l.room_h=s.y;l.metric_x=CARD_ROW_X;l.metric_y=l.body+l.room_h+6;l.metric_w=row;l.height=l.body+l.room_h+74;return l;
  }
+ if(card_switch_rows(d)){
+  const char *room=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");
+  lv_text_get_size(&s,room,dsr_sc_font(&dsr_roboto_14),0,0,row,LV_TEXT_FLAG_NONE);
+  l.room_w=row;l.room_h=s.y;l.row_y=l.body+l.room_h+6;l.state_x=CARD_ROW_X;l.state_w=row;
+  l.metric_x=CARD_ROW_X;l.metric_y=l.row_y+lv_font_get_line_height(dsr_sc_font(&dsr_roboto_14))+8;l.metric_w=row;
+  char values[96];snprintf(values,sizeof(values),"%.1f W  |  %.1f V",d->power_w,d->voltage_v);
+  lv_text_get_size(&s,values,dsr_sc_font(&dsr_roboto_12),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+  if(s.x+20>l.metric_w){l.metric_x=12;l.metric_w=width-24;}
+  l.height=l.metric_y+38;return l;
+ }
  char text[160];l.room_max=row*11/20;l.room_w=card_warn(d)?0:card_room_text(d,text,sizeof(text),l.room_max);
  /* A long state (waiting, sending) keeps the whole row; the room yields. */
  lv_text_get_size(&s,dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
@@ -419,9 +435,9 @@ static void device_room_draw(lv_event_t *event)
  if(i>=model.device_count)return;
  lv_obj_t *card=lv_event_get_target(event);const dsr_mobile_device_t *d=&model.devices[i];
  card_layout_t l=card_layout(d,lv_obj_get_width(card));if(!l.room_w)return;
- char text[96];card_room_text(d,text,sizeof(text),l.room_max);const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);
- lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=CARD_ROW_X;a.y1+=l.row_y;a.x2=a.x1+l.room_w;a.y2=a.y1+lv_font_get_line_height(font)-1;
- lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.text=text;label.text_local=1;label.font=font;
+ bool rows=card_switch_rows(d);char text[96];if(rows)snprintf(text,sizeof(text),"%s",d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane"));else card_room_text(d,text,sizeof(text),l.room_max);const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);
+ lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=CARD_ROW_X;a.y1+=rows?l.body:l.row_y;a.x2=a.x1+l.room_w-(rows?1:0);a.y2=a.y1+(rows?l.room_h:lv_font_get_line_height(font))-1;
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);if(rows)label.base.obj=card;label.text=text;label.text_local=1;label.font=font;
  label.color=dsr_sc_text_color(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?0x6fd3ff:DSR_SC_MUTED);
  lv_draw_label(lv_event_get_layer(event),&label,&a);
 }
@@ -523,8 +539,8 @@ static int device_card_height(const dsr_mobile_device_t *d,bool tall)
 {return card_layout(d,296).height+(tall?24:0);}
 static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height,unsigned fields)
 {
-    /* Owner HUD reference (2026-10): name, square device icon, "room • state",
-     * value pill and the device's one action on the right. */
+    /* Name, square device icon, type-specific room/state rows, value pill
+     * and the device's one action on the right. */
     dsr_mobile_device_t *d=&model.devices[i];
     bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR,trv=trv_device(d);
     bool on=!sensor&&!cover&&d->online&&d->output&&d->error==DSR_OK&&!unbound(d);
@@ -610,6 +626,7 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     if(n){if(state_box){char text[240]="";for(unsigned k=0;k<n;k++){if(k)strncat(text," • ",sizeof(text)-strlen(text)-1);strncat(text,texts[k],sizeof(text)-strlen(text)-1);}dsr_sc_text(card,dsr_sc_user(text),layout.metric_x,layout.metric_y,layout.metric_w,&dsr_roboto_12,DSR_SC_TEXT);}
      else{
       dsr_sc_segments(card,texts,n,layout.metric_x,layout.metric_y,layout.metric_w,d->online?DSR_SC_TEXT:0xffc18c);
+      if(card_switch_rows(d))card_switch_metric_center(lv_obj_get_child(card,-1));
       if(trv){lv_obj_t *reading=lv_obj_get_child(lv_obj_get_child(card,-1),0);lv_obj_set_height(reading,LV_SIZE_CONTENT);center(reading);lv_obj_center(reading);}
      }}
     return card;
@@ -1299,7 +1316,7 @@ static bool update_electrical(placed_card_t *c,const dsr_mobile_device_t *d)
   if(c->fields&2){if(d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"— V");values[count++]=voltage;}
  }
  if(!count)return false;
- card_layout_t layout=card_layout(d,c->w);lv_obj_set_pos(pill,layout.metric_x,layout.metric_y);dsr_sc_segments_update(pill,values,count,layout.metric_w);return true;
+ card_layout_t layout=card_layout(d,c->w);lv_obj_set_pos(pill,layout.metric_x,layout.metric_y);dsr_sc_segments_update(pill,values,count,layout.metric_w);if(card_switch_rows(d))card_switch_metric_center(pill);return true;
 }
 static bool refresh_cards(const dsr_mobile_model_t *m)
 {
