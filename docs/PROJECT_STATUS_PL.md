@@ -82,7 +82,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
 | UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | **Karta zaakceptowana na podglądzie przez właściciela**: odczyt, „Soll”, bateria i jej ramka, wspólna oś pól oraz wyśrodkowane +/−. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | **Karty zaakceptowane na podglądzie przez właściciela**: nazwa u góry, mała ikona po lewej, duża po prawej, pośrodku pomieszczenie → ikona z lx → bateria z procentem. Odbiór na pilocie po nowym DEV pozostaje otwarty |
-| UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
+| UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Aktualny podgląd szczegółów, kart oraz animacji do oceny właściciela. Odstęp akcji od nawigacji wynosi 16 px; wykryto znikające pomieszczenie na karcie Dashboardu przez współdzielenie wiersza ze stanem. Odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
@@ -163,6 +163,16 @@ Ten wariant jest w kodzie roboczym. Pomieszczenie zawija się w środkowej kolum
 **Odbiór ankiety:** właściciel potwierdził „Tak, układ zaakceptowany” po obejrzeniu tego wariantu. Punkt UI-08 zamknięty na poziomie wyglądu podglądu, obejmując grafiki oraz układ kart okna i drzwi. Odbiór na fizycznym pilocie pozostaje otwarty po nowym DEV.
 
 Walidacja: `DSR_UI_FOCUS_CONTACT=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS na przypiętym LVGL 9.3. Tylko 15 podglądów wybranych kart: 12 kombinacji skórki/typu/stanu i trzy dłuższe nazwy z odczytami. Sprawdzono PL/EN/DE, długie nazwy pomieszczeń do granicy pola modelu, odstępy i wyśrodkowanie wierszy pomiarowych, brak odczytów oraz offline. Grafika 52 px zachowała rozmiar. Pomieszczenie i odczyty są rysowane w istniejącej karcie; dla 16 urządzeń pozostaje 61 008 B wolnej pamięci, największy blok 60 952 B, w puli 128 KiB. To host z modelem danych, bez odbioru na pilocie; nowy DEV po zakończeniu ankiety.
+
+### UI-09 — podgląd rolety, przycisków i animacji
+
+Po zaakceptowaniu termostatu oraz kart okna i drzwi właściciel wybrał roletę. Przygotowano aktualne piksele LVGL 9.3 dla Grafit, Jasny i Cyber Blue: zatrzymana roleta, przeciąganie z oddzielnym podglądem celu, ruch z czerwonym STOP, nieznana pozycja oraz karta Dashboardu w spoczynku i w ruchu. Krótki GIF pokazuje klatki istniejącej animacji otwierania 50→80% i zamykania 80→20%, z własną kolorystyką każdej skórki. Przyciski szczegółów mają wysokość 48 px i 16 px odstępu przed nawigacją.
+
+**Wykryta niespójność:** na karcie Dashboardu przypisane pomieszczenie „Wohnzimmer” znika przy stanie „Gestoppt” oraz „Wird geöffnet”. Współdzielony wiersz pomieszczenia i stanu jest węższy przez sterowanie po prawej; obecny układ oddaje cały wiersz dłuższemu stanowi. Dalsza korekta układu do uzgodnienia w ankiecie. Ten punkt nie jest zaakceptowany.
+
+Walidacja podglądu: `DSR_UI_FOCUS_COVER=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS. Tryb uruchamia wyłącznie roletę; 60 klatek obejmuje 42 klatki dwóch animacji w trzech skórkach. Sprawdzono rzeczywistą zmianę pikseli rolety, odstęp akcji i brak zapisu pozycji podczas przeciągania, z pojedynczym wywołaniem po puszczeniu. Podgląd używa aktywnych atrap callbacków otwierania, zamykania i STOP; nie są to polecenia wysyłane do sprzętu. Nie zmieniono kodu firmware ani nie wygenerowano pełnego atlasu. Odbiór właściciela i późniejsza weryfikacja na pilocie pozostają otwarte.
+
+Istniejąca regresja `python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_cover_ui` — PASS, osiem klatek. Potwierdza pojedyncze żądanie po puszczeniu, pierwszeństwo STOP i końcowy potwierdzony odczyt, odzyskanie odczytu bez powtarzania ruchu po błędzie oraz blokady przy kalibracji i błędzie autoryzacji. Napisy sprawdza w PL/EN/DE. Radio, worker i zapis pozostają modelem hosta.
 
 ## Konsolidacja starych zgłoszeń
 

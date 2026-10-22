@@ -250,17 +250,38 @@ static void access_point(unsigned theme)
 }
 static unsigned position_writes,position_target;
 static void position_set(unsigned index,uint8_t target){CHECK(index==0);position_writes++;position_target=target;}
+static void cover_set(unsigned index,int direction){CHECK(index==0&&(direction==1||direction==-1));}
 static void pointer_move(int x,int y,bool down)
 {touch=(lv_point_t){x,y};pressed=down;lv_tick_inc(20);lv_indev_read(pointer);lv_timer_handler();lv_refr_now(display);}
+static void cover_animation(unsigned theme,const char *direction)
+{
+ unsigned previous=0;
+ for(unsigned frame=0;frame<=6;frame++){
+  if(frame){lv_tick_inc(50);lv_timer_handler();}
+  char name[48];snprintf(name,sizeof(name),"cover-%s-%u",direction,frame);shot(name,theme);
+  unsigned signature=0;for(int y=202;y<310;y++)for(int x=80;x<225;x++)for(int c=0;c<3;c++)signature=signature*33+canvas[(y*320+x)*3+c];
+  if(frame)CHECK(signature!=previous);
+  previous=signature;
+ }
+}
 static void cover_skin(unsigned theme)
 {
- dsr_ui_open_settings();dsr_mobile_actions_t a={.set_position=position_set};dsr_mobile_bind(&a);
- dsr_mobile_model_t m={.wifi=true,.device_count=1};m.devices[0]=(dsr_mobile_device_t){.id=4,.identity="dev069-cover",.name="Rollladen Terrasse",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.can_cover=true,.can_stop_cover=true,.can_position=true,.has_position=true,.position_pct=50,.cover_state=DSR_COVER_STOPPED};
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,2);dsr_mobile_actions_t a={.set_position=position_set,.set_cover=cover_set,.stop_cover=stop_noop};dsr_mobile_bind(&a);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Wohnzimmer"}},.device_count=1};m.devices[0]=(dsr_mobile_device_t){.id=4,.identity="dev069-cover",.name="Rollladen Terrasse",.kind=DSR_DEVICE_COVER,.endpoint_kind=DSR_ENDPOINT_COVER,.online=true,.can_cover=true,.can_stop_cover=true,.can_position=true,.has_position=true,.position_pct=50,.cover_state=DSR_COVER_STOPPED,.has_power=true,.power_w=0,.has_voltage=true,.voltage_v=231.8};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_t *title=find_label(lv_screen_active(),m.devices[0].name);CHECK(title&&lv_obj_get_y(lv_obj_get_parent(title))==52&&lv_obj_get_style_text_align(title,0)==LV_TEXT_ALIGN_CENTER);CHECK(!has_icon(lv_screen_active(),DSR_ICON_EDIT,24));CHECK(rect(lv_obj_get_parent(find_label(lv_screen_active(),"Otwórz"))).y2<=DSR_SC_NAV_TOP-17);shot("cover-stopped",theme);
  char confirmed[40];snprintf(confirmed,sizeof(confirmed),"%s 50%%",dsr_sc_tr("Pozycja"));
  unsigned before=position_writes;pointer_move(150,226,true);CHECK(position_writes==before);CHECK(find_label(lv_screen_active(),confirmed));shot("cover-preview",theme);pointer_move(150,226,false);CHECK(position_writes==before+1&&position_target>=75&&position_target<=85);
- m.devices[0].position_pct=80;m.devices[0].cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);lv_tick_inc(150);lv_timer_handler();shot("cover-moving",theme);
+ m.devices[0].position_pct=80;m.devices[0].cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);
+ if(getenv("DSR_UI_FOCUS_COVER")){
+  cover_animation(theme,"opening");snprintf(confirmed,sizeof(confirmed),"%s 80%%",dsr_sc_tr("Pozycja"));CHECK(find_label(lv_screen_active(),confirmed));
+  m.devices[0].position_pct=20;m.devices[0].cover_state=DSR_COVER_CLOSING;dsr_mobile_update(&m);cover_animation(theme,"closing");snprintf(confirmed,sizeof(confirmed),"%s 20%%",dsr_sc_tr("Pozycja"));CHECK(find_label(lv_screen_active(),confirmed));
+ }else{lv_tick_inc(150);lv_timer_handler();}
+ shot("cover-moving",theme);
  m.devices[0].has_position=false;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));shot("cover-unknown",theme);
+ if(getenv("DSR_UI_FOCUS_COVER")){
+  m.devices[0].has_position=true;m.devices[0].position_pct=50;m.devices[0].cover_state=DSR_COVER_STOPPED;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);shot("cover-card-stopped",theme);
+  m.devices[0].cover_state=DSR_COVER_OPENING;m.devices[0].power_w=96.2;dsr_mobile_update(&m);shot("cover-card-moving",theme);
+ }
 }
 static void onboarding_labels(void)
 {
@@ -292,6 +313,7 @@ int main(int argc,char **argv)
  const unsigned themes[]={0,2,3};
  if(getenv("DSR_UI_FOCUS_CONTACT")){for(unsigned i=0;i<3;i++)contact_cards(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
+ else if(getenv("DSR_UI_FOCUS_COVER")){for(unsigned i=0;i<3;i++)cover_skin(themes[i]);}
  else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
