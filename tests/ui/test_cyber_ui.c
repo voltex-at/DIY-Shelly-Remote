@@ -185,6 +185,10 @@ int main(int argc,char **argv)
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();
  cJSON *doc=room_document();cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"rooms"),cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}"));publish_document(doc);dsr_ui_init();tick();
+ if(getenv("DSR_UI_FOCUS_ICONS")){
+  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();icon_gallery();
+  printf("PASS: focused icon rendering, one gallery; existing A8/color oracle\n");lv_deinit();return 0;
+ }
  const void *background=dsr_ui_brand_background();
  /* Editing and canceling cannot change the active or saved appearance. */
  dsr_ui_open_settings();tap_row("Wygląd i język");lv_obj_t *d=theme_choice();lv_dropdown_set_selected(d,2);lv_obj_send_event(d,LV_EVENT_VALUE_CHANGED,NULL);

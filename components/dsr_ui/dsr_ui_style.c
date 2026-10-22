@@ -585,9 +585,8 @@ static void symbol_line(lv_layer_t *layer,const lv_area_t *a,int size,lv_color_t
 }
 static lv_color_t icon_color(lv_obj_t *o)
 {return style==DSR_SC_STYLE_CYBER_BLUE?lv_obj_get_style_image_recolor(o,0):lv_obj_get_style_line_color(o,0);}
-static void state_symbol(lv_event_t *e,unsigned kind)
+static void state_symbol(lv_layer_t *layer,unsigned kind,lv_area_t a,int size,lv_color_t color)
 {
- lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);int size=lv_obj_get_width(o);lv_layer_t *layer=lv_event_get_layer(e);lv_color_t color=icon_color(o);
 #define LINE(x1,y1,x2,y2) symbol_line(layer,&a,size,color,x1,y1,x2,y2)
  if(kind==DSR_ICON_BATTERY){LINE(20,14,44,14);LINE(44,14,44,58);LINE(44,58,20,58);LINE(20,58,20,14);LINE(26,14,26,6);LINE(26,6,38,6);LINE(38,6,38,14);LINE(36,22,27,38);LINE(27,38,35,38);LINE(35,38,29,50);}
  else if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
@@ -604,34 +603,40 @@ static void state_symbol(lv_event_t *e,unsigned kind)
  }
 #undef LINE
 }
-static void icon_draw(lv_event_t *event)
+static void draw_icon_at(lv_obj_t *obj,lv_layer_t *layer,unsigned kind,lv_area_t area,lv_color_t color,lv_opa_t opacity)
 {
-    lv_obj_t *obj=lv_event_get_target(event);
-    unsigned kind=(unsigned)(uintptr_t)lv_event_get_user_data(event);
     if(kind>=DSR_ICON_COUNT)return;
+    int side=lv_area_get_width(&area);
     if(style==DSR_SC_STYLE_CYBER_BLUE||kind>=DSR_ICON_CPU){
-     int side=lv_obj_get_width(obj);const lv_image_dsc_t *asset=dsr_ui_cyber_icon((dsr_ui_icon_t)kind,(unsigned)side);
+     const lv_image_dsc_t *asset=dsr_ui_cyber_icon((dsr_ui_icon_t)kind,(unsigned)side);
      if(asset){
-      lv_area_t a;lv_obj_get_coords(obj,&a);unsigned pixels=asset->header.w;
+      unsigned pixels=asset->header.w;
       unsigned shown=(unsigned)side<pixels?(unsigned)side:pixels;
-      lv_draw_image_dsc_t d;lv_draw_image_dsc_init(&d);d.src=asset;d.recolor=icon_color(obj);
-      d.recolor_opa=lv_obj_get_style_image_recolor_opa(obj,0);d.antialias=1;
+      lv_draw_image_dsc_t d;lv_draw_image_dsc_init(&d);d.base.obj=obj;d.src=asset;d.recolor=color;
+      d.recolor_opa=opacity;d.antialias=1;
       d.scale_x=d.scale_y=shown*256/pixels;d.pivot=(lv_point_t){0,0};
-      int x=a.x1+(side-(int)shown)/2,y=a.y1+(side-(int)shown)/2;
+      int x=area.x1+(side-(int)shown)/2,y=area.y1+(side-(int)shown)/2;
       lv_area_t source={x,y,x+(int)pixels-1,y+(int)pixels-1};
-      lv_draw_image(lv_event_get_layer(event),&d,&source);return;
+      lv_draw_image(layer,&d,&source);return;
      }
     }
-    if(kind>=DSR_ICON_WINDOW_CLOSED||(style==DSR_SC_STYLE_CYBER_BLUE&&kind==DSR_ICON_BATTERY)){state_symbol(event,kind);return;}
-    lv_area_t area;lv_obj_get_coords(obj,&area);
-    int size=lv_obj_get_width(obj);
+    if(kind>=DSR_ICON_WINDOW_CLOSED||(style==DSR_SC_STYLE_CYBER_BLUE&&kind==DSR_ICON_BATTERY)){state_symbol(layer,kind,area,side,color);return;}
     lv_draw_image_dsc_t draw;lv_draw_image_dsc_init(&draw);
-    draw.src=&dsr_symbol_atlas[kind];draw.recolor=icon_color(obj);
+    draw.base.obj=obj;draw.src=&dsr_symbol_atlas[kind];draw.recolor=color;
     draw.recolor_opa=LV_OPA_COVER;draw.antialias=1;
-    draw.scale_x=draw.scale_y=(uint32_t)size*256/64;
+    draw.scale_x=draw.scale_y=(uint32_t)side*256/64;
     draw.pivot=(lv_point_t){0,0};
     lv_area_t source={area.x1,area.y1,area.x1+63,area.y1+63};
-    lv_draw_image(lv_event_get_layer(event),&draw,&source);
+    lv_draw_image(layer,&draw,&source);
+}
+static void icon_draw(lv_event_t *event)
+{
+ lv_obj_t *o=lv_event_get_target(event);lv_area_t area;lv_obj_get_coords(o,&area);
+ draw_icon_at(o,lv_event_get_layer(event),(unsigned)(uintptr_t)lv_event_get_user_data(event),area,icon_color(o),lv_obj_get_style_image_recolor_opa(o,0));
+}
+void dsr_sc_draw_icon(lv_obj_t *owner,lv_layer_t *layer,dsr_ui_icon_t kind,const lv_area_t *area,uint32_t color)
+{
+ draw_icon_at(owner,layer,(unsigned)kind,*area,style==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_text_color(color):dsr_sc_color(color),LV_OPA_COVER);
 }
 uint32_t dsr_sc_icon_accent(void)
 {return style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:DSR_SC_TEXT;}

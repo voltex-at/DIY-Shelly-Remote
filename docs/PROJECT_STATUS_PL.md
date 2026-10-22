@@ -80,7 +80,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-04 | Ustawienia: ostatni element listy, ikona–tekst–strzałka | Oczekuje na ocenę |
 | UI-05 | Dashboard: wybór, długie nazwy, +/edycja/informacje | Właściciel: pulpit i karty wymagają poprawek; szczegóły pierwszej rundy poniżej |
 | UI-06 | Karty: odstępy, pełne pomiary, brak pustego „Keine weiteren Messwerte”, główna akcja | Poprawiono roboczo odstęp akcji od dolnej ramki; odbiór otwarty |
-| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Poprawiono kartę Dashboardu: sterowanie 104×56 jak roleta, bez baterii, podpis „Soll”; odbiór otwarty |
+| UI-07 | Termostat: odczyt, nastawa i ergonomia −/+ | Runda 2: sterowanie 104×56 jak roleta, „Soll” z temperaturą w ramce, ikona i poziom baterii po lewej; odbiór otwarty |
 | UI-08 | Okno i drzwi: grafika otwartego/zamkniętego skrzydła | Przywrócono duże grafiki po prawej i pojedynczy tekst stanu po lewej; odbiór otwarty |
 | UI-09 | Roleta: wspólna animacja trzech skórek, skala, status, pozycja i STOP | Poprawiono odstęp akcji od nawigacji; regresja gestu/STOP przeszła; odbiór otwarty |
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; końcowy przegląd całej skórki przed DEV |
@@ -103,7 +103,7 @@ Potwierdzona zainstalowana wersja: **0.7.70-dev**. Poniższe poprawki powstają 
 
 1. Karty: co najmniej 12 px odstępu głównej akcji od dolnej ramki.
 2. Szczegóły rolety: co najmniej 16 px odstępu akcji od nawigacji, z zachowaniem rozdzielenia podglądu od potwierdzonej pozycji, wysyłania po puszczeniu oraz STOP.
-3. **Tylko karta termostatu na Dashboardzie**: ramka 104×56 px i dwa przyciski 44 px, jak sterowanie rolety. Temperatura bieżąca i nastawa pozostają widoczne; bateria znika z tej karty, pozostaje w szczegółach. Niemiecki podpis: **Soll**.
+3. **Tylko karta termostatu na Dashboardzie**: ramka 104×56 px i dwa przyciski 44 px, jak sterowanie rolety. Temperatura bieżąca i nastawa pozostają widoczne. Niemiecki podpis: **Soll**. Pierwotną uwagę o usunięciu baterii z karty zastępuje późniejsze ustalenie z rundy 2 poniżej.
 4. Okno i drzwi: duża grafika prawego panelu dla obu stanów. Nie powielać napisu „Otwarte/Zamknięte” w prawym panelu; tekst pozostaje przy pomieszczeniu.
 5. Cyber Blue: sfazowane turkusowe obramowania dashboardu przenieść do wspólnych paneli, akcji i pól; zachować czytelne czerwone/żółte stany oraz własny wygląd pozostałych skórek.
 6. Kreator: **pierwszy ekran z „Krok 1 z 3” jest zaakceptowany**. Dopiero kolejne ekrany wyszukiwania i konfiguracji mają mieć numer kroku pod nagłówkiem, zamiast obok zegara. Przesunąć treść AP/BLE/LAN, aby uniknąć nowej kolizji.
@@ -112,6 +112,21 @@ Potwierdzona zainstalowana wersja: **0.7.70-dev**. Poniższe poprawki powstają 
 Stan tej rundy: powyższe poprawki są w kodzie roboczym. Oceny właściciela w tabeli pozostają otwarte do obejrzenia podglądu i późniejszego odbioru na pilocie.
 
 Walidacja: `test_dev_069_ui`, `test_cover_ui` i `test_cyber_ui` przeszły na przypiętym LVGL 9.3. Sprawdzono wybrane karty/kreator, oba stany okna i drzwi, napisy PL/EN/DE, wysyłanie pozycji po puszczeniu, priorytet STOP, natywne kontrolki i 24 kafelki w niezmienionej puli 128 KiB. Przełączanie skórek nie wykazało wzrostu użycia pamięci. To testy hosta z modelami radia i zapisu. Pełny atlas, build płyty i pełne CI należą do końcowej walidacji przed następnym DEV.
+
+### Runda 2 — karta termostatu po obejrzeniu podglądu
+
+Ostatnie ustalenie właściciela: **„Soll” i temperatura zadana razem w ramce; wolne miejsce po lewej wykorzystać na ikonę baterii oraz jej poziom**. Dotyczy karty na Dashboardzie, zastępuje wcześniejsze usunięcie baterii z tej karty.
+
+- Sterowanie −/+ zachowuje ramkę 104×56 px i przyciski 44 px, jak karta rolety.
+- Pod sterowaniem znajduje się osobna ramka 104×24 px z nastawą. Temperatura bieżąca pozostaje w dotychczasowym polu pomiaru.
+- Po lewej, na wysokości nastawy: ikona baterii termostatu i procent. To odczyt danego urządzenia, niezależny od baterii pilota w status barze. Brak poprawnego bieżącego odczytu daje „—”; niski poziom ma kolor ostrzegawczy.
+- Dolny odstęp ramki nastawy wynosi co najmniej 12 px. Napisy mieszczą się w trzech skórkach i językach PL/EN/DE.
+
+Walidacja tej poprawki: `DSR_UI_FOCUS_TRV=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS na przypiętym LVGL 9.3. Wygenerowano tylko 10 podglądów zmienionej karty: trzy skórki × PL/EN/DE oraz brak baterii. Sprawdzono też 0%, 100%, brak/nieprawidłowy odczyt, stan offline, rzeczywiste obszary rysowania tekstów i odstępy. Dashboard z 16 termostatami pozostawia 12 456 B wolnej pamięci (największy blok 12 400 B) w niezmienionej puli 128 KiB; dolne odczyty korzystają z istniejących obiektów i zasobów ikon.
+
+Wspólne rysowanie ikon sprawdzono osobno: `DSR_UI_FOCUS_ICONS=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_cyber_ui` — PASS, jedna galeria, bez pozostałych ekranów tego zestawu. `python3 tools/check_docs.py` i `git diff --check` również przeszły.
+
+Stan: kod roboczy do oceny na podglądzie, następnie na pilocie. To wynik hosta z modelem urządzenia, bez potwierdzenia na sprzęcie. Nowy DEV pozostaje odłożony do końca uzgodnionych poprawek i pełnej walidacji wydania.
 
 ## Konsolidacja starych zgłoszeń
 

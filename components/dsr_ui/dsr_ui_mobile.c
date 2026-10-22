@@ -380,7 +380,7 @@ static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
  lv_text_get_size(&s,dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
  l.state_x=CARD_ROW_X+l.room_w;l.state_w=row-l.room_w;
  l.metric_x=CARD_ROW_X;l.metric_y=l.body+29;l.metric_w=row;l.height=l.body+68;
- if(trv)l.height=l.body+90;
+ if(trv)l.height=l.body+98;
  else if(box){
   l.height=l.body+76;
   card_sensor_text(d,text,sizeof(text));lv_text_get_size(&s,text,dsr_sc_font(&dsr_roboto_12),0,0,l.metric_w,LV_TEXT_FLAG_NONE);
@@ -403,6 +403,33 @@ static void device_room_draw(lv_event_t *event)
  lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=CARD_ROW_X;a.y1+=l.row_y;a.x2=a.x1+l.room_w;a.y2=a.y1+lv_font_get_line_height(font)-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.text=text;label.text_local=1;label.font=font;
  label.color=dsr_sc_text_color(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?0x6fd3ff:DSR_SC_MUTED);
+ lv_draw_label(lv_event_get_layer(event),&label,&a);
+}
+/* Draw readouts in their existing card/frame rather than allocating three
+ * more objects per TRV. The fixed 128 KiB pool must also fit a full dashboard. */
+static void card_battery_draw(lv_event_t *event)
+{
+ unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(i>=model.device_count)return;
+ const dsr_mobile_device_t *d=&model.devices[i];lv_obj_t *card=lv_event_get_target(event);card_layout_t l=card_layout(d,lv_obj_get_width(card));
+ bool known=d->online&&d->error==DSR_OK&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100;
+ uint32_t color=known?(d->battery_pct<=20?0xf0a020:DSR_SC_GLOW):DSR_SC_OFF;
+ lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=12;a.y1+=l.body+60;a.x2=a.x1+23;a.y2=a.y1+23;
+ dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
+ char text[16];if(known)snprintf(text,sizeof(text),"%.0f%%",d->battery_pct);else snprintf(text,sizeof(text),"—");
+ const lv_font_t *font=dsr_sc_font(&dsr_roboto_14);int h=lv_font_get_line_height(font);
+ a.x1+=32;a.x2=a.x1+lv_obj_get_width(card)-185;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);
+ lv_draw_label(lv_event_get_layer(event),&label,&a);
+}
+static void card_target_draw(lv_event_t *event)
+{
+ unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(i>=model.device_count)return;
+ const dsr_mobile_device_t *d=&model.devices[i];char value[20],text[48];
+ if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(value,sizeof(value),"%u.%u °C",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(value,sizeof(value),"— °C");
+ snprintf(text,sizeof(text),"%s %s",dsr_sc_tr("Nastawa"),value);
+ lv_obj_t *frame=lv_event_get_target(event);lv_area_t a;lv_obj_get_content_coords(frame,&a);
+ const lv_font_t *font=dsr_sc_font(&dsr_roboto_12);int h=lv_font_get_line_height(font);a.x1+=4;a.x2-=4;a.y1+=(lv_area_get_height(&a)-h)/2;a.y2=a.y1+h-1;
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=frame;label.text=text;label.text_local=1;label.font=font;label.align=LV_TEXT_ALIGN_CENTER;label.color=dsr_sc_text_color(DSR_SC_TEXT);
  lv_draw_label(lv_event_get_layer(event),&label,&a);
 }
 /* While a cover moves, or a movement/STOP is being sent, STOP is the largest
@@ -480,9 +507,9 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
      lv_obj_t *bar=dsr_sc_panel(card,width-116,body-2,104,56,0x1d2124,12);
      edge(bar,DSR_SC_GLOW,1);bool valid=trv_can(d);int border=lv_obj_get_style_border_width(bar,0),inner=104-2*border,left=(inner-96)/2,top=(56-2*border-44)/2;
      trv_round(bar,i,left,top,44,false,valid);trv_round(bar,i,left+52,top,44,true,valid);
-     char t[20];if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(t,sizeof(t),"%u.%u °C",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(t,sizeof(t),"— °C");
-     char target[48];snprintf(target,sizeof(target),"%s %s",dsr_sc_tr("Nastawa"),t);
-     center(dsr_sc_text(card,dsr_sc_user(target),width-116,body+60,104,&dsr_roboto_12,DSR_SC_TEXT));
+     lv_obj_t *setpoint=dsr_sc_panel(card,width-116,body+60,104,24,0x1d2124,8);edge(setpoint,DSR_SC_GLOW,1);
+     lv_obj_add_event_cb(setpoint,card_target_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)i);
+     lv_obj_add_event_cb(card,card_battery_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)i);
     }else if(state_box){
      /* A large state graphic; the room row already carries its text. */
      const char *what=hud&&cyber_blu(d)&&cyber_contact(d)&&(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))?"Brak danych":d->has_contact?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_MOTION)?"Ruch":"Brak ruchu";

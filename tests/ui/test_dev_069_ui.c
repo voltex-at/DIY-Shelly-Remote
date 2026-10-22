@@ -3,6 +3,7 @@
 #define main original_ui_main
 #include "test_ui.c"
 #undef main
+#include <math.h>
 
 static lv_area_t rect(lv_obj_t *o)
 {lv_area_t a;CHECK(o);lv_obj_update_layout(lv_screen_active());lv_obj_get_coords(o,&a);return a;}
@@ -30,6 +31,70 @@ static lv_obj_t *containing(lv_obj_t *o,const char *text)
 static void noop(void){}
 static void stop_noop(unsigned index){(void)index;}
 static void trv_noop(unsigned index,uint8_t target){(void)index;(void)target;}
+typedef struct {char target[48],battery[16];lv_area_t target_area,battery_area,icon_area;const lv_font_t *font;bool icon;} trv_readouts_t;
+static void capture_trv_draw(lv_event_t *event)
+{
+ trv_readouts_t *r=lv_event_get_user_data(event);lv_draw_task_t *task=lv_event_get_draw_task(event);
+ lv_draw_label_dsc_t *label=lv_draw_task_get_label_dsc(task);
+ if(label){
+  if(strstr(label->text,"°C")){snprintf(r->target,sizeof(r->target),"%s",label->text);lv_draw_task_get_area(task,&r->target_area);r->font=label->font;}
+  else{snprintf(r->battery,sizeof(r->battery),"%s",label->text);lv_draw_task_get_area(task,&r->battery_area);}
+ }
+ lv_draw_image_dsc_t *image=lv_draw_task_get_image_dsc(task);
+ if(image){const lv_image_dsc_t *src=image->src;r->icon=true;lv_draw_task_get_area(task,&r->icon_area);r->icon_area.x2=r->icon_area.x1+(int)(src->header.w*image->scale_x/256)-1;r->icon_area.y2=r->icon_area.y1+(int)(src->header.h*image->scale_y/256)-1;}
+}
+static lv_obj_t *capture_trv(lv_obj_t *card,trv_readouts_t *r)
+{
+ lv_obj_t *frame=NULL;for(unsigned i=0;i<lv_obj_get_child_count(card);i++){lv_obj_t *o=lv_obj_get_child(card,(int)i);if(lv_obj_get_width(o)==104&&lv_obj_get_height(o)==24)frame=o;}
+ CHECK(frame);memset(r,0,sizeof(*r));lv_obj_add_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);lv_obj_add_flag(frame,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+ lv_obj_add_event_cb(card,capture_trv_draw,LV_EVENT_DRAW_TASK_ADDED,r);lv_obj_add_event_cb(frame,capture_trv_draw,LV_EVENT_DRAW_TASK_ADDED,r);
+ lv_obj_invalidate(card);lv_refr_now(display);
+ lv_obj_remove_event_cb(card,capture_trv_draw);lv_obj_remove_event_cb(frame,capture_trv_draw);lv_obj_remove_flag(card,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);lv_obj_remove_flag(frame,LV_OBJ_FLAG_SEND_DRAW_TASK_EVENTS);
+ return frame;
+}
+static void thermostat_card(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);
+ dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop,.set_trv=trv_noop};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard im Erdgeschoss",.room_count=1,.rooms={{.id=1,.name="Küche und Esszimmer"}},.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=2,.identity="dev069-trv",.name="Thermostat Schlafzimmer",.room=0,.kind=DSR_DEVICE_SENSOR,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_temperature=true,.temperature_c=21.5,.has_trv_target=true,.trv_target_c=21,.has_battery=true,.battery_pct=64,.blu_age_s=1,.blu={.flags=DSR_BLU_VALID,.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET|DSR_BLU_TRV_CHECKED}};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
+ lv_obj_t *card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_area_t a=rect(card);
+ lv_obj_t *minus=find_label(card,"-"),*plus=find_label(card,"+");CHECK(minus&&plus);
+ CHECK(lv_obj_get_width(lv_obj_get_parent(minus))>=44&&lv_obj_get_height(lv_obj_get_parent(plus))>=44);
+ lv_area_t controls=rect(lv_obj_get_parent(lv_obj_get_parent(minus)));
+ CHECK(lv_area_get_width(&controls)==104&&lv_area_get_height(&controls)==56);
+ CHECK(controls.x1>=a.x1+8&&controls.x2<a.x2-5&&controls.y1>rect(find_label(card,m.devices[0].name)).y2);
+ trv_readouts_t readout;lv_obj_t *frame=capture_trv(card,&readout);CHECK(strstr(readout.target,"21.0 °C")&&!strstr(readout.target,"Solltemperatur"));
+ CHECK(strstr(readout.target,dsr_sc_tr("Nastawa")));if(language==2)CHECK(!strcmp(readout.target,"Soll 21.0 °C"));
+ lv_area_t f=rect(frame),t=readout.target_area;lv_point_t text_size;
+ lv_text_get_size(&text_size,readout.target,readout.font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);
+ CHECK(lv_area_get_width(&t)>=text_size.x&&lv_area_get_height(&t)==text_size.y);
+ CHECK(t.x1>=f.x1+4&&t.x2<=f.x2-4&&t.y1>=f.y1+3&&t.y2<=f.y2-3);
+ CHECK(f.y1-controls.y2>=4&&a.y2-f.y2>=12&&f.x1==controls.x1&&f.x2==controls.x2);
+ CHECK(readout.icon&&lv_area_get_width(&readout.icon_area)==24&&lv_area_get_height(&readout.icon_area)==24);
+ CHECK(!strcmp(readout.battery,"64%"));lv_area_t b=readout.battery_area;
+ CHECK(readout.icon_area.x2<b.x1-4&&readout.icon_area.y1==f.y1&&readout.icon_area.y2==f.y2);
+ CHECK(b.x1>=a.x1+40&&b.x2<=f.x1-12&&b.y1>=f.y1&&b.y2<=f.y2&&a.y2-b.y2>=12);
+ CHECK(containing(card,"21.5 °C")&&lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));
+ char name[48];snprintf(name,sizeof(name),"dashboard-trv-%u",language);shot(name,theme);
+ /* Device battery, not the remote's status-bar estimate; redraw on new readings. */
+ const double levels[]={0,100,NAN,-1,101};
+ for(unsigned k=0;k<sizeof(levels)/sizeof(levels[0]);k++){
+  m.devices[0].battery_pct=levels[k];dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));
+  capture_trv(card,&readout);CHECK(!strcmp(readout.battery,k==0?"0%":k==1?"100%":"—"));
+ }
+ m.devices[0].has_battery=false;dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));capture_trv(card,&readout);CHECK(!strcmp(readout.battery,"—")&&readout.icon);
+ if(theme==3&&language==2)shot("dashboard-trv-battery-unknown",theme);
+ m.devices[0].has_battery=true;m.devices[0].battery_pct=64;m.devices[0].online=false;dsr_mobile_update(&m);card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));capture_trv(card,&readout);CHECK(!strcmp(readout.battery,"—"));
+ if(theme==3&&language==2){
+  m.devices[0].online=true;m.device_count=DSR_UI_MAX_DEVICES;
+  for(unsigned i=1;i<m.device_count;i++){m.devices[i]=m.devices[0];m.devices[i].id=10+i;snprintf(m.devices[i].name,sizeof(m.devices[i].name),"Thermostat %u",i);}
+  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_refr_now(display);
+  lv_mem_monitor_t memory;lv_mem_monitor(&memory);CHECK(memory.free_size>4096&&memory.free_biggest_size>4096);
+  printf("Thermostat dashboard: %u devices, %lu bytes free, largest %lu; unchanged 128 KiB LVGL pool\n",m.device_count,(unsigned long)memory.free_size,(unsigned long)memory.free_biggest_size);
+ }
+}
 static void dashboard(unsigned theme)
 {
  dsr_ui_open_settings();dsr_mobile_actions_t actions={.add_device=noop,.edit_dashboard=noop,.select_dashboard=noop,.set_trv=trv_noop,.stop_cover=stop_noop};dsr_mobile_bind(&actions);
@@ -42,12 +107,8 @@ static void dashboard(unsigned theme)
  CHECK(v.x1>=a.x1+60&&v.x2<=a.x2-80&&v.y2<a.y2-5&&v.y1<a.y1+100);
  lv_obj_t *primary=lv_obj_get_child(card,3);CHECK(lv_obj_has_flag(primary,LV_OBJ_FLAG_CLICKABLE)&&lv_obj_get_width(primary)>=44);v=rect(primary);CHECK(a.y2-v.y2>=12);shot("dashboard-relay",theme);
  m.devices[0].power_w=12345.6;dsr_mobile_update(&m);measurement=containing(lv_screen_active(),"231.8 V");CHECK(measurement&&strstr(lv_label_get_text(measurement),"12345.6 W"));
- /* Real TRV +/- hit areas, without relying on expanded invisible targets. */
- m.devices[0]=(dsr_mobile_device_t){.id=2,.identity="dev069-trv",.name="Thermostat Schlafzimmer",.room=0,.kind=DSR_DEVICE_SENSOR,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_temperature=true,.temperature_c=21.5,.has_trv_target=true,.trv_target_c=21,.has_battery=true,.battery_pct=64,.blu_age_s=1,.blu={.flags=DSR_BLU_VALID,.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET|DSR_BLU_TRV_CHECKED}};
- dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
- lv_obj_t *minus=find_label(lv_screen_active(),"-"),*plus=find_label(lv_screen_active(),"+");CHECK(minus&&plus);
- CHECK(lv_obj_get_width(lv_obj_get_parent(minus))>=44&&lv_obj_get_height(lv_obj_get_parent(plus))>=44);
- card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));a=rect(card);v=rect(lv_obj_get_parent(lv_obj_get_parent(minus)));CHECK(v.x1>=a.x1+8&&v.x2<a.x2-5&&v.y1>rect(find_label(card,m.devices[0].name)).y2);CHECK(lv_area_get_width(&v)==104&&lv_area_get_height(&v)==56&&a.y2-v.y2>=12);CHECK(!containing(card,dsr_sc_tr("Bateria")));CHECK(containing(card,"21.0 °C")&&!containing(card,"Solltemperatur"));CHECK(lv_obj_get_height(card)<=170&&!containing(card,"Ventil"));shot("dashboard-trv",theme);
+ thermostat_card(theme,2);
+ dsr_mobile_bind(&actions);
  m.devices[0]=(dsr_mobile_device_t){.id=3,.identity="dev069-window",.name="Fenster Schlafzimmer",.room=0,.kind=DSR_DEVICE_CONTACT,.endpoint_kind=DSR_ENDPOINT_BLU,.online=true,.has_contact=true,.contact_open=true,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN|DSR_BLU_OPEN}};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);CHECK(!find_label(lv_screen_active(),"Brak dodatkowych pomiarów"));card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name));lv_obj_t *box=lv_obj_get_child(card,3);a=rect(card);v=rect(box);CHECK(lv_obj_get_height(box)>=56&&lv_obj_get_height(card)<=132&&v.y1>a.y1+24);CHECK(has_icon(box,DSR_ICON_WINDOW_OPEN,52)&&!find_label(box,"Otwarte"));CHECK(a.y2-v.y2>=12);shot("dashboard-window",theme);
  dsr_mobile_show(DSR_MOBILE_DEVICES,0);shot("devices-tabs",theme);
@@ -121,8 +182,9 @@ int main(int argc,char **argv)
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
- const unsigned themes[]={0,2,3};if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}
- onboarding_labels();
+ const unsigned themes[]={0,2,3};
+ if(getenv("DSR_UI_FOCUS_TRV")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)thermostat_card(themes[i],language);}
+ else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
 }
