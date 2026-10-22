@@ -7,6 +7,9 @@ Bluetooth LE, no cloud, no CDN. Not affiliated with or endorsed by Shelly.
 Development version: `0.7.70-dev` (continuation on `work/dev-0.7.70`).
 There is no Stable release yet; `main` holds an older baseline.
 
+Current inventory and remaining work: [PROJECT_STATUS_PL.md](docs/PROJECT_STATUS_PL.md) ·
+[one consolidated issue #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74).
+
 ## Status
 
 | Area | Code | CI | Physical (ES3C35P) |

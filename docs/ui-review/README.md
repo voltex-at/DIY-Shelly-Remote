@@ -1,10 +1,12 @@
 # LCD review frames
 
-Frames are rendered from the real C/LVGL 9.3.0 sources into an RGB565 buffer
-(320 × 480), not mock-ups. They are not committed: get them from the CI artifact
-`real-lvgl-ui-review-NOT-FIRMWARE` of the exact commit, or locally with
-`python3 tools/test_ui.py --review` (output in `build-ui/review-export/`).
-`render-manifest.json` lists the branch and the SHA-256 of every PNG.
+When a UI change needs verification, render the actual C/LVGL 9.3.0 sources
+at 320×480 using the relevant case in `tools/test_ui.py`. Inspect only the
+affected frames during iteration; a full atlas belongs at the end of a major
+UI stage. See [DEVELOPMENT.md](../DEVELOPMENT.md).
 
-`before-0.5.1/` and `before-0.6.1/` are the only committed images: fixed
-baselines copied into the review ZIP for before/after comparison.
+Generated captures belong under ignored `build-ui/`, not in source commits.
+Historical committed baselines, screenshots, ZIPs and test-output reports were
+removed on 2026-10-22 at the owner's request. Source fixtures and generators
+remain available. A new export must be generated for the exact source being
+reviewed and is host evidence, not physical-device acceptance.

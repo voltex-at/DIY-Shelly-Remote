@@ -16,8 +16,8 @@ zajmują 4 × 300 KiB, bez dekodera, kopii w RAM i PSRAM.
 - **Tło aplikacji:** obraz bez tekstu na każdym ekranie głównym
   (`dsr_sc_background`). Grafit i Cyber Blue używają wariantu ciemnego, Jasny
   jasnego.
-- **Dokładnie trzy skórki (od 0.7.68-dev):** Grafitowy (`graphite`, id 0),
-  Jasny (`light`, id 2) i Shelly HUD — Cyber Blue (`cyber_blue`, id 3).
+- **Dokładnie trzy skórki (od 0.7.68-dev):** Grafit (`graphite`, id 0),
+  Jasny (`light`, id 2) i Cyber Blue (`cyber_blue`, id 3).
   Skórkę Nocny (`midnight`, id 1) wycofano. Zapisana konfiguracja z
   `midnight` przechodzi bezstratnie na `graphite` przy starcie (upgrade
   workspace z odświeżeniem punktu kontrolnego) oraz przy każdym zapisie, także

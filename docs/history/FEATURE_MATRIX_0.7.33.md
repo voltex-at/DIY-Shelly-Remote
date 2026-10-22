@@ -159,7 +159,7 @@ To NIE blank-format ani pełny TLS/pairing PASS. Nie ponawiać erase/przywracani
 0.7.21: fresh exact ACK + clean A + ta sama screen generation→kontekst poprzedni,
 B/IO/CAS/mismatch zostają. Widoczne48px delete dashboard/room, named modal przed
 mutacją draft, constraints recheck, osobneSave→ACK. Stabilny ID pokoju/fallback.
-[Kontrakt i krótki retest](EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
+[Kontrakt i krótki retest](https://github.com/voltex-at/DIY-Shelly-Remote/blob/dev-v0.7.70/docs/history/EDITOR_ACCEPTANCE_PL.md); test/CI/artifact/physical
 bramki osobno. Revoke WWW był poza buildem0.7.21; obecny port PR50 opisano powyżej.
 LVGL UBSan3223/111, PL/EN/DE/max47char/48px i40cycles heap104456→104456 PASS;
 native/config265 PASS, niezależny review bez blockerów. Nowy UI fizycznie nieodebrany.
@@ -346,14 +346,14 @@ i diagnostyka. 0.7.7 zmienia inicjalizację pustej partycji na jeden format po
 pełnym blank-check, współdzielenie CPU z idle i logi etapów/czasu/wyniku.
 Test oryginalnego IDF wymaga dokładnie 992 erase i zachowania prefiksu 313.
 CI poprawki 81e734d: 5/5, [run 38835176199](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38835176199). Fizyczny pierwszy boot do odbioru; zielone CI
-nie jest physical pass. [Aktualne dowody i blokady](PR33_ACCEPTANCE.md).
+nie jest physical pass. [Aktualne dowody i blokady](https://github.com/voltex-at/DIY-Shelly-Remote/blob/dev-v0.7.70/docs/history/PR33_ACCEPTANCE.md).
 
 **Historyczny test 0.7.6:** właściciel zaakceptował jednorazowe pełne erase swojej płytki
 i testuje czystą instalację source `ecdac4e`. CI tego źródła sprawdzone: **5/5**,
 [run 38831522391](https://github.com/voltex-at/DIY-Shelly-Remote/actions/runs/38831522391).
 Dodany test oryginalnego wrappera/core IDF SPIFFS na symulowanej NOR przechodzi
 lokalnie (nowe CI osobno). Nie zmienia firmware i nie potwierdza fizycznego
-odbioru. [Dowody i otwarte bramki](PR33_ACCEPTANCE.md). To nie jest zgoda na
+odbioru. [Dowody i otwarte bramki](https://github.com/voltex-at/DIY-Shelly-Remote/blob/dev-v0.7.70/docs/history/PR33_ACCEPTANCE.md). To nie jest zgoda na
 automatyczny lub ponowny erase ani merge/Stable.
 
 **Blokada fizyczna #28:** instalacja 0.7.4 nie montuje niepustego dsrdata

@@ -17,3 +17,7 @@ secrets*
 *.bin
 /cc*.s
 /.test-deps/
+/.local/
+/docs/cyber-blue/
+/docs/ui-0.*/
+/docs/ui-review/before-*/
