@@ -86,7 +86,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-10 | Cyber Blue: turkusowe ramki treści, w tym wynik i zgoda Wi-Fi AP | Wzór dashboardu przeniesiony do wspólnych paneli, akcji i pól; podwójny kontur i grubsza strzałka górnego przycisku powrotu **zaakceptowane na podglądzie**. Końcowy przegląd całej skórki przed DEV |
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | Oczekuje na ocenę |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | Oczekuje na ocenę |
-| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Przycisk Dalej, znacznik wybranej metody i górny przycisk powrotu Cyber Blue zaakceptowane na podglądzie**. Naprawiono przycięcie pola kanału, przewijanie opisu/komunikatów i kolizję przy klawiaturze. Pozostały odbiór kreatora i sprawdzenie na sprzęcie pozostają otwarte |
+| NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Przycisk Dalej, znacznik wybranej metody i górny przycisk powrotu Cyber Blue zaakceptowane na podglądzie**. Naprawiono pole kanału, przewijanie i klawiaturę; kolejne poprawki ramek wyszukiwania/pustej listy/błędów AP/LAN/BLE oraz pełnego MAC czekają na ocenę podglądu. Pozostały odbiór kreatora i sprawdzenie na sprzęcie pozostają otwarte |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
@@ -316,6 +316,14 @@ Po podglądzie formularza właściciel wskazał jako jedyne zastrzeżenie brak p
 Górny przycisk otrzymał wewnętrzny sfazowany kontur przy zachowaniu dotychczasowej ramki zewnętrznej. Strzałka w istniejącym obszarze ikony ma teraz zaokrąglony obrys 3 px. Zmiana dotyczy wspólnego nagłówka Cyber Blue; pozostałe skórki i zaakceptowane karty zachowują wygląd. Nie dodano obiektów LVGL, zasobów bitmapowych ani timerów. Obszar dotyku i przypisywanie funkcji powrotu pozostają bez zmian.
 
 Walidacja: `DSR_UI_FOCUS_HEADER_BACK=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden przypadek ograniczony do przycisku nagłówka, trzy skórki i PL/EN/DE, cztery klatki. Sprawdzono stan naciśnięcia i rzeczywisty powrót z formularza do listy przez zdarzenia wskaźnika. Obejrzano rzeczywiste piksele LVGL 9.3, w tym porównanie przed/po i stan naciśnięty. Właściciel potwierdził „Tak, przycisk zaakceptowany”. Bez pełnego atlasu, nowego DEV i odbioru na fizycznym pilocie.
+
+### NET-01 — pozostałe ekrany i błędy dodawania urządzeń
+
+Właściciel wybrał dalszy przegląd dodawania urządzeń. Bieżący render ujawnił trzy konkretne niespójności: karta pustej listy AP miała 274 px przy widocznym obszarze 258 px, co przycinało jej dolny kontur; wyszukiwanie i puste wyniki LAN/BLE nie miały paneli zgodnych z Cyber Blue; IP, MAC i oznaczenie hasła na ekranie logowania LAN dzieliły za krótki wiersz i kończyły się wielokropkiem.
+
+Poprawiono wysokość pustej karty AP do 258 px, dodano wspólne panele wyszukiwania LAN/BLE i ramki pustych wyników, w tym stanu niedostępnego Bluetooth. Grafit i Jasny używają tych samych układów z własną kolorystyką. W karcie tożsamości bez odczytanych kanałów IP i MAC mają osobne wiersze, a MAC zachowuje odstęp od dolnego konturu. Komunikat dostępności BLE bez Wi-Fi znajduje się wewnątrz panelu, nad stopką. Zachowano ekranowe zgody AP, dotychczasowe działanie ponowienia, anulowania i logowania; nie zmieniano backendu radia ani zapisu danych.
+
+Walidacja: `DSR_UI_FOCUS_ONBOARDING_STATES=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, jeden ukierunkowany przypadek w trzech skórkach i PL/EN/DE; zapisano 30 wybranych klatek po niemiecku. Sprawdzono wyszukiwanie, brak wyników, ponowienie i wyniki AP, brak ponownego wysyłania danych Wi-Fi przy retry, pusty LAN i błąd logowania z możliwością powrotu oraz pusty/niedostępny Bluetooth z ponowieniem także bez Wi-Fi. Kontrole geometrii obejmują pełną kartę AP, MAC nad konturem i komunikat offline nad stopką. Obejrzano rzeczywiste rendery przypiętego LVGL 9.3; podglądy czekają na ocenę właściciela. To modele dostawców sieci/BLE, bez fizycznego skanowania, nowego DEV, pełnego atlasu ani pełnego CI.
 
 ## Porządkowanie — wykonane
 

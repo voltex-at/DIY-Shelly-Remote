@@ -118,7 +118,7 @@ static void show_results(void)
   dsr_sc_text(row,dsr_sc_user(detail),52,50,228,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_text(row,scan.items[i].security==DSR_WIFI_OPEN?"Otwarty AP • do sprawdzenia":"AP chroniony • nieobsługiwany",52,74,228,&dsr_roboto_12,DSR_SC_MUTED);
  }
- if(!count){lv_obj_t *empty=dsr_sc_panel(list,0,0,296,274,DSR_SC_CARD,12);dsr_sc_icon(empty,DSR_ICON_WIFI,124,24,48,DSR_SC_MUTED);dsr_sc_text(empty,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",12,100,268,&dsr_roboto_16,DSR_SC_TEXT);}
+ if(!count){lv_obj_t *empty=dsr_sc_panel(list,0,0,296,258,DSR_SC_CARD,12);dsr_sc_icon(empty,DSR_ICON_WIFI,124,24,48,DSR_SC_MUTED);dsr_sc_text(empty,"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.",12,100,268,&dsr_roboto_16,DSR_SC_TEXT);}
  char count_text[48];snprintf(count_text,sizeof(count_text),dsr_sc_tr("Znaleziono AP: %u"),count);dsr_sc_text(root,dsr_sc_user(count_text),16,378,288,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_onboarding_footer(root,"Anuluj",cancel,"Ponów",show_scan);
 }

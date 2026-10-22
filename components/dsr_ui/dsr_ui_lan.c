@@ -116,9 +116,12 @@ static void identity(lv_obj_t *root)
     unsigned switches=0,covers=0,lights=0,rgbs=0,blu=0;for(unsigned i=0;i<16;i++){switches+=(capabilities.switches>>i)&1u;covers+=(capabilities.covers>>i)&1u;lights+=(capabilities.lights>>i)&1u;rgbs+=(capabilities.rgbs>>i)&1u;blu+=(capabilities.blu>>i)&1u;}
     char parts[64]="";const unsigned counts[5]={switches,covers,lights,rgbs,blu};const char *const kinds[5]={"Switch","Cover","Light","RGB","BLU"};
     for(unsigned k=0;k<5;k++)if(counts[k]){size_t used=strlen(parts);snprintf(parts+used,sizeof(parts)-used,"%s%s: %u",used?" • ":"",kinds[k],counts[k]);}
-    if(parts[0])snprintf(text,sizeof(text),"%s • %s%s",selected.host,parts,selected.auth_required?dsr_sc_tr(" • hasło"):"");
-    else snprintf(text,sizeof(text),"%s%s%s%s",selected.host,mac[0]?" • ":"",mac,selected.auth_required?dsr_sc_tr(" • hasło"):"");
-    line(card,text,50,&dsr_roboto_14,DSR_SC_MUTED);
+    if(parts[0]){snprintf(text,sizeof(text),"%s • %s%s",selected.host,parts,selected.auth_required?dsr_sc_tr(" • hasło"):"");line(card,text,50,&dsr_roboto_14,DSR_SC_MUTED);}
+    else{
+        line(card,selected.host,46,&dsr_roboto_12,DSR_SC_MUTED);
+        snprintf(text,sizeof(text),"%s%s",mac,selected.auth_required?dsr_sc_tr(mac[0]?" • hasło":"API • wymaga hasła"):"");
+        dsr_sc_text(card,dsr_sc_user(text),52,62,236,&dsr_roboto_11,DSR_SC_MUTED);
+    }
 }
 static void inspect(lv_event_t *event)
 {
@@ -139,15 +142,15 @@ static void start(lv_event_t *event)
 {
     (void)event;bool ok=dsr_lan_scan();dsr_lan_snapshot(&snapshot);waiting_scan=ok||snapshot.phase==DSR_LAN_SCANNING;waiting_inspect=false;observed=0;
     const char *message=waiting_scan?"Wyszukiwanie mDNS i weryfikacja API…":!dsr_wifi_connected()?"Najpierw połącz Wi-Fi":snapshot.result==DSR_IO?"Usługa LAN niedostępna. Sprawdź firmware.":"Operacja w toku. Poczekaj.";
-    lv_obj_t *root=screen("Szukaj Shelly w sieci",2);notice=dsr_sc_text(root,message,16,118,288,&dsr_roboto_14,DSR_SC_TEXT);
-    if(ok){lv_obj_t *spinner=lv_spinner_create(root);lv_obj_set_pos(spinner,136,212);lv_obj_set_size(spinner,48,48);lv_spinner_set_anim_params(spinner,1000,200);}
+    lv_obj_t *root=screen("Szukaj Shelly w sieci",2),*card=dsr_sc_panel(root,12,104,296,296,DSR_SC_CARD,12);notice=dsr_sc_text(card,message,12,16,268,&dsr_roboto_14,DSR_SC_TEXT);
+    if(ok){lv_obj_t *spinner=lv_spinner_create(card);lv_obj_set_pos(spinner,124,108);lv_obj_set_size(spinner,48,48);lv_spinner_set_anim_params(spinner,1000,200);}
     dsr_onboarding_footer(root,"Anuluj",leave,"Ponów",start);
 }
 void dsr_ui_lan_open(lv_event_t *event){start(event);}
 static void show_results(void)
 {
     dsr_lan_snapshot(&snapshot);lv_obj_t *root=screen("Znalezione urządzenia",2);
-    lv_obj_t *list=dsr_sc_panel(root,12,104,296,256,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
+    lv_obj_t *list=dsr_sc_panel(root,12,104,296,256,snapshot.count?DSR_SC_BG:DSR_SC_CARD,snapshot.count?0:12);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
     for(unsigned i=0;i<snapshot.count;i++){
         const dsr_lan_device_t *d=&snapshot.devices[i];char text[120];if(d->model[0])snprintf(text,sizeof(text),"%s • %s • Gen %u",d->model,d->host,d->generation);else snprintf(text,sizeof(text),"%s • Gen %u",d->host,d->generation);
         const char *state=dsr_network_endpoint_added(d->id,d->generation==1?DSR_GEN1:DSR_GEN2_PLUS,UINT32_MAX)?"Już dodane":d->auth_required?"API • wymaga hasła":"Zweryfikowano API";

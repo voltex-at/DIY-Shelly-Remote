@@ -401,6 +401,25 @@ static void lan_form(unsigned theme,unsigned language)
  if(theme==3&&language==2)shot("lan-form-auth",theme);
  dsr_ui_open_settings();
 }
+static void onboarding_states(unsigned theme,unsigned language)
+{
+ cJSON *doc=room_document();cJSON_ReplaceItemInObjectCaseSensitive(doc,"theme",cJSON_CreateString(theme==3?"cyber_blue":theme==2?"light":"graphite"));cJSON_ReplaceItemInObjectCaseSensitive(doc,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(doc);
+ wifi.connected=false;dsr_network_home(NULL);tick();if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}wifi.connected=true;
+ unsigned writes=job_counts[DSR_JOB_AP_PROVISION];dsr_ui_ap_scan_open(NULL);CHECK(dsr_sc_style()==theme&&in_flight&&submitted.kind==DSR_JOB_AP_SCAN);if(language==2)shot("review-ap-scanning",theme);
+ response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);lv_obj_t *empty=find_label(lv_screen_active(),"Nie znaleziono fabrycznego AP Shelly. Włącz tryb konfiguracji urządzenia.");CHECK(empty);lv_obj_t *empty_card=lv_obj_get_parent(empty);CHECK(rect(empty_card).y2<=rect(lv_obj_get_parent(empty_card)).y2);if(language==2)shot("review-ap-empty",theme);
+ click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nie potwierdzono dodania. Domowe ustawienia pilota zachowane."));if(language==2)shot("review-ap-error",theme);
+ click("Ponów");CHECK(in_flight&&submitted.kind==DSR_JOB_AP_SCAN&&job_counts[DSR_JOB_AP_PROVISION]==writes);
+ response=(dsr_event_t){.scan={.count=1,.items={{.ssid="ShellyPlus1-112233445566",.security=DSR_WIFI_OPEN,.rssi=-48,.channel=6}}}};deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"ShellyPlus1-112233445566"));if(language==2)shot("review-ap-found",theme);click("Anuluj");
+ dsr_ui_lan_open(NULL);CHECK(find_label(lv_screen_active(),"Wyszukiwanie mDNS i weryfikacja API…"));if(language==2)shot("review-lan-scanning",theme);
+ /* Provider ends discovery without an identity accepted by the real parser. */
+ test_lan_found("{}","192.0.2.20");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nie znaleziono Shelly. Sprawdź sieć i ponów."));if(language==2)shot("review-lan-empty",theme);
+ click("Ponów");test_lan_found("{\"gen\":2,\"id\":\"shellyplus1-aabbccddeeff\",\"mac\":\"aabbccddeeff\",\"model\":\"SNSW-001X16EU\",\"name\":\"Shelly Plus 1\",\"auth_en\":true}","192.0.2.20");dsr_ui_lan_tick();click("Shelly Plus 1");CHECK(find_type(lv_screen_active(),&lv_textarea_class));click("Sprawdź");test_lan_inspected(DSR_AUTH_REQUIRED,"{}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));lv_obj_t *mac=containing(lv_screen_active(),"AA:BB:CC:DD:EE:FF");CHECK(mac&&rect(mac).y2<=rect(lv_obj_get_parent(mac)).y2-6);if(language==2)shot("review-lan-auth-error",theme);
+ click("Wstecz");CHECK(find_label(lv_screen_active(),"Shelly Plus 1"));click("Wstecz");
+ wifi.connected=false;unsigned scans=test_ble_scans();dsr_ui_ble_scan_open(NULL);CHECK(test_ble_scans()==scans+1);lv_obj_t *offline=find_label(lv_screen_active(),"Wi-Fi offline • BLE dostępne");CHECK(offline&&rect(offline).y2<=rect(lv_obj_get_parent(offline)).y2-6);if(language==2)shot("review-ble-scanning",theme);
+ test_ble_finish(DSR_BLE_DONE);dsr_ui_ble_tick();CHECK(find_label(lv_screen_active(),"Nie znaleziono urządzeń BLE"));if(language==2)shot("review-ble-empty",theme);
+ click("Ponów");CHECK(test_ble_scans()==scans+2);test_ble_finish(DSR_BLE_UNAVAILABLE);dsr_ui_ble_tick();CHECK(find_label(lv_screen_active(),"Bluetooth niedostępny"));if(language==2)shot("review-ble-error",theme);
+ click("Ponów");CHECK(test_ble_scans()==scans+3);test_ble_finish(DSR_BLE_DONE);dsr_ui_ble_tick();click("Wstecz");CHECK(!dsr_ui_ble_active());wifi.connected=true;dsr_ui_open_settings();
+}
 static void header_back_review(unsigned theme,unsigned language)
 {
  dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();
@@ -428,7 +447,8 @@ int main(int argc,char **argv)
  else if(getenv("DSR_UI_FOCUS_ONBOARDING_NEXT")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_next(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_LAN_FORM")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)lan_form(themes[i],language);}
  else if(getenv("DSR_UI_FOCUS_HEADER_BACK")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)header_back_review(themes[i],language);}
- else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);header_back_review(themes[i],2);}onboarding_labels();}
+ else if(getenv("DSR_UI_FOCUS_ONBOARDING_STATES")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)onboarding_states(themes[i],language);}
+ else{if(!getenv("DSR_UI_FOCUS_BLE"))for(unsigned i=0;i<3;i++){common(themes[i]);dashboard(themes[i]);access_point(themes[i]);cover_skin(themes[i]);onboarding_next(themes[i],2);lan_form(themes[i],2);header_back_review(themes[i],2);onboarding_states(themes[i],2);}onboarding_labels();}
  printf("PASS: dev069 focused UI, %u assertions, %u rendered frames; host providers\n",checks,screenshots);
  lv_deinit();return 0;
 }

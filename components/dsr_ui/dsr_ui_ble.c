@@ -70,7 +70,7 @@ static void choose(lv_event_t *event)
 static void show_results(void)
 {
  detail=false;dsr_ble_snapshot(&scan);observed=scan.serial;lv_obj_t *root=screen();
- lv_obj_t *list=dsr_sc_panel(root,12,104,296,253,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);int y=0;
+ lv_obj_t *list=dsr_sc_panel(root,12,104,296,253,scan.count?DSR_SC_BG:DSR_SC_CARD,scan.count?0:12);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);int y=0;
  const char *groups[]={"Shelly • RPC / konfiguracja","Shelly BLU","Pozostałe urządzenia"};
  for(unsigned group=0;group<3;group++){
   bool heading=false;
@@ -95,12 +95,12 @@ static void start(lv_event_t *event)
 static void show_scanning(void)
 {
  dsr_ble_snapshot(&scan);observed=scan.serial;lv_obj_t *root=screen();
- dsr_sc_icon(root,DSR_ICON_CONTACT,132,101,56,DSR_SC_BLUE);
- notice=dsr_sc_text(root,"Wyszukiwanie urządzeń Bluetooth…",16,181,288,&dsr_roboto_18,DSR_SC_TEXT);
- counter=dsr_sc_text(root,"",16,237,288,&dsr_roboto_14,DSR_SC_MUTED);
- progress=lv_bar_create(root);lv_obj_set_pos(progress,16,276);lv_obj_set_size(progress,288,8);lv_bar_set_range(progress,0,20);lv_obj_set_style_bg_color(progress,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);
- dsr_sc_text(root,"Skan trwa do 20 s. Działa także bez Wi-Fi. Naciśnij krótko przycisk BLU, aby wykryć urządzenie.",16,311,288,&dsr_roboto_14,DSR_SC_MUTED);
- if(!dsr_wifi_connected())dsr_sc_text(root,"Wi-Fi offline • BLE dostępne",16,391,288,&dsr_roboto_12,DSR_SC_BLUE);
+ lv_obj_t *card=dsr_sc_panel(root,12,104,296,296,DSR_SC_CARD,12);dsr_sc_icon(card,DSR_ICON_CONTACT,120,12,56,DSR_SC_BLUE);
+ notice=dsr_sc_text(card,"Wyszukiwanie urządzeń Bluetooth…",12,76,268,&dsr_roboto_18,DSR_SC_TEXT);
+ counter=dsr_sc_text(card,"",12,132,268,&dsr_roboto_14,DSR_SC_MUTED);
+ progress=lv_bar_create(card);lv_obj_set_pos(progress,12,172);lv_obj_set_size(progress,268,8);lv_bar_set_range(progress,0,20);lv_obj_set_style_bg_color(progress,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);
+ dsr_sc_text(card,"Skan trwa do 20 s. Działa także bez Wi-Fi. Naciśnij krótko przycisk BLU, aby wykryć urządzenie.",12,207,268,&dsr_roboto_14,DSR_SC_MUTED);
+ if(!dsr_wifi_connected())dsr_sc_text(card,"Wi-Fi offline • BLE dostępne",12,272,268,&dsr_roboto_12,DSR_SC_BLUE);
  dsr_onboarding_footer(root,"Anuluj",stop,"Wstecz",leave);
 }
 static void open_ble(lv_event_t *event)
