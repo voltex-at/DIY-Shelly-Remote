@@ -44,7 +44,7 @@ mobilny formularz bez kolizji stopki. Spójność słownika PL/EN/DE również p
 Po drobnych poprawkach odtwarzano tylko odpowiadające im przypadki; bez pełnego
 atlasu i ponawiania całego historycznego zestawu testów.
 
-Build ES3C35P na ESP-IDF 5.5.4 przeszedł po końcowych poprawkach. Plik aplikacji
+Build ES3C35P na ESP-IDF 5.5.4 dla implementacji `c1dd336` przeszedł. Plik aplikacji
 ma 0x4242e0 bajtów i 31% wolnej partycji aplikacji. Audyt ELF potwierdził pulę
 LVGL w PSRAM i 8 KB stosu UI w pamięci wewnętrznej. Ramki funkcji: konfiguracja
 352 B, cykl wykonawcy 336 B, kopia statusu/API 528 B, renderer formularza 832 B;
@@ -62,6 +62,25 @@ zasilania i high-water mark stosu wymaga sprzętu. Przed kolejnym DEV pozostają
 końcowy odbiór UI, walidacja sprzętowa, CI dokładnego commita oraz kontrola OTA
 i integralności wydania. Bieżący etap zachowuje `0.7.70-dev` na gałęzi roboczej,
 bez push, flashowania, merge i publikacji.
+
+
+### Korekta po ocenie właściciela: złote ramki Cyber Blue
+
+Właściciel odrzucił podgląd nowych ekranów: złote ramki z tekstem nachodziły na
+siebie. Odtworzono to na rzeczywistym LVGL — komunikat zapisu był osobnym
+stałym panelem, który zmniejszał obszar treści i przecinał wcześniejszą ramkę.
+Komunikaty zapisu/błędów są teraz częścią tej samej przewijanej treści, po
+pozostałych elementach, z odstępem co najmniej 8 px. Nowy komunikat jest
+przewijany do widoku, a przyciski dolne pozostają na swoim miejscu.
+
+Regresja przed poprawką wykazała kolizję pełnych granic ramek. Po poprawce
+`python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_automation_ui`
+przeszedł: w Cyber Blue obie ramki są w całości widoczne ponad akcjami dla
+PL/EN/DE, a tekst mieści się wewnątrz. Ten sam przypadek sprawdził pozostałe
+formularze, zapis i powrót w trzech skórkach. Obejrzano rzeczywiste piksele.
+Bez pełnego atlasu, powtarzania backendu i nowego builda docelowego po tej
+niewielkiej zmianie UI; pełny build nadal należy do bramek przed wydaniem.
+**Ponowny odbiór właściciela pozostaje otwarty.**
 
 ## Baza dalszej pracy
 

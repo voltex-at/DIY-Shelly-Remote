@@ -245,10 +245,18 @@ static void draw(void)
   lv_obj_t *b=btn(form.footer,form.deleting?dsr_sc_tr("Usuń"):dsr_sc_tr(form.step==3?"Zapisz":"Dalej"),168,4,140,form.deleting?remove_rule:next,0);dsr_ui_primary(b);if(form.saving)lv_obj_add_state(b,LV_STATE_DISABLED);
 
  }
- if(form.error[0]){lv_point_t size;lv_text_get_size(&size,form.error,dsr_sc_font(&dsr_roboto_12),0,0,276,LV_TEXT_FLAG_NONE);int height=size.y+20;if(height<60)height=60;int top=408-height;lv_obj_set_height(form.body,top-104);lv_obj_t *notice=dsr_sc_panel(root,12,top,296,height,DSR_SC_CARD,10);dsr_sc_border_color(notice,lv_color_hex(gold()),0);if(dsr_sc_style()==3)dsr_ui_cyber_warning(notice,false);form.status=dsr_sc_text(notice,dsr_sc_user(form.error),10,10,276,&dsr_roboto_12,gold());}
+ if(form.error[0]){
+  /* Keep notices in the same scroll flow: a fixed notice clipped the
+   * preceding warning frame when it reduced the form's viewport. */
+  lv_obj_update_layout(form.body);int y=4;
+  for(unsigned i=0;i<lv_obj_get_child_count(form.body);i++){
+   lv_obj_t *child=lv_obj_get_child(form.body,(int)i);int bottom=lv_obj_get_y(child)+lv_obj_get_height(child)+8;if(bottom>y)y=bottom;
+  }
+  paragraph(form.body,form.error,y,true);form.status=lv_obj_get_child(form.body,-1);
+ }
  if(form.saving){disable_tree(form.body);disable_tree(form.footer);}
  form.keyboard=lv_keyboard_create(root);dsr_ui_keyboard(form.keyboard);lv_obj_add_event_cb(form.keyboard,keyboard_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(form.keyboard,keyboard_done,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(form.keyboard,LV_OBJ_FLAG_HIDDEN);
- lv_obj_update_layout(root);form.next=lv_tick_get()+1500;
+ lv_obj_update_layout(root);if(form.status)lv_obj_scroll_to_view(form.status,LV_ANIM_OFF);form.next=lv_tick_get()+1500;
 }
 void dsr_ui_automation_open(void)
 {dsr_network_prepare_home();dsr_mobile_hide();dsr_ui_automation_hide();form.active=true;load();draw();}

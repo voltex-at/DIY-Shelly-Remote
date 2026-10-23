@@ -7,6 +7,15 @@ void dsr_ui_automation_open(void);
 void test_automation_guard_error(bool enabled);
 void test_automation_status(const dsr_auto_snapshot_t *value);
 static const char *lang(unsigned l,const char *pl,const char *en,const char *de){return l==1?en:l==2?de:pl;}
+static void warning_flow(unsigned language){
+ const char *info=lang(language,"Wyłączenie lub usunięcie zatrzymuje kolejne polecenia. Zmiana czujników, celów lub temperatury aktywnej reguły wymaga jej wyłączenia i zapisu.","Disabling or deleting stops future commands. Disable and save an active rule before changing contacts, targets or temperature.","Deaktivieren oder Löschen stoppt künftige Befehle. Aktive Regel vor Änderungen an Kontakten, Zielen oder Temperatur deaktivieren und speichern.");
+ const char *error=lang(language,"Nie zapisano. Szkic zachowany. Sprawdź konflikt lub pamięć.","Not saved. Draft retained. Check conflict or storage.","Nicht gespeichert. Entwurf bleibt erhalten. Konflikt oder Speicher prüfen.");
+ lv_obj_t *first=find_label(lv_screen_active(),info),*second=find_label(lv_screen_active(),error);CHECK(first&&second);
+ lv_obj_update_layout(lv_screen_active());lv_area_t a,b,text;lv_obj_get_coords(lv_obj_get_parent(first),&a);lv_obj_get_coords(lv_obj_get_parent(second),&b);
+ CHECK(a.y2+8<b.y1); /* whole frames, not only their clipped visible fragments */
+ CHECK(a.y1>=96&&b.y2<404); /* both messages readable above the fixed actions */
+ lv_obj_get_coords(second,&text);CHECK(text.y1>=b.y1+8&&text.y2<=b.y2-8);
+}
 static void seed(void){
  cJSON *r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"devices",cJSON_Parse("[{\"id\":1,\"name\":\"Window A\",\"host\":\"192.0.2.1\",\"channel\":0,\"room\":0,\"kind\":\"contact\"},{\"id\":2,\"name\":\"Thermostat A\",\"host\":\"192.0.2.1\",\"channel\":1,\"room\":0,\"kind\":\"sensor\"},{\"id\":3,\"name\":\"Relay A\",\"host\":\"192.0.2.1\",\"channel\":2,\"room\":0,\"kind\":\"relay\"}]"));publish_document(r);
  boot_loaded_count=3;for(unsigned i=0;i<3;i++){boot_loaded[i]=(dsr_connection_t){.layout_id=i+1,.device={.generation=DSR_GEN2_PLUS,.host="192.0.2.1",.endpoint_kind=i==2?DSR_ENDPOINT_SWITCH:DSR_ENDPOINT_BLU,.channel=i,.online=true}};snprintf(boot_loaded[i].device.device_id,64,"shellyblugwg3-test_%012u",i+1);boot_loaded[i].telemetry.blu.flags=DSR_BLU_VALID|(i==0?DSR_BLU_HAS_OPEN:0);if(i==1)boot_loaded[i].telemetry.blu.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET;}
@@ -27,7 +36,7 @@ static void form_checks(unsigned theme,unsigned language){
  CHECK(find_label(lv_screen_active(),"Thermostat A")&&!find_label(lv_screen_active(),"Window A"));click("Thermostat A");click(next);
  lv_obj_t *enable=find_type(lv_screen_active(),&lv_checkbox_class);CHECK(enable&&!lv_obj_has_state(enable,LV_STATE_CHECKED));CHECK(requests==controls);
  lv_obj_t *save_label=find_label(lv_screen_active(),save);CHECK(save_label);lv_area_t action;lv_obj_get_coords(lv_obj_get_parent(save_label),&action);CHECK(action.y1==420&&action.y2==463&&lv_area_get_height(&action)>=44);
- if(theme==3&&language==0){test_workspace_defer(true);click(save);test_workspace_finish(false);test_workspace_defer(false);dsr_ui_automation_tick();CHECK(find_label(lv_screen_active(),"Nie zapisano. Szkic zachowany. Sprawdź konflikt lub pamięć."));CHECK(find_type(lv_screen_active(),&lv_checkbox_class));}
+ if(theme==3){test_workspace_defer(true);click(save);test_workspace_finish(false);test_workspace_defer(false);dsr_ui_automation_tick();CHECK(find_type(lv_screen_active(),&lv_checkbox_class));char error_shot[64];snprintf(error_shot,sizeof(error_shot),"automation-summary-error-%u-%u",theme,language);screenshot(error_shot);warning_flow(language);}
  char shot[64];snprintf(shot,sizeof(shot),"automation-summary-%u-%u",theme,language);if(language==theme%3)screenshot(shot);
  click(save);dsr_ui_automation_tick();doc=room_document();const cJSON *r=cJSON_GetObjectItemCaseSensitive(doc,"automations")->child;CHECK(r&&!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(r,"enabled")));CHECK(cJSON_GetObjectItemCaseSensitive(r,"target_half")->valueint==16);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"sensors"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r,"targets"))==1);cJSON_Delete(doc);
  if(language==0){
