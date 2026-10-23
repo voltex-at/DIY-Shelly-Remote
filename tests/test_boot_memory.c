@@ -13,6 +13,7 @@
 #include <string.h>
 
 static unsigned checks;
+extern const uint32_t dsr_board_ui_stack_bytes;
 #define CHECK(x) do { checks++; if (!(x)) { fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); abort(); } } while (0)
 static bool task_failure = true;
 static unsigned task_calls, delay_calls;
@@ -36,6 +37,7 @@ TaskHandle_t xTaskCreateStatic(void (*entry)(void *), const char *name,
 {
     task_calls++;
     CHECK(!strcmp(name,"dsr_ui") && bytes == 8192 && priority == 5 && !argument);
+    CHECK(dsr_board_ui_stack_bytes==bytes);
     CHECK(stack && tcb);
     /* The retry must reuse permanent storage, not an expired main stack. */
     if (reserved_stack) CHECK(stack == reserved_stack && tcb == reserved_tcb);

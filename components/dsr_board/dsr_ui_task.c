@@ -12,6 +12,8 @@
  * Static reservation prevents Wi-Fi/mDNS/BLE from consuming the UI stack. */
 #define UI_STACK_BYTES 8192u
 static StackType_t dsr_ui_stack[UI_STACK_BYTES / sizeof(StackType_t)];
+/* Diagnostics denominator follows the actual static reservation. */
+const uint32_t dsr_board_ui_stack_bytes=sizeof(dsr_ui_stack);
 static StaticTask_t dsr_ui_tcb;
 static TaskHandle_t handle;
 static bool (*ready)(void);

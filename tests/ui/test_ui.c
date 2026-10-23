@@ -93,8 +93,9 @@ static void key(lv_obj_t *kb,const char *text)
 
 const esp_app_desc_t *esp_app_get_description(void) {static const esp_app_desc_t d = {.version="0.3.0-wifi-dev"}; return &d;}
 const char *dsr_board_hardware_id(void){return "lcdwiki-es3c35p-n16r8";}
-void dsr_system_info_snapshot(dsr_system_info_t *out)
-{*out=(dsr_system_info_t){.internal_free=140000,.internal_largest=73728,.psram_free=8000000,.flash_bytes=16777216};}
+static dsr_system_info_t system_info_model={.internal_free=140000,.internal_total=327680,.internal_largest=73728,.psram_free=8000000,.psram_total=8388608,.flash_bytes=16777216};
+void dsr_system_info_snapshot(dsr_system_info_t *out){*out=system_info_model;}
+const uint32_t dsr_board_ui_stack_bytes=8192; /* SDK/task reservation MODEL */
 esp_err_t dsr_board_set_backlight(uint8_t value) {(void)value; return ESP_OK;}
 static unsigned display_applies;
 static uint8_t applied_brightness;static uint16_t applied_seconds;

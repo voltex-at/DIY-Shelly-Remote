@@ -6,8 +6,10 @@
 
 typedef struct {
     size_t internal_free;
+    size_t internal_total; /* allocatable heap capacity with the same caps */
     size_t internal_largest;
     size_t psram_free;
+    size_t psram_total;
     /* Available configured Flash size, not unused filesystem space or a
      * separate physical-chip capacity probe. Zero when flash_error != OK. */
     uint32_t flash_bytes;

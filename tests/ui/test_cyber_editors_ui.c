@@ -115,8 +115,10 @@ static void diagnostics(unsigned language)
  CHECK(find_label(lv_screen_active(),"3.800 V"));lv_obj_t *memory=find_label(lv_screen_active(),"Pamięć i radio");CHECK(memory);
  lv_obj_t *body=lv_obj_get_parent(lv_obj_get_parent(memory));lv_obj_scroll_to_y(body,1000,LV_ANIM_OFF);lv_obj_update_layout(body);
  const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
- for(unsigned i=0;i<5;i++){lv_obj_t *name=find_label(lv_screen_active(),names[i]);CHECK(name&&lv_obj_get_style_text_font(name,0)==&dsr_roboto_16);}
- CHECK(find_label(lv_screen_active(),"136 KB")&&find_label(lv_screen_active(),"7812 KB")&&find_label(lv_screen_active(),"2304 B"));shot(633,"memory-rows",language);
+ for(unsigned i=0;i<5;i++){lv_obj_t *name=find_label(lv_screen_active(),names[i]);CHECK(name&&lv_obj_get_style_text_font(name,0)==dsr_sc_font(&dsr_roboto_14));}
+ const char *formats[]={"Wolne %lu/%lu KiB","Wolne %lu/%lu KiB","Min. %lu/%lu B"};
+ const unsigned long free[]={136,7812,2304},total[]={320,8192,8192};
+ for(unsigned i=0;i<3;i++){char text[80];snprintf(text,sizeof(text),dsr_sc_tr(formats[i]),free[i],total[i]);CHECK(find_label(lv_screen_active(),text));}shot(633,"memory-rows",language);
  lv_obj_scroll_to_y(body,0,LV_ANIM_OFF);
  const dsr_event_t states[]={{.result=DSR_IO},{.result=DSR_OK,.battery={.has_voltage=false}},{.result=DSR_OK,.battery={.has_voltage=true,.bat_mv=3800}}};
  const char *status[]={"Pomiar niedostępny. Spróbuj ponownie.","Kalibracja ADC niedostępna. Napięcie nieznane.","Napięcie BAT • dzielnik nominalny 2:1"};

@@ -10,6 +10,8 @@ esp_err_t dsr_board_init(void);
 lv_display_t *dsr_board_display(void);
 /* The owner waits for startup_ready before handling any LVGL timer/input. */
 esp_err_t dsr_board_start_ui_task(bool (*startup_ready)(void));
+/* Actual reserved UI stack capacity, in bytes (IDF task-depth units). */
+extern const uint32_t dsr_board_ui_stack_bytes;
 /* After closing the gate: wait until the UI task is outside LVGL. */
 void dsr_board_ui_quiesce(void);
 /* Block the calling (main) task so the UI task can render meanwhile. */

@@ -188,7 +188,9 @@ int xSemaphoreGive(SemaphoreHandle_t handle){if(handle!=&action_lock||!action_lo
 uint32_t esp_random(void){static uint32_t serial=41000;return ++serial;}
 
 /* Diagnostics counters MODEL (real SDK reads only on target). */
-void dsr_system_runtime(dsr_system_runtime_t *out){*out=(dsr_system_runtime_t){.internal_min_free=61440,.ui_stack_free=2304,.ble_active=false};}
+static dsr_system_runtime_t runtime_model={.internal_min_free=61440,.ui_stack_free=2304,.ble_active=false};
+void test_system_runtime(dsr_system_runtime_t value){runtime_model=value;}
+void dsr_system_runtime(dsr_system_runtime_t *out){*out=runtime_model;}
 
 void dsr_workspace_runtime_info_at(size_t index,const dsr_device_info_t *info){(void)index;(void)info;}
 bool dsr_workspace_runtime_info(uint32_t id,const char *identity,dsr_device_info_t *info){(void)id;(void)identity;memset(info,0,sizeof(*info));return false;}

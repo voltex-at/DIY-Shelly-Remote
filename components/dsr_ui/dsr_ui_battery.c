@@ -51,12 +51,12 @@ void dsr_ui_battery_profile_result(const dsr_event_t *event,dsr_job_kind_t kind)
  dsr_ui_battery_calibration_result(event,kind);
  dsr_ui_battery_tick();
 }
-static EXT_RAM_BSS_ATTR lv_obj_t *header_value,*value,*status,*age,*measure,*diag,*percent_value,*note_value;
+static EXT_RAM_BSS_ATTR lv_obj_t *header_value,*value,*status,*age,*measure,*percent_value,*note_value;
 static EXT_RAM_BSS_ATTR lv_obj_t *header_icon;
 static int header_fill=-1;
 static EXT_RAM_BSS_ATTR bool header_charging,header_low,header_inferred;
 /* Only pointers; the five visible values are owned/freed by their screen. */
-static EXT_RAM_BSS_ATTR lv_obj_t *memory_values[5],*memory_detail;
+static EXT_RAM_BSS_ATTR lv_obj_t *memory_values[5],*memory_bars[5],*memory_detail;
 static EXT_RAM_BSS_ATTR uint32_t diag_at;
 static void header_deleted(lv_event_t *event)
 {if(lv_event_get_target(event)==header_value)header_value=NULL;}
@@ -83,7 +83,19 @@ static void charge_frame(lv_timer_t *timer)
 }
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
-void dsr_ui_battery_hide(void){active=false;value=status=age=measure=diag=memory_detail=percent_value=note_value=NULL;memset(memory_values,0,sizeof(memory_values));}
+void dsr_ui_battery_hide(void){active=false;value=status=age=measure=memory_detail=percent_value=note_value=NULL;memset(memory_values,0,sizeof(memory_values));memset(memory_bars,0,sizeof(memory_bars));}
+static void memory_free(unsigned index,size_t available,size_t total,bool stack)
+{
+ char text[64];size_t unit=stack?1:1024;
+ bool known=total&&available<=total;
+ if(known)snprintf(text,sizeof(text),dsr_sc_tr(stack?"Min. %lu/%lu B":"Wolne %lu/%lu KiB"),(unsigned long)(available/unit),(unsigned long)(total/unit));
+ else snprintf(text,sizeof(text),dsr_sc_tr(stack?"Min. %lu/— B":"Wolne %lu/— KiB"),(unsigned long)(available/unit));
+ label(memory_values[index],text);
+ /* Unknown capacity is distinct from a measured empty heap. No fake ratio,
+  * no overflow on 32-bit size_t, and no new widgets or bar animation. */
+ lv_bar_set_value(memory_bars[index],known?(int32_t)((uint64_t)available*100/total):0,LV_ANIM_OFF);
+ if(known)lv_obj_remove_state(memory_bars[index],LV_STATE_DISABLED);else lv_obj_add_state(memory_bars[index],LV_STATE_DISABLED);
+}
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
@@ -137,20 +149,15 @@ void dsr_ui_battery_tick(void)
  if(attempted){snprintf(text,sizeof(text),dsr_sc_tr("Ostatni odczyt: %lu s temu"),(unsigned long)(elapsed/1000));label(age,text);}
  else label(age,"Brak pomiaru");
  /* Responsiveness counters (0.7.52), refreshed once per second. */
- if((diag||memory_values[0])&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
+ if(memory_values[0]&&(uint32_t)(lv_tick_get()-diag_at)>=1000){
   diag_at=lv_tick_get();dsr_system_info_t info;dsr_system_info_snapshot(&info);dsr_system_runtime_t run;dsr_system_runtime(&run);lv_mem_monitor_t mem;lv_mem_monitor(&mem);
-  char lines[256];
-  if(memory_values[0]){
-   const unsigned long values[]={(unsigned long)(info.internal_free/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),(unsigned long)run.ui_stack_free};
-   for(unsigned i=0;i<4;i++){snprintf(text,sizeof(text),"%lu %s",values[i],i==3?"B":"KB");label(memory_values[i],text);}
-   label(memory_values[4],run.ble_active?"włączone":"wyłączone");
-   snprintf(lines,sizeof(lines),"RAM min: %lu KB\n%s: %lu KB",(unsigned long)(run.internal_min_free/1024),dsr_sc_tr("Blok"),(unsigned long)(info.internal_largest/1024));label(memory_detail,lines);
-  }else{
-   snprintf(lines,sizeof(lines),dsr_sc_tr("RAM: %lu KB wolne • min %lu KB • blok %lu KB\nPSRAM: %lu KB • grafika: %lu KB wolne\nStos ekranu: %lu B zapasu • BLE: %s"),
-   (unsigned long)(info.internal_free/1024),(unsigned long)(run.internal_min_free/1024),(unsigned long)(info.internal_largest/1024),(unsigned long)(info.psram_free/1024),(unsigned long)(mem.free_size/1024),
-   (unsigned long)run.ui_stack_free,dsr_sc_tr(run.ble_active?"włączone":"wyłączone"));
-   if(strcmp(lv_label_get_text(diag),lines))lv_label_set_text(diag,lines);
-  }
+  memory_free(0,info.internal_free,info.internal_total,false);
+  memory_free(1,info.psram_free,info.psram_total,false);
+  memory_free(2,mem.free_size,mem.total_size,false);
+  memory_free(3,run.ui_stack_free,dsr_board_ui_stack_bytes,true);
+  label(memory_values[4],run.ble_active?"włączone":"wyłączone");
+  lv_bar_set_value(memory_bars[4],run.ble_active?1:0,LV_ANIM_OFF);
+  snprintf(text,sizeof(text),"RAM min: %lu KiB • %s: %lu KiB",(unsigned long)(run.internal_min_free/1024),dsr_sc_tr("Blok"),(unsigned long)(info.internal_largest/1024));label(memory_detail,text);
  }
 }
 void dsr_ui_battery_result(const dsr_event_t *event)
@@ -166,6 +173,28 @@ void dsr_ui_battery_return(void){show();}
 void dsr_ui_battery_open(lv_event_t *event){(void)event;if(dsr_ui_battery_calibration_back())return;from_home=false;show();}
 /* Bottom bar entry (former "Energia", 0.7.51): back returns to the dashboard. */
 void dsr_ui_battery_show(void){from_home=true;show();}
+static void memory_card(lv_obj_t *body,int y)
+{
+ lv_obj_t *card=dsr_sc_panel(body,0,y,296,260,DSR_SC_CARD,10);
+ dsr_sc_border_color(card,dsr_sc_color(DSR_SC_EDGE),0);dsr_sc_border_width(card,1,0);
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_sc_border_color(card,dsr_sc_color(DSR_SC_GLOW),0);
+ dsr_sc_icon(card,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);dsr_sc_text(card,"Pamięć i radio",44,9,240,&dsr_roboto_18,DSR_SC_TEXT);
+ dsr_sc_panel(card,12,36,272,1,DSR_SC_BLUE,0);
+ const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
+ const dsr_ui_icon_t icons[]={DSR_ICON_MEMORY,DSR_ICON_PSRAM,DSR_ICON_GRAPHICS,DSR_ICON_SCENES,DSR_ICON_BLUETOOTH};
+ for(unsigned i=0;i<5;i++){
+  int row=40+(int)i*32;
+  dsr_sc_icon(card,icons[i],12,row,24,DSR_SC_GLOW);dsr_sc_text(card,names[i],44,row+2,88,&dsr_roboto_14,DSR_SC_MUTED);
+  memory_values[i]=dsr_sc_text(card,"—",136,row+3,148,&dsr_roboto_12,DSR_SC_TEXT);
+  lv_obj_set_style_text_align(memory_values[i],LV_TEXT_ALIGN_RIGHT,0);
+  lv_obj_t *bar=memory_bars[i]=lv_bar_create(card);lv_obj_set_pos(bar,44,row+23);lv_obj_set_size(bar,240,6);
+  lv_obj_remove_flag(bar,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);lv_bar_set_range(bar,0,i==4?1:100);
+  lv_obj_set_style_bg_color(bar,dsr_sc_color(DSR_SC_EDGE),0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);lv_obj_set_style_border_width(bar,0,0);lv_obj_set_style_radius(bar,3,0);
+  lv_obj_set_style_bg_color(bar,dsr_sc_color(DSR_SC_GLOW),LV_PART_INDICATOR);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,LV_PART_INDICATOR);lv_obj_set_style_border_width(bar,0,LV_PART_INDICATOR);lv_obj_set_style_radius(bar,3,LV_PART_INDICATOR);
+ }
+ dsr_sc_text(card,"Paski: wolne. Stos: min. od startu.\nBLE: stan modułu, nie zużycie.",12,208,272,&dsr_roboto_11,DSR_SC_MUTED);
+ memory_detail=dsr_sc_text(card,"",12,238,272,&dsr_roboto_11,DSR_SC_MUTED);
+}
 static void show(void)
 {
  lv_obj_t *root=dsr_ui_screen("Bateria i zasilanie",false);active=true;
@@ -186,19 +215,7 @@ static void show(void)
   dsr_sc_icon(note,DSR_ICON_WARNING,10,12,24,0xffc107);
   note_value=dsr_sc_text(note,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",42,8,242,&dsr_roboto_12,0xffc107);
   dsr_ui_button(body,"Kalibracja baterii",0,180,296,dsr_ui_battery_calibration_open,NULL);
-  lv_obj_t *card=dsr_sc_panel(body,0,236,296,250,DSR_SC_CARD,10);
-  dsr_sc_border_color(card,dsr_sc_color(DSR_SC_GLOW),0);
-  dsr_sc_icon(card,DSR_ICON_CPU,12,8,24,DSR_SC_GLOW);dsr_sc_text(card,"Pamięć i radio",44,9,240,&dsr_roboto_18,DSR_SC_TEXT);
-  dsr_sc_panel(card,12,36,272,1,DSR_SC_BLUE,0);
-  const char *names[]={"RAM","PSRAM","Grafika","Stos ekranu","BLE"};
-  const dsr_ui_icon_t icons[]={DSR_ICON_MEMORY,DSR_ICON_PSRAM,DSR_ICON_GRAPHICS,DSR_ICON_SCENES,DSR_ICON_BLUETOOTH};
-  for(unsigned i=0;i<5;i++){
-   int y=40+(int)i*32;
-   dsr_sc_icon(card,icons[i],12,y,24,DSR_SC_GLOW);dsr_sc_text(card,names[i],44,y+4,112,&dsr_roboto_16,DSR_SC_MUTED);
-   memory_values[i]=dsr_sc_text(card,"—",158,y+3,126,&dsr_roboto_18,DSR_SC_TEXT);
-   lv_obj_set_style_text_align(memory_values[i],LV_TEXT_ALIGN_RIGHT,0);dsr_sc_panel(card,12,y+28,272,1,DSR_SC_EDGE,0);
-  }
-  memory_detail=dsr_sc_text(card,"",12,208,272,&dsr_roboto_12,DSR_SC_MUTED);
+  memory_card(body,236);
   dsr_ui_button(root,"Wstecz",12,420,108,back,NULL);
   measure=dsr_ui_button(root,"Zmierz napięcie",128,420,180,request,NULL);
   diag_at=lv_tick_get()-1000;if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);dsr_ui_battery_tick();return;
@@ -212,9 +229,7 @@ static void show(void)
  age=dsr_sc_text(body,"Brak pomiaru",2,98,292,&dsr_roboto_12,DSR_SC_MUTED);
  note_value=dsr_sc_text(body,"Ładowanie, ogniwo i procent: brak wiarygodnych danych.",2,120,292,&dsr_roboto_12,DSR_SC_MUTED);
  dsr_ui_button(body,"Kalibracja baterii",0,164,296,dsr_ui_battery_calibration_open,NULL);
- lv_obj_t *card=dsr_sc_panel(body,0,220,296,126,DSR_SC_CARD,12);
- dsr_sc_text(card,"Pamięć i radio",12,8,272,&dsr_roboto_14,DSR_SC_TEXT);
- diag=dsr_sc_text(card,"…",12,32,276,&dsr_roboto_14,DSR_SC_MUTED);diag_at=lv_tick_get()-1000;
+ memory_card(body,220);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
  if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
  dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);dsr_ui_battery_tick();

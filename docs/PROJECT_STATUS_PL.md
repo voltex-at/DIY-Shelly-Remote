@@ -227,6 +227,39 @@ nowego DEV pozostają osobnymi punktami. Zapis odbioru wymagał tylko kontroli
 dokumentacji, bez ponawiania testów firmware ani renderów.
 
 
+### SYS-01 — paski pamięci i stan BLE
+
+Po akceptacji powyższych widoków właściciel zgłosił, że samo „136 KB”
+nie wyjaśnia, czy pamięć jest wolna, czy zajęta. Sekcja „Pamięć i radio”
+ma teraz w każdej skórce pięć poziomych pasków. RAM, PSRAM i grafika pokazują
+**wolne / całość** w KiB; wypełnienie oznacza wolny zapas. Mianowniki
+pochodzą z odpowiednich stert SDK i monitora puli LVGL. Stos pokazuje
+**minimum wolnego od uruchomienia / rozmiar stosu** w bajtach; rozmiar jest
+eksportowany z rzeczywistej rezerwacji zadania UI, nadal 8192 B. BLE pokazuje
+wyłącznie stan modułu włączone/wyłączone, z paskiem binarnym. Legenda pod
+wierszami wyjaśnia te znaczenia; minimum RAM i największy blok pozostają.
+Nieznana lub niespójna pojemność ma kreskę i nieaktywny pusty pasek,
+odróżniony od zmierzonego zera. Odświeżanie korzysta z istniejących obiektów.
+
+Walidacja hosta: `test_system_info` i `test_boot_memory` — PASS; odczyty
+pojemności mają te same maski możliwości co wolna pamięć, a mianownik stosu
+odpowiada rzeczywistej rezerwacji przekazanej do FreeRTOS. `test_memory_ui`
+— PASS, rzeczywisty LVGL 9.3, trzy skórki i PL/EN/DE; siedem podglądów
+sekcji oraz stanów 0/100%, BLE i nieznanej pojemności. Sprawdzono granice,
+brak zawijania wartości, dostępność całej karty nad dolnymi akcjami,
+aktualizacje bez odtwarzania widżetów i zakres arytmetyki 32-bitowej.
+Po rozgrzaniu ośmiokrotne otwarcie/zamknięcie zachowuje 92 176 B wolne
+i tę samą liczbę alokacji. Dashboard 24 kart po powrocie: 6 208 B wolne,
+największy blok 6 152 B w puli 128 KiB. To wyniki hosta z modelowymi
+dostawcami SDK; nowego builda docelowego ani testów na pilocie nie wykonano.
+Nie uruchamiano całego zestawu regresji ani pełnego atlasu.
+
+Semantyka SDK jest sprawdzona w dokumentacji ESP-IDF 5.5.4 dla ESP32-S3:
+[pojemność i wolna sterta](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/mem_alloc.html)
+oraz [minimum wolnego stosu w bajtach](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/freertos_idf.html).
+Walidacja dotyczy tej sekcji; wcześniejsza akceptacja baterii i kalibracji
+pozostaje aktualna. **Nowe paski oczekują na ocenę podglądu przez właściciela.**
+
 ## Baza dalszej pracy
 
 - Repozytorium: `voltex-at/DIY-Shelly-Remote`, lokalnie `C:\Users\franz\DIY-Shelly-Remote`.
