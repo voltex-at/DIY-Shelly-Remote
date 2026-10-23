@@ -160,9 +160,14 @@ static void draw(void)
  if(hud){dsr_ui_cyber_panel(editor->body,false);lv_obj_set_style_bg_color(editor->body,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(editor->body,LV_OPA_COVER,0);lv_obj_set_style_radius(editor->body,10,0);dsr_sc_border_color(editor->body,lv_color_hex(0x00cfff),0);dsr_sc_icon(editor->body,setting_icon(f),8,7,24,DSR_SC_GLOW);}
  lv_obj_t *caption=dsr_sc_text(editor->body,network_field(f)?(editor->page==CONFIRM?"Sieć Wi-Fi":editor->network_step?"Hasło Wi-Fi":f->label):f->label,hud?42:8,8,hud?246:280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(caption,22);lv_label_set_long_mode(caption,LV_LABEL_LONG_DOT);
  if(editor->page==CONFIRM){
-  dsr_sc_text(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);
-  dsr_sc_text(editor->body,network_field(f)?dsr_sc_user(editor->network_name):f->type==DSR_SETTING_SECRET?"Nowe hasło • ukryte":dsr_sc_user(editor->pending),8,130,280,&dsr_roboto_16,DSR_SC_BLUE);
-  if(!strcmp(f->component,"WiFi")||!strcmp(f->component,"BLE")||!strcmp(f->component,"MQTT")||!strcmp(f->component,"Cover"))dsr_sc_warning(editor->body,"Zmiana może przerwać połączenie lub zmienić działanie urządzenia.",8,190,280,&dsr_roboto_14);
+  const char *value=network_field(f)?dsr_sc_user(editor->network_name):f->type==DSR_SETTING_SECRET?"Nowe hasło • ukryte":dsr_sc_user(editor->pending);int warning_y=190;
+  if(hud){
+   lv_obj_t *info=dsr_sc_text_panel(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);int y=62+lv_obj_get_height(lv_obj_get_parent(info))+12;
+   info=dsr_sc_text_panel(editor->body,value,8,y,280,&dsr_roboto_16,DSR_SC_BLUE);warning_y=y+lv_obj_get_height(lv_obj_get_parent(info))+12;
+  }else{
+   dsr_sc_text(editor->body,"Zmiana zostanie zapisana w urządzeniu Shelly.",8,62,280,&dsr_roboto_14,DSR_SC_TEXT);dsr_sc_text(editor->body,value,8,130,280,&dsr_roboto_16,DSR_SC_BLUE);
+  }
+  if(!strcmp(f->component,"WiFi")||!strcmp(f->component,"BLE")||!strcmp(f->component,"MQTT")||!strcmp(f->component,"Cover"))dsr_sc_warning(editor->body,"Zmiana może przerwać połączenie lub zmienić działanie urządzenia.",8,warning_y,280,&dsr_roboto_14);
   dsr_ui_button(root,"Wstecz",12,hud?420:412,142,back,NULL);dsr_ui_primary(dsr_ui_button(root,"Zapisz w Shelly",166,hud?420:412,142,apply,NULL));return;
  }
  char current[129];dsr_device_settings_value(editor->field,current,sizeof(current));

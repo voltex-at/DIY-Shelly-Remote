@@ -590,6 +590,14 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     return o;
 }
 
+lv_obj_t *dsr_sc_text_panel(lv_obj_t *parent,const char *text,int x,int y,int width,const lv_font_t *font,uint32_t color)
+{
+    lv_obj_t *panel=dsr_sc_panel(parent,x,y,width,48,DSR_SC_CARD,10);
+    lv_obj_t *label=dsr_sc_text(panel,text,12,12,width-28,font,color);
+    lv_obj_update_layout(label);int height=lv_obj_get_height(label)+28;
+    lv_obj_set_height(panel,height<48?48:height);lv_obj_update_layout(panel);return label;
+}
+
 lv_obj_t *dsr_sc_warning(lv_obj_t *parent,const char *text,int x,int y,int width,const lv_font_t *font)
 {
     uint32_t gold=style==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;
