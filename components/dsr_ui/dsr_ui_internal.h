@@ -106,6 +106,7 @@ void dsr_ui_usage_tick(void);
 void dsr_ui_actions_open(uint8_t kind);
 void dsr_ui_edit_action(uint8_t kind,uint32_t id);
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on);
+void dsr_ui_actions_group_execute(uint32_t id,dsr_group_intent_t intent);
 void dsr_ui_actions_tick(void);
 void dsr_ui_actions_hide(void);
 void dsr_network_wifi(lv_event_t *event);

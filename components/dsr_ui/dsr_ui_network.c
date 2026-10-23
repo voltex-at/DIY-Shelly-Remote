@@ -161,7 +161,7 @@ static void publish_actions(uint32_t now)
  bool available=!dsr_ui_blu_active()&&!dsr_ui_device_settings_active()&&!finishing_bind&&!dsr_ui_ap_active()&&!dsr_ui_ble_rpc_active()&&!dsr_ble_rpc_active()&&!dsr_wifi_temporary_active()&&!dsr_wifi_ui_active()&&!(busy&&(operation==DSR_JOB_BIND||operation==DSR_JOB_WIFI_CONNECT||operation==DSR_JOB_OTA_CHECK||operation==DSR_JOB_OTA_INSTALL||(operation>=DSR_JOB_AP_SCAN&&operation<=DSR_JOB_AP_VERIFY)));
  if(!available)dsr_actions_mode_block();
  if(dsr_actions_publish_begin(dsr_workspace_revision(),available)){
-  for(size_t i=0;i<fleet.count;i++){const dsr_fleet_slot_t *s=&fleet.slots[i];dsr_actions_publish_at(&s->connection,s->layout_enabled,s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER)),s->result,dsr_wifi_connected()&&s->connection.device.online&&s->sample_valid&&now-s->sample_ms<=15000);}
+  for(size_t i=0;i<fleet.count;i++){const dsr_fleet_slot_t *s=&fleet.slots[i];dsr_actions_publish_at(&s->connection,s->layout_enabled,s->queued||s->mailbox_pending||s->urgent_stop||(s->in_flight&&(s->operation==DSR_JOB_SET_OUTPUT||s->operation==DSR_JOB_COVER||s->operation==DSR_JOB_LIGHT||s->operation==DSR_JOB_RGB||s->operation==DSR_JOB_TRV)),s->result,dsr_wifi_connected()&&s->connection.device.online&&s->sample_valid&&now-s->sample_ms<=15000);}
   dsr_actions_publish_end();
  }
 }
@@ -282,9 +282,8 @@ static bool dispatch_actions(uint32_t now)
  dsr_action_command_t command=dsr_actions_command();bool stop=command==DSR_ACTION_STOP;
  dsr_result_t gate=!dsr_wifi_connected()?DSR_OFFLINE:binding_target(s)?DSR_BUSY:(s->result==DSR_AUTH_REQUIRED||s->result==DSR_IDENTITY_MISMATCH||s->result==DSR_RATE_LIMITED)?s->result:DSR_OK;
  dsr_job_t job={.id=++serial,.connection=s->connection};if(!job.id)job.id=++serial;
- bool fresh=stop||(s->sample_valid&&s->connection.device.online&&now-s->sample_ms<=15000),capable=s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?(stop||dsr_cover_can_move(&s->connection.telemetry.cover,(dsr_cover_intent_t){.command=command==DSR_ACTION_OPEN?DSR_COVER_OPEN:DSR_COVER_CLOSE})):s->connection.device.has_switch;
- if(!dsr_actions_prepare(&s->connection,gate,fresh,capable,job.id,&job.kind,&job.on)){memset(&job,0,sizeof(job));return true;}
- if(job.kind==DSR_JOB_COVER)job.cover=(dsr_cover_intent_t){.command=command==DSR_ACTION_OPEN?DSR_COVER_OPEN:command==DSR_ACTION_CLOSE?DSR_COVER_CLOSE:DSR_COVER_STOP};
+ bool fresh=stop||(s->sample_valid&&s->connection.device.online&&now-s->sample_ms<=dsr_fleet_fresh_ms(&s->connection.device));
+ if(!dsr_actions_prepare_job(&job,gate,fresh)){memset(&job,0,sizeof(job));return true;}
  dsr_result_t result=stop?dsr_worker_action_stop_request(&job.connection,job.id):dsr_worker_submit(&job);
  if(result==DSR_OK){if(stop){action_stop_id=job.id;s->urgent_stop=true;s->command_id=job.id;}else{busy=true;operation=job.kind;outstanding=job.id;active_slot=(unsigned)at;dsr_fleet_started(&fleet,(unsigned)at,&job);}render();}
  else if(result==DSR_BUSY)dsr_actions_unqueue(job.id);else dsr_actions_complete(job.id,result);
@@ -955,7 +954,7 @@ void dsr_network_start_view(void)
 void dsr_network_init(void)
 {
     (void)dsr_actions_init();
-    const dsr_mobile_actions_t actions = {.open_actions=dsr_ui_actions_open,.leave_actions=dsr_ui_actions_hide,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_layout,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
+    const dsr_mobile_actions_t actions = {.set_group=dsr_ui_actions_group_execute,.open_actions=dsr_ui_actions_open,.leave_actions=dsr_ui_actions_hide,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_layout,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

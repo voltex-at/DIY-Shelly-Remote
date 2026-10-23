@@ -24,7 +24,7 @@ static bool take(void){return mutex&&xSemaphoreTake(mutex,portMAX_DELAY)==pdTRUE
 static void give(void){xSemaphoreGive(mutex);}
 static dsr_action_key_t key(const dsr_connection_t *c)
 {
- dsr_action_key_t k={.layout_id=c->layout_id,.generation=(uint8_t)c->device.generation,.channel=c->device.channel,.kind=c->device.endpoint_kind};
+ dsr_action_key_t k={.layout_id=c->layout_id,.generation=(uint8_t)c->device.generation,.channel=c->device.channel,.kind=c->device.endpoint_kind,.trv=c->device.endpoint_kind==DSR_ENDPOINT_BLU&&(c->telemetry.blu.errors&DSR_BLU_TRV)!=0};
  memcpy(k.device_id,c->device.device_id,64);memcpy(k.host,c->device.host,16);return k;
 }
 static void log_entry(uint8_t command,uint8_t outcome,dsr_result_t result,uint32_t layout)
@@ -81,9 +81,13 @@ dsr_result_t dsr_actions_request(const char *json,uint8_t kind,uint8_t source,ui
  /* Temporary heap, bounded independently of the worker task frame. */
  dsr_action_step_t *steps=calloc(DSR_ACTION_STEPS,sizeof(*steps));if(!steps){dsr_activity_end();give();return DSR_IO;}
  for(unsigned i=0;i<plan.count;i++){
-  steps[i].key.layout_id=plan.layout_ids[i];steps[i].command=(dsr_action_command_t)plan.commands[i];
+  steps[i].key.layout_id=plan.layout_ids[i];steps[i].command=(dsr_action_command_t)plan.commands[i];memcpy(steps[i].value,plan.values[i],3);
   for(unsigned j=0;j<actions->endpoint_count;j++)if(actions->endpoints[j].key.layout_id==plan.layout_ids[i]){steps[i].key=actions->endpoints[j].key;break;}
  }
+ if(!kind){int family=-1;for(unsigned i=0;i<plan.count;i++)if(steps[i].key.device_id[0]){
+  unsigned k=steps[i].key.kind;
+  if(k==DSR_ENDPOINT_HT||(k==DSR_ENDPOINT_BLU&&!steps[i].key.trv)||(family>=0&&family!=(int)k)){free(steps);dsr_activity_end();give();return DSR_UNSUPPORTED;}family=(int)k;
+ }}
  uint32_t next=actions->run_serial+1u;if(!next)next=1;
  bool accepted=dsr_actions_model_begin(m,steps,plan.count,next,request.admission_generation,request.boot_id,request.object_id,request.revision,request.nonce,source,kind,now_ms());free(steps);
  if(accepted){actions->run_serial=next;actions->lease=true;memset(actions->logged,0,sizeof(actions->logged));actions->summary=false;*run_id=m->run_id;log_entry(0,DSR_ACTION_WAITING,DSR_OK,0);}else dsr_activity_end();give();return accepted?DSR_OK:DSR_CONFLICT;
@@ -122,11 +126,27 @@ bool dsr_actions_job_owned(uint32_t id)
 {if(!id||!take())return false;dsr_actions_model_t *m=&actions->actor;bool owned=m->active&&m->current<m->count&&m->steps[m->current].request_id==id;give();return owned;}
 bool dsr_actions_prepare(const dsr_connection_t *c,dsr_result_t gate,bool fresh,bool capable,uint32_t id,dsr_job_kind_t *kind,bool *on)
 {
- if(!c||!kind||!on||!take())return false;
+ if(!c||c->device.endpoint_kind>DSR_ENDPOINT_COVER||!kind||!on||!take())return false;
  finish_locked();int at=dsr_actions_model_current(&actions->actor,now_ms());bool ok=false;
  if(at>=0){dsr_action_key_t actual=key(c);ok=dsr_actions_model_check(&actions->actor,(unsigned)at,&actual,gate,fresh,capable,now_ms());
   if(ok){dsr_action_step_t *s=&actions->actor.steps[at];*kind=s->phase==DSR_ACTION_PROBE_READY?DSR_JOB_PROBE:c->device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:DSR_JOB_SET_OUTPUT;*on=s->command==DSR_ACTION_ON;ok=dsr_actions_model_queued(&actions->actor,(unsigned)at,id,now_ms());}
  }finish_locked();give();return ok;
+}
+bool dsr_actions_prepare_job(dsr_job_t *job,dsr_result_t gate,bool fresh)
+{
+ if(!job||!job->id||!take())return false;
+ finish_locked();int at=dsr_actions_model_current(&actions->actor,now_ms());bool ok=false;
+ if(at>=0){
+  dsr_action_step_t *s=&actions->actor.steps[at];const dsr_connection_t *c=&job->connection;unsigned command=s->command;bool capable=false;
+  if(c->device.endpoint_kind==DSR_ENDPOINT_SWITCH){job->kind=DSR_JOB_SET_OUTPUT;job->on=command==DSR_ACTION_ON;capable=command<=DSR_ACTION_OFF&&c->device.has_switch;}
+  else if(c->device.endpoint_kind==DSR_ENDPOINT_COVER){job->kind=DSR_JOB_COVER;job->cover=(dsr_cover_intent_t){.command=command==DSR_ACTION_OPEN?DSR_COVER_OPEN:command==DSR_ACTION_CLOSE?DSR_COVER_CLOSE:command==DSR_ACTION_STOP?DSR_COVER_STOP:command==DSR_ACTION_POSITION?DSR_COVER_GOTO:DSR_COVER_NONE,.position=s->value[0]};capable=command==DSR_ACTION_STOP||dsr_cover_can_move(&c->telemetry.cover,job->cover);}
+  else if(c->device.endpoint_kind==DSR_ENDPOINT_LIGHT){job->kind=DSR_JOB_LIGHT;job->light=(dsr_light_intent_t){.command=command==DSR_ACTION_ON?DSR_LIGHT_ON:command==DSR_ACTION_OFF?DSR_LIGHT_OFF:command==DSR_ACTION_BRIGHTNESS?DSR_LIGHT_SET_BRIGHTNESS:DSR_LIGHT_NONE,.brightness=s->value[0]};capable=dsr_light_can_set(&c->telemetry.light,job->light);}
+  else if(c->device.endpoint_kind==DSR_ENDPOINT_RGB){job->kind=DSR_JOB_RGB;job->rgb=(dsr_rgb_intent_t){.command=command==DSR_ACTION_ON?DSR_RGB_ON:command==DSR_ACTION_OFF?DSR_RGB_OFF:command==DSR_ACTION_BRIGHTNESS?DSR_RGB_SET_BRIGHTNESS:command==DSR_ACTION_RGB?DSR_RGB_SET_COLOR:DSR_RGB_NONE};if(command==DSR_ACTION_RGB)memcpy(job->rgb.rgb,s->value,3);else job->rgb.brightness=s->value[0];capable=dsr_rgb_can_set(&c->telemetry.rgb,job->rgb);}
+  else if(c->device.endpoint_kind==DSR_ENDPOINT_BLU){job->kind=DSR_JOB_TRV;job->trv=(dsr_trv_intent_t){.command=command==DSR_ACTION_TARGET?DSR_TRV_SET_TARGET:0,.half_c=s->value[0]};capable=(c->telemetry.blu.errors&DSR_BLU_TRV)&&dsr_trv_intent_valid(job->trv);}
+  dsr_action_key_t actual=key(c);ok=dsr_actions_model_check(&actions->actor,(unsigned)at,&actual,gate,fresh,capable,now_ms());
+  if(ok){if(s->phase==DSR_ACTION_PROBE_READY)job->kind=DSR_JOB_PROBE;ok=dsr_actions_model_queued(&actions->actor,(unsigned)at,job->id,now_ms());}
+ }
+ finish_locked();give();return ok;
 }
 void dsr_actions_unqueue(uint32_t id){if(!take())return;dsr_actions_model_unqueue(&actions->actor,id);finish_locked();give();}
 void dsr_actions_missing(uint32_t id)

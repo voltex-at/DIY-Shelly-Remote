@@ -4,7 +4,11 @@
 #define DSR_ACTION_STEPS 16u
 #define DSR_ACTION_LOG_COUNT 128u
 #define DSR_ACTION_LOG_PAGE 32u
-typedef enum {DSR_ACTION_ON=1,DSR_ACTION_OFF,DSR_ACTION_OPEN,DSR_ACTION_CLOSE,DSR_ACTION_STOP} dsr_action_command_t;
+typedef enum {DSR_ACTION_ON=1,DSR_ACTION_OFF,DSR_ACTION_OPEN,DSR_ACTION_CLOSE,DSR_ACTION_STOP,
+ DSR_ACTION_POSITION,DSR_ACTION_BRIGHTNESS,DSR_ACTION_RGB,DSR_ACTION_TARGET} dsr_action_command_t;
+/* Public group intent only: position/brightness 0..100, target in half degrees,
+ * RGB uses all three bytes. It never contains a locator or credentials. */
+typedef struct {uint8_t command,value[3];} dsr_group_intent_t;
 typedef enum {DSR_ACTION_WAITING,DSR_ACTION_SUCCESS,DSR_ACTION_FAILED,DSR_ACTION_UNCERTAIN,DSR_ACTION_CANCELLED} dsr_action_outcome_t;
 typedef struct {uint32_t layout_id;uint8_t command,outcome;dsr_result_t result;} dsr_action_result_t;
 typedef struct {
@@ -31,7 +35,8 @@ _Static_assert(sizeof(dsr_action_log_page_t)<=2048,"bounded activity query");
 esp_err_t dsr_actions_init(void);
 void dsr_actions_snapshot(dsr_actions_snapshot_t *out);
 /* Bounded strict JSON: id/revision/boot_id/admission_generation/nonce;
- * groups(kind0) also require on:boolean; scenes(kind1) forbid on. Last nonce
+ * groups(kind0) require on:boolean OR command with its typed value/rgb payload;
+ * scenes(kind1) forbid both. Last nonce
  * returns the same run even after completion. A new run consumes generation.
  * source is supplied by the trusted handler, never accepted from JSON. */
 dsr_result_t dsr_actions_request(const char *json,uint8_t kind,uint8_t source,uint32_t *run_id);
@@ -50,6 +55,8 @@ uint32_t dsr_actions_target(void);
 dsr_action_command_t dsr_actions_command(void);
 bool dsr_actions_job_owned(uint32_t job_id);
 bool dsr_actions_prepare(const dsr_connection_t *connection,dsr_result_t gate,bool fresh,bool capable,uint32_t job_id,dsr_job_kind_t *kind,bool *on);
+/* Same reservation/guard contract, with the typed payload frozen at admission. */
+bool dsr_actions_prepare_job(dsr_job_t *job,dsr_result_t gate,bool fresh);
 void dsr_actions_missing(uint32_t layout_id);
 void dsr_actions_unqueue(uint32_t job_id);
 void dsr_actions_complete(uint32_t job_id,dsr_result_t result);

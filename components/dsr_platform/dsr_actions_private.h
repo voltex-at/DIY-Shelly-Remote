@@ -5,12 +5,13 @@
 typedef enum {DSR_ACTION_RESOLVE,DSR_ACTION_PROBE_READY,DSR_ACTION_PROBE_QUEUED,DSR_ACTION_PROBE_SENT,DSR_ACTION_WRITE_READY,DSR_ACTION_WRITE_QUEUED,DSR_ACTION_WRITE_SENT,DSR_ACTION_DONE} dsr_action_phase_t;
 /* Private short-lived execution identity. Never exported into activity/API.
  * No credentials; locator is frozen so DHCP/rebind cannot retarget a run. */
-typedef struct {char device_id[64],host[16];uint32_t layout_id;uint8_t generation,kind,channel;} dsr_action_key_t;
+typedef struct {char device_id[64],host[16];uint32_t layout_id;uint8_t generation,kind,channel,trv;} dsr_action_key_t;
 typedef struct {
  dsr_action_key_t key;
  uint32_t request_id;
  dsr_result_t result,rejected;
  dsr_action_command_t command;
+ uint8_t value[3];
  dsr_action_phase_t phase;
  dsr_action_outcome_t outcome;
  bool probed,write_attempted;
@@ -30,11 +31,12 @@ bool dsr_actions_model_duplicate(const dsr_actions_model_t *model,uint32_t boot_
 typedef struct {
  uint32_t object_id,revision,boot_id,admission_generation;
  char nonce[17];
- uint8_t kind;bool on;
+ uint8_t kind;bool on;dsr_group_intent_t intent;
 } dsr_actions_request_t;
 typedef struct {
  uint32_t layout_ids[DSR_ACTION_STEPS];
  uint8_t commands[DSR_ACTION_STEPS],count,kind;
+ uint8_t values[DSR_ACTION_STEPS][3];
  uint32_t object_id,revision;
 } dsr_actions_plan_t;
 bool dsr_actions_request_parse(const char *json,uint8_t kind,dsr_actions_request_t *request);

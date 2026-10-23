@@ -12,8 +12,8 @@ static const struct {const char *name;uint8_t r,g,b;uint32_t dot;} rgb_presets[4
  {"Ciepły",255,147,41,0xffb547},{"Neutralny",255,214,170,0xf4f1ff},{"Niebieski",0,120,255,0x3a8dff},{"Relaks",150,60,255,0xa64dff}};
 static bool lighting_page(void)
 {
- if(page!=DSR_MOBILE_DETAILS||selected>=model.device_count)return false;
- uint8_t kind=model.devices[selected].endpoint_kind;return kind==DSR_ENDPOINT_LIGHT||kind==DSR_ENDPOINT_RGB;
+ if((page!=DSR_MOBILE_DETAILS&&page!=DSR_MOBILE_GROUP_CONTROL)||!lighting_selected())return false;
+ uint8_t kind=lighting_device()->endpoint_kind;return kind==DSR_ENDPOINT_LIGHT||kind==DSR_ENDPOINT_RGB;
 }
 static uint32_t lighting_accent(void)
 {return dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:DSR_SC_BLUE;}
@@ -28,9 +28,9 @@ static lv_obj_t *lighting_box(lv_obj_t *parent,int x,int y,int w,int h)
 }
 static void lighting_light_tabs(lv_obj_t *root)
 {
- const dsr_mobile_device_t *d=&model.devices[selected];bool rgb=d->endpoint_kind==DSR_ENDPOINT_RGB;
+ const dsr_mobile_device_t *d=lighting_device();bool rgb=d->endpoint_kind==DSR_ENDPOINT_RGB;
  const char *names[]={"Sterowanie",rgb?"Sceny":"Zużycie","Ustawienia"};const uintptr_t targets[]={15,rgb?19:16,14};
- const bool enabled[]={true,!cover_preview&&!model.demo&&(rgb?actions.open_actions!=NULL:actions.open_usage!=NULL),!cover_preview&&!model.demo&&d->id};
+ const bool enabled[]={true,!cover_preview&&!model.demo&&(rgb?actions.open_actions!=NULL:page!=DSR_MOBILE_GROUP_CONTROL&&actions.open_usage!=NULL),!cover_preview&&!model.demo&&(page==DSR_MOBILE_GROUP_CONTROL?actions.edit_action!=NULL:d->id!=0)};
  for(unsigned i=0;i<3;i++){
   bool chosen=i==0,back=chosen&&rgb_color_view;
   lv_obj_t *b=dsr_sc_button(root,12+(int)i*100,46,96,38,chosen?DSR_SC_BLUE:DSR_SC_PANEL,8,(chosen&&!back)||!enabled[i]?NULL:navigate,(void *)targets[i]);
@@ -42,6 +42,7 @@ static void lighting_light_tabs(lv_obj_t *root)
 }
 static const char *lighting_light_problem(const dsr_mobile_device_t *d)
 {
+ const char *group=group_display_state(d);if(group)return group;
  bool live=d->online&&d->error==DSR_OK,blocked=!(d->endpoint_kind==DSR_ENDPOINT_RGB&&rgb_color_view?d->can_rgb:d->can_light);
  return unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!live?"Brak aktualnego odczytu":d->busy?"Wysyłanie polecenia…":blocked?(d->endpoint_kind==DSR_ENDPOINT_LIGHT&&(d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":"Sterowanie zablokowane"):NULL;
 }
@@ -51,7 +52,7 @@ static void lighting_light_footer(lv_obj_t *root,const dsr_mobile_device_t *d,in
  const char *problem=lighting_light_problem(d);
  dsr_sc_icon(root,problem?DSR_ICON_WARNING:DSR_ICON_CLOCK,14,y,16,problem?lighting_warning():DSR_SC_MUTED);
  lv_obj_t *line=dsr_sc_text(root,problem?problem:"",36,y+1,272,&dsr_roboto_12,problem?lighting_warning():DSR_SC_MUTED);truncate(line,16);
- if(!problem){sample_age=line;update_sample_age();}
+ if(!problem){if(page==DSR_MOBILE_GROUP_CONTROL)dsr_sc_label_set_text(line,"Każde urządzenie ma własny wynik.");else{sample_age=line;update_sample_age();}}
 }
 static void lighting_light_metrics(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
@@ -67,14 +68,14 @@ static void lighting_light_metrics(lv_obj_t *root,const dsr_mobile_device_t *d)
 }
 static void lighting_light_step(lv_event_t *event)
 {
- if(selected>=model.device_count||!light_enabled(&model.devices[selected]))return;
- int value=brightness(&model.devices[selected])+((uintptr_t)lv_event_get_user_data(event)?5:-5);
+ if(!lighting_selected()||!light_enabled(lighting_device()))return;
+ int value=brightness(lighting_device())+((uintptr_t)lv_event_get_user_data(event)?5:-5);
  if(value<0)value=0;
  if(value>100)value=100;
- actions.set_brightness(selected,(uint8_t)value);
+ lighting_send_brightness((uint8_t)value);
 }
 static void lighting_light_preset(lv_event_t *event)
-{if(selected<model.device_count&&light_enabled(&model.devices[selected]))actions.set_brightness(selected,(uint8_t)(uintptr_t)lv_event_get_user_data(event));}
+{if(lighting_selected()&&light_enabled(lighting_device()))lighting_send_brightness((uint8_t)(uintptr_t)lv_event_get_user_data(event));}
 static bool light_known(const dsr_mobile_device_t *d)
 {return d->online&&d->error==DSR_OK&&(d->endpoint_kind==DSR_ENDPOINT_RGB?(d->rgb.flags&DSR_RGB_VALID):(d->light.flags&DSR_LIGHT_BRIGHTNESS));}
 /* Knob on the dial and the big value: amber while it is only a preview. */
@@ -85,8 +86,8 @@ static void lighting_light_label(const dsr_mobile_device_t *d,int value,bool pre
 static void lighting_light_show(const dsr_mobile_device_t *d,int value,bool preview){lighting_light_knob(value);lighting_light_label(d,value,preview);}
 static void lighting_light_arc_event(lv_event_t *event)
 {
- if(selected>=model.device_count)return;
- dsr_mobile_device_t *d=&model.devices[selected];lv_event_code_t code=lv_event_get_code(event);lv_obj_t *arc=lv_event_get_target(event);
+ if(!lighting_selected())return;
+ dsr_mobile_device_t *d=lighting_device();lv_event_code_t code=lv_event_get_code(event);lv_obj_t *arc=lv_event_get_target(event);
  if(code==LV_EVENT_PRESS_LOST||!light_enabled(d)){light_drag=false;lv_arc_set_value(arc,brightness(d));lighting_light_show(d,brightness(d),false);return;}
  if(code==LV_EVENT_PRESSED){light_drag=true;light_drag_id=d->id;return;}
  if(!light_drag||light_drag_id!=d->id)return;
@@ -97,7 +98,7 @@ static void lighting_light_arc_event(lv_event_t *event)
  if(input){lv_point_t point;lv_indev_get_point(input,&point);if(point.x<area.x1-24||point.x>area.x2+24||point.y<area.y1-24||point.y>area.y2+24)value=brightness(d);}
  /* The number returns to the confirmed level; the knob marks the sent target. */
  int confirmed=brightness(d);lighting_light_label(d,confirmed,false);lighting_light_knob(value);
- if(value!=confirmed)actions.set_brightness(selected,(uint8_t)value);else lv_arc_set_value(arc,value);
+ if(value!=confirmed)lighting_send_brightness((uint8_t)value);else lv_arc_set_value(arc,value);
 }
 static void lighting_light_ticks(lv_event_t *event)
 {
@@ -114,7 +115,7 @@ static void lighting_light_ticks(lv_event_t *event)
 static void lighting_power_row(lv_obj_t *parent,const dsr_mobile_device_t *d,int x,int y,int w)
 {
  bool valid=d->online&&!d->busy&&d->can_switch,on=d->online&&d->error==DSR_OK&&d->output;
- lv_obj_t *row=dsr_sc_button(parent,x,y,w,38,DSR_SC_PANEL,8,control,(void *)(uintptr_t)selected);
+ lv_obj_t *row=dsr_sc_button(parent,x,y,w,38,DSR_SC_PANEL,8,page==DSR_MOBILE_GROUP_CONTROL?group_power:control,(void *)(uintptr_t)selected);
  lv_obj_t *ring=dsr_sc_panel(row,4,1,32,32,on?DSR_SC_BLUE:DSR_SC_PANEL,LV_RADIUS_CIRCLE);dsr_sc_icon_centered(ring,DSR_ICON_POWER,18,on?0xffffff:lighting_accent());
  dsr_sc_text(row,d->output?"Włączony":"Wyłączony",46,7,w-120,&dsr_roboto_18,DSR_SC_TEXT);
  lv_obj_t *toggle=lv_switch_create(row);lv_obj_set_pos(toggle,w-66,5);lv_obj_set_size(toggle,50,24);lv_obj_remove_flag(toggle,LV_OBJ_FLAG_CLICKABLE);
@@ -130,7 +131,7 @@ static void lighting_power_row(lv_obj_t *parent,const dsr_mobile_device_t *d,int
 static void lighting_rgb_main(lv_obj_t *root,const dsr_mobile_device_t *d);
 static void lighting_light_details(lv_obj_t *root)
 {
- const dsr_mobile_device_t *d=&model.devices[selected];
+ const dsr_mobile_device_t *d=lighting_device();
  if(d->endpoint_kind==DSR_ENDPOINT_RGB){lighting_rgb_main(root,d);return;}
  bool known=light_known(d),enabled=light_enabled(d);
  lighting_light_metrics(root,d);
@@ -180,7 +181,7 @@ static int lighting_rgb_hue(const uint8_t c[3])
 }
 static void lighting_wheel_show(void)
 {
- if(rgb_text){char text[24];bool readable=selected<model.device_count&&light_known(&model.devices[selected]);if(readable||rgb_dirty)snprintf(text,sizeof(text),"%u, %u, %u",rgb_draft[0],rgb_draft[1],rgb_draft[2]);else snprintf(text,sizeof(text),"—");lv_label_set_text(rgb_text,text);}
+ if(rgb_text){char text[24];bool readable=lighting_selected()&&light_known(lighting_device());if(readable||rgb_dirty)snprintf(text,sizeof(text),"%u, %u, %u",rgb_draft[0],rgb_draft[1],rgb_draft[2]);else snprintf(text,sizeof(text),"—");lv_label_set_text(rgb_text,text);}
  if(!wheel_knob)return;
  int hue=lighting_rgb_hue(rgb_draft);
  if(hue<0){lv_obj_add_flag(wheel_knob,LV_OBJ_FLAG_HIDDEN);return;}
@@ -193,8 +194,8 @@ static bool wheel_drag;
 static void lighting_wheel_event(lv_event_t *event)
 {
  lv_event_code_t code=lv_event_get_code(event);lv_obj_t *wheel=lv_event_get_target(event);
- if(selected>=model.device_count)return;
- const dsr_mobile_device_t *d=&model.devices[selected];
+ if(!lighting_selected())return;
+ const dsr_mobile_device_t *d=lighting_device();
  if(code==LV_EVENT_PRESS_LOST||!rgb_enabled(d)){wheel_drag=rgb_dirty=false;const uint8_t actual[]={d->rgb.r,d->rgb.g,d->rgb.b};memcpy(rgb_draft,actual,3);rgb_preview();lighting_wheel_show();return;}
  lv_indev_t *input=lv_indev_active();if(!input)return;
  lv_point_t point;lv_indev_get_point(input,&point);lv_area_t a;lv_obj_get_coords(wheel,&a);
@@ -205,12 +206,12 @@ static void lighting_wheel_event(lv_event_t *event)
   double h=atan2((double)dy,(double)dx)*180.0/3.14159265358979;if(h<0)h+=360.0;
   lighting_hue_rgb((int)lround(h),rgb_draft);rgb_draft_id=d->id;rgb_dirty=true;rgb_preview();lighting_wheel_show();return;
  }
- if(code==LV_EVENT_RELEASED){wheel_drag=false;if(rgb_dirty&&rgb_draft_id==d->id){rgb_dirty=false;actions.set_rgb(selected,rgb_draft[0],rgb_draft[1],rgb_draft[2]);}}
+ if(code==LV_EVENT_RELEASED){wheel_drag=false;if(rgb_dirty&&rgb_draft_id==d->id){rgb_dirty=false;lighting_send_rgb(rgb_draft[0],rgb_draft[1],rgb_draft[2]);}}
 }
 static void lighting_rgb_preset(lv_event_t *event)
 {
  unsigned k=(unsigned)(uintptr_t)lv_event_get_user_data(event);
- if(k<4&&selected<model.device_count&&rgb_enabled(&model.devices[selected]))actions.set_rgb(selected,rgb_presets[k].r,rgb_presets[k].g,rgb_presets[k].b);
+ if(k<4&&lighting_selected()&&rgb_enabled(lighting_device()))lighting_send_rgb(rgb_presets[k].r,rgb_presets[k].g,rgb_presets[k].b);
 }
 static void lighting_light_percent(lv_event_t *event)
 {if(light_value){char text[16];snprintf(text,sizeof(text),"%d%%",(int)lv_slider_get_value(lv_event_get_target(event)));lv_label_set_text(light_value,text);}}
@@ -257,14 +258,14 @@ static void lighting_rgb_main(lv_obj_t *root,const dsr_mobile_device_t *d)
   if(!rgb_enabled(d))lv_obj_add_state(b,LV_STATE_DISABLED);
  }
  bool valid=d->online&&!d->busy&&d->can_switch;
- lv_obj_t *power=dsr_sc_button(root,12,368,296,44,DSR_SC_BLUE,10,control,(void *)(uintptr_t)selected);
+ lv_obj_t *power=dsr_sc_button(root,12,368,296,44,DSR_SC_BLUE,10,page==DSR_MOBILE_GROUP_CONTROL?group_power:control,(void *)(uintptr_t)selected);
  dsr_sc_icon(power,DSR_ICON_POWER,94,10,24,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?lighting_accent():DSR_SC_TEXT);lv_obj_t *power_text=dsr_sc_text(power,d->output?"Wyłącz":"Włącz",128,0,150,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_align(power_text,LV_ALIGN_LEFT_MID,128,0);
  if(!valid)lv_obj_add_state(power,LV_STATE_DISABLED);
 }
 /* "Kolor >": exact R/G/B draft, sent only by Zastosuj. */
 static void lighting_rgb_details(lv_obj_t *root)
 {
- const dsr_mobile_device_t *d=&model.devices[selected];bool readable=light_known(d);
+ const dsr_mobile_device_t *d=lighting_device();bool readable=light_known(d);
  lv_obj_t *panel=lighting_box(root,12,90,296,264);
  dsr_sc_text(panel,"Kolor RGB",10,6,274,&dsr_roboto_18,DSR_SC_TEXT);
  const char *problem=lighting_light_problem(d);

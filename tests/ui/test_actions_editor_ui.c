@@ -73,6 +73,7 @@ static void actions_survey_review(unsigned theme,unsigned language)
  doc=room_document();steps=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(doc,"scenes")->child,"actions");CHECK(cJSON_GetObjectItemCaseSensitive(steps->child,"device")->valueint==3&&!strcmp(cJSON_GetObjectItemCaseSensitive(steps->child->next,"command")->valuestring,"on"));cJSON_Delete(doc);
  review_rejected_run("Uruchom scenę",1,DSR_ACTION_CLOSE);CHECK(job_counts[DSR_JOB_SET_OUTPUT]+job_counts[DSR_JOB_COVER]==writes);review_shot("scene-unavailable",theme,language);dsr_network_home(NULL);
 }
+#include "group_controls_review.inc"
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
@@ -80,6 +81,7 @@ int main(int argc,char **argv)
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=false;test_workspace_enable();dsr_ui_init();tick();
  cJSON *doc=room_document();cJSON *devices=cJSON_Parse("[{\"id\":1,\"name\":\"Relay A\",\"host\":\"192.0.2.1\",\"channel\":0,\"kind\":\"relay\",\"room\":0},{\"id\":2,\"name\":\"Relay B\",\"host\":\"192.0.2.2\",\"channel\":0,\"kind\":\"relay\",\"room\":0},{\"id\":3,\"name\":\"Roleta\",\"host\":\"192.0.2.3\",\"channel\":0,\"kind\":\"cover\",\"room\":0}]");CHECK(devices);cJSON_ReplaceItemInObjectCaseSensitive(doc,"devices",devices);publish_document(doc);tick();
  CHECK(dsr_ui_search_match("ŚWIATŁO ŁAZIENKA","światło"));CHECK(dsr_ui_search_match("KÜCHE","küche"));CHECK(dsr_ui_search_match("Küche","KÜCHE"));CHECK(dsr_ui_search_match("Przekaźnik","ŹNIK"));CHECK(dsr_ui_search_match("A",""));CHECK(!dsr_ui_search_match("A","B"));CHECK(!dsr_ui_search_match("A","AB"));
+ if(getenv("DSR_UI_FOCUS_GROUP_CONTROLS")){group_controls_review();lv_deinit();return 0;}
  if(getenv("DSR_UI_FOCUS_ACTION_REVIEW")){const unsigned themes[]={0,2,3};for(unsigned l=0;l<3;l++)for(unsigned t=0;t<3;t++)actions_survey_review(themes[t],(l+2)%3);CHECK(survey_issues==0);}
  else{contextual_actions_regression();more_editor_checks();}
  if(getenv("DSR_UI_FOCUS_ACTION_REVIEW"))printf("PASS: groups/scenes survey, %u checks, %u frames; create/edit/order, save failure/retry, guarded header Back, rejected unbound actions; host providers\n",checks,screenshots);

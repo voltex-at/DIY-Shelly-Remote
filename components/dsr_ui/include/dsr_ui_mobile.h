@@ -3,11 +3,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "dsr_core.h"
+#include "dsr_actions.h"
 
 #define DSR_UI_MAX_DEVICES 16
 #define DSR_UI_MAX_ROOMS 8
 #define DSR_UI_NO_ROOM 255
-typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS,DSR_MOBILE_DEVICE_SETTINGS,DSR_MOBILE_GROUPS,DSR_MOBILE_SCENES} dsr_mobile_page_t;
+typedef enum {DSR_MOBILE_HOME,DSR_MOBILE_ROOMS,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM,DSR_MOBILE_DETAILS,DSR_MOBILE_DEVICE_SETTINGS,DSR_MOBILE_GROUPS,DSR_MOBILE_SCENES,DSR_MOBILE_GROUP_CONTROL} dsr_mobile_page_t;
 typedef enum {DSR_DEVICE_LIGHT,DSR_DEVICE_PLUG,DSR_DEVICE_RELAY,DSR_DEVICE_COVER,DSR_DEVICE_CONTACT,DSR_DEVICE_SENSOR,DSR_DEVICE_RGB} dsr_mobile_kind_t;
 /* Confirmed Cover status only; zero means no status sample, never stopped. */
 typedef enum {DSR_COVER_UNKNOWN,DSR_COVER_OPENING,DSR_COVER_CLOSING,DSR_COVER_STOPPED,DSR_COVER_CALIBRATING} dsr_mobile_cover_state_t;
@@ -42,7 +43,10 @@ typedef struct {
 } dsr_mobile_device_t;
 typedef struct {char name[48];uint8_t icon;char photo[33];uint32_t id;} dsr_mobile_room_t;
 typedef struct {char name[48];uint32_t id;uint8_t actions;} dsr_mobile_scene_t;
-typedef struct {char name[48];uint32_t id;uint8_t members;} dsr_mobile_group_t;
+typedef struct {char name[48];uint32_t id;uint8_t members,room;uint16_t member_mask;} dsr_mobile_group_t;
+_Static_assert(sizeof(dsr_mobile_group_t)==56,"group membership uses existing mobile padding");
+/* Actual private endpoint family, 255 when unbound/read-only. */
+uint8_t dsr_mobile_control_family(const dsr_mobile_device_t *device);
 typedef struct {uint8_t type,index,span,height,fields;} dsr_mobile_tile_t;
 typedef struct {
     bool demo,wifi;
@@ -81,6 +85,7 @@ typedef struct {
     void (*edit_action)(uint8_t kind,uint32_t id);
     void (*run_scene)(uint32_t id);
     void (*run_group)(uint32_t id,bool on);
+    void (*set_group)(uint32_t id,dsr_group_intent_t intent);
     void (*set_brightness)(unsigned index,uint8_t brightness);
     void (*set_rgb)(unsigned index,uint8_t r,uint8_t g,uint8_t b);
     void (*set_trv)(unsigned index,uint8_t half_c); /* BLU TRV target, half degrees */
@@ -92,6 +97,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *model);
 void dsr_mobile_show(dsr_mobile_page_t page,unsigned index);
 void dsr_mobile_show_device_settings(uint32_t id);
 void dsr_mobile_return_device(uint32_t id);
+void dsr_mobile_open_group(uint32_t id);
 void dsr_mobile_hide(void);
 /* Explicit, isolated on-device design preview. Never calls network actions. */
 void dsr_mobile_cover_preview(void);

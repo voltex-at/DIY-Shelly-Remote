@@ -129,16 +129,14 @@ static bool validate_v2(const cJSON *r,char error[96],bool stored)
   const cJSON *actions=get(v,"actions"),*a;if(!keys(v,"|id||name||actions||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(actions)||cJSON_GetArraySize(actions)>8)return fail(error,"Scene limit: 8 explicit actions");
   cJSON_ArrayForEach(a,actions)if(!keys(a,"|device||command|")||!reference(r,"devices",get(a,"device"),false)||!choice(a,"command","|on||off||open||close||stop|"))return fail(error,"Invalid scene action");
  }
- /* Groups deliberately support Switch ON/OFF only. This validates the
-  * definition's configured type; actual bound kind/capability/auth is checked
-  * again by the executor before any I/O. */
+ /* Display kinds do not identify actuators (a BLU TRV is visually a sensor).
+  * Member identity, homogeneous control and capability are checked against
+  * private bindings by the executor before I/O, never granted by this schema. */
  cJSON_ArrayForEach(v,get(r,"groups")){
   const cJSON *members=get(v,"members"),*member;
-  if(!keys(v,"|id||name||members||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(members)||cJSON_GetArraySize(members)>16)return fail(error,"Group limit: 16 unique Switch members");
+  if(!keys(v,"|id||name||members||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(members)||cJSON_GetArraySize(members)>16)return fail(error,"Group limit: 16 unique members");
   cJSON_ArrayForEach(member,members){
    if(!reference(r,"devices",member,false))return fail(error,"Group references missing device");
-   const cJSON *device;bool compatible=false;cJSON_ArrayForEach(device,get(r,"devices"))if(get(device,"id")->valueint==member->valueint)compatible=choice(device,"kind","|light||relay||plug|");
-   if(!compatible)return fail(error,"Group member must be Switch compatible");
    for(const cJSON *other=member->next;other;other=other->next)if(cJSON_IsNumber(other)&&other->valuedouble==member->valuedouble)return fail(error,"Duplicate group member");
   }
  }

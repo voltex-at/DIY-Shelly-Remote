@@ -35,7 +35,7 @@ void dsr_ui_actions_hide(void){active=false;body=NULL;if(browse_context){browse.
 static const char *outcome(unsigned value)
 {return value==DSR_ACTION_SUCCESS?"Potwierdzono":value==DSR_ACTION_FAILED?"Błąd kroku":value==DSR_ACTION_UNCERTAIN?"Wynik niepewny • sprawdź stan":value==DSR_ACTION_CANCELLED?"Anulowano pozostałe kroki":"Oczekuje";}
 static const char *command(unsigned value)
-{return value==DSR_ACTION_ON?"Włącz":value==DSR_ACTION_OFF?"Wyłącz":value==DSR_ACTION_OPEN?"Otwórz":value==DSR_ACTION_CLOSE?"Zamknij":value==DSR_ACTION_STOP?"Stop":"Uruchomienie";}
+{return value==DSR_ACTION_ON?"Włącz":value==DSR_ACTION_OFF?"Wyłącz":value==DSR_ACTION_OPEN?"Otwórz":value==DSR_ACTION_CLOSE?"Zamknij":value==DSR_ACTION_STOP?"Stop":value==DSR_ACTION_POSITION?"Pozycja":value==DSR_ACTION_BRIGHTNESS?"Jasność":value==DSR_ACTION_RGB?"Kolor":value==DSR_ACTION_TARGET?"Nastawa":"Uruchomienie";}
 static const char *reason(dsr_result_t result)
 {return result==DSR_AUTH_REQUIRED?"Błąd logowania":result==DSR_IDENTITY_MISMATCH?"Zmieniona tożsamość":result==DSR_RATE_LIMITED?"Limit zapytań":result==DSR_UNSUPPORTED?"Nieobsługiwany kanał":result==DSR_OFFLINE?"Brak odpowiedzi":result==DSR_IO?"Błąd pamięci":"Stan niepotwierdzony";}
 static uint32_t status_hash(const dsr_actions_snapshot_t *s)
@@ -56,6 +56,18 @@ void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
 }
 static void run(lv_event_t *event)
 {uintptr_t value=(uintptr_t)lv_event_get_user_data(event);dsr_ui_actions_execute((uint8_t)(value&1),(uint32_t)(value>>2),(value&2)!=0);}
+void dsr_ui_actions_group_execute(uint32_t id,dsr_group_intent_t intent)
+{
+ if(!browse_prepare())return;
+ const char *names[]={"on","off","open","close","stop","position","brightness","rgb","target"};if(intent.command<DSR_ACTION_ON||intent.command>DSR_ACTION_TARGET)return;
+ dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);char request[256],payload[64]="";
+ if(intent.command==DSR_ACTION_RGB)snprintf(payload,sizeof(payload),",\"rgb\":[%u,%u,%u]",intent.value[0],intent.value[1],intent.value[2]);
+ else if(intent.command==DSR_ACTION_POSITION||intent.command==DSR_ACTION_BRIGHTNESS||intent.command==DSR_ACTION_TARGET)snprintf(payload,sizeof(payload),",\"value\":%u",intent.value[0]);
+ snprintf(request,sizeof(request),"{\"id\":%u,\"revision\":%u,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%08x%08x\",\"command\":\"%s\"%s}",(unsigned)id,(unsigned)status.revision,(unsigned)status.boot_id,(unsigned)status.admission_generation,(unsigned)esp_random(),(unsigned)esp_random(),names[intent.command-1],payload);
+ uint32_t run_id=0;admission=dsr_actions_request(request,0,1,&run_id);dsr_network_prepare_home();active=true;page=3;draw();
+}
+static void open_group(lv_event_t *event)
+{uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(event);dsr_network_prepare_home();dsr_mobile_open_group(id);}
 static void cancel(lv_event_t *event)
 {(void)event;dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);(void)dsr_actions_cancel(s.boot_id,s.run_id);draw();}
 static void progress(lv_obj_t *root,const dsr_actions_snapshot_t *s)
@@ -103,9 +115,11 @@ static __attribute__((noinline)) int object_card(lv_obj_t *list,const cJSON *r,c
  lv_obj_t *pencil=dsr_sc_button(card,232,4,44,44,DSR_SC_PANEL,10,edit,(void *)(uintptr_t)id);dsr_sc_icon_centered(pencil,DSR_ICON_EDIT,24,DSR_SC_BLUE);
  char caption[96];snprintf(caption,sizeof(caption),"%s • %u",*text(room,"name")?text(room,"name"):dsr_sc_tr("Cały dom"),count);
  dsr_sc_text(card,dsr_sc_user(caption),10,has_photo?83:60,258,&dsr_roboto_12,has_photo?0xffffff:DSR_SC_TEXT);
- lv_obj_t *first=button(card,page?"Uruchom scenę":"Włącz grupę",4,has_photo?114:82,page?272:132,run,((uintptr_t)id<<2)|(page?1:2));
+ uint8_t family=255;if(!page){const cJSON *member;cJSON_ArrayForEach(member,get(v,"members")){dsr_mobile_device_t device;if(dsr_network_typed_device((uint32_t)member->valueint,&device)&&device.identity[0]){uint8_t actual=dsr_mobile_control_family(&device);if(family==255)family=actual;else if(actual!=family){family=254;break;}}}}
+ bool typed=!page&&family!=255&&family!=DSR_ENDPOINT_SWITCH;
+ lv_obj_t *first=button(card,page?"Uruchom scenę":typed?"Sterowanie grupą":"Włącz grupę",4,has_photo?114:82,page||typed?272:132,typed?open_group:run,typed?id:((uintptr_t)id<<2)|(page?1:2));
  if(!s->available||!count)lv_obj_add_state(first,LV_STATE_DISABLED);
- if(!page){lv_obj_t *off=button(card,"Wyłącz grupę",144,has_photo?114:82,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
+ if(!page&&!typed){lv_obj_t *off=button(card,"Wyłącz grupę",144,has_photo?114:82,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
  return height;
 }
 static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_snapshot_t *s)

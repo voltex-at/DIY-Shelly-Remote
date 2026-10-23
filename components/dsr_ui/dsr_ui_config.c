@@ -38,7 +38,7 @@ void dsr_mobile_configure_validated(dsr_mobile_model_t *m,const cJSON *r)
   dsr_mobile_room_t *room=&m->rooms[m->room_count++];snprintf(room->name,sizeof(room->name),"%s",string(v,"name"));room->icon=(uint8_t)integer(v,"icon");snprintf(room->photo,sizeof(room->photo),"%.32s",string(v,"photo"));room->id=(uint32_t)integer(v,"id");
  }
  m->scene_count=0;cJSON_ArrayForEach(v,item(r,"scenes")){dsr_mobile_scene_t *s=&m->scenes[m->scene_count++];snprintf(s->name,sizeof(s->name),"%s",string(v,"name"));s->actions=(uint8_t)cJSON_GetArraySize(item(v,"actions"));s->id=(uint32_t)integer(v,"id");}
- m->group_count=0;cJSON_ArrayForEach(v,item(r,"groups")){dsr_mobile_group_t *g=&m->groups[m->group_count++];snprintf(g->name,sizeof(g->name),"%s",string(v,"name"));g->id=(uint32_t)integer(v,"id");g->members=(uint8_t)cJSON_GetArraySize(item(v,"members"));}
+ m->group_count=0;cJSON_ArrayForEach(v,item(r,"groups")){dsr_mobile_group_t *g=&m->groups[m->group_count++];snprintf(g->name,sizeof(g->name),"%s",string(v,"name"));g->id=(uint32_t)integer(v,"id");g->members=(uint8_t)cJSON_GetArraySize(item(v,"members"));g->member_mask=0;g->room=(uint8_t)object_index(item(r,"rooms"),integer(v,"room"));const cJSON *member;cJSON_ArrayForEach(member,item(v,"members")){unsigned at=object_index(item(r,"devices"),member->valueint);if(at<16)g->member_mask|=(uint16_t)(1u<<at);}}
  cJSON_ArrayForEach(v,item(r,"devices")){
   dsr_mobile_device_t *d=&m->devices[m->device_count++];memset(d,0,sizeof(*d));d->id=(uint32_t)integer(v,"id");snprintf(d->name,sizeof(d->name),"%s",string(v,"name"));snprintf(d->host,sizeof(d->host),"%s",string(v,"host"));d->channel=(uint8_t)integer(v,"channel");d->room=(uint8_t)object_index(item(r,"rooms"),integer(v,"room"));
   const char *kind=string(v,"kind");d->kind=!strcmp(kind,"light")?DSR_DEVICE_LIGHT:!strcmp(kind,"cover")?DSR_DEVICE_COVER:!strcmp(kind,"contact")?DSR_DEVICE_CONTACT:!strcmp(kind,"sensor")?DSR_DEVICE_SENSOR:!strcmp(kind,"plug")?DSR_DEVICE_PLUG:DSR_DEVICE_RELAY;d->fields=255;{int icon=integer(v,"icon");d->icon=(uint8_t)(icon>0&&icon<=DSR_SC_DEVICE_ICONS?icon:0);}
@@ -61,12 +61,13 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
 
 #ifndef DSR_UI_REVIEW_DEMO
 static EXT_RAM_BSS_ATTR struct {
- bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page,return_step,edit_index;uint32_t pending_device;
+ bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page,return_step,edit_index,family;uint32_t pending_device;
  char query[48];lv_obj_t *count,*next,*back;lv_image_dsc_t photos[12];
 } action_editor;
 _Static_assert(sizeof(action_editor)<=1024,"bounded contextual editor PSRAM metadata");
 static void action_form(void);
 static void action_leave(lv_event_t *event);
+static bool action_group_tile(void);
 static cJSON *draft;
 /* A pending write owns an immutable snapshot; later edits remain in draft. */
 static cJSON *submitted_draft,*saved_baseline;
@@ -271,6 +272,7 @@ static void save(lv_event_t *event)
  if(device_editor&&editing&&strlen(string(editing,"name"))>47){
   device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";config_status(device_input_error,true);return;
  }
+ if(!action_group_tile()){config_status("Brak pamięci. Zmiany pozostają w edytorze.",true);return;}
  char error[96];if(!dsr_config_validate(draft,error)){config_status("Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.",true);return;}
  cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
  bool ok=json&&dsr_workspace_submit(json,draft_revision);free(json);

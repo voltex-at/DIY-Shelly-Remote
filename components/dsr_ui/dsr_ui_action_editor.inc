@@ -33,8 +33,29 @@ static void action_query(lv_event_t *event)
 {snprintf(action_editor.query,sizeof(action_editor.query),"%s",lv_textarea_get_text(lv_event_get_target(event)));}
 static void action_keyboard_done(lv_event_t *event)
 {(void)event;action_form();}
+static uint8_t action_device_family(const cJSON *d)
+{
+ dsr_mobile_device_t actual;if(dsr_network_typed_device((uint32_t)integer(d,"id"),&actual)&&actual.identity[0])return dsr_mobile_control_family(&actual);
+ const char *k=string(d,"kind");return !strcmp(k,"relay")||!strcmp(k,"plug")||!strcmp(k,"light")?DSR_ENDPOINT_SWITCH:!strcmp(k,"cover")?DSR_ENDPOINT_COVER:255;
+}
 static bool action_device_supported(const cJSON *d)
-{const char *k=string(d,"kind");return !strcmp(k,"relay")||!strcmp(k,"plug")||(action_editor.kind&&!strcmp(k,"cover"));}
+{uint8_t family=action_device_family(d);return action_editor.kind?(family==DSR_ENDPOINT_SWITCH||family==DSR_ENDPOINT_COVER):family==action_editor.family;}
+static void action_family(lv_event_t *event)
+{
+ const uint8_t families[]={DSR_ENDPOINT_SWITCH,DSR_ENDPOINT_COVER,DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB,DSR_ENDPOINT_BLU};unsigned at=lv_dropdown_get_selected(lv_event_get_target(event));if(at>=5||families[at]==action_editor.family)return;
+ /* Only the unsaved draft changes, with an explicit caption beside the choice. */
+ cJSON *members=cJSON_CreateArray();if(!members)return;action_put("members",members);action_editor.family=families[at];
+}
+static bool action_group_tile(void)
+{
+ if(!action_editor.active||action_editor.kind||!action_editor.fresh||action_editor.deleted||!editing)return true;
+ cJSON *dashboard=cJSON_GetArrayItem(item(draft,"dashboards"),(int)object_index(item(draft,"dashboards"),integer(draft,"active_dashboard"))),*tiles=cJSON_GetObjectItemCaseSensitive(dashboard,"tiles");
+ const cJSON *t;cJSON_ArrayForEach(t,tiles)if(!strcmp(string(t,"type"),"group")&&integer(t,"ref")==integer(editing,"id"))return true;
+ if(cJSON_GetArraySize(tiles)>=DSR_CONFIG_MAX_TILES)return true; /* visible summary warning; Devices remains available */
+ unsigned next=1;bool used;do{used=false;cJSON_ArrayForEach(t,tiles)if((unsigned)integer(t,"id")==next)used=true;if(used)next++;}while(used);
+ cJSON *tile=cJSON_CreateObject();if(!tile)return false;
+ if(!cJSON_AddNumberToObject(tile,"id",next)||!cJSON_AddStringToObject(tile,"type","group")||!cJSON_AddNumberToObject(tile,"ref",integer(editing,"id"))||!cJSON_AddNumberToObject(tile,"span",2)||!cJSON_AddNumberToObject(tile,"height",1)||!cJSON_AddNumberToObject(tile,"fields",255)||!cJSON_AddItemToArray(tiles,tile)){cJSON_Delete(tile);return false;}return true;
+}
 static bool action_included(uint32_t id)
 {const cJSON *v;cJSON_ArrayForEach(v,item(editing,"members"))if((uint32_t)v->valueint==id)return true;return false;}
 static void action_restore_checked(lv_obj_t *check)
@@ -134,7 +155,9 @@ static void action_summary(void)
 {
  lv_obj_t *name=dsr_sc_text(body,dsr_sc_user(string(editing,"name")),4,0,276,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);action_pick("Zmień nazwę i opcje",52,false,action_edit_name,0);
  const cJSON *room=cJSON_GetArrayItem(item(draft,"rooms"),(int)object_index(item(draft,"rooms"),integer(editing,"room")));dsr_sc_text(body,room?dsr_sc_user(string(room,"name")):"Cały dom",4,112,276,&dsr_roboto_12,DSR_SC_MUTED);
- int y=144;unsigned order=0;const cJSON *v;cJSON_ArrayForEach(v,item(editing,action_editor.kind?"actions":"members")){unsigned id=action_editor.kind?(unsigned)integer(v,"device"):(unsigned)v->valueint;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),(int)id));char title[96];if(action_editor.kind)snprintf(title,sizeof(title),"%u. %s",++order,display_name(d));else snprintf(title,sizeof(title),"%s",display_name(d));lv_point_t size;lv_text_get_size(&size,title,dsr_sc_font(&dsr_roboto_14),0,0,276,LV_TEXT_FLAG_NONE);int height=size.y<22?22:size.y;lv_obj_t *label=dsr_sc_text(body,dsr_sc_user(title),4,y,276,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(label,height);if(action_editor.kind)dsr_sc_text(body,action_command_name(string(v,"command")),12,y+height+2,264,&dsr_roboto_14,DSR_SC_BLUE);y+=height+(action_editor.kind?40:12);}
+ int y=144;
+ if(!action_editor.kind&&action_editor.fresh){const cJSON *dashboard=cJSON_GetArrayItem(item(draft,"dashboards"),(int)object_index(item(draft,"dashboards"),integer(draft,"active_dashboard")));if(cJSON_GetArraySize(item(dashboard,"tiles"))>=DSR_CONFIG_MAX_TILES){dsr_sc_text(body,"Dashboard pełny. Grupa będzie na liście Urządzeń; dodaj kafel po zwolnieniu miejsca.",4,y,276,&dsr_roboto_14,dsr_sc_style()==DSR_SC_STYLE_LIGHT?0x956000:0xffc107);y+=82;}}
+ unsigned order=0;const cJSON *v;cJSON_ArrayForEach(v,item(editing,action_editor.kind?"actions":"members")){unsigned id=action_editor.kind?(unsigned)integer(v,"device"):(unsigned)v->valueint;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),(int)id));char title[96];if(action_editor.kind)snprintf(title,sizeof(title),"%u. %s",++order,display_name(d));else snprintf(title,sizeof(title),"%s",display_name(d));lv_point_t size;lv_text_get_size(&size,title,dsr_sc_font(&dsr_roboto_14),0,0,276,LV_TEXT_FLAG_NONE);int height=size.y<22?22:size.y;lv_obj_t *label=dsr_sc_text(body,dsr_sc_user(title),4,y,276,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(label,height);if(action_editor.kind)dsr_sc_text(body,action_command_name(string(v,"command")),12,y+height+2,264,&dsr_roboto_14,DSR_SC_BLUE);y+=height+(action_editor.kind?40:12);}
 }
 static void action_form(void)
 {
@@ -143,7 +166,10 @@ static void action_form(void)
  const char *title=action_editor.step==3?"Opcjonalne ustawienia":action_editor.step==0?"1/3 • Nazwa":action_editor.step==1?(action_editor.kind?"2/3 • Polecenia":"2/3 • Urządzenia"):"3/3 • Podsumowanie";config_status(title,false);
  lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_CANCEL,NULL);
  if(action_editor.deleted){dsr_sc_text(body,"Zapisz, aby usunąć wpis.",4,32,276,&dsr_roboto_18,DSR_SC_TEXT);actions(root,action_back);return;}
- if(action_editor.step==0){add_field(action_editor.kind?"Nazwa sceny":"Nazwa grupy","name",0,false);lv_textarea_set_placeholder_text(lv_obj_get_child(body,-1),dsr_sc_tr(action_editor.kind?"np. Dobranoc":"np. Lampy na parterze"));dsr_sc_text(body,action_editor.kind?"Jedno dotknięcie uruchomi wybrane polecenia.":"Wspólne włączanie i wyłączanie wybranych przekaźników i gniazdek.",4,82,276,&dsr_roboto_14,DSR_SC_MUTED);action_pick("Pokój i zdjęcie (opcjonalnie)",164,false,action_details,0);}
+ if(action_editor.step==0){add_field(action_editor.kind?"Nazwa sceny":"Nazwa grupy","name",0,false);lv_textarea_set_placeholder_text(lv_obj_get_child(body,-1),dsr_sc_tr(action_editor.kind?"np. Dobranoc":"np. Lampy na parterze"));
+  if(action_editor.kind)dsr_sc_text(body,"Jedno dotknięcie uruchomi wybrane polecenia.",4,82,276,&dsr_roboto_14,DSR_SC_MUTED);
+  else{lv_obj_t *family=lv_dropdown_create(body);lv_obj_set_pos(family,0,78);lv_obj_set_size(family,284,44);char options[256];const char *names[]={"Przekaźniki i gniazdka","Rolety","Światła","RGB","Termostaty"};options[0]=0;for(unsigned i=0;i<5;i++){if(i)strncat(options,"\n",sizeof(options)-strlen(options)-1);strncat(options,dsr_sc_tr(names[i]),sizeof(options)-strlen(options)-1);}lv_dropdown_set_options(family,options);lv_dropdown_set_selected(family,action_editor.family==DSR_ENDPOINT_BLU?4:action_editor.family<=3?action_editor.family:0);lv_obj_set_style_text_font(family,&dsr_roboto_14,0);lv_obj_set_style_text_font(lv_dropdown_get_list(family),&dsr_roboto_14,0);lv_obj_add_event_cb(family,action_family,LV_EVENT_VALUE_CHANGED,NULL);dsr_sc_text(body,"Zmiana typu czyści wybór urządzeń.",4,130,276,&dsr_roboto_12,DSR_SC_MUTED);}
+  action_pick("Pokój i zdjęcie (opcjonalnie)",164,false,action_details,0);}
  else if(action_editor.step==1){if(action_editor.pending_device)action_commands();else if(!action_editor.kind||action_editor.selecting)action_devices();else action_steps();}
  else if(action_editor.step==2)action_summary();else action_gallery();
  action_editor.back=dsr_ui_button(root,action_editor.step==0?"Anuluj":"Wstecz",12,420,140,action_back,NULL);
@@ -158,5 +184,6 @@ void dsr_ui_edit_action(uint8_t kind,uint32_t id)
  editor_active=true;action_editor.active=true;action_editor.kind=kind?1:0;action_editor.fresh=!id;snprintf(collection_name,sizeof(collection_name),"%s",kind?"scenes":"groups");cJSON *all=cJSON_GetObjectItemCaseSensitive(draft,collection_name);
  if(id){editing=cJSON_GetArrayItem(all,(int)object_index(all,(int)id));if(!editing){action_leave(NULL);return;}}
  else{if(cJSON_GetArraySize(all)>=8){screen(kind?"Sceny":"Grupy");dsr_sc_text(body,"Osiągnięto limit wpisów",4,32,276,&dsr_roboto_18,DSR_SC_TEXT);dsr_ui_button(lv_screen_active(),"Wstecz",12,420,296,action_leave,NULL);return;}int next=1;while(object_index(all,next)!=255)next++;editing=cJSON_CreateObject();if(!editing){config_error(OPEN_OBJECT_MEMORY);return;}if(!cJSON_AddNumberToObject(editing,"id",next)||!cJSON_AddStringToObject(editing,"name","")||!cJSON_AddArrayToObject(editing,kind?"actions":"members")||!cJSON_AddStringToObject(editing,"photo","")){cJSON_Delete(editing);editing=NULL;config_error(OPEN_OBJECT_MEMORY);return;}cJSON_AddItemToArray(all,editing);}
+ action_editor.family=DSR_ENDPOINT_SWITCH;if(!kind){const cJSON *member=item(editing,"members")->child;if(member){const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),member->valueint));uint8_t family=action_device_family(d);if(family!=255)action_editor.family=family;}}
  action_form();
 }

@@ -3,10 +3,21 @@
 static bool key_valid(const dsr_action_key_t *key)
 {
  return key&&key->layout_id&&key->layout_id<=1000000&&key->device_id[0]&&memchr(key->device_id,0,64)&&
-  memchr(key->host,0,16)&&dsr_ipv4_valid(key->host)&&(key->generation==1||key->generation==2)&&key->kind<=1&&(key->kind==0||key->generation==2)&&key->channel<=15;
+  memchr(key->host,0,16)&&dsr_ipv4_valid(key->host)&&(key->generation==1||key->generation==2)&&
+  (key->kind<=DSR_ENDPOINT_RGB||(key->kind==DSR_ENDPOINT_BLU&&key->trv==1))&&
+  (key->kind==DSR_ENDPOINT_SWITCH||key->generation==2)&&key->channel<=15;
 }
 bool dsr_action_key_equal(const dsr_action_key_t *a,const dsr_action_key_t *b)
-{return key_valid(a)&&key_valid(b)&&a->layout_id==b->layout_id&&a->generation==b->generation&&a->kind==b->kind&&a->channel==b->channel&&!strcmp(a->device_id,b->device_id)&&!strcmp(a->host,b->host);}
+{return key_valid(a)&&key_valid(b)&&a->layout_id==b->layout_id&&a->generation==b->generation&&a->kind==b->kind&&a->channel==b->channel&&a->trv==b->trv&&!strcmp(a->device_id,b->device_id)&&!strcmp(a->host,b->host);}
+static bool compatible(const dsr_action_step_t *s)
+{
+ unsigned c=s->command,k=s->key.kind;
+ if(c<=DSR_ACTION_OFF)return k==DSR_ENDPOINT_SWITCH||k==DSR_ENDPOINT_LIGHT||k==DSR_ENDPOINT_RGB;
+ if(c<=DSR_ACTION_POSITION)return k==DSR_ENDPOINT_COVER&&(c!=DSR_ACTION_POSITION||s->value[0]<=100);
+ if(c==DSR_ACTION_BRIGHTNESS)return (k==DSR_ENDPOINT_LIGHT||k==DSR_ENDPOINT_RGB)&&s->value[0]<=100;
+ if(c==DSR_ACTION_RGB)return k==DSR_ENDPOINT_RGB;
+ return c==DSR_ACTION_TARGET&&k==DSR_ENDPOINT_BLU&&s->key.trv&&s->value[0]>=DSR_TRV_MIN_HALF&&s->value[0]<=DSR_TRV_MAX_HALF;
+}
 static bool nonce_valid(const char *nonce)
 {if(!nonce)return false;for(unsigned i=0;i<16;i++)if(!((nonce[i]>='0'&&nonce[i]<='9')||(nonce[i]>='a'&&nonce[i]<='f')))return false;return nonce[16]==0;}
 bool dsr_actions_model_duplicate(const dsr_actions_model_t *m,uint32_t boot_id,const char *nonce)
@@ -17,12 +28,18 @@ bool dsr_actions_model_begin(dsr_actions_model_t *m,const dsr_action_step_t *ste
  uint32_t run_id,uint32_t expected_generation,uint32_t boot_id,uint32_t object_id,uint32_t revision,const char nonce[17],uint8_t source,uint8_t kind,uint32_t now)
 {
  if(!m||m->active||(m->boot_id&&m->boot_id!=boot_id)||m->generation==UINT32_MAX||m->generation!=expected_generation||!steps||!count||count>DSR_ACTION_STEPS||!run_id||!boot_id||!object_id||object_id>1000000||!revision||!nonce_valid(nonce)||source>1||kind>1||dsr_actions_model_duplicate(m,boot_id,nonce))return false;
- for(size_t i=0;i<count;i++)if(!steps[i].key.layout_id||steps[i].key.layout_id>1000000||steps[i].command<DSR_ACTION_ON||steps[i].command>DSR_ACTION_STOP)return false;
+ int family=-1;
+ for(size_t i=0;i<count;i++){
+  if(!steps[i].key.layout_id||steps[i].key.layout_id>1000000||steps[i].command<DSR_ACTION_ON||steps[i].command>DSR_ACTION_TARGET)return false;
+  /* Reject a mixed group before any member can dispatch. Missing/unbound
+   * identities still receive their own terminal result, as for old groups. */
+  if(!kind&&key_valid(&steps[i].key)){if(family>=0&&family!=steps[i].key.kind)return false;family=steps[i].key.kind;}
+ }
  uint32_t generation=m->generation+1u;memset(m,0,sizeof(*m));m->generation=generation;m->run_id=run_id;m->boot_id=boot_id;m->object_id=object_id;m->revision=revision;m->admitted_ms=now;m->source=source;m->kind=kind;m->count=(uint8_t)count;m->active=true;memcpy(m->nonce,nonce,17);
  for(size_t i=0;i<count;i++){
-  m->steps[i].key=steps[i].key;m->steps[i].command=steps[i].command;
+  m->steps[i].key=steps[i].key;m->steps[i].command=steps[i].command;memcpy(m->steps[i].value,steps[i].value,3);
   if(!key_valid(&steps[i].key))done(&m->steps[i],DSR_ACTION_FAILED,DSR_IDENTITY_MISMATCH);
-  else if((steps[i].key.kind==0)!=(steps[i].command<=DSR_ACTION_OFF))done(&m->steps[i],DSR_ACTION_FAILED,DSR_UNSUPPORTED);
+  else if(!compatible(&steps[i]))done(&m->steps[i],DSR_ACTION_FAILED,DSR_UNSUPPORTED);
  }
  return true;
 }

@@ -67,5 +67,26 @@ int main(void)
   * alias and the actual registered worker guard rejects the wrong type. */
  publish(&a,&b,true);start(88);dsr_connection_t alias=a;alias.device.endpoint_kind=DSR_ENDPOINT_COVER;
  CHECK(dsr_actions_reserved(&a.device)&&!dsr_actions_reserved(&alias.device));CHECK(dsr_actions_prepare(&a,DSR_OK,true,true,900,&kind,&on));CHECK(dsr_actions_worker_allowed(900,&alias)==DSR_IDENTITY_MISMATCH);dsr_actions_complete(900,DSR_IDENTITY_MISMATCH);dsr_actions_missing(2);CHECK(!dsr_actions_target());idle();
- printf("PASS: %u actual actor/cache/activity/API checks; %u+%u cJSON OOM; PSRAM=%zu; restart, last-nonce/generation, partial auth, preflight, exact ACK/cancel/deadline/rebind; RTOS/clock/workspace providers MODEL\n",checks,total,log_total,max_heap);return 0;
+ /* The actual actor freezes and dispatches typed payloads for every member. */
+ const uint8_t families[]={DSR_ENDPOINT_COVER,DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB,DSR_ENDPOINT_BLU};
+ const char *payloads[]={"\"command\":\"position\",\"value\":80","\"command\":\"brightness\",\"value\":65","\"command\":\"rgb\",\"rgb\":[10,120,250]","\"command\":\"target\",\"value\":43"};
+ for(unsigned type=0;type<4;type++){
+  a=connection(1);b=connection(2);a.device.endpoint_kind=b.device.endpoint_kind=families[type];
+  if(!type)a.telemetry.cover=b.telemetry.cover=(dsr_cover_status_t){.flags=DSR_COVER_VALID|DSR_COVER_POSITION_CONTROL|DSR_COVER_POSITION,.state=DSR_COVER_STATE_STOPPED};
+  if(type==1)a.telemetry.light=b.telemetry.light=(dsr_light_status_t){.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS};
+  if(type==2)a.telemetry.rgb=b.telemetry.rgb=(dsr_rgb_status_t){.flags=DSR_RGB_VALID};
+  if(type==3)a.telemetry.blu.errors=b.telemetry.blu.errors=DSR_BLU_TRV;
+  publish(&a,&b,true);dsr_actions_snapshot(&s);snprintf(text,sizeof(text),"{\"id\":1,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\",%s}",s.boot_id,s.admission_generation,100+type,payloads[type]);CHECK(dsr_actions_request(text,0,1,&run)==DSR_OK);
+  for(unsigned member=0;member<2;member++){
+   dsr_job_t job={.id=1000+type*2+member,.connection=member?b:a};CHECK(dsr_actions_target()==member+1);CHECK(dsr_actions_prepare_job(&job,DSR_OK,true));
+   CHECK(job.kind==(type==0?DSR_JOB_COVER:type==1?DSR_JOB_LIGHT:type==2?DSR_JOB_RGB:DSR_JOB_TRV));
+   CHECK(type==0?job.cover.command==DSR_COVER_GOTO&&job.cover.position==80:type==1?job.light.command==DSR_LIGHT_SET_BRIGHTNESS&&job.light.brightness==65:type==2?job.rgb.command==DSR_RGB_SET_COLOR&&job.rgb.rgb[0]==10&&job.rgb.rgb[1]==120&&job.rgb.rgb[2]==250:job.trv.command==DSR_TRV_SET_TARGET&&job.trv.half_c==43);
+   CHECK(dsr_actions_worker_allowed(job.id,&job.connection)==DSR_OK);dsr_actions_worker_write_attempted(job.id);dsr_actions_complete(job.id,DSR_OK);
+  }
+  CHECK(!dsr_actions_target());dsr_actions_snapshot(&s);CHECK(s.steps[0].outcome==DSR_ACTION_SUCCESS&&s.steps[1].outcome==DSR_ACTION_SUCCESS);idle();
+ }
+ /* Reject even a legacy ON request for mixed/private passive membership. */
+ a=connection(1);b=connection(2);b.device.endpoint_kind=DSR_ENDPOINT_LIGHT;publish(&a,&b,true);dsr_actions_snapshot(&s);request_text(text,&s,110,s.admission_generation);CHECK(dsr_actions_request(text,0,1,&run)==DSR_UNSUPPORTED&&!dsr_actions_active());
+ b.device.endpoint_kind=DSR_ENDPOINT_BLU;b.telemetry.blu.errors=0;publish(&a,&b,true);CHECK(dsr_actions_request(text,0,1,&run)==DSR_UNSUPPORTED&&!dsr_actions_target());idle();
+ printf("PASS: %u actual actor/cache/activity/API checks; %u+%u cJSON OOM; PSRAM=%zu; typed groups, common TRV target, mixed/passive rejection, exact ACK/cancel/readback ownership; RTOS/clock/workspace providers MODEL\n",checks,total,log_total,max_heap);return 0;
 }
