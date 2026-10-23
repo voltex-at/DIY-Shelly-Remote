@@ -346,7 +346,7 @@ To akceptacja wyglądu; działanie progu na ogniwie/USB, rzeczywista instalacja,
 zachowanie danych i rollback pozostają do odbioru na sprzęcie. Lokalne OTA
 przez WWW pozostaje osobnym punktem. Numer 0.7.71 w renderach jest przykładowy.
 
-### OTA-01 — lokalny upload BIN przez WWW: podgląd do oceny
+### OTA-01 — lokalny upload BIN przez WWW: wygląd zaakceptowany
 
 Właściciel wybrał przegląd lokalnego OTA przez WWW. Ten istniejący tryb
 deweloperski przyjmuje BIN aplikacji po fizycznej zgodzie na LCD (jednorazowej,
@@ -394,9 +394,13 @@ nie wykonano uploadu na pilocie, nowego builda firmware ani pełnego atlasu.
 **Pozostała niespójność funkcjonalna:** próg 20% i nowy odczyt ADC przed
 instalacją dotyczą obecnie natywnego OTA. Lokalny uploader WWW nie ma jeszcze
 tej kontroli. Zgodna polityka baterii/USB wymaga osobnej integracji z workerem
-przed odbiorem wydania; tekst o USB nie zastępuje tej kontroli. Podgląd
-lokalnych ekranów czeka na ocenę. Rzeczywista instalacja, dane i rollback
-pozostają otwarte.
+przed odbiorem wydania; tekst o USB nie zastępuje tej kontroli. **Właściciel
+zaakceptował na podglądzie** oba pakiety (`2fd1427`): ekrany LCD z ramkami
+trzech skórek, instrukcją BIN/USB i złotymi komunikatami odmowy/wygaśnięcia
+oraz panel WWW z wyborem pliku, wskaźnikiem wysyłania/weryfikacji, nazwą pliku,
+wynikiem, złotymi błędami i ręcznym restartem. Ta akceptacja dotyczy wyglądu.
+Kontrola baterii dla WWW oraz rzeczywista instalacja, dane i rollback pozostają
+otwarte.
 
 ## Baza dalszej pracy
 
@@ -489,7 +493,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS. **Lokalne OTA przez WWW:** ramki LCD, stan pliku/wysyłania/wyniku/błędu i mobilna stopka poprawione; powiązane testy PASS, podgląd do oceny. Lokalny uploader nadal wymaga integracji progu baterii 20% z workerem. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): ramki i komunikaty LCD oraz wybór BIN, wysyłanie/weryfikacja, nazwa pliku, wynik, złote błędy i ręczny restart w panelu; powiązane testy PASS. Lokalny uploader nadal wymaga integracji progu baterii 20% z workerem. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 
