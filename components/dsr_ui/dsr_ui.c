@@ -92,6 +92,8 @@ lv_obj_t *dsr_ui_button(lv_obj_t *parent, const char *text, int x, int y, int wi
      if(!strcmp(text,"Sprawdź aktualizacje")||!strcmp(text,"Refresh")||!strcmp(text,"Odśwież")||!strcmp(text,"Odśwież stan"))icon=DSR_ICON_REFRESH;
      else if(!strcmp(text,"Zmierz napięcie"))icon=DSR_ICON_ACTIVITY;
      else if(!strcmp(text,"Zapisz"))icon=DSR_ICON_SAVE;
+     else if(!strcmp(text,"Zmień kanał"))icon=DSR_ICON_GIT_BRANCH;
+     else if(!strcmp(text,"Sprawdź baterię"))icon=DSR_ICON_BATTERY;
      else if(!strncmp(text,"Usuń",strlen("Usuń")))icon=DSR_ICON_TRASH;
      else if(!strcmp(text,"Wi-Fi setup"))icon=DSR_ICON_SETTINGS;
      else if(!strcmp(text,"Bluetooth LE • skan i setup"))icon=DSR_ICON_BLUETOOTH;

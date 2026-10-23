@@ -14,8 +14,10 @@ typedef enum {
  DSR_NATIVE_ERROR_MANIFEST,DSR_NATIVE_ERROR_POWER,DSR_NATIVE_ERROR_SLOT,
  DSR_NATIVE_ERROR_BOOT,DSR_NATIVE_ERROR_EXPIRED,DSR_NATIVE_ERROR_CHANGED,
  DSR_NATIVE_ERROR_INSTALL,DSR_NATIVE_ERROR_MEMORY,DSR_NATIVE_ERROR_LOCAL_VERSION,
- DSR_NATIVE_ERROR_RATE_LIMIT,DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD
+ DSR_NATIVE_ERROR_RATE_LIMIT,DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD,
+ DSR_NATIVE_ERROR_BATTERY_LOW
 } dsr_native_ota_error_t;
+#define DSR_NATIVE_OTA_MIN_BATTERY_PERCENT 20u
 typedef struct {
  dsr_native_ota_state_t state;
  dsr_native_ota_error_t error;
@@ -35,6 +37,8 @@ typedef struct {
  * no HTTP install API, automatic checks, task, key or release publishing.
  * INSTALL consumes the AVAILABLE tuple once, within120s, with explicit physical
  * stable-power attestation. A fresh signature/tuple/slot gate runs in installer.
+ * The sole worker also samples the battery before calling the installer:
+ * known SOC below 20% refuses; unknown SOC still requires the USB attestation.
  * snapshot/progress/cancel are synchronized; never call LVGL from the worker. */
 esp_err_t dsr_native_ota_init(void);
 dsr_result_t dsr_native_ota_prepare(uint32_t id,dsr_job_kind_t kind,

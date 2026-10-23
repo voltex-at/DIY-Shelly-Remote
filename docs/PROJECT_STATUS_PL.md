@@ -280,9 +280,12 @@ Komunikaty i szczegóły przewija teraz cała strona, bez drugiej przewijanej
 ramki błędu. Tekst i obramowanie ostrzeżeń są złote, z ciemniejszym złotem
 w Jasny. Potwierdzenie i informacje Cyber Blue mają podwójne sfazowane ramki.
 
-Opis USB mówi o stabilnym zasilaniu, restarcie po 10 s i opcji Później;
-niemiecki przycisk brzmi „USB OK • installieren” i mieści się w dwóch
-wierszach. To korekta opisu istniejącego działania, nie nowa polityka restartu.
+Właściciel ocenił pakiet podglądów i zlecił poniższe korekty. Przycisk brzmi
+teraz „Instaluj / Install / Installieren”. Złoty komunikat obok przycisku
+wyjaśnia, że jego naciśnięcie potwierdza stabilne zasilanie USB. „Zmień kanał”
+w Cyber Blue ma ikonę rozgałęzienia, również na ekranach błędów. Odliczanie
+pokazuje 10…0, następnie przyjęcie żądania restartu. Zachowano opcję Później
+i ponowienie po zajętym systemie; nie dodano automatycznej zgody na instalację.
 Wyszukiwanie ma okrągły wskaźnik; instalacja pokazuje pasek, procent i bajty
 w każdej skórce. Wstecz i Anuluj mieszczą się w dolnym wierszu; odliczanie ma
 własne miejsce w karcie stanu. Zachowano jawny wybór kanału, jednorazową zgodę,
@@ -290,17 +293,54 @@ jej powiązanie z operacją i TTL, odmowę po błędnym podpisie oraz informacj�
 o niepotwierdzonym wyborze startowym. Opis wydania pozostaje ograniczonym,
 niezaufanym tekstem bez interpretacji znaczników.
 
-Walidacja: `python3 tools/test_ui.py --case test_native_ota_ui` przez adapter
-Cygwin — PASS, 47 reprezentatywnych klatek rzeczywistego LVGL 9.3 (DE w trzech
-skórkach, długie komunikaty i potwierdzenie także PL/EN). Sprawdzono odstępy
-między sąsiednimi kartami, marginesy tekstu, podpisy dolnych akcji, złote ramki
-i napisy, a także istniejącą regresję UI: jawną zgodę, TTL, anulowanie,
-spóźniony wynik, notatki wydania, odłożenie restartu i 40 cykli nawigacji.
-To modele aktora, Flash, workera i restartu; nie dowód fizycznej instalacji,
-zachowania danych ani rollback. Nie zmieniono backendu, kluczy, partycji ani
-polityki OTA. Nie uruchamiano pełnego atlasu, całej regresji, nowego builda
-docelowego ani aktualizacji/publikacji. **Pokazane widoki czekają na ocenę
-właściciela w ankiecie.** Numer 0.7.71 w renderach jest przykładowym kandydatem.
+**Uzgodniona blokada baterii:** aktualny, znany poziom poniżej 20% blokuje
+natywną instalację i prosi o doładowanie; dokładnie 20% jest dopuszczone.
+UI korzysta z potwierdzonej próbki młodszej niż 30 s, potrafi ponowić pomiar
+istniejącą asynchroniczną kolejką i przygasza niedostępne „Instaluj”. Worker
+przed wywołaniem instalatora wykonuje własny nowy odczyt ADC i profilu,
+więc sprawdzenie nie opiera się wyłącznie na UI. Wyszukiwanie wydania nie
+jest blokowane. To kontrola przed instalacją, bez ciągłego pomiaru podczas
+zapisu. Procent nadal jest szacunkiem istniejącego profilu, nie nowym miernikiem
+ładunku ani wykrywaniem obecności USB.
+
+Właściciel wybrał dla nieznanego lub nieaktualnego procentu możliwość
+instalacji po potwierdzeniu stabilnego USB. Błąd ADC, brak poprawnego profilu
+lub brak wiarygodnego procentu korzysta z tej ścieżki. Nadal konieczna jest
+fizyczna jednorazowa zgoda, powiązanie z operacją i kanałem oraz TTL 120 s.
+Nowy błąd niskiej baterii dodano na końcu enum, zachowując dotychczasowe kody.
+Nie zmieniono kluczy, podpisów, partycji ani reguł weryfikacji instalatora.
+
+Walidacja tej korekty:
+
+- `test_native_ota_actor` — PASS, powiązany zestaw trybów 0…7. Rzeczywisty aktor
+  i estimator z modelami ADC/NVS/instalatora: 0% i 19% odmawiają bez wywołania
+  instalatora; 20% przechodzi dalej. Brak odczytu/profilu korzysta z jawnej
+  zgody USB. Sprawdzono brak instalacji bez zgody oraz anulowanie podczas
+  nowego odczytu ADC. Po rozszerzeniu tej ostatniej asercji powtórzono tylko
+  tryb baterii.
+- `python3 tools/test_ui.py --case test_native_ota_ui` przez adapter Cygwin
+  (ponowienia z zachowaniem niezmienionych obiektów) — PASS, 59 wybranych
+  klatek LVGL 9.3: DE w trzech skórkach, PL/EN w Cyber Blue. Kontrola odstępów,
+  ramek, pełnych podpisów i przejścia 19% → 19% → 20% → nieaktualny odczyt,
+  zakończenia komunikatu oczekiwania także po niezmienionym wyniku, a także
+  powiązana regresja zgody, TTL, anulowania, spóźnionego wyniku i nawigacji.
+  Osobny świeży proces `DSR_UI_OTA_COUNTDOWN_REVIEW=1` — PASS, 11 klatek
+  rzeczywistego odliczania 10…0 i dokładnie jedno modelowe żądanie restartu.
+- `tools/dev/Build-Firmware.ps1 -Jobs 4` — PASS, ESP-IDF 5.5.4, ESP32-S3;
+  po końcowych korektach tekstu i wyniku pomiaru przyrostowe `ninja -C build-ai
+  -j 4` — PASS, obraz 0x424e10 B, 31% wolnej partycji aplikacji.
+- `check_boot_memory.py` i `check_native_ota_target.py` na tym ELF — PASS,
+  zachowane limity statycznej pamięci i własnych ramek stosu OTA. Audyt nie
+  mierzy przechodniego szczytu stosu ani sterty SDK.
+
+Podstawą integracji są istniejące odczyty oraz wersjonowane dokumenty
+[ADC oneshot ESP-IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/peripherals/adc_oneshot.html)
+i [OTA ESP-IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/ota.html).
+Obejrzano rzeczywiste piksele. Modele hosta i build nie potwierdzają fizycznej
+instalacji, zachowania danych, działania progu na ogniwie ani rollback.
+Bez pełnego atlasu, całej regresji, CI, flashowania i publikacji. **Korekty
+przycisku, progu, ikony i odliczania czekają na ocenę podglądu.** Lokalne OTA
+przez WWW pozostaje osobnym punktem. Numer 0.7.71 w renderach jest przykładowy.
 
 ## Baza dalszej pracy
 
@@ -393,7 +433,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Natywne ekrany poprawione i sprawdzone hostem; czekają na ocenę podglądu. Osobno pozostają lokalne OTA przez WWW oraz rzeczywista instalacja, zachowanie danych i rollback |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Korekty natywnych ekranów: Instaluj, ikona kanału, odliczanie 10…0 i próg 20% w UI/workerze; host i build ESP32-S3 PASS, podgląd do oceny. Nieznany procent wymaga potwierdzenia stabilnego USB. Osobno pozostają lokalne OTA przez WWW, odbiór progu na sprzęcie, instalacja, zachowanie danych i rollback |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 

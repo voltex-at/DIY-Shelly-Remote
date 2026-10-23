@@ -60,6 +60,7 @@ bool dsr_ui_battery_calibration_back(void);
 void dsr_ui_battery_calibration_sample(const dsr_event_t *event);
 bool dsr_ui_battery_profile_current(dsr_battery_profile_t *out);
 bool dsr_ui_battery_reference(dsr_battery_sample_t *out,uint32_t *at);
+bool dsr_ui_battery_level(uint8_t *percent);
 bool dsr_ui_battery_calibration_active(void);
 void dsr_ui_battery_profile_result(const dsr_event_t *event,dsr_job_kind_t kind);
 void dsr_ui_battery_calibration_open(lv_event_t *event);

@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool active,building,confirming,restart_accepted;
+static bool active,building,confirming,restart_accepted,install_prompt,prompt_known,prompt_low,checking_battery;
 static dsr_ota_channel_t selected_channel=DSR_OTA_STABLE;
 static dsr_native_ota_snapshot_t snapshot,shown;
 static uint32_t consent_operation;
@@ -17,7 +17,7 @@ static bool auto_restart_armed;static uint32_t auto_restart_at,armed_operation;
 void dsr_ui_native_ota_hide(void)
 {
  if(active&&!building)dsr_native_ota_cancel();
- active=false;auto_restart_armed=false;progress_label=progress_bytes=progress_bar=local_notice=back_button=countdown_label=NULL;
+ active=false;auto_restart_armed=false;install_prompt=checking_battery=false;progress_label=progress_bytes=progress_bar=local_notice=back_button=countdown_label=NULL;
 }
 static lv_obj_t *screen(void)
 {
@@ -34,6 +34,11 @@ static lv_obj_t *raw(lv_obj_t *body,const char *text,int y)
  lv_label_set_recolor(label,false);lv_label_set_text(label,text);return label;
 }
 static void show(void);
+static void prompt(lv_event_t *event);
+static const char *low_battery(void)
+{return "Bateria poniżej 20%. Doładuj pilot do co najmniej 20% i sprawdź baterię ponownie.";}
+static bool battery_low(bool *known)
+{uint8_t percent=0;*known=dsr_ui_battery_level(&percent);return *known&&percent<DSR_NATIVE_OTA_MIN_BATTERY_PERCENT;}
 static uint32_t gold(void){return dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;}
 static lv_obj_t *card(lv_obj_t *body,int y,int height,bool warning)
 {
@@ -91,6 +96,7 @@ static const char *status_text(void)
   case DSR_NATIVE_ERROR_CHANGED:return "Wydanie zmieniło się po potwierdzeniu. Sprawdź je ponownie.";
   case DSR_NATIVE_ERROR_MEMORY:return "Brak pamięci. Spróbuj ponownie później.";
   case DSR_NATIVE_ERROR_LOCAL_VERSION:return "Nie rozpoznano lokalnej wersji firmware.";
+  case DSR_NATIVE_ERROR_BATTERY_LOW:return low_battery();
   case DSR_NATIVE_ERROR_INSTALL:
    if(snapshot.install_result==DSR_INSTALL_SDK)return "Nie udało się zapisać firmware. Bieżąca wersja pozostaje aktywna.";
    if(snapshot.fetch_result==DSR_FETCH_IO||snapshot.fetch_result==DSR_FETCH_TIMEOUT||snapshot.fetch_result==DSR_FETCH_INCOMPLETE)return "Przerwano pobieranie. Sprawdź Wi-Fi i spróbuj ponownie.";
@@ -111,35 +117,46 @@ static void install(lv_event_t *event)
 {
  (void)event;dsr_native_ota_snapshot(&snapshot);
  if(!confirming||snapshot.state!=DSR_NATIVE_AVAILABLE||snapshot.operation_id!=consent_operation||snapshot.channel!=selected_channel){confirming=false;show();return;}
- /* This physical button explicitly attests stable USB power. No inferred ADC
-  * charging status and no automatic consent after a CHECK or HTTP request. */
+ bool known;if(battery_low(&known)){prompt(NULL);return;}
+ /* The adjacent warning makes Install an explicit stable-USB attestation,
+  * including unknown SOC. The worker repeats the low-battery check freshly. */
  dsr_result_t result=dsr_network_request_ota(DSR_JOB_OTA_INSTALL,selected_channel,true);
  confirming=false;
  if(result==DSR_OK)show();else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
+}
+static void recheck_battery(lv_event_t *event)
+{
+ (void)event;if(!install_prompt)return;
+ if(dsr_network_request_battery()==DSR_OK){checking_battery=true;if(local_notice)dsr_sc_label_set_text(local_notice,"Sprawdzanie baterii…");}
+ else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
 }
 static void prompt(lv_event_t *event)
 {
  (void)event;dsr_native_ota_snapshot(&snapshot);if(snapshot.state!=DSR_NATIVE_AVAILABLE)return;
  confirming=true;consent_operation=snapshot.operation_id;shown=snapshot;
  lv_obj_t *body=screen();
+ install_prompt=true;prompt_low=battery_low(&prompt_known);
  lv_obj_t *heading=message(body,"Zainstalować podpisane wydanie?",0,false,&dsr_roboto_18);
  int y=after(lv_obj_get_parent(heading),12);lv_obj_t *release=card(body,y,60,false);
  lv_obj_t *version=raw(release,snapshot.version,8);lv_obj_set_x(version,12);lv_obj_set_width(version,156);lv_obj_set_style_text_font(version,dsr_sc_font(&dsr_roboto_18),0);
  char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);lv_obj_t *bytes=raw(release,size,10);lv_obj_set_x(bytes,172);lv_obj_set_width(bytes,112);lv_obj_set_style_text_font(bytes,&dsr_roboto_12,0);lv_obj_set_style_text_align(bytes,LV_TEXT_ALIGN_RIGHT,0);
  dsr_sc_text(release,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",12,32,272,&dsr_roboto_12,DSR_SC_MUTED);
- lv_obj_t *power=message(body,"Podłącz stabilne zasilanie USB. Nie odłączaj podczas zapisu. Po instalacji restart za 10 s; można wybrać Później.",after(release,12),true,&dsr_roboto_14);
- local_notice=message(body,"Potwierdzenie jest jednorazowe i ważne przez 120 s od sprawdzenia.",after(lv_obj_get_parent(power),12),false,&dsr_roboto_12);
+ lv_obj_t *power=message(body,prompt_low?low_battery():"Instaluj potwierdza stabilne zasilanie USB. Nie odłączaj go podczas zapisu. Restart za 10 s; Później odracza.",after(release,12),true,&dsr_roboto_14);
+ int notice_y=after(lv_obj_get_parent(power),12);
+ if(prompt_low){dsr_ui_button(body,"Sprawdź baterię",0,notice_y,296,recheck_battery,NULL);notice_y+=60;}
+ /* While blocked, use the warning for measurement feedback; consent becomes
+  * relevant once installation is available, keeping the blocked view compact. */
+ local_notice=prompt_low?power:message(body,prompt_known?"Potwierdzenie jest jednorazowe i ważne przez 120 s od sprawdzenia.":"Procent baterii nieznany. Zgoda jednorazowa: 120 s od sprawdzenia.",notice_y,false,&dsr_roboto_12);
  lv_obj_t *root=lv_obj_get_parent(body);lv_obj_delete(back_button);back_button=NULL;
  dsr_ui_button(root,"Anuluj",12,420,140,cancelled_action,NULL);
- lv_obj_t *accept=dsr_ui_button(root,"USB podłączone • instaluj",168,420,140,install,NULL);dsr_ui_primary(accept);
- /* Keep the physical power attestation readable in two lines in DE too. */
- lv_obj_t *caption=lv_obj_get_child(accept,0);lv_obj_set_style_text_font(caption,dsr_sc_font(&dsr_roboto_14),0);lv_obj_center(caption);
+ lv_obj_t *accept=dsr_ui_button(root,"Instaluj",168,420,140,install,NULL);dsr_ui_primary(accept);
+ if(prompt_low)lv_obj_add_state(accept,LV_STATE_DISABLED);
 }
 static void restart(lv_event_t *event)
 {
  (void)event;if(restart_accepted)return;
  dsr_restart_result_t result=dsr_restart_request();
- if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
+ if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;auto_restart_armed=false;if(countdown_label)dsr_sc_label_set_text_fmt(countdown_label,"Automatyczny restart za %u s",0u);if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
  else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
 }
 static void countdown(void)
@@ -219,7 +236,7 @@ static void show(void)
  if(snapshot.state==DSR_NATIVE_AVAILABLE){
   lv_obj_t *release=card(body,y,60,false);lv_obj_t *candidate=raw(release,snapshot.version,8);lv_obj_set_x(candidate,12);lv_obj_set_width(candidate,156);lv_obj_set_style_text_font(candidate,dsr_sc_font(&dsr_roboto_18),0);
   char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);lv_obj_t *bytes=raw(release,size,30);lv_obj_set_x(bytes,12);lv_obj_set_width(bytes,272);lv_obj_set_style_text_font(bytes,&dsr_roboto_12,0);
-  int action_y=after(release,12);dsr_ui_primary(dsr_ui_button(body,"Zainstaluj",0,action_y,296,prompt,NULL));
+  int action_y=after(release,12);dsr_ui_primary(dsr_ui_button(body,"Instaluj",0,action_y,296,prompt,NULL));
   lv_obj_t *notes_card=card(body,action_y+60,64,false);
   lv_obj_t *heading=dsr_sc_text(notes_card,"Opis wydania z GitHuba • niezweryfikowany",12,12,272,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_update_layout(heading);
   lv_obj_t *notes=raw(notes_card,snapshot.notes[0]?snapshot.notes:"—",after(heading,8));lv_obj_set_x(notes,12);lv_obj_set_width(notes,272);lv_obj_update_layout(notes);
@@ -238,11 +255,13 @@ void dsr_ui_native_ota_tick(void)
  if(!active)return;
  dsr_native_ota_snapshot(&snapshot);
  if(snapshot.state!=shown.state||snapshot.error!=shown.error||snapshot.operation_id!=shown.operation_id){show();return;}
+ if(install_prompt){bool known,low=battery_low(&known);if(known!=prompt_known||low!=prompt_low||(checking_battery&&!dsr_network_busy())){prompt(NULL);return;}}
  if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
+  countdown(); /* Paint zero too before dispatching the restart. */
   if((int32_t)(lv_tick_get()-auto_restart_at)>=0){
    restart(NULL);
    if(!restart_accepted)auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RETRY_MS; /* busy: retry, still cancellable */
-   else{auto_restart_armed=false;if(countdown_label)lv_label_set_text(countdown_label,"");}
+   else auto_restart_armed=false;
   }else countdown();
  }
  if(!confirming)progress();

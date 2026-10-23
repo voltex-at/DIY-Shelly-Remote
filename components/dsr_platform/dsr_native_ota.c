@@ -132,6 +132,16 @@ void dsr_native_ota_execute(const dsr_job_t *job,dsr_event_t *event)
   if(fetch!=DSR_FETCH_OK){error=fetch==DSR_FETCH_MANIFEST?DSR_NATIVE_ERROR_MANIFEST:fetch==DSR_FETCH_NOMEM?DSR_NATIVE_ERROR_MEMORY:DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD;goto finish;}
   success=true;
  }else{
+  /* Fresh worker-owned ADC/profile read, never the LCD's cached percentage.
+   * Unknown SOC does not imply an empty cell: physical stable-USB consent is
+   * still mandatory, as checked at admission and again by the installer. */
+  dsr_battery_sample_t battery={0};
+  if(dsr_battery_read(&battery)==ESP_OK){
+   dsr_battery_profile_t profile;
+   if(dsr_battery_profile_load(&profile)==ESP_OK)dsr_battery_apply_profile(&profile,&battery);
+   if(battery.has_percent&&battery.percent<=100&&battery.percent<DSR_NATIVE_OTA_MIN_BATTERY_PERCENT){error=DSR_NATIVE_ERROR_BATTERY_LOW;goto finish;}
+  }
+  if(cancelled(NULL))goto finish;
   dsr_ota_install_control_t install_control={cancelled,progress,NULL};
   installed=dsr_ota_install(actor.discovery.candidate.manifest_url,&policy,&actor.verified,&install_control,actor.power,&actor.report);
   fetch=actor.report.fetch_result;manifest=actor.report.manifest_result;

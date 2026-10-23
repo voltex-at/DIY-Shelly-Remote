@@ -56,7 +56,7 @@ SUITES = [
     ('actions_http_uncertainty', HTTP + [P + 'dsr_actions_model.c', 'tests/test_actions_http_uncertainty.c'], ['tests/support', JSON, CORE, PLAT, CONF], ES3, CJSON, [[]], {}),
     ('native_ota_clock', [P + 'dsr_native_ota_clock.c', P + 'dsr_clock.c', 'tests/test_native_ota_clock.c'], ['tests/native_ota', 'tests/support', OTA, PLAT],
      ['-Wl,--wrap=time'], [], [[str(m)] for m in range(6)], {}),
-    ('native_ota_actor', [P + 'dsr_native_ota.c', 'tests/test_native_ota_actor.c'], ['tests/native_ota', 'tests/support', 'tests/ui', PLAT, P, CORE, OTA, CONF, JSON], [], [], [[str(m)] for m in range(7)], {}),
+    ('native_ota_actor', [P + 'dsr_native_ota.c', P + 'dsr_battery_model.c', 'tests/test_native_ota_actor.c'], ['tests/native_ota', 'tests/support', 'tests/ui', PLAT, P, CORE, OTA, CONF, JSON], [], [], [[str(m)] for m in range(8)], {}),
     ('runtime_api', [P + 'dsr_runtime_api.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/test_runtime_api.c'],
      ['tests/support', PLAT, P, CONF, CORE, JSON], [], CJSON, [[]], {'UBSAN_OPTIONS': 'halt_on_error=1', 'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1'}),
 ]

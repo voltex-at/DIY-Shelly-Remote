@@ -23,6 +23,15 @@ static dsr_ota_fetch_result_t clock_result=DSR_FETCH_OK,catalogue_result=DSR_FET
 static dsr_manifest_result_t manifest_why=DSR_MANIFEST_OK;
 static dsr_ota_release_result_t catalogue_why=DSR_RELEASE_OK;
 static unsigned clock_calls,catalogue_calls,manifest_calls,install_calls;
+static unsigned battery_reads;
+static bool cancel_battery;
+static esp_err_t battery_error,profile_error;
+static dsr_battery_sample_t battery_sample;
+static dsr_battery_profile_t battery_profile;
+esp_err_t dsr_battery_read(dsr_battery_sample_t *out)
+{CHECK(!mutex.held);battery_reads++;*out=battery_sample;if(cancel_battery)dsr_native_ota_cancel();return battery_error;}
+esp_err_t dsr_battery_profile_load(dsr_battery_profile_t *out)
+{CHECK(!mutex.held);*out=battery_profile;return profile_error;}
 static unsigned cancel_at; /* 1 clock, 2 catalogue, 3 manifest, 4 install boot */
 static bool boot_attempted,probe_running;
 static int catalogue_status=200;
@@ -95,6 +104,9 @@ static void defaults(void)
  cancel_at=0;boot_attempted=false;probe_running=true;catalogue_status=200;
  installed_http=installed_io=installed_sdk=0;
  clock_calls=catalogue_calls=manifest_calls=install_calls=0;
+ battery_reads=0;cancel_battery=false;battery_error=profile_error=ESP_OK;
+ dsr_battery_profile_defaults(&battery_profile);battery_profile.kind=DSR_BATTERY_LIPO_1S;
+ battery_sample=(dsr_battery_sample_t){.has_voltage=true,.adc_mv=2000,.bat_mv=4000};
 }
 static dsr_result_t prepare(dsr_job_kind_t kind,dsr_ota_channel_t channel,bool power)
 {current_id=++next_id;current_kind=kind;expected_channel=channel;return dsr_native_ota_prepare(current_id,kind,channel,power);}
@@ -159,6 +171,29 @@ static void lifecycle(void)
  CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,true)==DSR_OK);CHECK(execute().result==DSR_IO);CHECK(snapshot().sdk_error==ESP_ERR_NO_MEM&&snapshot().install_result==DSR_INSTALL_SDK);
  available(DSR_OTA_STABLE);stage=DSR_OTA_STAGE_HELD;CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_STABLE,true)==DSR_BUSY&&!install_calls);stage=DSR_OTA_STAGE_UNCERTAIN;CHECK(prepare(DSR_JOB_OTA_CHECK,DSR_OTA_STABLE,false)==DSR_BUSY&&!install_calls);stage=DSR_OTA_STAGE_IDLE;dsr_native_ota_cancel();
 }
+static void battery_gate(void)
+{
+ /* Real percentage estimator; model ADC/NVS. 3490 mV is 19%, 3500 is 20%. */
+ for(unsigned scenario=0;scenario<8;scenario++){
+  available(DSR_OTA_DEV);CHECK(!battery_reads);install_result=DSR_INSTALL_FETCH;
+  battery_sample.adc_mv=scenario==0?1745:scenario==1?1750:1650;
+  if(scenario==3)battery_error=ESP_FAIL;
+  if(scenario==4)profile_error=ESP_FAIL;
+  if(scenario==5)battery_profile.kind=DSR_BATTERY_NONE;
+  if(scenario==6){battery_sample.has_voltage=false;battery_sample.calibration_error=ESP_FAIL;}
+  if(scenario==7){battery_sample.has_percent=true;battery_sample.percent=101;}
+  CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,true)==DSR_OK);
+  CHECK(execute().result==DSR_IO&&battery_reads==1);
+  if(scenario<3&&scenario!=1)CHECK(snapshot().state==DSR_NATIVE_FAILED&&snapshot().error==DSR_NATIVE_ERROR_BATTERY_LOW&&!install_calls&&!snapshot().boot_selection_attempted);
+  else CHECK(install_calls==1); /* unknown: still requires the USB consent */
+ }
+ available(DSR_OTA_DEV);battery_sample.adc_mv=1745;
+ CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,false)==DSR_INVALID&&!install_calls&&!battery_reads);
+ available(DSR_OTA_DEV);cancel_battery=true;
+ CHECK(prepare(DSR_JOB_OTA_INSTALL,DSR_OTA_DEV,true)==DSR_OK);
+ CHECK(execute().result==DSR_IO&&battery_reads==1&&!install_calls);
+ CHECK(snapshot().state==DSR_NATIVE_CANCELLED&&snapshot().error==DSR_NATIVE_ERROR_NONE);
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);unsigned mode=(unsigned)strtoul(argv[1],NULL,10);
@@ -170,6 +205,7 @@ int main(int argc,char **argv)
  else{
   CHECK(dsr_native_ota_init()==ESP_ERR_INVALID_STATE);
   if(!mode)lifecycle();
+  else if(mode==7)battery_gate();
   else{
    bool success=mode==1||mode==6;
    available(DSR_OTA_DEV);boot_attempted=true;install_result=success?DSR_INSTALL_OK:DSR_INSTALL_SDK;if(mode==3||mode==6)cancel_at=4;

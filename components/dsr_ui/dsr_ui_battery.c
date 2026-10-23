@@ -31,6 +31,14 @@ void dsr_ui_battery_init(void)
 }
 bool dsr_ui_battery_profile_current(dsr_battery_profile_t *out)
 {if(out)*out=profile;return profile_known;}
+/* Last confirmed sample remains usable during a pending refresh. A profile
+ * change already invalidates has_percent; stale/failed values never pass. */
+bool dsr_ui_battery_level(uint8_t *percent)
+{
+ if(!attempted||result!=DSR_OK||!sample.has_percent||sample.percent>100||(uint32_t)(lv_tick_get()-measured)>=30000)return false;
+ if(percent)*percent=sample.percent;
+ return true;
+}
 bool dsr_ui_battery_reference(dsr_battery_sample_t *out,uint32_t *at)
 {
  if(!attempted||pending||result!=DSR_OK||!sample.has_voltage||(uint32_t)(lv_tick_get()-measured)>=30000)return false;

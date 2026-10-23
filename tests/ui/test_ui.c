@@ -340,7 +340,7 @@ static void global_settings_regression(void)
  test_pair_accept(true);tap_row("Panel WWW / bezpieczeństwo");
  tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));lv_tick_inc(120001);tick();CHECK(!find_label(lv_screen_active(),"0123456789abcdef")&&find_label(lv_screen_active(),"Kod parowania wygasł."));click("Wstecz");
  tap_row("System");tap_row("Informacje i diagnostyka");CHECK(find_label(lv_screen_active(),"lcdwiki-es3c35p-n16r8"));screenshot("153-global-system-info");click("Wstecz");
- tap_row("System");tap_row("Firmware Update");CHECK(find_label(lv_screen_active(),"Sprawdź aktualizacje")&&!find_label(lv_screen_active(),"Zainstaluj"));screenshot("154-global-native-ota-idle");
+ tap_row("System");tap_row("Firmware Update");CHECK(find_label(lv_screen_active(),"Sprawdź aktualizacje")&&!find_label(lv_screen_active(),"Instaluj"));screenshot("154-global-native-ota-idle");
  test_ota_accept(false);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty."));click("Wstecz");
  tap_row("System");tap_row("Firmware Update");test_ota_accept(true);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu."));lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda na OTA wygasła."));click("Wstecz");
  test_workspace_enable();cJSON *baseline=room_document();tap_row("Wygląd i język");
@@ -372,15 +372,15 @@ static void native_ota_regression(void)
  if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);}
  test_native_ota_set(DSR_NATIVE_IDLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_INVALID);
  unsigned before=requests,cancels=test_native_ota_cancels();dsr_ui_native_ota_open(NULL);
- CHECK(requests==before&&!find_label(lv_screen_active(),"Zainstaluj"));
+ CHECK(requests==before&&!find_label(lv_screen_active(),"Instaluj"));
  tap_row("Zmień kanał");CHECK(requests==before);tap_row("Dev • wersje testowe");
  CHECK(find_label(lv_screen_active(),"Kanał: Dev • wersje testowe")&&requests==before);
  tap_row("Sprawdź aktualizacje");CHECK(in_flight&&submitted.kind==DSR_JOB_OTA_CHECK&&requests==before+1);
- CHECK(!find_label(lv_screen_active(),"Zainstaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));
+ CHECK(!find_label(lv_screen_active(),"Instaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));
  click("Wstecz");CHECK(test_native_ota_cancels()>cancels&&find_label(lv_screen_active(),"System"));
  test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_MANIFEST,DSR_MANIFEST_UNTRUSTED_KEY);response=(dsr_event_t){0};deliver(DSR_IO,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"System"));dsr_ui_native_ota_open(NULL);
- CHECK(find_label(lv_screen_active(),"Brak zatwierdzonego klucza wydawcy. Instalacja zablokowana.")&&!find_label(lv_screen_active(),"Zainstaluj"));screenshot("240-native-ota-untrusted-pl");
+ CHECK(find_label(lv_screen_active(),"Brak zatwierdzonego klucza wydawcy. Instalacja zablokowana.")&&!find_label(lv_screen_active(),"Instaluj"));screenshot("240-native-ota-untrusted-pl");
  /* 0.7.37 field report: Stable has no release (HTTP 404), GitHub rate limit,
   * manifest download (CDN redirect) - each with its own text and code line. */
  test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_NO_RELEASE,DSR_MANIFEST_INVALID);test_native_ota_detail(DSR_OTA_STABLE,DSR_FETCH_STATUS,404);dsr_ui_native_ota_open(NULL);
@@ -403,17 +403,18 @@ static void native_ota_regression(void)
  dsr_sc_appearance(DSR_SC_BLUE,false,0);char linebreaks[321];memset(linebreaks,'\n',320);linebreaks[320]=0;test_native_ota_notes(linebreaks);dsr_ui_native_ota_open(NULL);
  lv_obj_t *button=lv_obj_get_parent(find_label(lv_screen_active(),"Sprawdź aktualizacje"));CHECK(button&&lv_obj_get_y(button)<=620);tap_row("Sprawdź aktualizacje");
  test_native_ota_set(DSR_NATIVE_AVAILABLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
- before=requests;tap_row("Zainstaluj");CHECK(requests==before&&find_label(lv_screen_active(),"Zainstalować podpisane wydanie?"));screenshot("244-native-ota-physical-consent");
- lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda wygasła. Sprawdź wydanie ponownie.")&&!find_label(lv_screen_active(),"USB podłączone • instaluj")&&requests==before);
+ before=requests;tap_row("Instaluj");CHECK(requests==before&&find_label(lv_screen_active(),"Zainstalować podpisane wydanie?"));screenshot("244-native-ota-physical-consent");
+ lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda wygasła. Sprawdź wydanie ponownie.")&&!find_label(lv_screen_active(),"Instaluj")&&requests==before);
  tap_row("Sprawdź aktualizacje");test_native_ota_set(DSR_NATIVE_AVAILABLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
- tap_row("Zainstaluj");before=requests;tap(238,444);CHECK(requests==before+1&&in_flight&&submitted.kind==DSR_JOB_OTA_INSTALL&&!find_label(lv_screen_active(),"USB podłączone • instaluj"));screenshot("245-native-ota-installing");
+ tap_row("Instaluj");before=requests;tap(238,444);CHECK(requests==before+1&&in_flight&&submitted.kind==DSR_JOB_OTA_INSTALL&&!find_label(lv_screen_active(),"Instaluj"));screenshot("245-native-ota-installing");
  test_native_ota_set(DSR_NATIVE_STAGED,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
- CHECK(find_label(lv_screen_active(),"Instalacja zakończona. Uruchom pilot ponownie.")&&!find_label(lv_screen_active(),"Zainstaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));screenshot("246-native-ota-staged");
+ CHECK(find_label(lv_screen_active(),"Instalacja zakończona. Uruchom pilot ponownie.")&&!find_label(lv_screen_active(),"Instaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));screenshot("246-native-ota-staged");
  /* Auto restart: 10 s countdown; busy retries every 5 s; "Później" stops it. */
  {unsigned left=0;char text[48];for(unsigned k=1;k<=10&&!left;k++){snprintf(text,sizeof(text),"Automatyczny restart za %u s",k);if(find_label(lv_screen_active(),text))left=k;}
   CHECK(left>=5&&find_label(lv_screen_active(),"Później"));unsigned auto_before=restart_requests;restart_response=DSR_RESTART_BUSY;
   lv_tick_inc((left-2)*1000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before&&(find_label(lv_screen_active(),"Automatyczny restart za 2 s")||find_label(lv_screen_active(),"Automatyczny restart za 3 s")));
   lv_tick_inc(3000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+  CHECK(find_label(lv_screen_active(),"Automatyczny restart za 0 s"));
   lv_tick_inc(5000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);
   click("Później");CHECK(!find_label(lv_screen_active(),"Później")&&find_label(lv_screen_active(),"Uruchom ponownie"));lv_tick_inc(60000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);screenshot("248-native-ota-postponed");}
  test_native_ota_uncertain();tick();CHECK(find_label(lv_screen_active(),"Nie potwierdzono wyboru startowego firmware. Dalsze zapisy zablokowane do restartu.")&&!find_label(lv_screen_active(),"Anulowano. Nie uruchomiono nowego firmware."));screenshot("247-native-ota-uncertain");
