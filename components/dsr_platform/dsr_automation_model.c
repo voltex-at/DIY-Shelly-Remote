@@ -89,11 +89,33 @@ static bool same_members(const dsr_auto_rules_t *a,uint16_t am,const dsr_auto_ru
 }
 static bool same_rule(const dsr_auto_rules_t *a,const dsr_auto_rule_t *ar,const dsr_auto_rules_t *b,const dsr_auto_rule_t *br)
 {return ar->id==br->id&&ar->target_half==br->target_half&&same_members(a,ar->sensors,b,br->sensors)&&same_members(a,ar->targets,b,br->targets);}
+static bool equal_rules(const dsr_auto_rules_t *a,const dsr_auto_rules_t *b)
+{
+ if(a->count!=b->count||a->key_count!=b->key_count)return false;
+ for(unsigned i=0;i<a->key_count;i++)if(!dsr_auto_key_equal(&a->keys[i],&b->keys[i]))return false;
+ for(unsigned i=0;i<a->count;i++){
+  const dsr_auto_rule_t *x=&a->items[i],*y=&b->items[i];
+  if(x->id!=y->id||x->signature!=y->signature||x->sensors!=y->sensors||x->targets!=y->targets||x->target_half!=y->target_half||x->enabled!=y->enabled)return false;
+ }
+ return true;
+}
+static void swap_rows(dsr_auto_model_t *m,unsigned a,unsigned b)
+{
+ if(a==b)return;
+ dsr_auto_target_t t=m->record.targets[a];m->record.targets[a]=m->record.targets[b];m->record.targets[b]=t;
+ dsr_auto_observation_t o=m->observations[a];m->observations[a]=m->observations[b];m->observations[b]=o;
+ uint32_t *arrays[]={m->read_ms,m->write_ms,m->before_write_read,m->durable_manual};
+ for(unsigned i=0;i<4;i++){uint32_t value=arrays[i][a];arrays[i][a]=arrays[i][b];arrays[i][b]=value;}
+}
+static void clear_row(dsr_auto_model_t *m,unsigned i)
+{
+ m->record.targets[i]=(dsr_auto_target_t){0};m->observations[i]=(dsr_auto_observation_t){0};
+ m->read_ms[i]=m->write_ms[i]=m->before_write_read[i]=m->durable_manual[i]=0;
+}
 dsr_result_t dsr_auto_configure(dsr_auto_model_t *m,const dsr_auto_rules_t *r)
 {
  if(!m||!rules_valid(r))return DSR_INVALID;
- dsr_auto_rules_t normalized=*r;normalized.enroll=false;
- if(!memcmp(&normalized,&m->record.rules,sizeof(normalized)))return DSR_OK;
+ if(equal_rules(r,&m->record.rules))return DSR_OK;
  if(m->pending.kind)return DSR_BUSY;
  for(unsigned i=0;i<m->record.rules.count;i++)if(m->record.cycles[i].active){
   const dsr_auto_rule_t *old=&m->record.rules.items[i];
@@ -113,18 +135,23 @@ dsr_result_t dsr_auto_configure(dsr_auto_model_t *m,const dsr_auto_rules_t *r)
   if(r->items[j].enabled&&same_rule(&m->record.rules,&m->record.rules.items[i],r,&r->items[j]))
    cycles[j]=m->record.cycles[i];
  /* Remap by exact enrolled identity, never by a mutable participant index. */
- dsr_auto_target_t targets[DSR_AUTO_PARTICIPANTS]={0};
- dsr_auto_observation_t observations[DSR_AUTO_PARTICIPANTS]={0};
- uint32_t times[4][DSR_AUTO_PARTICIPANTS]={{0}};
+ uint8_t source[DSR_AUTO_PARTICIPANTS],positions[DSR_AUTO_PARTICIPANTS];uint16_t used=0,fresh=0;
+ memset(source,255,sizeof(source));for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)positions[i]=(uint8_t)i;
  for(unsigned j=0;j<r->key_count;j++)for(unsigned i=0;i<m->record.rules.key_count;i++)
   if(dsr_auto_key_equal(&r->keys[j],&m->record.rules.keys[i])){
-   targets[j]=m->record.targets[i];observations[j]=m->observations[i];times[0][j]=m->read_ms[i];
-   times[1][j]=m->write_ms[i];times[2][j]=m->before_write_read[i];times[3][j]=m->durable_manual[i];
+   source[j]=(uint8_t)i;used|=(uint16_t)(1u<<i);
   }
- memcpy(m->record.targets,targets,sizeof(targets));memcpy(m->observations,observations,sizeof(observations));
- memcpy(m->read_ms,times[0],sizeof(m->read_ms));memcpy(m->write_ms,times[1],sizeof(m->write_ms));
- memcpy(m->before_write_read,times[2],sizeof(m->before_write_read));memcpy(m->durable_manual,times[3],sizeof(m->durable_manual));
- memcpy(m->record.cycles,cycles,sizeof(cycles));m->record.rules=normalized;m->fault=DSR_OK;
+ /* Complete the permutation with unused rows, then swap one row at a time.
+  * A new participant cannot overwrite an old row still needed later. */
+ for(unsigned j=0;j<r->key_count;j++)if(source[j]==255){fresh|=(uint16_t)(1u<<j);for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(!(used&(1u<<i))){source[j]=(uint8_t)i;used|=(uint16_t)(1u<<i);break;}}
+ for(unsigned j=0;j<r->key_count;j++){
+  unsigned at=j;while(at<DSR_AUTO_PARTICIPANTS&&positions[at]!=source[j])at++;
+  if(at>=DSR_AUTO_PARTICIPANTS)return DSR_INVALID; /* unique validated keys make this unreachable */
+  swap_rows(m,j,at);uint8_t previous=positions[j];positions[j]=positions[at];positions[at]=previous;
+  if(fresh&(1u<<j))clear_row(m,j);
+ }
+ for(unsigned i=r->key_count;i<DSR_AUTO_PARTICIPANTS;i++)clear_row(m,i);
+ memcpy(m->record.cycles,cycles,sizeof(cycles));m->record.rules=*r;m->record.rules.enroll=false;m->fault=DSR_OK;
  m->loaded=true;m->ready_rules=0;changed(m);return DSR_OK;
 }
 void dsr_auto_pause(dsr_auto_model_t *m,uint32_t ms,uint32_t utc)

@@ -155,6 +155,19 @@ static void missing_clock_does_not_block_manual_journal(void){
  init();journal();dsr_auto_pause(&m,now,0);CHECK(!dsr_auto_manual(&m,3,99));
  dsr_auto_effect_t e={0};CHECK(dsr_auto_next(&m,now,0,&e)&&e.kind==DSR_AUTO_EFFECT_JOURNAL);ack(e);CHECK(dsr_auto_manual(&m,3,99));
 }
+static void remap_new_row_before_owned_rows(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);
+ dsr_auto_rules_t old=rules;
+ rules.key_count=6;rules.count=2;rules.keys[0]=old.keys[0];rules.keys[0].layout_id=9;strcpy(rules.keys[0].device_id,"new-contact");
+ rules.keys[1]=old.keys[3];rules.keys[2]=old.keys[0];rules.keys[3]=old.keys[2];rules.keys[4]=old.keys[1];rules.keys[5]=old.keys[2];rules.keys[5].layout_id=10;strcpy(rules.keys[5].device_id,"new-trv");
+ rules.items[0].sensors=20;rules.items[0].targets=10;rules.items[1]=(dsr_auto_rule_t){.id=8,.signature=200,.sensors=1,.targets=32,.target_half=16,.enabled=1};
+ m.record.targets[2].manual_intent=123;m.record.targets[2].override=1;m.durable_manual[2]=123;m.before_write_read[2]=999;
+ CHECK(dsr_auto_configure(&m,&rules)==DSR_OK);CHECK(m.record.cycles[0].active==DSR_AUTO_CYCLE_OPEN);
+ CHECK(m.record.targets[1].baseline==44&&m.record.targets[3].baseline==40);
+ CHECK(m.record.targets[3].override&&m.durable_manual[3]==123&&m.before_write_read[3]==999);
+ CHECK(m.observations[3].key.layout_id==3&&m.observations[1].key.layout_id==4);
+ CHECK(!m.record.targets[0].baseline&&!m.record.targets[5].baseline&&!m.observations[0].valid&&!m.observations[5].valid);
+}
 static void first_valid_clock_sets_resume_barrier(void){
  init();dsr_auto_pause(&m,now,0);dsr_auto_effect_t e={0};CHECK(!dsr_auto_next(&m,now,0,&e));
  CHECK(!dsr_auto_next(&m,now+1000,utc,&e));CHECK(m.barrier_utc==utc);
@@ -186,6 +199,7 @@ int main(void){
  RUN(independent_rules);
  RUN(durable_manual_is_per_target);
  RUN(add_rule_preserves_other_cycle);
+ RUN(remap_new_row_before_owned_rows);
  RUN(missing_clock_does_not_block_manual_journal);RUN(first_valid_clock_sets_resume_barrier);
  RUN(reopen_cancels_unsent_restore_without_losing_baseline);RUN(uncertain_restore_at_setback_remains_uncertain);
  printf("automation model: %u checks passed\n",checks);return 0;

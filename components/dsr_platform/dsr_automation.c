@@ -130,17 +130,17 @@ static bool enrollment_same(const dsr_auto_rules_t *next,const dsr_auto_rule_t *
 static void configure(const dsr_fleet_t *fleet)
 {
  if(ctx->configured||ctx->model.pending.kind||ctx->model.fault==DSR_IO)return;
- dsr_auto_rules_t rules=ctx->public_rules;uint16_t enabled=0;
- for(unsigned i=0;i<rules.count;i++)if(rules.items[i].enabled)enabled|=(uint16_t)(rules.items[i].sensors|rules.items[i].targets);
- for(unsigned i=0;i<rules.key_count;i++){
-  const dsr_fleet_slot_t *s=find_slot(fleet,rules.keys[i].layout_id);
-  if(s&&s->layout_enabled&&capability(&s->connection,rules.keys[i].kind))rules.keys[i]=actual_key(&s->connection,rules.keys[i].kind);
+ dsr_auto_rules_t *rules=&ctx->staged;*rules=ctx->public_rules;uint16_t enabled=0;
+ for(unsigned i=0;i<rules->count;i++)if(rules->items[i].enabled)enabled|=(uint16_t)(rules->items[i].sensors|rules->items[i].targets);
+ for(unsigned i=0;i<rules->key_count;i++){
+  const dsr_fleet_slot_t *s=find_slot(fleet,rules->keys[i].layout_id);
+  if(s&&s->layout_enabled&&capability(&s->connection,rules->keys[i].kind))rules->keys[i]=actual_key(&s->connection,rules->keys[i].kind);
   else if(enabled&(1u<<i)){ctx->config_error=DSR_OFFLINE;return;}
  }
- for(unsigned i=0;i<rules.count;i++)if(rules.items[i].enabled&&!enrollment_same(&rules,&rules.items[i])){
-  if(!has_approval(rules.items[i].id)){ctx->config_error=DSR_CONFLICT;return;}rules.enroll=true;
+ for(unsigned i=0;i<rules->count;i++)if(rules->items[i].enabled&&!enrollment_same(rules,&rules->items[i])){
+  if(!has_approval(rules->items[i].id)){ctx->config_error=DSR_CONFLICT;return;}rules->enroll=true;
  }
- dsr_result_t result=dsr_auto_configure(&ctx->model,&rules);ctx->config_error=result;
+ dsr_result_t result=dsr_auto_configure(&ctx->model,rules);ctx->config_error=result;
  if(result==DSR_OK){ctx->configured=true;memset(ctx->approvals,0,sizeof(ctx->approvals));}
 }
 bool dsr_automation_manual_ready(uint32_t id,uint32_t intent)

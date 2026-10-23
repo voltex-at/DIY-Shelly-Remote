@@ -162,7 +162,7 @@ int main(int argc,char **argv){
  frames(3);CHECK(sets==0);char *json=dsr_workspace_snapshot();cJSON *root=cJSON_Parse(json);free(json);
  cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root,"automations"),0),"enabled",cJSON_CreateTrue());
  json=cJSON_PrintUnformatted(root);CHECK(dsr_workspace_submit(json,7));free(json);cJSON_Delete(root);pump(config_task);CHECK(dsr_workspace_revision()==8);
- dsr_auto_snapshot_t pending;dsr_automation_snapshot(&pending);CHECK(pending.count==1&&pending.rules[0].state!=DSR_AUTO_DISABLED);
+ dsr_auto_snapshot_t pending;dsr_automation_snapshot(&pending);CHECK(pending.count==1&&pending.revision==8&&pending.rules[0].state!=DSR_AUTO_DISABLED);
  windows[0]=windows[1]=true;frames(!strcmp(scenario,"rate-limit")?120:45);CHECK(sets==2&&reads>=4&&remote[2]==16&&remote[3]==16);
  dsr_auto_snapshot_t snapshot;dsr_automation_snapshot(&snapshot);CHECK(snapshot.count==1&&snapshot.rules[0].state==DSR_AUTO_ACTIVE);
  if(!strncmp(scenario,"reopen-",7)){

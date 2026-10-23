@@ -43,6 +43,36 @@ Full CI for the exact release commit remains mandatory before publication.
 ASan/UBSan and negative safety cases must not be weakened to pass a change.
 Host rendering and target compilation are not physical-device acceptance.
 
+## Local contact/heating rules
+
+The canonical workspace schema is 3. Stored schemas 1 and 2 are validated by
+their frozen validators and upgraded in RAM; only an explicit save writes the
+upgrade. `automations` contains at most eight `contact_heating` definitions,
+disabled by default, with contact/target layout IDs and `target_half` (8..60;
+default 16 = 8°C). A thermostat belongs to at most one rule.
+
+Use Scenes → Automations on LCD or the web panel. Both use the shared workspace
+CAS save; editing never sends a device command. Any open contact limits heating
+without raising a lower target. All contacts must close before individual saved
+targets are restored. Manual intent takes priority, including the same value.
+Disabling/deleting cancels future automatic writes without restoring a target.
+
+The executor uses the existing config task, actor and sole worker. Its private
+CRC journal is separate from config revisions; it records ownership/overrides
+before physical writes. Resume requires new source reports from every contact,
+valid UTC and direct TRV reads. The implemented direct-read contract is limited
+to Gateway Gen3 `BluTrv.Call` → `TRV.GetStatus`; mirrors never prove a target.
+Beacon mode is not enabled automatically. An external same-value write cannot
+be detected; physical Gateway/TRV readback and power-cut recovery remain release
+acceptance work.
+
+Focused checks: `python3 tools/test_automation.py --case model|store|http|config|runtime|api`,
+`python3 tools/test_ui.py --case test_automation_ui`, and
+`node tests/test_panel_automation.cjs`. Run `--case all` once at an integration
+boundary. New API `GET /api/v1/automations/status` requires the existing local
+same-origin/pairing gates and exports public status/roles for one config revision,
+without enrollment keys or journal contents. There is no automation execute POST.
+
 ## Windows and firmware builds
 
 Keep toolchains under `.local/`, host dependencies under `.test-deps/`, and

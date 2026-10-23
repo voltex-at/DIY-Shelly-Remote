@@ -1,6 +1,40 @@
 # Stan prac i jeden backlog po porządkowaniu — 2026-10-22
 
-Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Ten etap nie dodaje funkcji firmware.
+Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
+
+
+## Aktualizacja: okno/drzwi → ogrzewanie — 2026-10-23
+
+Właściciel zatwierdził projekt oraz ośmioetapowy plan do wykonania tutaj. Model,
+dziennik NVS, źródłowa świeżość kontaktów, bezpośredni odczyt TRV, schemat 3,
+wykonawca i edytory LCD/WWW są wdrożone w lokalnych commitach. Nowa reguła jest
+wyłączona, z domyślną nastawą 8°C. Ręczne zmiany są zachowywane; wznowienie po
+przerwie wymaga nowych raportów wszystkich uczestników. Wykorzystano istniejącego
+aktora/workera i zadanie konfiguracji, bez nowego zadania RTOS.
+
+LCD ma wejście ze Scen, trzy skórki i PL/EN/DE, osobny stan reguły, złote ważne
+komunikaty i sfazowane podwójne ramki Cyber Blue. WWW edytuje ten sam dokument
+przez CAS; odczyt statusu pozostaje za istniejącym parowaniem i kontrolą lokalnego
+pochodzenia. Nie eksportuje prywatnych tożsamości ani dziennika.
+
+Końcowa integracja hostowa przeszła: model i dziennik, rzeczywisty config-task,
+aktor/worker, odczyty i wznowienie, API, wybrane nowe ekrany LVGL 9.3 oraz panel
+Chromium. Sprawdzono też dotknięte wcześniejsze przypadki aktora/workspace i
+spójność tłumaczeń. Pełnego atlasu ani całego historycznego zestawu UI nie generowano.
+
+Build ES3C35P na ESP-IDF 5.5.4 przeszedł. Plik aplikacji ma 0x4233d0 bajtów
+i 31% wolnej partycji aplikacji. Audyt ELF potwierdził pulę LVGL w PSRAM i 8 KB
+stosu UI w pamięci wewnętrznej. Docelowy raport stosu wykrył dużą ramkę
+konfiguracji; przebudowano remapowanie w miejscu, zachowując cykle, nastawy i
+intencje. Po poprawce konfiguracja używa 320 B, cykl wykonawcy 336 B, a nowy
+renderer formularza 784 B. Regresje powiązanych modułów i kontrola budżetów przeszły.
+
+Niezależny przegląd pozostaje ostatnią bramką tej implementacji. Host używa
+modeli radia/Flash/RTOS i nie ma lokalnego UBSan; nowe obowiązkowe testy ASan/UBSan
+są zarejestrowane w CI, którego tutaj nie uruchamiano zdalnie. Bezpośredni odczyt
+TRV ogranicza się do udokumentowanej bramki Gateway Gen3. Potwierdzenie realnego
+RPC, przerw zasilania i high-water mark stosu wymaga fizycznego sprzętu. Nie jest
+to nowe wydanie ani odbiór na pilocie. Bez push, flashowania i publikacji.
 
 ## Baza dalszej pracy
 
@@ -39,7 +73,7 @@ Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebra�
 | Rolety i STOP | Cover RPC, pozycja/gest, potwierdzony odczyt, priorytet STOP; wspólna animacja trzech skórek, 0%=zamknięta/100%=otwarta. | `components/dsr_ui/dsr_ui_mobile_cover_cyber.inc; components/dsr_ui/dsr_ui_cyber.c; components/dsr_platform/dsr_fleet.c` |
 | Światło/dimmer/RGB/H&T/TRV | Prawdziwe akcje oraz capability; H&T tylko odczyt, TRV przez bramkę. 0.7.70 przebudowuje Cyber dimmer/RGB, pozostałe skórki zachowują swoje widoki. | `components/dsr_ui/dsr_ui_mobile.c; components/dsr_ui/dsr_ui_mobile_lighting_cyber.inc` |
 | Ustawienia urządzenia i Ogólne | Trwała edycja karty oddzielona od świadomych zmian konfiguracji Shelly Gen2/3/4; formularze zależne od rzeczywistych możliwości. | `components/dsr_platform/dsr_device_settings.c; components/dsr_ui/dsr_ui_device_settings.c` |
-| Grupy i sceny | Ręczne sceny Switch/Cover oraz grupy Switch, wyniki częściowe, edytory LCD/WWW. Automatyczne reguły/warunki/harmonogramy poza dostarczonym zakresem. | `components/dsr_platform/dsr_actions.c; components/dsr_ui/dsr_ui_actions.c` |
+| Grupy i sceny | Ręczne sceny Switch/Cover oraz grupy Switch, wyniki częściowe, edytory LCD/WWW. Lokalna reguła kontakt BLU → ogrzewanie jest wdrożona w bieżącej gałęzi; ruch, harmonogramy i chmura pozostają poza tym zakresem. | `components/dsr_platform/dsr_actions.c; components/dsr_ui/dsr_ui_actions.c` |
 | Aktywność | Backend 128 rekordów RAM, paginacja i API log/clear są obecne. Osobny widok LCD dla pierwotnego #21 nie jest potwierdzony i wymaga dokończenia/decyzji zakresu. | `components/dsr_platform/include/dsr_actions.h; components/dsr_ui/dsr_ui_actions.c` |
 | Historia energii i wykresy | Były wdrożone, następnie usunięte decyzją właściciela 0.7.51. Nie przywracać automatycznie na podstawie starych #22/#29. Bieżące pomiary i kontrolki pozostają. | `docs/FEATURE_MATRIX.md; docs/RELEASE_NOTES.md` |
 | Panel WWW i języki | Wspólna konfiguracja, pairing/zgody i osobne PL/EN/DE przeglądarki; lokalny podgląd LCD. | `components/dsr_platform/dsr_panel.c; components/dsr_platform/web` |
@@ -564,9 +598,9 @@ Walidacja tej rundy obejmuje wyłącznie zmieniony zakres: `tools/test_group_con
 
 **Weryfikacja ręcznych scen TRV:** ukierunkowany test parsera/konfiguracji (w tym granice i odrzucanie brakującej, ułamkowej, powielonej lub obcej wartości), test aktora/workera sceny z anulowaniem, zmianą powiązania i niepewnym wynikiem bez ponownego zapisu oraz natywny edytor LVGL 9.3 w Grafit/Jasny/Cyber Blue i PL/EN/DE przeszły. Edytor sprawdzono także przy błędzie zapisu, ponowieniu, anulowaniu i zmianie urządzenia w rejestrze ustawień; sama edycja nie wysyła sterowania. Istniejąca regresja edytora scen/grup przeszła bez ponownej kompilacji. Chromium potwierdził wybór TRV/czujnik pasywny, walidację co 0,5°C, zapis/ponowne otwarcie, zmianę języka i powrót do wyboru podczas opóźnionego odczytu typów. Podgląd: `.local/ui-survey-0.7.71/groups/scene-target.png` (sześć wybranych klatek, bez pełnego atlasu). Przegląd kodu wykrył i po poprawce potwierdził usunięcie problemu starszego edytora; bez pozostałych potwierdzonych P1/P2 w tym zakresie. Lokalny Cygwin nie ma biblioteki UBSan — te uruchomienia hostowe były bez sanitizerów. Właściciel zaakceptował pokazany podgląd nowego kroku sceny TRV: wybór temperatury −/+, zapisane podsumowanie oraz wygląd trzech skórek. Wykonanie/readback na sprzęcie i walidacja wydania pozostają otwarte. Po samej akceptacji nie powtarzano testów ani renderów. Bez publikacji DEV, push ani flashowania.
 
-**Automatyzacja czujników — uzgodnienia, bez implementacji wykonawcy:** pierwszy przypadek to okno/drzwi → ogrzewanie. Właściciel wybrał reakcję natychmiast po odebraniu zmiany stanu, bez celowego opóźnienia. Temperatura przy otwarciu ma być wybierana osobno w regule, domyślnie 8°C; po zamknięciu planowany jest powrót do poprzedniej nastawy. Właściciel zdecydował, że ręczna zmiana temperatury podczas otwarcia ma zostać zachowana po zamknięciu — automatyzacja nie przywraca wtedy starszej nastawy. Właściciel zaakceptował obsługę kilku czujników sterujących tym samym termostatem: otwarcie dowolnego obniża temperaturę, a powrót do wcześniejszej nastawy następuje dopiero po zamknięciu wszystkich, z zachowaniem ręcznej zmiany. Właściciel zaakceptował automatyczne wznowienie po restarcie lub utracie połączenia dopiero po świeżych odczytach wszystkich przypisanych czujników i termostatów, z zachowaniem ręcznych zmian. Główne zachowanie reguły jest uzgodnione. Ruch i inne odczyty BLE nadal nie wyzwalają automatycznie scen.
+**Automatyzacja czujników — uzgodnienia ankiety:** pierwszy przypadek to okno/drzwi → ogrzewanie. Właściciel wybrał reakcję natychmiast po odebraniu zmiany stanu, bez celowego opóźnienia. Temperatura przy otwarciu ma być wybierana osobno w regule, domyślnie 8°C; po zamknięciu planowany jest powrót do poprzedniej nastawy. Właściciel zdecydował, że ręczna zmiana temperatury podczas otwarcia ma zostać zachowana po zamknięciu — automatyzacja nie przywraca wtedy starszej nastawy. Właściciel zaakceptował obsługę kilku czujników sterujących tym samym termostatem: otwarcie dowolnego obniża temperaturę, a powrót do wcześniejszej nastawy następuje dopiero po zamknięciu wszystkich, z zachowaniem ręcznej zmiany. Właściciel zaakceptował automatyczne wznowienie po restarcie lub utracie połączenia dopiero po świeżych odczytach wszystkich przypisanych czujników i termostatów, z zachowaniem ręcznych zmian. Główne zachowanie reguły jest uzgodnione. Ruch i inne odczyty BLE nadal nie wyzwalają automatycznie scen.
 
-**Projekt wykonawcy automatyzacji — zatwierdzony:** [Opis okno/drzwi → ogrzewanie](superpowers/specs/2026-10-23-window-heating-design.md) utrwala decyzje ankiety oraz proponowaną integrację z aktorem/workerem, dziennik odzyskiwania, migrację konfiguracji i ukierunkowaną walidację. Rozpoznanie wykazało, że świeże HTTP do bramki nie potwierdza świeżości konkretnego kontaktu ani lustrzanej nastawy TRV. Projekt wymaga czasu raportu kontaktu oraz bezpośredniego odczytu TRV. Bez okresowych raportów kontakt może wymagać oczekiwania na nową transmisję; beacon nie jest włączany samoczynnie. Dodano granice trwałego zapisu ręcznego override we wszystkich fazach cyklu. Właściciel zatwierdził dokument („Tak, projekt zatwierdzony”). [Plan wdrożenia](superpowers/plans/2026-10-23-window-heating.md) obejmuje model, dziennik, dowody świeżości, migrację schematu 3, wykonawcę oraz LCD/WWW. Plan jest do przeglądu i wyboru sposobu wykonania; implementacja automatyzacji nie została jeszcze rozpoczęta. W tej rundzie nie uruchamiano testów firmware ani renderów.
+**Projekt wykonawcy automatyzacji — zatwierdzony:** [Opis okno/drzwi → ogrzewanie](superpowers/specs/2026-10-23-window-heating-design.md) utrwala decyzje ankiety oraz proponowaną integrację z aktorem/workerem, dziennik odzyskiwania, migrację konfiguracji i ukierunkowaną walidację. Rozpoznanie wykazało, że świeże HTTP do bramki nie potwierdza świeżości konkretnego kontaktu ani lustrzanej nastawy TRV. Projekt wymaga czasu raportu kontaktu oraz bezpośredniego odczytu TRV. Bez okresowych raportów kontakt może wymagać oczekiwania na nową transmisję; beacon nie jest włączany samoczynnie. Dodano granice trwałego zapisu ręcznego override we wszystkich fazach cyklu. Właściciel zatwierdził dokument („Tak, projekt zatwierdzony”). [Plan wdrożenia](superpowers/plans/2026-10-23-window-heating.md) obejmuje model, dziennik, dowody świeżości, migrację schematu 3, wykonawcę oraz LCD/WWW. Właściciel zatwierdził plan i wykonanie tutaj. Etapy 1–7 są wdrożone lokalnie; stan końcowej walidacji opisano w aktualizacji z 2026-10-23.
 
 
 Niezależny przegląd kodu tej rundy wykrył i doprowadził do poprawy trzech nowych ścieżek grup: powrót ze strony koloru RGB zachowuje teraz grupę, zamiast traktować jej numer na liście jak indeks fizycznego urządzenia; wspólny stan Włącz/Wyłącz jest liczony oddzielnie od różnych jasności i kolorów; odrzucenie szkicu RGB odtwarza pozostałe kanały z aktualnych odczytów. Ustawienia otwierają edycję właściwej grupy, a Zużycie dla grupy dimmerów jest nieaktywne. Ponowiono wyłącznie nowe przypadki grup i reprezentatywne istniejące dimmer/RGB — PASS dla trzech skórek i PL/EN/DE. Kontrola obejmuje fizyczne kliknięcia zakładek, Wyłącz przy różnych kolorach/poziomach i zmianę odczytu podczas niezapisanego szkicu; dostawcy poleceń pozostają modelami hosta. Końcowy przegląd poprawek nie zgłosił dalszych istotnych uwag w tym zakresie. Wygląd kart grup oraz pokazane widoki sterowania grupami dimmerów, RGB, przekaźników i rolet są zaakceptowane; docelowy build i odbiór sprzętowy pozostają otwarte.

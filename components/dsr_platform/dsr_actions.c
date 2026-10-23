@@ -138,7 +138,7 @@ dsr_result_t dsr_actions_auto_request(uint32_t rule,uint32_t cycle,uint32_t gene
   for(unsigned j=0;j<actions->endpoint_count;j++)if(actions->endpoints[j].key.layout_id==ids[i]&&!actions->endpoints[j].pending){steps[i].key=actions->endpoints[j].key;break;}
   if(!steps[i].key.layout_id||!steps[i].key.trv||steps[i].key.kind!=DSR_ENDPOINT_BLU)valid=false;
  }
- dsr_actions_model_t *m=&actions->automatic;uint32_t next=actions->run_serial+1u;if(!next)next=1;char nonce[17];snprintf(nonce,sizeof(nonce),"%08x%08x",generation,next);
+ dsr_actions_model_t *m=&actions->automatic;uint32_t next=actions->run_serial+1u;if(!next)next=1;char nonce[17];snprintf(nonce,sizeof(nonce),"%08x%08x",(unsigned)generation,(unsigned)next);
  bool accepted=valid&&dsr_actions_model_begin(m,steps,count,next,m->generation,actions->boot_id,rule,actions->revision,nonce,3,4,now_ms());free(steps);
  if(accepted){actions->auto_rule=rule;actions->auto_cycle=cycle;actions->auto_generation=generation;actions->run_serial=next;
   actions->auto_lease=true;actions->auto_summary=false;memset(actions->auto_logged,0,sizeof(actions->auto_logged));*run=m->run_id;log_model(m,0,DSR_ACTION_WAITING,DSR_OK,0);

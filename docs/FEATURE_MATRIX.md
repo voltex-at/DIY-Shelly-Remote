@@ -19,7 +19,8 @@ ES3C35P dotyczy konkretnej wersji i nie przechodzi automatycznie na nowy layout.
 | BLU Motion/Door/Window i TRV przez bramkę | Tak, wspierane klasyczne modele | Do odbioru na aktualnym gateway/RF |
 | LAN / Wi-Fi AP / BLE onboarding | Tak; dwie zgody AP, kontrola tożsamości i restore LAN | LAN historycznie potwierdzony; aktualny AP/BLE do odbioru |
 | Ustawienia Shelly i BLU bonding/PIN/GATT | Tak, capability-driven Gen2/3/4 i klasyczne BLU | Do odbioru |
-| Ręczne grupy i sceny | Switch grupy, Switch/Cover sceny; LCD/WWW | Wykonanie na kilku urządzeniach do odbioru |
+| Ręczne grupy i sceny | Grupy według sterowania; sceny Switch/Cover/TRV, LCD/WWW | Wykonanie na kilku urządzeniach do odbioru |
+| Okno/drzwi → ogrzewanie | Lokalne reguły kontaktów BLU i TRV, dziennik odzyskiwania, edytory LCD/WWW; schema 3 | Host i build oddzielone od fizycznego odbioru; bezpośredni odczyt przez Gateway Gen3 |
 | Aktywność | Backend 128 wpisów RAM i API; widok LCD niepotwierdzony | Zaległość/zakres w #74 |
 | Historia energii i wykresy | Usunięte decyzją właściciela w 0.7.51 | Nie przywracać na podstawie starych issues |
 | Bateria | Kalibracja BAT; szacowany ~SOC i animacja trendu napięcia | Multimetr, ładowanie i brak baterii do odbioru |
@@ -30,7 +31,7 @@ ES3C35P dotyczy konkretnej wersji i nie przechodzi automatycznie na nowy layout.
 | Wydanie DEV | Jeden build na tag, CI 5/5, środowisko właściciela, kontrola publicznych plików | Nie zastępuje testu urządzenia |
 | Eksport/backup i reset fabryczny | Niewdrożone | Zaległość System w #74 |
 
-Poza dostarczonym zakresem: Gen1, Midnight jako skórka, automatyczne/chmurowe
+Poza dostarczonym zakresem: Gen1, Midnight jako skórka, chmurowe i pozostałe automatyczne
 reguły, nowe rodziny BLU/Zigbee/Matter oraz pełny onboarding konta Shelly Cloud.
 Kalibracja baterii nie zmienia braku wiarygodnego sygnału obecności/ładowarki.
 NVS prototypu pozostaje nieszyfrowane; zmiana wymaga osobnej analizy migracji.
