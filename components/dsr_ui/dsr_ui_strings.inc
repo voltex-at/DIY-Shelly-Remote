@@ -26,7 +26,7 @@
 {"Min. %lu/%lu B","Min. %lu/%lu B","Min. %lu/%lu B"},
 {"Min. %lu/— B","Min. %lu/— B","Min. %lu/— B"},
 {"Paski: wolne. Stos: min. od startu.\nBLE: stan modułu, nie zużycie.","Bars: free. Stack: min. since boot.\nBLE: module state, not usage.","Balken: frei. Stack: Min. seit Start.\nBLE: Modulstatus, kein Verbrauch."},
-{"włączone","on","an"},{"wyłączone","off","aus"},
+{"włączone","on","Ein"},{"wyłączone","off","Aus"},
 {" • hasło"," • password"," • Passwort"},
 {"Dodaj przez Wi-Fi AP","Add via Wi-Fi AP","Über WLAN-AP hinzufügen"},
 {"Fabryczne urządzenie Shelly","Factory Shelly device","Shelly im Werkszustand"},

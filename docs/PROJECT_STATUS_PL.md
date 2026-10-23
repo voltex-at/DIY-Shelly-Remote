@@ -258,7 +258,11 @@ Semantyka SDK jest sprawdzona w dokumentacji ESP-IDF 5.5.4 dla ESP32-S3:
 [pojemność i wolna sterta](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/mem_alloc.html)
 oraz [minimum wolnego stosu w bajtach](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/freertos_idf.html).
 Walidacja dotyczy tej sekcji; wcześniejsza akceptacja baterii i kalibracji
-pozostaje aktualna. **Nowe paski oczekują na ocenę podglądu przez właściciela.**
+pozostaje aktualna. **Właściciel zaakceptował sekcję na podglądzie `77c65d4`**
+z jedną korektą: niemiecki stan Bluetooth ma brzmieć **Ein / Aus**, z wielkiej
+litery. Napis poprawiono we wspólnym tłumaczeniu używanym wyłącznie przez
+ten wiersz; polskie i angielskie brzmienie oraz działanie BLE pozostają.
+Odbiór rzeczywistych pomiarów i działania na pilocie jest nadal otwarty.
 
 ## Baza dalszej pracy
 
@@ -348,7 +352,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. **Turkusowe obramowania i odstępy czterech pokazanych ekranów Wi-Fi/BLU Cyber Blue zaakceptowane na podglądzie** (`638b56c`); **Wybór bramki, logowanie, instrukcja TRV i trzy pokazane wyniki rejestracji zaakceptowane na podglądzie** (`c2627bc`). **Pozostałe pokazane stany wyszukiwania/rejestracji, oba błędy i formularz karty również zaakceptowane na podglądzie**; odbiór wyglądu pokazanego przepływu bramki zakończony. Końcowy zapis karty oraz rzeczywiste RF nadal do odbioru |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
-| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`): główny ekran baterii w trzech skórkach, pokazane elementy kalibracji (typ ogniwa, progi, trend, korekta), złote błędy, ponowny odczyt i układ z klawiaturą. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
+| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Oczekuje na ocenę |
