@@ -11,8 +11,15 @@ p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime',
 a = parse_args(p)
 cases = {
  'model': (['components/dsr_platform/dsr_automation_model.c', 'tests/test_automation_model.c'], [], []),
+ 'store': (['components/dsr_platform/dsr_automation_store.c', 'components/dsr_platform/dsr_automation_model.c',
+            'tests/automation/nvs_fixture.c', 'tests/test_automation_store.c'], ['tests/support'], []),
+ 'store_queue': (['components/dsr_platform/dsr_workspace.c', 'components/dsr_platform/dsr_config_health.c',
+                  'components/dsr_platform/dsr_activity.c', 'components/dsr_config/dsr_config.c',
+                  'components/dsr_core/dsr_core.c', 'tests/test_automation_queue.c'],
+                  ['tests/actor', 'tests/support', 'components/dsr_config/include', '.test-deps', '/usr/include/cjson'],
+                  ['-l:libcjson.so.1', '-lm']),
 }
-selected = list(cases) if a.case == 'all' else [a.case]
+selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else [a.case]
 with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
  for name in selected:
   if name not in cases:

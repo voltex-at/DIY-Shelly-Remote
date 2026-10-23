@@ -21,6 +21,7 @@ bool dsr_auto_manual(dsr_auto_model_t *m,uint32_t layout_id,uint32_t intent_id);
 bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now_ms,uint32_t utc,dsr_auto_effect_t *out);
 void dsr_auto_complete(dsr_auto_model_t *m,const dsr_auto_effect_t *effect,dsr_result_t result);
 bool dsr_auto_recover(dsr_auto_model_t *m,const dsr_auto_record_t *record);
+bool dsr_auto_record_valid(const dsr_auto_record_t *record);
 void dsr_auto_model_snapshot(const dsr_auto_model_t *m,dsr_auto_snapshot_t *out);
 bool dsr_auto_key_equal(const dsr_auto_key_t *a,const dsr_auto_key_t *b);
 #endif

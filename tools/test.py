@@ -23,7 +23,7 @@ ES3 = ['-DDSR_BOARD_ES3C35P=1']
 HTTP = ['components/dsr_core/dsr_core.c', P + 'dsr_device_settings_model.c', P + 'dsr_http.c', P + 'dsr_ap.c', P + 'dsr_ap_model.c', P + 'dsr_discovery_model.c',
         'components/dsr_config/dsr_config.c', P + 'dsr_connection.c', P + 'dsr_fleet.c', P + 'dsr_settings.c',
         P + 'dsr_wifi_policy.c', P + 'dsr_activity.c']
-WORKSPACE = [P + 'dsr_workspace.c', P + 'dsr_config_health.c', P + 'dsr_activity.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c']
+WORKSPACE = [P + 'dsr_workspace.c', P + 'dsr_config_health.c', P + 'dsr_activity.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/support/automation_store_stub.c']
 
 # name, sources, includes, flags, libs, scenario argv lists, extra environment
 SUITES = [

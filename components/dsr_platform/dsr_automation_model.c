@@ -44,15 +44,22 @@ static bool changed(dsr_auto_model_t *m)
  m->record.generation++;return true;
 }
 void dsr_auto_init(dsr_auto_model_t *m){if(m)memset(m,0,sizeof(*m));}
-bool dsr_auto_recover(dsr_auto_model_t *m,const dsr_auto_record_t *r)
+bool dsr_auto_record_valid(const dsr_auto_record_t *r)
 {
- if(!m||!r||!rules_valid(&r->rules)||!r->generation)return false;
- for(unsigned i=0;i<r->rules.count;i++)if(r->cycles[i].active>2)return false;
+ if(!r||!rules_valid(&r->rules)||!r->generation||r->rules.enroll)return false;
+ for(unsigned i=0;i<r->rules.count;i++)if(r->cycles[i].active>2||
+  (r->cycles[i].active&&(!r->rules.items[i].enabled||!r->cycles[i].cycle))||
+  r->cycles[i].reserved[0]||r->cycles[i].reserved[1]||r->cycles[i].reserved[2])return false;
  for(unsigned i=0;i<r->rules.key_count;i++){
   const dsr_auto_target_t *t=&r->targets[i];
   if(t->phase>DSR_AUTO_UNCERTAIN||t->override>1||
    (t->phase&&(t->baseline<8||t->baseline>60||t->desired<8||t->desired>60)))return false;
  }
+ return true;
+}
+bool dsr_auto_recover(dsr_auto_model_t *m,const dsr_auto_record_t *r)
+{
+ if(!m||!dsr_auto_record_valid(r))return false;
  dsr_auto_init(m);m->record=*r;m->record.rules.enroll=false;
  m->loaded=true;m->durable_generation=r->generation;
  /* Prepared may already have reached the radio. Recovery NEVER replays it. */

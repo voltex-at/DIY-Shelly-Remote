@@ -2,6 +2,7 @@
 #include "dsr_storage.h"
 #include "dsr_activity.h"
 #include "dsr_actions.h"
+#include "dsr_automation_store.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -16,18 +17,27 @@ static char *current;
 static uint32_t revision;
 static bool busy;
 static char status[96];
+static bool auto_pending,auto_done;
+static uint32_t auto_generation;
+static esp_err_t auto_result;
 static dsr_connection_t bind_request;
 static bool bind_waiting,bind_busy;
 static uint32_t bind_room=UINT32_MAX;
 static dsr_result_t bind_result_code=DSR_OK;
 static char bind_message[64];
-typedef struct {char *json;uint32_t revision;} request_t;
+typedef struct {union {char *json;dsr_auto_record_t *record;};uint32_t revision;bool automatic;} request_t;
 static bool workspace_ready(void){dsr_config_health_t h;dsr_config_health_snapshot(&h);return h.workspace==DSR_WORKSPACE_READY&&mutex&&queue&&current;}
 static void config_task(void *argument)
 {
  (void)argument;request_t request;
  for(;;){
   if(xQueueReceive(queue,&request,portMAX_DELAY)!=pdTRUE)continue;
+  if(request.automatic){
+   esp_err_t result=dsr_auto_store_save(request.record);free(request.record);
+   xSemaphoreTake(mutex,portMAX_DELAY);
+   auto_generation=request.revision;auto_result=result;auto_pending=false;auto_done=true;
+   xSemaphoreGive(mutex);dsr_activity_end();continue;
+  }
   char error[96]={0};char *previous=dsr_workspace_snapshot();
   char *next=dsr_config_replace(previous,request.json,request.revision,error);free(previous);free(request.json);
   if(next&&!dsr_config_store_save("/dsr",next,error)){free(next);next=NULL;}
@@ -91,11 +101,30 @@ bool dsr_workspace_submit(const char *json,uint32_t expected)
  char *copy=malloc(strlen(json)+1);if(!copy)return false;strcpy(copy,json);
  xSemaphoreTake(mutex,portMAX_DELAY);
  bool ok=!busy&&revision==expected;
- if(ok){ok=dsr_activity_begin();if(ok){request_t req={copy,expected};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok){busy=true;snprintf(status,sizeof(status),"Saving…");}else dsr_activity_end();}}
+ if(ok){ok=dsr_activity_begin();if(ok){request_t req={.json=copy,.revision=expected};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok){busy=true;snprintf(status,sizeof(status),"Saving…");}else dsr_activity_end();}}
  xSemaphoreGive(mutex);if(!ok)free(copy);return ok;
 }
 void dsr_workspace_status(bool *pending,char message[96])
 {if(!workspace_ready()){*pending=false;snprintf(message,96,"Configuration storage unavailable");return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=busy;snprintf(message,96,"%s",status);xSemaphoreGive(mutex);}
+bool dsr_workspace_auto_submit(const dsr_auto_record_t *record,uint32_t generation)
+{
+ if(!workspace_ready()||!record||!generation||record->generation!=generation)return false;
+ dsr_auto_record_t *copy=malloc(sizeof(*copy));if(!copy)return false;*copy=*record;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool ok=!auto_pending&&!auto_done;
+ if(ok){
+  ok=dsr_activity_begin();
+  if(ok){request_t req={.record=copy,.revision=generation,.automatic=true};
+   ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok)auto_pending=true;else dsr_activity_end();}
+ }
+ xSemaphoreGive(mutex);if(!ok)free(copy);return ok;
+}
+bool dsr_workspace_auto_take_result(uint32_t *generation,esp_err_t *result)
+{
+ if(!workspace_ready()||!generation||!result)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool found=auto_done;
+ if(found){*generation=auto_generation;*result=auto_result;auto_done=false;}
+ xSemaphoreGive(mutex);return found;
+}
 bool dsr_workspace_bind_with_room(const dsr_connection_t *connection,uint32_t room)
 {
  if(!workspace_ready()||!dsr_connection_valid(connection,false))return false;

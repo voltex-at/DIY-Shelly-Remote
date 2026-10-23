@@ -5,6 +5,7 @@
 #include "dsr_platform.h"
 #include "dsr_boot.h"
 #include "dsr_config_health.h"
+#include "dsr_automation_types.h"
 #define DSR_PHOTO_WIDTH 320
 #define DSR_PHOTO_HEIGHT 180
 #define DSR_PHOTO_BYTES (DSR_PHOTO_WIDTH*DSR_PHOTO_HEIGHT*2)
@@ -17,6 +18,8 @@ uint32_t dsr_workspace_revision(void);
 /* Nonblocking. Configuration stays unchanged until durable write succeeds. */
 bool dsr_workspace_submit(const char *json,uint32_t revision);
 void dsr_workspace_status(bool *busy,char message[96]);
+bool dsr_workspace_auto_submit(const dsr_auto_record_t *record,uint32_t generation);
+bool dsr_workspace_auto_take_result(uint32_t *generation,esp_err_t *result);
 /* Pairing requires a local touch to open a 120-second, rate-limited window.
  * No shared/factory password. Pairing credentials must never be logged. */
 void dsr_panel_pair_begin(char code[17]);
