@@ -52,8 +52,9 @@ wszystkie mieszczą się w zarejestrowanych budżetach. To statyczne ramki kompi
 bez pomiaru rzeczywistego high-water mark. Wersje zależności i ABI job/event są
 zachowane.
 
-Rzeczywiste podglądy nowych LCD i WWW przedstawiono do ankiety. **Akceptacja ich
-wyglądu przez właściciela pozostaje otwarta**; wcześniejsze zaakceptowane karty
+Rzeczywiste podglądy nowych LCD i WWW przedstawiono do ankiety. **Złote ramki
+Cyber Blue po korekcie są zaakceptowane na podglądzie; pełny odbiór nowych
+formularzy/statusów pozostaje otwarty**. Wcześniejsze zaakceptowane karty
 urządzeń/grup zachowują swój odbiór. Host używa modeli radia/Flash/RTOS i nie ma
 lokalnego UBSan; nowe obowiązkowe testy ASan/UBSan są zarejestrowane w CI,
 którego tutaj nie uruchamiano zdalnie. Bezpośredni odczyt TRV ogranicza się do
@@ -80,7 +81,10 @@ PL/EN/DE, a tekst mieści się wewnątrz. Ten sam przypadek sprawdził pozostał
 formularze, zapis i powrót w trzech skórkach. Obejrzano rzeczywiste piksele.
 Bez pełnego atlasu, powtarzania backendu i nowego builda docelowego po tej
 niewielkiej zmianie UI; pełny build nadal należy do bramek przed wydaniem.
-**Ponowny odbiór właściciela pozostaje otwarty.**
+**Odbiór właściciela:** „Tak, ramki zaakceptowane”. Akceptacja obejmuje pokazane
+złote ramki automatyzacji w Cyber Blue po poprawce `1852e97` (PL/EN/DE), ich
+rozdzielenie i czytelność. Pozostałe kroki edytora oraz stany automatyzacji
+pozostają w ankiecie; nie jest to odbiór wykonawcy na sprzęcie ani całej funkcji.
 
 ## Baza dalszej pracy
 
