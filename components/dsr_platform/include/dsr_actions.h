@@ -78,6 +78,8 @@ dsr_result_t dsr_actions_worker_allowed(uint32_t job_id,const dsr_connection_t *
 void dsr_actions_worker_write_attempted(uint32_t job_id);
 bool dsr_actions_log(uint32_t epoch,unsigned offset,unsigned limit,dsr_action_log_page_t *page);
 void dsr_actions_log_clear(void);
+/* Conditional clear for a physical dialog: old epochs never clear new history. */
+bool dsr_actions_log_clear_epoch(uint32_t epoch);
 /* Correlated manual command completion; numeric layout only. source2 leaves
  * the origin unattributed rather than guessing LCD/WWW from operationIDs. */
 void dsr_actions_observe(uint32_t layout_id,dsr_action_command_t command,dsr_result_t result);

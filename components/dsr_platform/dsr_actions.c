@@ -249,6 +249,8 @@ void dsr_actions_worker_write_attempted(uint32_t id)
 bool dsr_actions_log(uint32_t epoch,unsigned offset,unsigned limit,dsr_action_log_page_t *page)
 {if(!take())return false;bool ok=dsr_action_log_page(&actions->log,epoch,offset,limit,page);give();return ok;}
 void dsr_actions_log_clear(void){if(take()){dsr_action_log_clear(&actions->log);give();}}
+bool dsr_actions_log_clear_epoch(uint32_t epoch)
+{if(!epoch||!take())return false;bool ok=actions->log.epoch==epoch;if(ok)dsr_action_log_clear(&actions->log);give();return ok;}
 void dsr_actions_observe(uint32_t id,dsr_action_command_t command,dsr_result_t result)
 {
  if(!id||id>1000000||command<DSR_ACTION_ON||command>DSR_ACTION_STOP||!take())return;

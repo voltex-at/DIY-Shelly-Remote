@@ -450,15 +450,16 @@ static void system_menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("System");
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
-  const char *names[]={"Firmware Update","Informacje i diagnostyka","Hardware tests","Konfiguracja wpisów i scen","Restart pilota"};
-  const dsr_ui_icon_t icons[]={DSR_ICON_FIRMWARE,DSR_ICON_DIAGNOSTICS,DSR_ICON_HARDWARE,DSR_ICON_SCENES,DSR_ICON_RESTART};
-  const lv_event_cb_t callbacks[]={dsr_ui_native_ota_open,system_info,hardware,dsr_ui_config_registry,restart_screen};
-  for(unsigned i=0;i<5;i++)system_row(body,names[i],(int)i*62,54,icons[i],callbacks[i]);
+  const char *names[]={"Firmware Update","Informacje i diagnostyka","Hardware tests","Konfiguracja wpisów i scen","Restart pilota","Aktywność"};
+  const dsr_ui_icon_t icons[]={DSR_ICON_FIRMWARE,DSR_ICON_DIAGNOSTICS,DSR_ICON_HARDWARE,DSR_ICON_SCENES,DSR_ICON_RESTART,DSR_ICON_ACTIVITY};
+  const lv_event_cb_t callbacks[]={dsr_ui_native_ota_open,system_info,hardware,dsr_ui_config_registry,restart_screen,dsr_ui_activity_open};
+  for(unsigned i=0;i<6;i++)system_row(body,names[i],(int)i*62,54,icons[i],callbacks[i]);
   return;
  }
  row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
  row(body,"Restart pilota",232,restart_screen);
+ row(body,"Aktywność",290,dsr_ui_activity_open);
 }
 void dsr_ui_system_open(lv_event_t *event){system_menu(event);}
 static void screen_settings(lv_event_t *event)
