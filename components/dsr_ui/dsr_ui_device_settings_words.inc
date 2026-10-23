@@ -133,6 +133,8 @@
 {"Czujnik zapisany na bramce. Odbiór pomiarów niepotwierdzony.","Sensor saved on gateway. Readings not yet confirmed.","Sensor am Gateway gespeichert. Messwertempfang unbestätigt."},
 {"Część konfiguracji wymaga ponownego sprawdzenia. Ponowne dodanie użyje istniejącego czujnika.","Part of the setup needs checking. Adding again will reuse the existing sensor.","Ein Teil der Einrichtung muss geprüft werden. Erneutes Hinzufügen nutzt den vorhandenen Sensor."},
 {"Zapisz kartę","Save card","Karte speichern"},
+{"Rozpocznij","Start","Starten"},
+{"Sprawdź parowanie BLU i dane logowania bramki Shelly.","Check the BLU pairing and Shelly gateway credentials.","BLU-Kopplung und Zugangsdaten des Shelly-Gateways prüfen."},
 {"Zapis mógł dotrzeć. Wynik niepotwierdzony; odczytaj ustawienia ponownie.","The write may have arrived. Result unconfirmed; read settings again.","Schreibvorgang möglicherweise angekommen. Ergebnis unbestätigt; Einstellungen erneut auslesen."},
 {"Ponów odczyt","Read again","Erneut auslesen"},
 {"Usunąć powiązanie Bluetooth tego urządzenia z pilotem?","Remove this device's Bluetooth bond with the remote?","Bluetooth-Kopplung dieses Geräts mit der Fernbedienung entfernen?"},

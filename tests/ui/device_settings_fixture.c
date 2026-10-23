@@ -5,6 +5,7 @@ void vTaskDelay(TickType_t ticks){lv_tick_inc(ticks);}
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 /* Deterministic HTTP only; editor, actor, model and LCD are production code. */
 static bool enabled;
 static unsigned writes;
@@ -12,6 +13,22 @@ static cJSON *settings,*network;
 static cJSON *system_config;
 static bool general_enabled;
 static bool complete;
+static unsigned gateway_mode;
+static bool gateway_registered;
+/* 1: registered/no recent report; 2: fresh report; 3: partial setup;
+ * 4: unsupported gateway; 5: authentication rejected. HTTP model only. */
+void test_settings_gateway(unsigned mode){gateway_mode=mode;gateway_registered=false;writes=0;}
+static dsr_result_t gateway_rpc(const char *method,cJSON **out,bool write,bool *attempted)
+{
+ if(gateway_mode==5)return DSR_AUTH_REQUIRED;
+ if(!strcmp(method,"Shelly.ListMethods"))*out=cJSON_Parse(gateway_mode==4?"{\"methods\":[]}":"{\"methods\":[\"BTHome.AddDevice\",\"BTHome.AddSensor\",\"BTHomeDevice.GetKnownObjects\",\"BluTrv.GetConfig\",\"BluTrv.SetConfig\",\"BLE.StartAssociations\"]}");
+ else if(!strcmp(method,"Shelly.GetComponents"))*out=cJSON_Parse(gateway_registered?"{\"offset\":0,\"total\":2,\"components\":[{\"key\":\"bthomedevice:200\",\"config\":{\"addr\":\"06:05:04:03:02:02\"}},{\"key\":\"blutrv:200\",\"config\":{\"addr\":\"06:05:04:03:02:02\",\"trv\":\"bthomedevice:200\"}}]}":"{\"offset\":0,\"total\":0,\"components\":[]}");
+ else if(write&&(!strcmp(method,"BTHome.AddDevice")||!strcmp(method,"BLE.StartAssociations")||!strcmp(method,"BluTrv.SetConfig"))){gateway_registered=true;writes++;if(attempted)*attempted=true;*out=cJSON_CreateObject();}
+ else if(!strcmp(method,"BTHomeDevice.GetKnownObjects")){if(gateway_mode==3)return DSR_OFFLINE;*out=cJSON_Parse("{\"objects\":[]}");}
+ else if(!strcmp(method,"BTHomeDevice.GetStatus")){*out=cJSON_Parse("{\"id\":200,\"battery\":90,\"rssi\":-50,\"errors\":[],\"last_updated_ts\":0}");if(gateway_mode==2)cJSON_ReplaceItemInObjectCaseSensitive(*out,"last_updated_ts",cJSON_CreateNumber((double)time(NULL)));}
+ else return DSR_UNSUPPORTED;
+ return *out?DSR_OK:DSR_IO;
+}
 void test_settings_complete(bool active){complete=active;}
 /* A capability-rich response exercises every existing allowlisted editor.
  * This is explicitly fixture data, never an invented hardware capability. */
@@ -39,6 +56,7 @@ dsr_result_t dsr_http_settings_identity(const dsr_connection_t *c){(void)c;retur
 dsr_result_t dsr_http_settings_rpc(const dsr_connection_t *c,const char *method,const cJSON *p,cJSON **out,bool write,bool *attempted)
 {
  (void)c;if(attempted)*attempted=false;*out=NULL;if(!enabled)return DSR_OFFLINE;
+ if(gateway_mode)return gateway_rpc(method,out,write,attempted);
  if(complete){
   if(!strcmp(method,"Shelly.ListMethods")){
    *out=cJSON_CreateObject();cJSON *methods=cJSON_AddArrayToObject(*out,"methods");const char *names[]={"Sys","WiFi","BLE","Cloud","MQTT","Switch","Input","Cover","Light","RGB","RGBW","Temperature","Humidity"};

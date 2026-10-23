@@ -4,6 +4,8 @@
 static dsr_blu_snapshot_t snapshot;
 static bool pin_required;
 static unsigned writes;
+static bool gateway_key_enabled;
+void test_blu_gateway_key(bool enabled){gateway_key_enabled=enabled;}
 void test_blu_phase(dsr_blu_phase_t phase,bool active){snapshot.phase=phase;snapshot.active=active;snapshot.result=active?DSR_BUSY:DSR_IO;snapshot.serial++;}
 void test_blu_pin_required(bool pin){pin_required=pin;writes=0;}
 unsigned test_blu_writes(void){return writes;}
@@ -18,4 +20,9 @@ void dsr_blu_cancel(uint32_t gen){if(gen==snapshot.generation)snapshot.active=fa
 void dsr_blu_snapshot(dsr_blu_snapshot_t *out){*out=snapshot;}
 bool dsr_blu_active(void){return snapshot.active;}
 void dsr_blu_close(void){snapshot=(dsr_blu_snapshot_t){0};}
-bool dsr_blu_gateway_key(uint32_t gen,char address[18],char key[33]){(void)gen;(void)address;(void)key;return false;}
+bool dsr_blu_gateway_key(uint32_t gen,char address[18],char key[33])
+{
+ if(!gateway_key_enabled||gen!=snapshot.generation||!snapshot.bonded)return false;
+ /* Deliberately synthetic host-only bond, never taken from a device. */
+ strcpy(address,"06:05:04:03:02:02");memset(key,'4',32);key[32]=0;return true;
+}
