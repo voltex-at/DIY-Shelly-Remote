@@ -24,6 +24,7 @@ HTTP = ['components/dsr_core/dsr_core.c', P + 'dsr_device_settings_model.c', P +
         'components/dsr_config/dsr_config.c', P + 'dsr_connection.c', P + 'dsr_fleet.c', P + 'dsr_settings.c',
         P + 'dsr_wifi_policy.c', P + 'dsr_activity.c']
 WORKSPACE = [P + 'dsr_workspace.c', P + 'dsr_config_health.c', P + 'dsr_activity.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/support/automation_store_stub.c']
+WORKSPACE.append('tests/support/automation_runtime_stub.c')
 
 # name, sources, includes, flags, libs, scenario argv lists, extra environment
 SUITES = [
@@ -59,6 +60,9 @@ SUITES = [
     ('runtime_api', [P + 'dsr_runtime_api.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/test_runtime_api.c'],
      ['tests/support', PLAT, P, CONF, CORE, JSON], [], CJSON, [[]], {'UBSAN_OPTIONS': 'halt_on_error=1', 'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1'}),
 ]
+for suite in SUITES:
+    if suite[0] in ('battery', 'actions_worker'):
+        suite[1].append('tests/support/automation_runtime_stub.c')
 # script, forwards sanitizer switches ('all', 'asan' = --sanitize only, None)
 RUNNERS = [
     ('test_ap_handoff.py', 'all'), ('test_pairing.py', 'all'), ('../tests/test_storage_recovery.py', None),

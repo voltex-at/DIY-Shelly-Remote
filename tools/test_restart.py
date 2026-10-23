@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     if not (json_include/'cJSON.h').exists():raise SystemExit('Install libcjson-dev to run restart workspace fixtures')
     writer_flags+=['-I',str(json_include)]
     binary=tmp/'workspace'
-    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_workspace.c','components/dsr_platform/dsr_config_health.c','components/dsr_config/dsr_config.c','components/dsr_core/dsr_core.c','tests/restart/workspace.c','tests/support/automation_store_stub.c']
+    sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_workspace.c','components/dsr_platform/dsr_config_health.c','components/dsr_config/dsr_config.c','components/dsr_core/dsr_core.c','tests/restart/workspace.c','tests/support/automation_store_stub.c','tests/support/automation_runtime_stub.c']
     subprocess.run([os.environ.get('CC','cc'),*writer_flags,*[str(ROOT/s) for s in sources],'-l:libcjson.so.1','-lm','-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
     binary=tmp/'photos'

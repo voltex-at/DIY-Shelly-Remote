@@ -27,7 +27,7 @@ static void done(dsr_action_step_t *s,dsr_action_outcome_t outcome,dsr_result_t 
 bool dsr_actions_model_begin(dsr_actions_model_t *m,const dsr_action_step_t *steps,size_t count,
  uint32_t run_id,uint32_t expected_generation,uint32_t boot_id,uint32_t object_id,uint32_t revision,const char nonce[17],uint8_t source,uint8_t kind,uint32_t now)
 {
- if(!m||m->active||(m->boot_id&&m->boot_id!=boot_id)||m->generation==UINT32_MAX||m->generation!=expected_generation||!steps||!count||count>DSR_ACTION_STEPS||!run_id||!boot_id||!object_id||object_id>1000000||!revision||!nonce_valid(nonce)||source>1||kind>1||dsr_actions_model_duplicate(m,boot_id,nonce))return false;
+ if(!m||m->active||(m->boot_id&&m->boot_id!=boot_id)||m->generation==UINT32_MAX||m->generation!=expected_generation||!steps||!count||count>DSR_ACTION_STEPS||!run_id||!boot_id||!object_id||object_id>1000000||!revision||!nonce_valid(nonce)||!((source<=1&&kind<=1)||(source==3&&kind==4))||dsr_actions_model_duplicate(m,boot_id,nonce))return false;
  int family=-1;
  for(size_t i=0;i<count;i++){
   if(!steps[i].key.layout_id||steps[i].key.layout_id>1000000||steps[i].command<DSR_ACTION_ON||steps[i].command>DSR_ACTION_TARGET)return false;

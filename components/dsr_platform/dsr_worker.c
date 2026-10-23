@@ -4,6 +4,7 @@
 #ifdef DSR_BOARD_ES3C35P
 #include "dsr_native_ota.h"
 #include "dsr_actions.h"
+#include "dsr_automation.h"
 #endif
 #include "dsr_panel_pairing.h"
 #include "esp_log.h"
@@ -30,6 +31,7 @@ static void actor_write(void){dsr_actions_worker_write_attempted(actor_job);}
 static dsr_result_t actor_guard(void)
 {
  if(!actor_connection||!dsr_workspace_mapping_matches(actor_connection))return DSR_IDENTITY_MISMATCH;
+ dsr_result_t automation=dsr_automation_worker_allowed(actor_job,actor_connection);if(automation!=DSR_OK)return automation;
  return dsr_actions_worker_allowed(actor_job,actor_connection);
 }
 #endif
@@ -178,7 +180,7 @@ static void network_task(void *arg)
              * LAYOUT_PUBLISH only after exact durable workspace ACK. */
         } else {
 #ifdef DSR_BOARD_ES3C35P
-            dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id);
+            dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id)||dsr_automation_job_owned(job.id);
             if(owned){actor_connection=&job.connection;actor_job=job.id;previous_guard=dsr_http_job_guard(actor_guard);previous_write=dsr_http_job_write_hook(actor_write);}
 #endif
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh_info(&job.connection,&event.info) :job.kind==DSR_JOB_TRV_READ?dsr_http_trv_read(&job.connection):job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);

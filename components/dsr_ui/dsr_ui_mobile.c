@@ -103,7 +103,7 @@ static void place(lv_obj_t *obj,uint8_t type,unsigned index,unsigned fields,int 
 {if(obj&&placed_count<sizeof(placed)/sizeof(placed[0]))placed[placed_count++]=(placed_card_t){obj,type,(uint8_t)index,(uint8_t)fields,(int16_t)x,(int16_t)y,(int16_t)w,(int16_t)h};}
 static bool unbound(const dsr_mobile_device_t *d);
 static bool trv_device(const dsr_mobile_device_t *d);static bool trv_known(const dsr_mobile_device_t *d);static bool trv_can(const dsr_mobile_device_t *d);
-static uint8_t trv_shown(const dsr_mobile_device_t *d);static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid);
+static uint8_t trv_shown(const dsr_mobile_device_t *d);static int trv_slot(uint32_t id);static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid);
 static void update_sample_age(void)
 {
  if(!active||!sample_age)return;
@@ -533,7 +533,7 @@ static void card_battery_draw(lv_event_t *event)
 static void card_target_draw(lv_event_t *event)
 {
  unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);const dsr_mobile_device_t *d=card_draw_device(i);if(!d)return;char value[20],text[48];
- if(trv_known(d)){uint8_t h=trv_shown(d);snprintf(value,sizeof(value),"%u.%u °C",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(value,sizeof(value),"— °C");
+ if(trv_known(d)||trv_slot(d->id)>=0){uint8_t h=trv_shown(d);snprintf(value,sizeof(value),"%u.%u °C",(unsigned)h/2u,(unsigned)(h%2u)*5u);}else snprintf(value,sizeof(value),"— °C");
  snprintf(text,sizeof(text),"%s %s",dsr_sc_tr("Nastawa"),value);
  lv_obj_t *frame=lv_event_get_target(event);lv_area_t a;lv_obj_get_content_coords(frame,&a);
  const lv_font_t *font=dsr_sc_font(&dsr_roboto_12);int h=lv_font_get_line_height(font);a.x1+=4;a.x2-=4;a.y1+=(lv_area_get_height(&a)-h)/2;a.y2=a.y1+h-1;
@@ -900,7 +900,7 @@ static void ht_details(lv_obj_t *root)
  * and it is sent 1.2 s after the last tap (one BLE write per adjustment).
  * Big values elsewhere are what the gateway reports, never the request. */
 #define TRV_SEND_DELAY_MS 1200u
-static struct {uint32_t id,due;uint8_t half;bool dirty;} trv_local[16];
+static struct {uint32_t id,due,intent;uint8_t half;bool dirty,pending;} trv_local[16];
 static lv_timer_t *trv_timer;
 #ifdef ESP_PLATFORM
 EXT_RAM_BSS_ATTR
@@ -913,6 +913,16 @@ static bool trv_device(const dsr_mobile_device_t *d){return d->endpoint_kind==DS
 static bool trv_known(const dsr_mobile_device_t *d){return d->online&&d->error==DSR_OK&&d->has_trv_target&&isfinite(d->trv_target_c)&&d->trv_target_c>=DSR_TRV_MIN_HALF/2.0&&d->trv_target_c<=DSR_TRV_MAX_HALF/2.0;}
 static uint8_t trv_reported(const dsr_mobile_device_t *d){return trv_known(d)?(uint8_t)(d->trv_target_c*2.0+0.5):40u;}
 static int trv_slot(uint32_t id){for(unsigned i=0;i<16;i++)if(trv_local[i].dirty&&trv_local[i].id==id)return (int)i;return -1;}
+void dsr_mobile_trv_request_state(uint32_t id,uint8_t half,uint32_t intent,bool retained)
+{
+ if(!id||!intent||half<DSR_TRV_MIN_HALF||half>DSR_TRV_MAX_HALF)return;
+ int at=trv_slot(id);
+ if(retained){
+  if(at<0)for(unsigned i=0;i<16;i++)if(!trv_local[i].dirty){at=(int)i;break;}
+  if(at>=0){trv_local[at].id=id;trv_local[at].half=half;trv_local[at].intent=intent;trv_local[at].dirty=true;trv_local[at].pending=true;}
+ }else if(at>=0&&trv_local[at].pending&&trv_local[at].intent==intent){trv_local[at].dirty=trv_local[at].pending=false;}
+ if(active)render();
+}
 /* What the dial and the pill show: the unsent local target, else the gateway's. */
 static uint8_t trv_shown(const dsr_mobile_device_t *d){int at=trv_slot(d->id);return at>=0?trv_local[at].half:trv_reported(d);}
 static bool trv_can(const dsr_mobile_device_t *d){return trv_known(d)&&!(d->blu.errors&DSR_BLU_TRV_FAULT)&&!d->busy&&!unbound(d)&&(model.demo||actions.set_trv);}
@@ -920,7 +930,7 @@ static void trv_send(lv_timer_t *timer)
 {
  (void)timer;if(!active)return;uint32_t now=lv_tick_get();
  for(unsigned i=0;i<16;i++){
-  if(!trv_local[i].dirty||(trv_dial.dragging&&trv_dial.id==trv_local[i].id)||(int32_t)(now-trv_local[i].due)<0)continue;
+  if(!trv_local[i].dirty||trv_local[i].pending||(trv_dial.dragging&&trv_dial.id==trv_local[i].id)||(int32_t)(now-trv_local[i].due)<0)continue;
   trv_local[i].dirty=false;unsigned index=0;while(index<model.device_count&&model.devices[index].id!=trv_local[i].id)index++;
   if(index>=model.device_count)continue;
   dsr_mobile_device_t *d=&model.devices[index];
@@ -934,7 +944,7 @@ static bool trv_draft(unsigned index,uint8_t half)
  if(index>=model.device_count||!trv_can(&model.devices[index]))return false;
  const dsr_mobile_device_t *d=&model.devices[index];int at=trv_slot(d->id);
  if(at<0){for(unsigned i=0;i<16&&at<0;i++)if(!trv_local[i].dirty)at=(int)i;if(at<0)return false;trv_local[at].id=d->id;}
- trv_local[at].half=half;trv_local[at].dirty=true;trv_local[at].due=lv_tick_get()+TRV_SEND_DELAY_MS;
+ trv_local[at].half=half;trv_local[at].dirty=true;trv_local[at].pending=false;trv_local[at].due=lv_tick_get()+TRV_SEND_DELAY_MS;
  if(!trv_timer)trv_timer=lv_timer_create(trv_send,100,NULL);
  return true;
 }
@@ -998,7 +1008,7 @@ static void trv_details(lv_obj_t *root)
 static void trv_details_view(lv_obj_t *root,const dsr_mobile_device_t *d,bool group)
 {
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_trv_details(root,d,group);return;}
- char text[96];const dsr_blu_status_t *b=&d->blu;bool live=d->online,known=group||trv_known(d),can=group?group_ready(group_state(selected)):trv_can(d);
+ char text[96];const dsr_blu_status_t *b=&d->blu;bool live=d->online,known=group||trv_known(d)||trv_slot(d->id)>=0,can=group?group_ready(group_state(selected)):trv_can(d);
  uint8_t half=group?group_draft.value:trv_shown(d);
  const int cx=160,cy=222,r=88;
  static const uint32_t stops[]={0x2f6bff,0xeeeef2,0xe5322d};dsr_sc_gradient_arc(root,cx,cy,r,12,135,270,stops,3,18,live);
@@ -1017,7 +1027,8 @@ static void trv_details_view(lv_obj_t *root,const dsr_mobile_device_t *d,bool gr
  center(dsr_sc_text(root,"Temperatura",cx-60,179,120,&dsr_roboto_12,DSR_SC_MUTED));
  trv_dial.label=dsr_sc_text(root,"",cx-80,208,160,&dsr_roboto_28,DSR_SC_TEXT);center(trv_dial.label);trv_knob(half);
  if(!known)lv_label_set_text(trv_dial.label,"— °C");
- center(dsr_sc_text(root,"Nastawa",cx-50,240,100,&dsr_roboto_12,DSR_SC_MUTED));
+ bool retained=!group&&trv_slot(d->id)>=0;
+ center(dsr_sc_text(root,retained?"Nastawa • oczekuje":"Nastawa",cx-98,240,196,&dsr_roboto_12,retained?0xffbf24:DSR_SC_MUTED));
  trv_round_action(root,selected,cx-54,270,48,false,can,group?group_trv_step:trv_step);trv_round_action(root,selected,cx+6,270,48,true,can,group?group_trv_step:trv_step);
  dsr_sc_text(root,"4 °C",cx-r-8,304,40,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"30 °C",cx+r-30,304,44,&dsr_roboto_12,DSR_SC_MUTED);
  if(group){group_trv_members(root);group_trv_note(root);return;}
@@ -1411,7 +1422,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
      const dsr_mobile_device_t *old=NULL,*next=NULL;
      for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==trv_local[t].id)old=&model.devices[i];
      for(unsigned i=0;i<m->device_count;i++)if(m->devices[i].id==trv_local[t].id)next=&m->devices[i];
-     bool valid=old&&next&&trv_device(next)&&trv_can(next)&&old->generation==next->generation&&old->endpoint_kind==next->endpoint_kind&&old->channel==next->channel&&!strcmp(old->identity,next->identity)&&!strcmp(old->host,next->host)&&old->trv_target_c==next->trv_target_c;
+     bool valid=old&&next&&trv_device(next)&&(trv_local[t].pending||trv_can(next))&&old->generation==next->generation&&old->endpoint_kind==next->endpoint_kind&&old->channel==next->channel&&!strcmp(old->identity,next->identity)&&!strcmp(old->host,next->host)&&(trv_local[t].pending||old->trv_target_c==next->trv_target_c);
      if(!valid){trv_local[t].dirty=false;trv_dial.dragging=false;}
     }
     if(trv_dial.dragging){model=*m;for(unsigned i=0;i<model.device_count;i++)if(model.devices[i].id==trv_dial.id)selected=i;translate_draft();update_sample_age();return;}

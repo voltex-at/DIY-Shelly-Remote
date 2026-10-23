@@ -40,6 +40,11 @@ void dsr_actions_snapshot(dsr_actions_snapshot_t *out);
  * returns the same run even after completion. A new run consumes generation.
  * source is supplied by the trusted handler, never accepted from JSON. */
 dsr_result_t dsr_actions_request(const char *json,uint8_t kind,uint8_t source,uint32_t *run_id);
+dsr_result_t dsr_actions_auto_request(uint32_t rule_id,uint32_t cycle,uint32_t generation,
+ const uint32_t *ids,const uint8_t *halves,size_t count,uint32_t *run_id);
+bool dsr_actions_auto_result(uint32_t run_id,dsr_result_t *result);
+bool dsr_actions_auto_attempted(uint32_t run_id);
+void dsr_actions_auto_cancel(uint32_t run_id);
 bool dsr_actions_cancel(uint32_t boot_id,uint32_t run_id);
 bool dsr_actions_reserved(const dsr_device_t *device);
 bool dsr_actions_active(void);
@@ -54,6 +59,10 @@ void dsr_actions_publish_end(void);
 uint32_t dsr_actions_target(void);
 dsr_action_command_t dsr_actions_command(void);
 bool dsr_actions_job_owned(uint32_t job_id);
+bool dsr_actions_auto_job_owned(uint32_t job_id);
+bool dsr_actions_job_attempted(uint32_t job_id);
+bool dsr_actions_native_reserve(uint32_t layout_id);
+void dsr_actions_native_release(uint32_t layout_id);
 bool dsr_actions_prepare(const dsr_connection_t *connection,dsr_result_t gate,bool fresh,bool capable,uint32_t job_id,dsr_job_kind_t *kind,bool *on);
 /* Same reservation/guard contract, with the typed payload frozen at admission. */
 bool dsr_actions_prepare_job(dsr_job_t *job,dsr_result_t gate,bool fresh);

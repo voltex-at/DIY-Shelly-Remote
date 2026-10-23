@@ -34,6 +34,8 @@ int main(void){
  dsr_auto_rules_t rules;CHECK(dsr_auto_rules_parse(r,&rules,error)&&rules.count==1&&rules.key_count==2);
  CHECK(rules.items[0].target_half==16&&!rules.items[0].enabled&&!rules.enroll);
  CHECK(rules.keys[0].layout_id==1&&rules.keys[0].kind==DSR_AUTO_CONTACT&&rules.keys[1].kind==DSR_AUTO_TRV&&!rules.keys[1].device_id[0]);
+ dsr_auto_rules_t different=rules;different.keys[0].layout_id=99; /* same checksum is not structural authorization */
+ CHECK(!dsr_auto_rule_same(&rules,&rules.items[0],&different,&different.items[0]));
  CHECK(!dsr_config_remove_device(r,1,error)&&strstr(error,"automation"));CHECK(!dsr_config_remove_device(r,2,error));
  const double bad[]={7,61,16.5,-1,1e20};for(unsigned i=0;i<5;i++){cJSON_SetNumberValue(get(v,"target_half"),bad[i]);CHECK(!dsr_config_validate(r,error));}cJSON_SetNumberValue(get(v,"target_half"),16);
  cJSON_DeleteItemFromObjectCaseSensitive(v,"target_half");CHECK(dsr_config_validate(r,error)&&dsr_auto_rules_parse(r,&rules,error)&&rules.items[0].target_half==16);cJSON_AddNumberToObject(v,"target_half",16);

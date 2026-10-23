@@ -5,6 +5,8 @@ typedef struct {
  dsr_auto_record_t record;
  dsr_auto_observation_t observations[DSR_AUTO_PARTICIPANTS];
  uint32_t read_ms[DSR_AUTO_PARTICIPANTS],write_ms[DSR_AUTO_PARTICIPANTS];
+ uint32_t before_write_read[DSR_AUTO_PARTICIPANTS];
+ uint32_t journal_manual[DSR_AUTO_PARTICIPANTS],durable_manual[DSR_AUTO_PARTICIPANTS];
  uint32_t rule_barrier_utc[DSR_AUTO_RULES];
  dsr_auto_effect_t pending;
  uint32_t next_id,barrier_utc,last_utc,now_ms,durable_generation,epoch_id,pending_epoch;
@@ -24,4 +26,7 @@ bool dsr_auto_recover(dsr_auto_model_t *m,const dsr_auto_record_t *record);
 bool dsr_auto_record_valid(const dsr_auto_record_t *record);
 void dsr_auto_model_snapshot(const dsr_auto_model_t *m,dsr_auto_snapshot_t *out);
 bool dsr_auto_key_equal(const dsr_auto_key_t *a,const dsr_auto_key_t *b);
+bool dsr_auto_effect_allowed(const dsr_auto_model_t *m,const dsr_auto_effect_t *effect,uint32_t now_ms,uint32_t utc);
+/* Only after the owner proves no worker/actor admitted this effect. */
+bool dsr_auto_unqueue(dsr_auto_model_t *m,const dsr_auto_effect_t *effect);
 #endif

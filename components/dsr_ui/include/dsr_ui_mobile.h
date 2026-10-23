@@ -93,6 +93,8 @@ typedef struct {
 } dsr_mobile_actions_t;
 
 void dsr_mobile_bind(const dsr_mobile_actions_t *actions);
+/* Requested value stays separate from gateway telemetry across async save. */
+void dsr_mobile_trv_request_state(uint32_t id,uint8_t half,uint32_t intent,bool retained);
 void dsr_mobile_update(const dsr_mobile_model_t *model);
 void dsr_mobile_show(dsr_mobile_page_t page,unsigned index);
 void dsr_mobile_show_device_settings(uint32_t id);

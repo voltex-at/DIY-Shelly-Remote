@@ -7,7 +7,11 @@ from pathlib import Path
 from hostcc import ROOT, build, parse_args
 
 p = argparse.ArgumentParser(description=__doc__)
+RUNTIME_SCENARIOS = ['happy', 'manual', 'manual-failure', 'manual-retry', 'reboot-own',
+ 'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit']
 p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'all'], default='all')
+p.add_argument('--runtime-module', choices=['actor', 'native'], help='Run one controller in the runtime case')
+p.add_argument('--scenario', nargs='+', choices=RUNTIME_SCENARIOS, help='Run selected runtime scenarios without repeating controller cases')
 a = parse_args(p)
 cases = {
  'model': (['components/dsr_platform/dsr_automation_model.c', 'tests/test_automation_model.c'], [], []),
@@ -15,7 +19,7 @@ cases = {
             'tests/automation/nvs_fixture.c', 'tests/test_automation_store.c'], ['tests/support'], []),
  'store_queue': (['components/dsr_platform/dsr_workspace.c', 'components/dsr_platform/dsr_config_health.c',
                   'components/dsr_platform/dsr_activity.c', 'components/dsr_config/dsr_config.c',
-                  'components/dsr_core/dsr_core.c', 'tests/test_automation_queue.c'],
+                  'components/dsr_core/dsr_core.c', 'tests/test_automation_queue.c', 'tests/support/automation_runtime_stub.c'],
                   ['tests/actor', 'tests/support', 'components/dsr_config/include', '.test-deps', '/usr/include/cjson'],
                   ['-l:libcjson.so.1', '-lm']),
  'http': (['components/dsr_core/dsr_core.c', 'components/dsr_platform/dsr_device_settings_model.c',
@@ -30,8 +34,29 @@ cases = {
  'config': (['components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c',
              'components/dsr_platform/dsr_automation_config.c', 'tests/test_automation_config.c'],
              ['components/dsr_config/include', '.test-deps', '/usr/include/cjson'], ['-l:libcjson.so.1', '-lm']),
+ 'runtime_actor': (['components/dsr_platform/dsr_worker.c', 'components/dsr_platform/dsr_actions.c',
+                    'components/dsr_platform/dsr_actions_model.c', 'components/dsr_platform/dsr_actions_parse.c',
+                    'components/dsr_platform/dsr_activity.c', 'components/dsr_platform/dsr_ap_model.c',
+                    'components/dsr_platform/dsr_wifi_policy.c', 'components/dsr_config/dsr_config.c',
+                    'components/dsr_core/dsr_core.c', 'tests/test_automation_actor.c'],
+                    ['tests/battery', 'tests/actions', 'tests/history', 'tests/actor', 'tests/support',
+                     'components/dsr_config/include', 'components/dsr_ota/include', '.test-deps', '/usr/include/cjson'],
+                    ['-l:libcjson.so.1', '-lm']),
 }
-selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else [a.case]
+cases['runtime_native'] = (['tests/test_automation_native.c'], ['tests/history', 'tests/actor', 'tests/support'], [])
+cases['runtime'] = (cases['runtime_actor'][0][:-1] + [
+ 'components/dsr_platform/dsr_automation.c', 'components/dsr_platform/dsr_automation_model.c',
+ 'components/dsr_platform/dsr_automation_store.c', 'components/dsr_platform/dsr_automation_config.c',
+ 'components/dsr_platform/dsr_workspace.c', 'components/dsr_platform/dsr_config_health.c',
+ 'components/dsr_platform/dsr_fleet.c', 'tests/automation/nvs_fixture.c', 'tests/test_automation_runtime.c'],
+ cases['runtime_actor'][1], cases['runtime_actor'][2])
+selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else ['runtime_actor', 'runtime_native', 'runtime'] if a.case == 'runtime' else [a.case]
+if a.scenario:
+ if a.case!='runtime':p.error('--scenario requires --case runtime')
+ selected=['runtime']
+if a.runtime_module:
+ if a.case!='runtime' or a.scenario:p.error('--runtime-module requires --case runtime without --scenario')
+ selected=['runtime_'+a.runtime_module]
 with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
  for name in selected:
   if name not in cases:
@@ -39,5 +64,8 @@ with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
   sources, includes, libs = cases[name]
   binary = Path(tmp) / name
   build(binary, sources, ['components/dsr_core/include', 'components/dsr_platform/include',
-        'components/dsr_platform', *includes], libs=libs, args=a)
-  subprocess.run([str(binary)], check=True, cwd=ROOT)
+        'components/dsr_platform', *includes], flags=(['-DDSR_BOARD_ES3C35P=1'] if name.startswith('runtime') else []) +
+        (['-Wl,--wrap=time'] if name=='runtime' else []), libs=libs, args=a)
+  scenarios = (a.scenario if a.scenario else RUNTIME_SCENARIOS) if name=='runtime' else [None]
+  for scenario in scenarios:
+   subprocess.run([str(binary), *([scenario] if scenario else [])], check=True, cwd=ROOT)

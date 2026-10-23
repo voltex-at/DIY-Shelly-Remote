@@ -6,6 +6,25 @@ static unsigned index_of(const dsr_auto_rules_t *r,uint32_t id)
 {for(unsigned i=0;i<r->key_count;i++)if(r->keys[i].layout_id==id)return i;return DSR_AUTO_PARTICIPANTS;}
 static uint32_t hash(uint32_t h,uint32_t v)
 {for(unsigned i=0;i<4;i++){h^=(v>>(8*i))&255u;h*=16777619u;}return h;}
+static bool same_ids(const dsr_auto_rules_t *a,uint16_t am,const dsr_auto_rules_t *b,uint16_t bm,uint8_t role)
+{
+ if(!a||!b||a->key_count>DSR_AUTO_PARTICIPANTS||b->key_count>DSR_AUTO_PARTICIPANTS||!am||!bm||
+   (am&~((1u<<a->key_count)-1u))||(bm&~((1u<<b->key_count)-1u)))return false;
+ unsigned ac=0,bc=0;
+ for(unsigned i=0;i<a->key_count;i++)if(am&(1u<<i)){
+  if(!a->keys[i].layout_id||a->keys[i].kind!=role)return false;
+  ac++;bool found=false;
+  for(unsigned j=0;j<b->key_count;j++)if((bm&(1u<<j))&&a->keys[i].layout_id==b->keys[j].layout_id&&b->keys[j].kind==role)found=true;
+  if(!found)return false;
+ }
+ for(unsigned j=0;j<b->key_count;j++)if(bm&(1u<<j))bc++;
+ return ac==bc;
+}
+bool dsr_auto_rule_same(const dsr_auto_rules_t *a,const dsr_auto_rule_t *ar,const dsr_auto_rules_t *b,const dsr_auto_rule_t *br)
+{
+ return ar&&br&&ar->id==br->id&&ar->target_half==br->target_half&&
+  same_ids(a,ar->sensors,b,br->sensors,DSR_AUTO_CONTACT)&&same_ids(a,ar->targets,b,br->targets,DSR_AUTO_TRV);
+}
 bool dsr_auto_rules_parse(const cJSON *root,dsr_auto_rules_t *out,char error[96])
 {
  if(!out)return false;
@@ -30,7 +49,10 @@ bool dsr_auto_rules_parse(const cJSON *root,dsr_auto_rules_t *out,char error[96]
   r->target_half=get(v,"target_half")?(uint8_t)get(v,"target_half")->valueint:16;r->enabled=cJSON_IsTrue(get(v,"enabled"));
   cJSON_ArrayForEach(id,get(v,"sensors"))r->sensors|=(uint16_t)(1u<<index_of(out,(uint32_t)id->valuedouble));
   cJSON_ArrayForEach(id,get(v,"targets"))r->targets|=(uint16_t)(1u<<index_of(out,(uint32_t)id->valuedouble));
-  r->signature=hash(hash(hash(hash(2166136261u,r->id),r->sensors),r->targets),r->target_half);
+  uint32_t h=hash(hash(2166136261u,r->id),r->target_half);
+  for(unsigned i=0;i<out->key_count;i++)if(r->sensors&(1u<<i))h=hash(hash(h,DSR_AUTO_CONTACT),out->keys[i].layout_id);
+  for(unsigned i=0;i<out->key_count;i++)if(r->targets&(1u<<i))h=hash(hash(h,DSR_AUTO_TRV),out->keys[i].layout_id);
+  r->signature=h;
   if(!r->signature)r->signature=1;
  }
  for(unsigned i=1;i<out->count;i++)for(unsigned j=i;j&&out->items[j].id<out->items[j-1].id;j--){

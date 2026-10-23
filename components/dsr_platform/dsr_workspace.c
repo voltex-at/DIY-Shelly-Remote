@@ -3,6 +3,7 @@
 #include "dsr_activity.h"
 #include "dsr_actions.h"
 #include "dsr_automation_store.h"
+#include "dsr_automation.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -20,6 +21,9 @@ static char status[96];
 static bool auto_pending,auto_done;
 static uint32_t auto_generation;
 static esp_err_t auto_result;
+static dsr_auto_record_t *auto_boot_record;
+static bool auto_boot_found,auto_boot_consumed;
+static esp_err_t auto_boot_error;
 static dsr_connection_t bind_request;
 static bool bind_waiting,bind_busy;
 static uint32_t bind_room=UINT32_MAX;
@@ -40,6 +44,10 @@ static void config_task(void *argument)
   }
   char error[96]={0};char *previous=dsr_workspace_snapshot();
   char *next=dsr_config_replace(previous,request.json,request.revision,error);free(previous);free(request.json);
+  cJSON *automation_candidate=next?cJSON_Parse(next):NULL;
+  if(next&&(!automation_candidate||!dsr_automation_config_allowed(automation_candidate,error))){
+   free(next);next=NULL;if(!error[0])snprintf(error,sizeof(error),"Not enough memory for configuration check");
+  }
   if(next&&!dsr_config_store_save("/dsr",next,error)){free(next);next=NULL;}
   xSemaphoreTake(mutex,portMAX_DELAY);
   /* replace already validated the exact revision+1 document and save ACKed
@@ -48,6 +56,8 @@ static void config_task(void *argument)
   if(next){free(current);current=next;revision=request.revision+1u;snprintf(status,sizeof(status),"Saved revision %lu",(unsigned long)revision);}
   else snprintf(status,sizeof(status),"%s",error[0]?error:"Save failed");
   busy=false;xSemaphoreGive(mutex);
+  if(next)dsr_automation_config_published(automation_candidate);
+  cJSON_Delete(automation_candidate);
   dsr_activity_end();
  }
 }
@@ -81,7 +91,20 @@ esp_err_t dsr_workspace_start(void)
  if(!mutex||!queue){dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
  dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_OK);
  if(xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)!=pdPASS){dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+ /* Still before the LVGL task starts. The runtime receives a copy later,
+  * never performs Flash I/O while drawing or holding its owner mutex. */
+ auto_boot_record=malloc(sizeof(*auto_boot_record));
+ auto_boot_error=auto_boot_record?dsr_auto_store_load(auto_boot_record,&auto_boot_found):ESP_ERR_NO_MEM;
  dsr_config_health_workspace(DSR_WORKSPACE_READY,ESP_OK);return ESP_OK;
+}
+bool dsr_workspace_auto_boot(dsr_auto_record_t *record,bool *found,esp_err_t *result)
+{
+ if(!workspace_ready()||!record||!found||!result)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool ready=!auto_boot_consumed;
+ if(ready){memset(record,0,sizeof(*record));*result=auto_boot_error;*found=auto_boot_error==ESP_OK&&auto_boot_found;
+  if(*found)*record=*auto_boot_record;
+  free(auto_boot_record);auto_boot_record=NULL;auto_boot_consumed=true;}
+ xSemaphoreGive(mutex);return ready;
 }
 dsr_snapshot_result_t dsr_workspace_snapshot_checked(char **out)
 {

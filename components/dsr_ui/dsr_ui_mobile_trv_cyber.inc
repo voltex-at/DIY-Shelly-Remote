@@ -29,8 +29,8 @@ static void trv_percent_card(lv_obj_t *root,int x,const char *title,dsr_ui_icon_
 }
 static void cyber_trv_details(lv_obj_t *root,const dsr_mobile_device_t *d,bool group)
 {
- bool live=d->online&&d->error==DSR_OK;
- bool known=group||trv_known(d),can=group?group_ready(group_state(selected)):trv_can(d);uint8_t half=group?group_draft.value:trv_shown(d);char text[48];
+ bool live=d->online;
+ bool known=group||trv_known(d)||trv_slot(d->id)>=0,can=group?group_ready(group_state(selected)):trv_can(d);uint8_t half=group?group_draft.value:trv_shown(d);char text[48];
  lv_obj_t *panel=dsr_sc_panel(root,8,94,304,236,DSR_SC_CARD,10);edge(panel,0x00cfff,1);lv_obj_add_event_cb(panel,trv_ring_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)live);
  dsr_sc_icon(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,22,104,24,live?DSR_SC_GLOW:0xffc65b);
  dsr_sc_text(root,live?"Online":"Offline",52,108,88,&dsr_roboto_12,live?DSR_SC_GLOW:0xffc65b);
@@ -53,7 +53,7 @@ static void cyber_trv_details(lv_obj_t *root,const dsr_mobile_device_t *d,bool g
  if(group){group_trv_members(root);group_trv_note(root);return;}
  trv_percent_card(root,8,"Zawór",DSR_ICON_TRV_VALVE,known&&d->blu.trv_pos<=100,d->blu.trv_pos,false);
  trv_percent_card(root,164,"Bateria",DSR_ICON_BATTERY,live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100,(unsigned)(live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100?d->battery_pct:0),d->battery_pct<=20);
- const char *warning=!live?"Bramka nie odpowiada":(d->blu.errors&DSR_BLU_TRV_FAULT)?"Termostat zgłasza błąd (np. brak kalibracji)":(trv_slot(d->id)>=0||d->command_pending)?"Wysyłanie do termostatu przez bramkę…":NULL;
+ const char *warning=d->error!=DSR_OK?device_error(d->error):!live?"Bramka nie odpowiada":(d->blu.errors&DSR_BLU_TRV_FAULT)?"Termostat zgłasza błąd (np. brak kalibracji)":(trv_slot(d->id)>=0||d->command_pending)?"Wysyłanie do termostatu przez bramkę…":NULL;
  if(warning){lv_obj_t *l=dsr_sc_text(root,warning,12,403,296,&dsr_roboto_12,0xffbf24);center(l);truncate(l,20);}
  else{dsr_sc_icon(root,DSR_ICON_CLOCK,18,402,22,DSR_SC_MUTED);sample_age=dsr_sc_text(root,"",47,404,260,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();}
 }

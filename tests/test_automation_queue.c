@@ -39,10 +39,13 @@ void dsr_actions_mode_block(void){}
 esp_err_t dsr_auto_store_save(const dsr_auto_record_t *r){
  CHECK(r&&!lock);CHECK(!dsr_activity_restart_reserve());journal_saves++;saved_generation=r->generation;return fail_save?ESP_FAIL:ESP_OK;
 }
+esp_err_t dsr_auto_store_load(dsr_auto_record_t *r,bool *found){CHECK(!lock);memset(r,0,sizeof(*r));r->generation=10;*found=true;return ESP_OK;}
 static void execute(void){if(!setjmp(done))task(NULL);}
 int main(void){
  dsr_auto_record_t r={.generation=1};uint32_t generation;esp_err_t result;
  CHECK(!dsr_workspace_auto_submit(&r,1));CHECK(dsr_workspace_start()==ESP_OK);uint32_t revision=dsr_workspace_revision();
+ dsr_auto_record_t boot;bool found;CHECK(dsr_workspace_auto_boot(&boot,&found,&result)&&found&&result==ESP_OK&&boot.generation==10);
+ CHECK(!dsr_workspace_auto_boot(&boot,&found,&result));
  unsigned config_before=config_saves;CHECK(!dsr_workspace_auto_submit(&r,2));
  queue_full=true;CHECK(!dsr_workspace_auto_submit(&r,1));queue_full=false;
  CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();

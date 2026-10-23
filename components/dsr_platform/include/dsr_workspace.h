@@ -20,6 +20,8 @@ bool dsr_workspace_submit(const char *json,uint32_t revision);
 void dsr_workspace_status(bool *busy,char message[96]);
 bool dsr_workspace_auto_submit(const dsr_auto_record_t *record,uint32_t generation);
 bool dsr_workspace_auto_take_result(uint32_t *generation,esp_err_t *result);
+/* One copied startup result; NVS was read before LVGL starts. */
+bool dsr_workspace_auto_boot(dsr_auto_record_t *record,bool *found,esp_err_t *result);
 /* Pairing requires a local touch to open a 120-second, rate-limited window.
  * No shared/factory password. Pairing credentials must never be logged. */
 void dsr_panel_pair_begin(char code[17]);

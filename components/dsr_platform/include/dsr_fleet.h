@@ -47,6 +47,9 @@ void dsr_fleet_cancel_queued(dsr_fleet_t *fleet,unsigned index);
 bool dsr_fleet_next(dsr_fleet_t *fleet,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index);
 void dsr_fleet_started(dsr_fleet_t *fleet,unsigned index,const dsr_job_t *job);
 bool dsr_fleet_complete(dsr_fleet_t *fleet,unsigned index,const dsr_event_t *event,uint32_t now);
+/* Owner proved cancellation before any write, with unchanged private binding.
+ * Release exact started ID without fabricating a sample/ACK or clearing data. */
+bool dsr_fleet_cancel_started(dsr_fleet_t *fleet,unsigned index,uint32_t job_id);
 void dsr_fleet_wifi(dsr_fleet_t *fleet,bool online,uint32_t now);
 void dsr_fleet_refresh(dsr_fleet_t *fleet,uint32_t now);
 #endif

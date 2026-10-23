@@ -20,8 +20,13 @@ static bool rules_valid(const dsr_auto_rules_t *r)
 {
  if(!r||r->count>DSR_AUTO_RULES||r->key_count>DSR_AUTO_PARTICIPANTS)return false;
  uint16_t claimed=0;uint32_t mask=(1u<<r->key_count)-1u;
+ uint16_t enabled=0;
+ for(unsigned i=0;i<r->count;i++)if(r->items[i].enabled)enabled|=(uint16_t)(r->items[i].sensors|r->items[i].targets);
  for(unsigned i=0;i<r->key_count;i++){
-  if(!key_valid(&r->keys[i]))return false;
+  const dsr_auto_key_t *k=&r->keys[i];
+  bool unresolved=k->layout_id&&k->layout_id<=1000000&&(k->kind==DSR_AUTO_CONTACT||k->kind==DSR_AUTO_TRV)&&
+   !k->device_id[0]&&!k->host[0]&&!k->generation&&!k->reserved;
+  if(!key_valid(k)&&((enabled&(1u<<i))||!unresolved))return false;
   for(unsigned j=0;j<i;j++)if(r->keys[i].layout_id==r->keys[j].layout_id)return false;
  }
  for(unsigned i=0;i<r->count;i++){
@@ -47,7 +52,7 @@ void dsr_auto_init(dsr_auto_model_t *m){if(m)memset(m,0,sizeof(*m));}
 bool dsr_auto_record_valid(const dsr_auto_record_t *r)
 {
  if(!r||!rules_valid(&r->rules)||!r->generation||r->rules.enroll)return false;
- for(unsigned i=0;i<r->rules.count;i++)if(r->cycles[i].active>2||
+ for(unsigned i=0;i<r->rules.count;i++)if(r->cycles[i].active>DSR_AUTO_CYCLE_RESTORING||
   (r->cycles[i].active&&(!r->rules.items[i].enabled||!r->cycles[i].cycle))||
   r->cycles[i].reserved[0]||r->cycles[i].reserved[1]||r->cycles[i].reserved[2])return false;
  for(unsigned i=0;i<r->rules.key_count;i++){
@@ -65,39 +70,60 @@ bool dsr_auto_recover(dsr_auto_model_t *m,const dsr_auto_record_t *r)
  /* Prepared may already have reached the radio. Recovery NEVER replays it. */
  for(unsigned i=0;i<r->rules.key_count;i++){
   dsr_auto_target_t *t=&m->record.targets[i];
+  if(t->override)m->durable_manual[i]=t->manual_intent;
   if(t->phase==DSR_AUTO_PREPARED||t->phase==DSR_AUTO_VERIFY||
     t->phase==DSR_AUTO_RESTORE_PREPARED||t->phase==DSR_AUTO_RESTORE_VERIFY)t->phase=DSR_AUTO_UNCERTAIN;
  }
  for(unsigned i=0;i<r->rules.count;i++)if(m->record.cycles[i].active==2)m->record.cycles[i].active=0;
  return true;
 }
+static bool same_members(const dsr_auto_rules_t *a,uint16_t am,const dsr_auto_rules_t *b,uint16_t bm)
+{
+ unsigned ac=0,bc=0;
+ for(unsigned i=0;i<a->key_count;i++)if(am&(1u<<i)){
+  ac++;bool found=false;for(unsigned j=0;j<b->key_count;j++)if((bm&(1u<<j))&&dsr_auto_key_equal(&a->keys[i],&b->keys[j]))found=true;
+  if(!found)return false;
+ }
+ for(unsigned j=0;j<b->key_count;j++)if(bm&(1u<<j))bc++;
+ return ac==bc;
+}
+static bool same_rule(const dsr_auto_rules_t *a,const dsr_auto_rule_t *ar,const dsr_auto_rules_t *b,const dsr_auto_rule_t *br)
+{return ar->id==br->id&&ar->target_half==br->target_half&&same_members(a,ar->sensors,b,br->sensors)&&same_members(a,ar->targets,b,br->targets);}
 dsr_result_t dsr_auto_configure(dsr_auto_model_t *m,const dsr_auto_rules_t *r)
 {
  if(!m||!rules_valid(r))return DSR_INVALID;
  dsr_auto_rules_t normalized=*r;normalized.enroll=false;
  if(!memcmp(&normalized,&m->record.rules,sizeof(normalized)))return DSR_OK;
  if(m->pending.kind)return DSR_BUSY;
- bool same_keys=r->key_count==m->record.rules.key_count;
- for(unsigned i=0;same_keys&&i<r->key_count;i++)same_keys=dsr_auto_key_equal(&r->keys[i],&m->record.rules.keys[i]);
  for(unsigned i=0;i<m->record.rules.count;i++)if(m->record.cycles[i].active){
   const dsr_auto_rule_t *old=&m->record.rules.items[i];
   for(unsigned j=0;j<r->count;j++)if(r->items[j].id==old->id&&r->items[j].enabled&&
-   (!same_keys||r->items[j].signature!=old->signature||r->items[j].sensors!=old->sensors||
-   r->items[j].targets!=old->targets||r->items[j].target_half!=old->target_half))return DSR_CONFLICT;
+   !same_rule(&m->record.rules,old,r,&r->items[j]))return DSR_CONFLICT;
  }
  bool needs_enroll=false;
  for(unsigned j=0;j<r->count;j++)if(r->items[j].enabled){
   bool match=false;
-  for(unsigned i=0;i<m->record.rules.count;i++)if(same_keys&&m->record.rules.items[i].enabled&&
-   !memcmp(&r->items[j],&m->record.rules.items[i],sizeof(dsr_auto_rule_t)))match=true;
+  for(unsigned i=0;i<m->record.rules.count;i++)if(m->record.rules.items[i].enabled&&
+   same_rule(&m->record.rules,&m->record.rules.items[i],r,&r->items[j]))match=true;
   if(!match)needs_enroll=true;
  }
  if(needs_enroll&&!r->enroll){m->fault=DSR_CONFLICT;return DSR_CONFLICT;}
  dsr_auto_cycle_t cycles[DSR_AUTO_RULES]={0};
  for(unsigned j=0;j<r->count;j++)for(unsigned i=0;i<m->record.rules.count;i++)
-  if(same_keys&&r->items[j].enabled&&r->items[j].id==m->record.rules.items[i].id)
+  if(r->items[j].enabled&&same_rule(&m->record.rules,&m->record.rules.items[i],r,&r->items[j]))
    cycles[j]=m->record.cycles[i];
- if(!same_keys){memset(m->record.targets,0,sizeof(m->record.targets));memset(m->observations,0,sizeof(m->observations));}
+ /* Remap by exact enrolled identity, never by a mutable participant index. */
+ dsr_auto_target_t targets[DSR_AUTO_PARTICIPANTS]={0};
+ dsr_auto_observation_t observations[DSR_AUTO_PARTICIPANTS]={0};
+ uint32_t times[4][DSR_AUTO_PARTICIPANTS]={{0}};
+ for(unsigned j=0;j<r->key_count;j++)for(unsigned i=0;i<m->record.rules.key_count;i++)
+  if(dsr_auto_key_equal(&r->keys[j],&m->record.rules.keys[i])){
+   targets[j]=m->record.targets[i];observations[j]=m->observations[i];times[0][j]=m->read_ms[i];
+   times[1][j]=m->write_ms[i];times[2][j]=m->before_write_read[i];times[3][j]=m->durable_manual[i];
+  }
+ memcpy(m->record.targets,targets,sizeof(targets));memcpy(m->observations,observations,sizeof(observations));
+ memcpy(m->read_ms,times[0],sizeof(m->read_ms));memcpy(m->write_ms,times[1],sizeof(m->write_ms));
+ memcpy(m->before_write_read,times[2],sizeof(m->before_write_read));memcpy(m->durable_manual,times[3],sizeof(m->durable_manual));
  memcpy(m->record.cycles,cycles,sizeof(cycles));m->record.rules=normalized;m->fault=DSR_OK;
  m->loaded=true;m->ready_rules=0;changed(m);return DSR_OK;
 }
@@ -145,8 +171,13 @@ bool dsr_auto_manual(dsr_auto_model_t *m,uint32_t id,uint32_t intent)
  if(!m||!intent)return false;
  int i=index_of(m,id);if(i<0||active_rule(m,(unsigned)i)<0)return true;
  dsr_auto_target_t *t=&m->record.targets[i];
- if(!t->override||t->manual_intent!=intent){t->override=1;t->manual_intent=intent;changed(m);}
- return m->fault==DSR_OK&&m->durable_generation==m->record.generation;
+ if(!t->override||t->manual_intent!=intent){
+  t->override=1;t->manual_intent=intent;
+  /* Only a new explicit manual intent retries a failed journal write. */
+  if(m->fault==DSR_IO)m->fault=DSR_OK;
+  changed(m);
+ }
+ return m->durable_manual[i]==intent;
 }
 static bool fresh(const dsr_auto_model_t *m,unsigned i,uint32_t now,uint32_t utc)
 {
@@ -173,6 +204,8 @@ static bool emit(dsr_auto_model_t *m,dsr_auto_effect_t *out,uint8_t kind,unsigne
   if(r<DSR_AUTO_RULES){e.rule_id=m->record.rules.items[r].id;e.cycle=m->record.cycles[r].cycle;}
   e.target_half=m->record.targets[i].desired;
  }
+ if(kind==DSR_AUTO_EFFECT_JOURNAL)for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)
+  m->journal_manual[i]=m->record.targets[i].override?m->record.targets[i].manual_intent:0;
  m->pending=e;m->pending_epoch=m->epoch_id;m->read_received=false;*out=e;return true;
 }
 static bool reconcile(dsr_auto_model_t *m,unsigned i,uint8_t half)
@@ -191,6 +224,10 @@ static bool reconcile(dsr_auto_model_t *m,unsigned i,uint8_t half)
   return true;
  case DSR_AUTO_UNCERTAIN:
   if(half==t->desired){t->phase=half==t->baseline?DSR_AUTO_DONE:DSR_AUTO_OWNED;return true;}
+  if(t->desired==t->baseline){
+   uint8_t limit=m->record.rules.items[active_rule(m,i)].target_half;
+   if(half==(t->baseline<limit?t->baseline:limit))return false; /* restore may still arrive: read only */
+  }
   if(half!=t->baseline){t->override=1;return true;}
   return false;
  case DSR_AUTO_PREPARED:
@@ -201,15 +238,18 @@ static bool reconcile(dsr_auto_model_t *m,unsigned i,uint8_t half)
  default:return false;
  }
 }
+static bool rule_open(const dsr_auto_model_t *m,const dsr_auto_rule_t *v)
+{for(unsigned i=0;i<m->record.rules.key_count;i++)if((v->sensors&(1u<<i))&&m->observations[i].open)return true;return false;}
 bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now,uint32_t utc,dsr_auto_effect_t *out)
 {
  if(!m||!out)return false;
  memset(out,0,sizeof(*out));m->now_ms=now;
- if(!m->epoch||!utc||(m->last_utc&&utc<m->last_utc)){dsr_auto_pause(m,now,utc);return false;}
+ bool reset=!m->epoch||!utc||!m->last_utc||utc<m->last_utc;
+ if(reset)dsr_auto_pause(m,now,utc);
  m->last_utc=utc;
  if(m->pending.kind||m->fault!=DSR_OK)return false;
  if(m->record.generation!=m->durable_generation)return emit(m,out,DSR_AUTO_EFFECT_JOURNAL,0,0);
- if(!utc)return false;
+ if(reset||!utc)return false;
  for(unsigned r=0;r<m->record.rules.count;r++){
   if((m->ready_rules&(1u<<r))&&!rule_fresh(m,r,now,utc)){
    m->ready_rules&=(uint16_t)~(1u<<r);m->rule_barrier_utc[r]=utc;
@@ -222,9 +262,13 @@ bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now,uint32_t utc,dsr_auto_effect
  for(unsigned pass=0;pass<2;pass++)for(unsigned i=0;i<m->record.rules.key_count;i++){
   if(!participating(m,i)||m->record.rules.keys[i].kind!=DSR_AUTO_TRV)continue;
   uint8_t phase=m->record.targets[i].phase;
-  bool confirming=phase==DSR_AUTO_VERIFY||phase==DSR_AUTO_RESTORE_VERIFY||phase==DSR_AUTO_UNCERTAIN;
+  bool confirming=!m->record.targets[i].override&&(phase==DSR_AUTO_VERIFY||phase==DSR_AUTO_RESTORE_VERIFY||phase==DSR_AUTO_UNCERTAIN);
   if((pass==0)!=confirming)continue;
-  bool due=!m->observations[i].read_id||!fresh(m,i,now,utc)||confirming;
+  bool needs_proof=phase==DSR_AUTO_RESTORE_PREPARED&&m->observations[i].read_id==m->before_write_read[i];
+  int owner=active_rule(m,i);
+  if(owner>=0&&m->record.cycles[owner].active==DSR_AUTO_CYCLE_RESTORING&&rule_open(m,&m->record.rules.items[owner])&&
+   m->observations[i].read_id==m->before_write_read[i])needs_proof=true;
+  bool due=!m->observations[i].read_id||!fresh(m,i,now,utc)||confirming||needs_proof;
   if(due&&(!m->read_ms[i]||(uint32_t)(now-m->read_ms[i])>=DSR_AUTO_READ_INTERVAL_MS))
    return emit(m,out,DSR_AUTO_EFFECT_READ_TRV,active_rule(m,i)<0?DSR_AUTO_RULES:(unsigned)active_rule(m,i),i);
  }
@@ -234,22 +278,47 @@ bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now,uint32_t utc,dsr_auto_effect
   dsr_auto_cycle_t *c=&m->record.cycles[r];if(!v->enabled||c->active==2)continue;
   if(!rule_fresh(m,r,now,utc))continue;
   m->ready_rules|=(uint16_t)(1u<<r);m->ready=true;
-  bool open=false;for(unsigned i=0;i<m->record.rules.key_count;i++)if((v->sensors&(1u<<i))&&m->observations[i].open)open=true;
+  bool open=rule_open(m,v);
   if(!c->active&&open){
    if(c->cycle==UINT32_MAX){m->fault=DSR_FULL;return false;}c->cycle++;c->active=1;
    for(unsigned i=0;i<m->record.rules.key_count;i++)if(v->targets&(1u<<i)){
     uint8_t baseline=(uint8_t)(m->observations[i].target_c*2.0);
     m->record.targets[i]=(dsr_auto_target_t){.baseline=baseline,.desired=baseline<v->target_half?baseline:v->target_half,
      .phase=baseline<=v->target_half?DSR_AUTO_DONE:DSR_AUTO_PREPARED};
+    m->durable_manual[i]=0;
    }
    changed(m);return emit(m,out,DSR_AUTO_EFFECT_JOURNAL,0,0);
   }
   if(!c->active)continue;
+  if(open&&c->active==DSR_AUTO_CYCLE_RESTORING){
+   bool dirty=false,settled=true,proofs=true;
+   for(unsigned i=0;i<m->record.rules.key_count;i++)if(v->targets&(1u<<i)){
+    dsr_auto_target_t *t=&m->record.targets[i];
+    if(!t->override&&t->phase==DSR_AUTO_RESTORE_PREPARED){t->desired=t->baseline<v->target_half?t->baseline:v->target_half;t->phase=DSR_AUTO_OWNED;dirty=true;}
+    if(!t->override&&t->phase!=DSR_AUTO_OWNED&&t->phase!=DSR_AUTO_DONE)settled=false;
+    if(m->observations[i].read_id==m->before_write_read[i])proofs=false;
+   }
+   if(dirty){changed(m);return emit(m,out,DSR_AUTO_EFFECT_JOURNAL,0,0);}
+   if(!settled||!proofs)continue;
+   if(c->cycle==UINT32_MAX){m->fault=DSR_FULL;return false;}
+   c->cycle++;c->active=DSR_AUTO_CYCLE_OPEN;
+   for(unsigned i=0;i<m->record.rules.key_count;i++)if(v->targets&(1u<<i)){
+    dsr_auto_target_t *t=&m->record.targets[i];uint8_t current=(uint8_t)(m->observations[i].target_c*2.0);
+    bool owned=!t->override&&t->phase==DSR_AUTO_OWNED;
+    uint8_t baseline=owned?t->baseline:current,desired=current<v->target_half?current:v->target_half;
+    *t=(dsr_auto_target_t){.baseline=baseline,.desired=desired,.phase=owned&&current==desired?DSR_AUTO_OWNED:current<=v->target_half?DSR_AUTO_DONE:DSR_AUTO_PREPARED};
+    m->durable_manual[i]=0;
+   }
+   changed(m);return emit(m,out,DSR_AUTO_EFFECT_JOURNAL,0,0);
+  }
   if(!open){
    bool dirty=false,done=true;
+   if(c->active==DSR_AUTO_CYCLE_OPEN){c->active=DSR_AUTO_CYCLE_RESTORING;dirty=true;
+    for(unsigned i=0;i<m->record.rules.key_count;i++)if(v->targets&(1u<<i))m->before_write_read[i]=m->observations[i].read_id;}
    for(unsigned i=0;i<m->record.rules.key_count;i++)if(v->targets&(1u<<i)){
     dsr_auto_target_t *t=&m->record.targets[i];if(t->override||t->phase==DSR_AUTO_DONE)continue;
-    if(t->phase==DSR_AUTO_OWNED){t->desired=t->baseline;t->phase=DSR_AUTO_RESTORE_PREPARED;dirty=true;}
+    if(t->phase==DSR_AUTO_OWNED){t->desired=t->baseline;t->phase=DSR_AUTO_RESTORE_PREPARED;
+     m->before_write_read[i]=m->observations[i].read_id;dirty=true;}
     /* A never-dispatched setback can simply be cancelled. */
     if(t->phase==DSR_AUTO_PREPARED){t->phase=DSR_AUTO_DONE;dirty=true;continue;}
     done=false;
@@ -261,6 +330,7 @@ bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now,uint32_t utc,dsr_auto_effect
    dsr_auto_target_t *t=&m->record.targets[i];
    if(t->override)continue;
    if((open&&t->phase==DSR_AUTO_PREPARED)||(!open&&t->phase==DSR_AUTO_RESTORE_PREPARED)){
+    if(t->phase==DSR_AUTO_RESTORE_PREPARED&&m->observations[i].read_id==m->before_write_read[i])continue;
     m->cursor=(uint8_t)((r+1)%m->record.rules.count);return emit(m,out,DSR_AUTO_EFFECT_SET_TRV,r,i);
    }
   }
@@ -271,13 +341,40 @@ bool dsr_auto_next(dsr_auto_model_t *m,uint32_t now,uint32_t utc,dsr_auto_effect
    return emit(m,out,DSR_AUTO_EFFECT_READ_TRV,(unsigned)active_rule(m,i),i);
  return false;
 }
+static bool same_effect(const dsr_auto_effect_t *a,const dsr_auto_effect_t *b)
+{return a->id==b->id&&a->generation==b->generation&&a->rule_id==b->rule_id&&a->cycle==b->cycle&&
+ a->intent_id==b->intent_id&&a->layout_id==b->layout_id&&a->kind==b->kind&&a->target_half==b->target_half;}
+bool dsr_auto_effect_allowed(const dsr_auto_model_t *m,const dsr_auto_effect_t *e,uint32_t now,uint32_t utc)
+{
+ if(!m||!e||!e->id||!same_effect(e,&m->pending)||m->fault!=DSR_OK||!utc||utc<m->last_utc)return false;
+ if(e->kind==DSR_AUTO_EFFECT_READ_TRV)return m->pending_epoch==m->epoch_id;
+ if(e->kind!=DSR_AUTO_EFFECT_SET_TRV||e->generation!=m->record.generation||
+   m->durable_generation!=m->record.generation)return false;
+ int i=index_of(m,e->layout_id);if(i<0)return false;
+ for(unsigned r=0;r<m->record.rules.count;r++){
+  const dsr_auto_rule_t *v=&m->record.rules.items[r];const dsr_auto_cycle_t *c=&m->record.cycles[r];
+  if(v->id!=e->rule_id)continue;
+  const dsr_auto_target_t *t=&m->record.targets[i];
+  if(!v->enabled||(c->active!=DSR_AUTO_CYCLE_OPEN&&c->active!=DSR_AUTO_CYCLE_RESTORING)||c->cycle!=e->cycle||!(v->targets&(1u<<i))||
+    t->override||t->desired!=e->target_half||!rule_fresh(m,r,now,utc))return false;
+  bool open=false;for(unsigned j=0;j<m->record.rules.key_count;j++)if((v->sensors&(1u<<j))&&m->observations[j].open)open=true;
+  return (open&&t->phase==DSR_AUTO_PREPARED)||(!open&&t->phase==DSR_AUTO_RESTORE_PREPARED&&m->observations[i].read_id!=m->before_write_read[i]);
+ }
+ return false;
+}
+bool dsr_auto_unqueue(dsr_auto_model_t *m,const dsr_auto_effect_t *e)
+{
+ if(!m||!e||!e->id||!same_effect(e,&m->pending)||e->kind==DSR_AUTO_EFFECT_JOURNAL)return false;
+ m->pending=(dsr_auto_effect_t){0};m->read_received=false;return true;
+}
 void dsr_auto_complete(dsr_auto_model_t *m,const dsr_auto_effect_t *e,dsr_result_t result)
 {
- if(!m||!e||!e->id||memcmp(e,&m->pending,sizeof(*e)))return;
+ if(!m||!e||!e->id||!same_effect(e,&m->pending))return;
  m->pending=(dsr_auto_effect_t){0};
  if(e->kind==DSR_AUTO_EFFECT_JOURNAL){
   if(result!=DSR_OK){m->fault=DSR_IO;return;}
   m->durable_generation=e->generation;
+  memcpy(m->durable_manual,m->journal_manual,sizeof(m->durable_manual));
   if(m->durable_generation==m->record.generation)for(unsigned r=0;r<m->record.rules.count;r++)
    if(m->record.cycles[r].active==2)m->record.cycles[r].active=0;
   return;
@@ -302,6 +399,7 @@ void dsr_auto_model_snapshot(const dsr_auto_model_t *m,dsr_auto_snapshot_t *out)
   const dsr_auto_rule_t *v=&m->record.rules.items[r];dsr_auto_rule_status_t *s=&out->rules[r];
   s->rule_id=v->id;s->cycle=m->record.cycles[r].cycle;s->result=m->fault;
   s->state=!v->enabled?DSR_AUTO_DISABLED:m->fault?DSR_AUTO_ERROR:!rule_fresh(m,r,m->now_ms,m->last_utc)?DSR_AUTO_WAITING:
+    m->record.cycles[r].active==DSR_AUTO_CYCLE_RESTORING||m->record.cycles[r].active==DSR_AUTO_CYCLE_CLOSED?DSR_AUTO_CONFIRMING:
     m->record.cycles[r].active?DSR_AUTO_ACTIVE:DSR_AUTO_WAITING;
   for(unsigned i=0;i<m->record.rules.key_count;i++){
    if((v->sensors|v->targets)&(1u<<i))if(!fresh(m,i,m->now_ms,m->last_utc)&&!s->missing_id)s->missing_id=m->record.rules.keys[i].layout_id;

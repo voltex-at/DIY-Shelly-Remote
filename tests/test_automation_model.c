@@ -36,13 +36,18 @@ static void set_and_confirm(uint8_t half){
  journal();now+=15001;utc+=15;sample(0,true,0,0);sample(1,false,0,0);
  e=next();read_ack(e,half/2.0);journal();
 }
+static void restore_requires_new_direct_read(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);sample(0,false,0,0);journal();
+ dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_READ_TRV&&e.layout_id==3);
+ read_ack(e,8);e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV&&e.target_half==40);
+}
 static void first_open_all_closed(void){
  init();journal();CHECK(writes==0);set_and_confirm(16);set_and_confirm(16);
  sample(0,false,0,0);journal();
- dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);CHECK(e.target_half==40);
+ read_ack(next(),8);dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);CHECK(e.target_half==40);
  CHECK(e.layout_id==3);ack(e);journal();
  now+=15001;utc+=15;sample(0,false,0,0);sample(1,false,0,0);read_ack(next(),20);journal();
- e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);CHECK(e.layout_id==4);CHECK(e.target_half==44);ack(e);journal();
+ read_ack(next(),8);e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);CHECK(e.layout_id==4);CHECK(e.target_half==44);ack(e);journal();
  now+=15001;utc+=15;sample(0,false,0,0);sample(1,false,0,0);read_ack(next(),22);journal();
  journal();CHECK(!m.record.cycles[0].active);
 }
@@ -114,7 +119,8 @@ static void external_change_and_partial_close(void){
  if(m.pending.kind)read_ack(m.pending,8);
  now+=15001;utc+=15;sample(0,false,0,0);sample(1,true,0,0);e=next();read_ack(e,25);journal();
  CHECK(m.record.targets[e.layout_id-1].override);
- sample(1,false,0,0);journal();e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);
+ sample(1,false,0,0);journal();now+=15001;utc+=15;sample(0,false,0,0);sample(1,false,0,0);
+ read_ack(next(),8);e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);
  CHECK(e.layout_id!=3);CHECK(e.target_half==44);
 }
 static void late_read_after_pause(void){
@@ -132,11 +138,55 @@ static void independent_rules(void){
  /* Missing contact of rule8 must not starve the complete rule7. */
  journal();dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV);CHECK(e.rule_id==7);CHECK(e.layout_id==3);
 }
+static void durable_manual_is_per_target(void){
+ init();journal();CHECK(!dsr_auto_manual(&m,3,71));journal();CHECK(dsr_auto_manual(&m,3,71));
+ CHECK(!dsr_auto_manual(&m,4,72));CHECK(dsr_auto_manual(&m,3,71)); /* another dirty target cannot undo this proof */
+ dsr_auto_effect_t e=next();CHECK(!dsr_auto_manual(&m,3,73));ack(e);
+ CHECK(!dsr_auto_manual(&m,3,73));journal();CHECK(dsr_auto_manual(&m,3,73));
+}
+static void add_rule_preserves_other_cycle(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);
+ rules.count=2;rules.key_count=6;rules.items[1]=(dsr_auto_rule_t){.id=8,.signature=200,.sensors=16,.targets=32,.target_half=16,.enabled=1};
+ for(unsigned i=4;i<6;i++){rules.keys[i]=rules.keys[i-4];rules.keys[i].layout_id=i+1;rules.keys[i].kind=i==4?DSR_AUTO_CONTACT:DSR_AUTO_TRV;}
+ CHECK(dsr_auto_configure(&m,&rules)==DSR_OK);CHECK(m.record.cycles[0].active==1);
+ CHECK(m.record.targets[2].baseline==40&&m.record.targets[3].baseline==44&&m.record.targets[2].phase==DSR_AUTO_OWNED);
+}
+static void missing_clock_does_not_block_manual_journal(void){
+ init();journal();dsr_auto_pause(&m,now,0);CHECK(!dsr_auto_manual(&m,3,99));
+ dsr_auto_effect_t e={0};CHECK(dsr_auto_next(&m,now,0,&e)&&e.kind==DSR_AUTO_EFFECT_JOURNAL);ack(e);CHECK(dsr_auto_manual(&m,3,99));
+}
+static void first_valid_clock_sets_resume_barrier(void){
+ init();dsr_auto_pause(&m,now,0);dsr_auto_effect_t e={0};CHECK(!dsr_auto_next(&m,now,0,&e));
+ CHECK(!dsr_auto_next(&m,now+1000,utc,&e));CHECK(m.barrier_utc==utc);
+}
+static void reopen_cancels_unsent_restore_without_losing_baseline(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);sample(0,false,0,0);journal();
+ CHECK(m.record.cycles[0].active==3);read_ack(next(),8);dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_SET_TRV&&e.target_half==40);
+ sample(0,true,0,0);CHECK(!dsr_auto_effect_allowed(&m,&e,now,utc));CHECK(dsr_auto_unqueue(&m,&e));
+ for(unsigned n=0;n<35&&m.record.cycles[0].cycle<2;n++){
+  now+=1000;utc++;sample(0,true,0,0);sample(1,false,0,0);
+  if(!dsr_auto_next(&m,now,utc,&e))continue;
+  CHECK(e.kind!=DSR_AUTO_EFFECT_SET_TRV);if(e.kind==DSR_AUTO_EFFECT_READ_TRV)read_ack(e,8);else ack(e);
+ }
+ CHECK(m.record.cycles[0].cycle==2);CHECK(m.record.targets[2].baseline==40&&m.record.targets[3].baseline==44);
+ CHECK(m.record.targets[2].phase==DSR_AUTO_OWNED&&m.record.targets[3].phase==DSR_AUTO_OWNED);
+}
+static void uncertain_restore_at_setback_remains_uncertain(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);sample(0,false,0,0);journal();
+ dsr_auto_record_t r=m.record;CHECK(dsr_auto_recover(&m,&r));dsr_auto_pause(&m,now,utc);now+=1000;utc++;
+ sample(0,false,0,0);sample(1,false,0,0);dsr_auto_effect_t e=next();read_ack(e,8);
+ CHECK(m.record.targets[e.layout_id-1].phase==DSR_AUTO_UNCERTAIN&&!m.record.targets[e.layout_id-1].override);
+}
 int main(void){
 #define RUN(c) do{fprintf(stderr,"case: %s\n",#c);c();}while(0)
+ RUN(restore_requires_new_direct_read);
  RUN(first_open_all_closed);RUN(no_raise_already_lower);RUN(manual_during_prepared_inflight_uncertain);RUN(stale_effect_ack);
  RUN(fresh_epoch_all_participants);RUN(unsupported_baseline);RUN(binding_reuse);RUN(recovery_never_replays);
  RUN(external_change_and_partial_close);RUN(late_read_after_pause);
  RUN(independent_rules);
+ RUN(durable_manual_is_per_target);
+ RUN(add_rule_preserves_other_cycle);
+ RUN(missing_clock_does_not_block_manual_journal);RUN(first_valid_clock_sets_resume_barrier);
+ RUN(reopen_cancels_unsent_restore_without_losing_baseline);RUN(uncertain_restore_at_setback_remains_uncertain);
  printf("automation model: %u checks passed\n",checks);return 0;
 }

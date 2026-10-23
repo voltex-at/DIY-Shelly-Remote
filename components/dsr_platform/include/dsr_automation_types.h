@@ -47,6 +47,7 @@ typedef struct {
  uint8_t baseline,desired,phase,override;
 } dsr_auto_target_t;
 typedef struct {uint32_t cycle;uint8_t active;uint8_t reserved[3];} dsr_auto_cycle_t;
+enum {DSR_AUTO_CYCLE_IDLE,DSR_AUTO_CYCLE_OPEN,DSR_AUTO_CYCLE_CLOSED,DSR_AUTO_CYCLE_RESTORING};
 typedef struct {
  dsr_auto_rules_t rules;
  dsr_auto_cycle_t cycles[DSR_AUTO_RULES];

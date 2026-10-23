@@ -156,6 +156,12 @@ void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
  if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||job->kind==DSR_JOB_TRV||(job->kind==DSR_JOB_PROBE&&DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)))discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
 }
+bool dsr_fleet_cancel_started(dsr_fleet_t *f,unsigned index,uint32_t id)
+{
+ if(!f||index>=f->count||!id)return false;
+ dsr_fleet_slot_t *s=&f->slots[index];if(!s->in_flight||s->request_id!=id)return false;
+ s->in_flight=false;s->request_id=0;return true;
+}
 bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,uint32_t now)
 {
  if(!f||index>=f->count)return false;
