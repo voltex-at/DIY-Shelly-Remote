@@ -27,6 +27,9 @@ cases = {
            'tests/test_automation_http.c'],
            ['tests/support', 'components/dsr_config/include', '.test-deps', '/usr/include/cjson'],
            ['-l:libcjson.so.1', '-lm']),
+ 'config': (['components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c',
+             'components/dsr_platform/dsr_automation_config.c', 'tests/test_automation_config.c'],
+             ['components/dsr_config/include', '.test-deps', '/usr/include/cjson'], ['-l:libcjson.so.1', '-lm']),
 }
 selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else [a.case]
 with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:

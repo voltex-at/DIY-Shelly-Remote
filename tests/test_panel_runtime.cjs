@@ -4,7 +4,7 @@
 const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'..'),out=path.join(root,'build-ui/panel-runtime');fs.mkdirSync(out,{recursive:true});
 let checks=0,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=(v,message)=>{assert(v,message);checks++;};
-const config={schema:2,groups:[],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Home',tiles:[]}],rooms:[],scenes:[],devices:[]};
+const config={schema:3,automations:[],groups:[],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Home',tiles:[]}],rooms:[],scenes:[],devices:[]};
 const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192.0.2.'+(ch+8),online:true,output:false,has_switch:true,has_power:true,power_w:3.25,has_voltage:true,voltage_v:230,has_current:true,current_a:.1,pending:false,error:0,sample_age_ms:1234,operation_id:0});
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.DSR_TEST_CHROME||undefined,args:['--no-sandbox']});

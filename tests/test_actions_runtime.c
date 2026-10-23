@@ -12,7 +12,7 @@
 static unsigned checks,live,attempts,fail_at;static void *allocated[8192];
 static int lock;static bool fail_heap,unavailable;static size_t max_heap;static uint32_t now=120000;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
-static const char config[]="{\"schema\":2,\"revision\":7,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[{\"id\":1,\"name\":\"A\",\"host\":\"192.0.2.1\",\"channel\":0,\"room\":0,\"kind\":\"relay\"},{\"id\":2,\"name\":\"B\",\"host\":\"192.0.2.2\",\"channel\":0,\"room\":0,\"kind\":\"relay\"}],\"groups\":[{\"id\":1,\"name\":\"All\",\"members\":[1,2]}],\"scenes\":[{\"id\":1,\"name\":\"Off\",\"actions\":[{\"device\":1,\"command\":\"off\"}]}],\"dashboards\":[{\"id\":1,\"name\":\"Home\",\"tiles\":[]}]}";
+static const char config[]="{\"schema\":3,\"automations\":[],\"revision\":7,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[{\"id\":1,\"name\":\"A\",\"host\":\"192.0.2.1\",\"channel\":0,\"room\":0,\"kind\":\"relay\"},{\"id\":2,\"name\":\"B\",\"host\":\"192.0.2.2\",\"channel\":0,\"room\":0,\"kind\":\"relay\"}],\"groups\":[{\"id\":1,\"name\":\"All\",\"members\":[1,2]}],\"scenes\":[{\"id\":1,\"name\":\"Off\",\"actions\":[{\"device\":1,\"command\":\"off\"}]}],\"dashboards\":[{\"id\":1,\"name\":\"Home\",\"tiles\":[]}]}";
 char *dsr_workspace_snapshot(void){return unavailable?NULL:strdup(config);}
 void *heap_caps_calloc(size_t n,size_t s,unsigned caps){CHECK(caps==(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));if(n*s>max_heap)max_heap=n*s;return fail_heap?NULL:calloc(n,s);}
 SemaphoreHandle_t xSemaphoreCreateMutex(void){return &lock;}

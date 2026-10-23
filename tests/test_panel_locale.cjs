@@ -13,7 +13,7 @@ process.env.TMPDIR=browserTemp;
 let checks=0,active;
 const ok=(v,message)=>{assert(v,message);checks++;},eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
 async function shot(page,file){await page.evaluate(()=>{if(document.querySelector('#test-model-badge'))return;const n=document.createElement('div');n.id='test-model-badge';n.textContent='HOST TEST / HTTP MODEL';n.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:1000;font:10px sans-serif;background:#f6c45b;color:#111;padding:2px 5px;pointer-events:none';document.body.append(n);});await page.screenshot({path:file,fullPage:true});}
-const initial=()=>({schema:2,groups:[{id:1,name:'User group',members:[1]}],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Pulpity',tiles:[]}],rooms:[{id:1,name:'User room',icon:0,photo:''}],devices:[{id:1,name:'User device',kind:'light',host:'192.0.2.8',channel:0,room:1}],scenes:[{id:1,name:'User scene',actions:[{device:1,command:'on'}]}]});
+const initial=()=>({schema:3,automations:[],groups:[{id:1,name:'User group',members:[1]}],revision:1,language:'pl',theme:'graphite',accent:3978995,active_dashboard:1,dashboards:[{id:1,name:'Pulpity',tiles:[]}],rooms:[{id:1,name:'User room',icon:0,photo:''}],devices:[{id:1,name:'User device',kind:'light',host:'192.0.2.8',channel:0,room:1}],scenes:[{id:1,name:'User scene',actions:[{device:1,command:'on'}]}]});
 async function fixture(browser,options={}){
  const context=await browser.newContext({locale:options.navigator||'pl-PL',viewport:{width:1440,height:1050}});
  await context.addInitScript(({stored,storageFault,setFault,languages})=>{

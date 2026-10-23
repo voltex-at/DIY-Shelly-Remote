@@ -17,7 +17,7 @@ class Node{
 async function fixture(){
  const base=new Node('root'),workspace=new Node('workspace'),parent=new Node('div');base.append(workspace);workspace.append(parent);
  const document={documentElement:{lang:'en'},createElement:tag=>new Node(tag),querySelector:()=>workspace};
- const config={schema:2,revision:7,groups:[{id:1,name:'Group A',members:[42]}],scenes:[{id:2,name:'Scene B',actions:[{device:42,command:'off'}]}],dashboards:[],active_dashboard:1};
+ const config={schema:3,automations:[],revision:7,groups:[{id:1,name:'Group A',members:[42]}],scenes:[{id:2,name:'Scene B',actions:[{device:42,command:'off'}]}],dashboards:[],active_dashboard:1};
  let status={boot_id:17,admission_generation:0,revision:7,run_id:0,object_id:0,kind:0,nonce:'',available:true,active:false,cancelled:false,current:0,steps:[]};
  const requests=[],holds=new Map();
  const c={window:{},document,config:null,page:'groups',dirty:false,conflict:false,queueMicrotask,Uint32Array,

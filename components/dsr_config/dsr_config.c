@@ -40,7 +40,7 @@ static bool unique_keys(const cJSON *o,unsigned depth)
 static bool collection(const cJSON *root,const char *key,int max)
 {
  const cJSON *a=get(root,key);if(!cJSON_IsArray(a)||cJSON_GetArraySize(a)>max)return false;
- const cJSON *v;cJSON_ArrayForEach(v,a){if(!cJSON_IsObject(v)||!number(v,"id",1,1000000)||!text(v,"name",47,!strcmp(key,"devices")&&number(root,"schema",2,2)))return false;
+ const cJSON *v;cJSON_ArrayForEach(v,a){if(!cJSON_IsObject(v)||!number(v,"id",1,1000000)||!text(v,"name",47,!strcmp(key,"devices")&&number(root,"schema",2,3)))return false;
   for(const cJSON *b=v->next;b;b=b->next)if(number(b,"id",1,1000000)&&get(b,"id")->valueint==get(v,"id")->valueint)return false;}
  return true;
 }
@@ -107,10 +107,43 @@ static bool action_appearance(const cJSON *r,const cJSON *o)
  for(unsigned i=0;i<32;i++)if(!((p[i]>='a'&&p[i]<='f')||(p[i]>='0'&&p[i]<='9')))return false;
  return true;
 }
-static bool validate_v2(const cJSON *r,char error[96],bool stored)
+static bool validate_automations(const cJSON *r,char error[96])
+{
+ if(!collection(r,"automations",8))return fail(error,"Invalid automation collection");
+ const cJSON *v,*member;
+ uint32_t targets[16];unsigned target_count=0;
+ cJSON_ArrayForEach(v,get(r,"automations")){
+  if(!keys(v,"|id||name||kind||enabled||sensors||targets||target_half|")||
+   !choice(v,"kind","|contact_heating|")||!cJSON_IsBool(get(v,"enabled"))||
+   (get(v,"target_half")&&!number(v,"target_half",DSR_TRV_MIN_HALF,DSR_TRV_MAX_HALF)))return fail(error,"Invalid automation definition");
+  const char *lists[]={"sensors","targets"};
+  for(unsigned i=0;i<2;i++){
+   const cJSON *list=get(v,lists[i]);
+   if(!cJSON_IsArray(list)||cJSON_GetArraySize(list)<1||cJSON_GetArraySize(list)>16)return fail(error,"Automation needs 1..16 contacts and targets");
+   cJSON_ArrayForEach(member,list){
+    if(!reference(r,"devices",member,false))return fail(error,"Automation references missing device");
+    for(const cJSON *other=member->next;other;other=other->next)
+     if(cJSON_IsNumber(other)&&other->valuedouble==member->valuedouble)return fail(error,"Duplicate automation participant");
+    if(i){
+     for(unsigned n=0;n<target_count;n++)if(targets[n]==(uint32_t)member->valuedouble)return fail(error,"Target belongs to another automation");
+     if(target_count==16)return fail(error,"Automation target limit");
+     targets[target_count++]=(uint32_t)member->valuedouble;
+     const cJSON *sensor;cJSON_ArrayForEach(sensor,get(v,"sensors"))
+      if(sensor->valuedouble==member->valuedouble)return fail(error,"Contact cannot also be a target");
+    }
+   }
+  }
+ }
+ /* A participant cannot be a contact in one rule and a target in another. */
+ cJSON_ArrayForEach(v,get(r,"automations"))cJSON_ArrayForEach(member,get(v,"sensors"))
+  for(unsigned i=0;i<target_count;i++)if(targets[i]==(uint32_t)member->valuedouble)return fail(error,"Conflicting automation participant roles");
+ return true;
+}
+#include "dsr_config_v2.inc"
+static bool validate_v3(const cJSON *r,char error[96],bool stored)
 {
  if(!cJSON_IsObject(r)||!unique_keys(r,0))return fail(error,"Invalid object or duplicate keys");
- if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards||groups|"))return fail(error,"Unknown configuration field");
+ if(!keys(r,"|schema||revision||language||theme||accent||active_dashboard||rooms||devices||scenes||dashboards||groups||automations|"))return fail(error,"Unknown configuration field");
  if(!number(r,"schema",DSR_CONFIG_SCHEMA,DSR_CONFIG_SCHEMA)||!number(r,"revision",1,UINT32_MAX-1))return fail(error,"Unsupported schema/revision");
  if(!choice(r,"language","|pl||en||de|")||!theme(r,stored)||!number(r,"accent",0,0xffffff))return fail(error,"Invalid appearance");
  if(!collection(r,"rooms",8)||!collection(r,"devices",16)||!collection(r,"scenes",8)||!collection(r,"groups",8)||!collection(r,"dashboards",DSR_CONFIG_MAX_DASHBOARDS))return fail(error,"Invalid collection, duplicate ID or limit");
@@ -156,16 +189,23 @@ static bool validate_v2(const cJSON *r,char error[96],bool stored)
    for(const cJSON *b=t->next;b;b=b->next)if(number(b,"id",1,1000000)&&get(b,"id")->valueint==get(t,"id")->valueint)return fail(error,"Duplicate tile ID");
   }
  }
+ if(!validate_automations(r,error))return false;
  error[0]=0;return true;
 }
 bool dsr_config_validate(const cJSON *root,char error[96])
-{return validate_v2(root,error,false);}
+{return validate_v3(root,error,false);}
 cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96])
 {
  if(!id||!dsr_config_validate(root,error)){fail(error,"Invalid device deletion source");return NULL;}
  const cJSON *devices=get(root,"devices");int at=0;
  while(at<cJSON_GetArraySize(devices)&&(uint32_t)get(cJSON_GetArrayItem(devices,at),"id")->valueint!=id)at++;
  if(at==cJSON_GetArraySize(devices)){fail(error,"Device no longer exists");return NULL;}
+ const cJSON *rule,*participant;
+ cJSON_ArrayForEach(rule,get(root,"automations")){
+  const char *lists[]={"sensors","targets"};
+  for(unsigned i=0;i<2;i++)cJSON_ArrayForEach(participant,get(rule,lists[i]))
+   if((uint32_t)participant->valuedouble==id){fail(error,"Resolve automation references before deleting device");return NULL;}
+ }
  cJSON *next=cJSON_Duplicate(root,true);if(!next){fail(error,"Not enough memory");return NULL;}
  cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(next,"devices"),at);
  cJSON *v;
@@ -189,11 +229,12 @@ cJSON *dsr_config_remove_device(const cJSON *root,uint32_t id,char error[96])
 bool dsr_config_validate_stored(const cJSON *root,char error[96])
 {
  if(cJSON_IsObject(root)&&number(root,"schema",1,1))return validate_v1(root,error);
- return validate_v2(root,error,true);
+ if(cJSON_IsObject(root)&&number(root,"schema",2,2))return validate_v2(root,error,true);
+ return validate_v3(root,error,true);
 }
 /* Explicit validated upgrade. No filesystem/NVS/worker or revision mutation.
- * The caller publishes canonical2 in RAM and writes only on explicit Save
- * (a schema-2 boot document is refreshed by the existing checkpoint save).
+ * The caller publishes canonical3 in RAM; legacy1/2 is written only on explicit
+ * Save. Current-schema boot checkpoints keep the existing refresh policy.
  * The retired midnight skin becomes graphite here, idempotently; every other
  * setting, room, scene, binding id and photo reference is kept byte-exact. */
 char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
@@ -204,10 +245,14 @@ char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
  if(!root||!dsr_config_validate_stored(root,error)){cJSON_Delete(root);return NULL;}
  const cJSON *stored_theme=get(root,"theme");
  if(!strcmp(stored_theme->valuestring,"midnight")&&!dsr_config_retire_theme(root)){cJSON_Delete(root);fail(error,"Not enough memory for configuration upgrade");return NULL;}
- bool old=number(root,"schema",1,1);
- if(old){
+ bool schema1=number(root,"schema",1,1),old=schema1||number(root,"schema",2,2);
+ if(schema1){
   cJSON *groups=cJSON_CreateArray();
   if(!groups||!cJSON_AddItemToObject(root,"groups",groups)){cJSON_Delete(groups);cJSON_Delete(root);fail(error,"Not enough memory for configuration upgrade");return NULL;}
+ }
+ if(old){
+  cJSON *automations=cJSON_CreateArray();
+  if(!automations||!cJSON_AddItemToObject(root,"automations",automations)){cJSON_Delete(automations);cJSON_Delete(root);fail(error,"Not enough memory for configuration upgrade");return NULL;}
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(root,"schema"),DSR_CONFIG_SCHEMA);
  }
  char *out=cJSON_PrintUnformatted(root);cJSON_Delete(root);
@@ -219,7 +264,7 @@ char *dsr_config_upgrade(const char *json,bool *legacy,char error[96])
 
 char *dsr_config_default(void)
 {
- const char *value="{\"schema\":2,\"revision\":1,\"language\":\"en\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"groups\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
+ const char *value="{\"schema\":3,\"revision\":1,\"language\":\"en\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[],\"scenes\":[],\"groups\":[],\"automations\":[],\"dashboards\":[{\"id\":1,\"name\":\"Mój pulpit\",\"tiles\":[] }]}";
  char *copy=malloc(strlen(value)+1);if(copy)memcpy(copy,value,strlen(value)+1);return copy;
 }
 uint32_t dsr_config_revision(const char *json)

@@ -1,1 +1,3 @@
 *.rgb565 binary
+# Frozen compatibility sources are verified against their original bytes.
+tests/actions/schema1/* text eol=lf

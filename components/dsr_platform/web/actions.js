@@ -38,7 +38,7 @@
   const owned=()=>generation===serial&&read===readSerial&&current();
   try{
    const next=await json('actions/status');if(!owned())return;adopt(next);
-   if(!published||published.revision!==status.revision){const nextConfig=await json('config');if(!owned())return;if(nextConfig.schema!==2||nextConfig.revision!==status.revision||!Array.isArray(nextConfig.groups)||!Array.isArray(nextConfig.scenes))throw Error('Invalid configuration');published=nextConfig;}
+   if(!published||published.revision!==status.revision){const nextConfig=await json('config');if(!owned())return;if(nextConfig.schema!==3||nextConfig.revision!==status.revision||!Array.isArray(nextConfig.groups)||!Array.isArray(nextConfig.scenes)||!Array.isArray(nextConfig.automations))throw Error('Invalid configuration');published=nextConfig;}
    if(mode==='activity'){let nextLog=await json('actions/log/query',{epoch,offset,limit:16});if(!owned())return;if(!nextLog||!Array.isArray(nextLog.entries)||nextLog.entries.length>16||nextLog.timezone!=='UTC')throw Error('Invalid log');log=nextLog;epoch=nextLog.epoch;}
    if(!unknown&&message!=='restarted')message='';draw();
   }catch{if(owned()){message=unknown?'unknown':'missing';draw();}}finally{if(fetching===read)fetching=false;}

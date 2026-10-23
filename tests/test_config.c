@@ -32,16 +32,17 @@ static void theme_migration(const cJSON *base,const char *root)
   cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"devices"),cJSON_Parse("{\"id\":9,\"name\":\"Roleta\",\"host\":\"192.168.1.40\",\"channel\":1,\"kind\":\"cover\",\"room\":7}"));
   cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(doc,"scenes"),cJSON_Parse("{\"id\":3,\"name\":\"Noc\",\"actions\":[{\"device\":9,\"command\":\"close\"}]}"));
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"revision"),41);
-  if(schema==1){cJSON_DeleteItemFromObjectCaseSensitive(doc,"groups");cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"schema"),1);}
+  cJSON_DeleteItemFromObjectCaseSensitive(doc,"automations");cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(doc,"schema"),schema);
+  if(schema==1)cJSON_DeleteItemFromObjectCaseSensitive(doc,"groups");
   CHECK(dsr_config_validate_stored(doc,error));
-  CHECK(dsr_config_validate(doc,error)==(schema==2&&i!=1)); /* midnight is never a current document */
+  CHECK(!dsr_config_validate(doc,error)); /* midnight is never a current document */
   char *old=cJSON_PrintUnformatted(doc);CHECK(old);write_checkpoint(dir,0,old);
   bool found=false,legacy=false;char *loaded=dsr_config_store_load(dir,&found,error);CHECK(found&&loaded&&!strcmp(loaded,old)); /* reading never rewrites */
-  char *upgraded=dsr_config_upgrade(loaded,&legacy,error);CHECK(upgraded&&legacy==(schema==1));
+  char *upgraded=dsr_config_upgrade(loaded,&legacy,error);CHECK(upgraded&&legacy);
   cJSON *after=cJSON_Parse(upgraded);CHECK(after&&dsr_config_validate(after,error));
   CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(after,"theme")->valuestring,expected[i]));
   cJSON *a=cJSON_Duplicate(after,true),*b=cJSON_Duplicate(doc,true);
-  const char *excluded[]={"theme","groups","schema"};for(unsigned k=0;k<3;k++){cJSON_DeleteItemFromObjectCaseSensitive(a,excluded[k]);cJSON_DeleteItemFromObjectCaseSensitive(b,excluded[k]);}
+  const char *excluded[]={"theme","groups","schema","automations"};for(unsigned k=0;k<4;k++){cJSON_DeleteItemFromObjectCaseSensitive(a,excluded[k]);cJSON_DeleteItemFromObjectCaseSensitive(b,excluded[k]);}
   CHECK(cJSON_Compare(a,b,true)&&dsr_config_revision(upgraded)==41);
   /* Boot refresh + restart: the canonical document reaches both checkpoints;
    * upgrading it again is byte-identical. No checkpoint is erased. */
@@ -173,7 +174,7 @@ int main(int argc,char **argv)
  CHECK(argc==3);removal_roundtrip(argv[1]);photo_names(argv[2]);char error[96]={0};char *initial=dsr_config_default();CHECK(initial);cJSON *r=cJSON_Parse(initial);CHECK(dsr_config_validate(r,error));CHECK(dsr_config_revision(initial)==1);
  /* New installations start in English; saved workspaces keep their language. */
  CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(r,"language")->valuestring,"en"));
- invalid(r,"schema",cJSON_CreateNumber(3));invalid(r,"revision",cJSON_CreateNumber(0));invalid(r,"revision",cJSON_CreateNumber(1.5));invalid(r,"language",cJSON_CreateString("xx"));invalid(r,"accent",cJSON_CreateNumber(0x1000000));invalid(r,"active_dashboard",cJSON_CreateNumber(99));
+ invalid(r,"schema",cJSON_CreateNumber(4));invalid(r,"revision",cJSON_CreateNumber(0));invalid(r,"revision",cJSON_CreateNumber(1.5));invalid(r,"language",cJSON_CreateString("xx"));invalid(r,"accent",cJSON_CreateNumber(0x1000000));invalid(r,"active_dashboard",cJSON_CreateNumber(99));
  invalid(r,"language",cJSON_CreateString("pl||en"));
  /* "Jasny" (#owner 2026-10-17) is accepted; unknown or pipe-smuggled themes are not. */
  {char error[96];cJSON *light=cJSON_Duplicate(r,true);cJSON_ReplaceItemInObjectCaseSensitive(light,"theme",cJSON_CreateString("light"));CHECK(dsr_config_validate(light,error));cJSON_Delete(light);}
@@ -203,7 +204,7 @@ int main(int argc,char **argv)
  cJSON *room=cJSON_Parse("{\"id\":1,\"name\":\"Salon\",\"icon\":0,\"photo\":\"\"}");cJSON_AddItemToArray(rooms,room);
  cJSON *device=cJSON_Parse("{\"id\":1,\"name\":\"Światło\",\"host\":\"192.168.1.77\",\"channel\":0,\"kind\":\"light\",\"room\":1}");cJSON_AddItemToArray(devices,device);
  cJSON_ReplaceItemInObjectCaseSensitive(device,"name",cJSON_CreateString(""));CHECK(dsr_config_validate(r,error));
- cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),1);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),2);
+ cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),1);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(r,"schema"),DSR_CONFIG_SCHEMA);
  cJSON_ReplaceItemInObjectCaseSensitive(device,"name",cJSON_CreateString("Światło"));
  cJSON *tile=cJSON_Parse("{\"id\":1,\"type\":\"device\",\"ref\":1,\"span\":2,\"height\":1,\"fields\":3}");cJSON_AddItemToArray(tiles,tile);CHECK(dsr_config_validate(r,error));
  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(tile,"span"),1);CHECK(!dsr_config_validate(r,error));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(tile,"span"),2);
@@ -226,7 +227,7 @@ int main(int argc,char **argv)
  photo_gc(r,argv[1]);
  action_metadata_gc(r,argv[1]);
  compact_photo_gc(r,argv[1]);
- cJSON_ReplaceItemInObjectCaseSensitive(r,"schema",cJSON_CreateNumber(3));char *future=cJSON_PrintUnformatted(r);uint32_t header[]={0x44535231,(uint32_t)strlen(future),dsr_config_crc32(future,strlen(future)),1};
+ cJSON_ReplaceItemInObjectCaseSensitive(r,"schema",cJSON_CreateNumber(4));char *future=cJSON_PrintUnformatted(r);uint32_t header[]={0x44535231,(uint32_t)strlen(future),dsr_config_crc32(future,strlen(future)),1};
  snprintf(path,sizeof(path),"%s/config1.dat",argv[1]);f=fopen(path,"wb");CHECK(f);CHECK(fwrite(header,sizeof(header),1,f)==1);CHECK(fwrite(future,1,strlen(future),f)==strlen(future));CHECK(!fclose(f));free(future);
  loaded=dsr_config_store_load(argv[1],&found,error);CHECK(!loaded&&!found&&strstr(error,"Newer"));CHECK(!dsr_config_store_save(argv[1],initial,error));
  unsigned removed=99;CHECK(!dsr_config_store_collect_photos(argv[1],&removed,error));CHECK(removed==0);

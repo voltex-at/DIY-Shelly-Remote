@@ -61,9 +61,9 @@ esp_err_t dsr_workspace_start(void)
  if(!found){if(error[0]){dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_FAIL);return ESP_FAIL;}dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_OK);current=dsr_config_default();if(!current){dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
   if(!dsr_config_store_save("/dsr",current,error)){free(current);current=NULL;dsr_config_health_workspace(DSR_WORKSPACE_PROVISIONING,ESP_FAIL);return ESP_FAIL;}}
  if(found){
-  /* A separately strict schema1 validator authorizes only this RAM upgrade.
+  /* Independently strict schema1/2 validators authorize this RAM upgrade.
    * Never refresh/GC legacy checkpoints at boot: first explicit Save is the
-   * only durable1->2 transition and retains the old revision until its ACK. */
+   * only durable1/2->3 transition and retains the old revision until its ACK. */
   char *canonical=dsr_config_upgrade(current,&legacy,error);free(current);current=canonical;
   if(!current){dsr_config_health_workspace(DSR_WORKSPACE_LOADING,ESP_FAIL);return ESP_FAIL;}
  }
