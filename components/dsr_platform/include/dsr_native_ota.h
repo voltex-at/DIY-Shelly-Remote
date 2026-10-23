@@ -17,7 +17,8 @@ typedef enum {
  DSR_NATIVE_ERROR_RATE_LIMIT,DSR_NATIVE_ERROR_MANIFEST_DOWNLOAD,
  DSR_NATIVE_ERROR_BATTERY_LOW
 } dsr_native_ota_error_t;
-#define DSR_NATIVE_OTA_MIN_BATTERY_PERCENT 20u
+#include "dsr_ota_power.h"
+#define DSR_NATIVE_OTA_MIN_BATTERY_PERCENT DSR_OTA_MIN_BATTERY_PERCENT
 typedef struct {
  dsr_native_ota_state_t state;
  dsr_native_ota_error_t error;

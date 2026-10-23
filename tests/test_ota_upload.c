@@ -14,9 +14,17 @@
 #include <stdbool.h>
 
 static unsigned checks,allocations,allocation_fail,owned;
+static dsr_ota_power_result_t power_result=DSR_OTA_POWER_READY,reported_power;
+static bool power_held,power_busy;static unsigned power_checks,power_releases;
+
 static void *pointers[16];
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 void *__real_malloc(size_t size);void *__real_calloc(size_t count,size_t size);void __real_free(void *pointer);
+#ifdef DSR_SOURCE_ALLOCATORS
+void *__real_malloc(size_t size){return malloc(size);}
+void *__real_calloc(size_t count,size_t size){return calloc(count,size);}
+void __real_free(void *pointer){free(pointer);}
+#endif
 static void *track(void *pointer){if(pointer){unsigned i;for(i=0;i<16&&pointers[i];i++);CHECK(i<16);pointers[i]=pointer;owned++;}return pointer;}
 void *__wrap_malloc(size_t size){allocations++;return allocation_fail&&allocations==allocation_fail?NULL:track(__real_malloc(size));}
 void *__wrap_calloc(size_t count,size_t size){allocations++;return allocation_fail&&allocations==allocation_fail?NULL:track(__real_calloc(count,size));}
@@ -37,7 +45,7 @@ static void make_image(size_t marker_at)
 static void digest(const unsigned char *bytes,size_t length,uint8_t out[32])
 {unsigned n=0;CHECK(EVP_Digest(bytes,length,out,&n,EVP_sha256(),NULL)==1&&n==32);}
 static void reset(void)
-{CHECK(!owned&&!dsr_test_sha_live()&&!live);allocations=allocation_fail=0;read_offset=write_length=0;source_length=IMAGE_SIZE;first_read=next_read=4096;receives=begins=writes=ends=aborts=boots=fail_receive=fail_write=0;receive_error=HTTPD_SOCK_ERR_TIMEOUT;fail_begin=fail_end=fail_boot=oversize_receive=no_slot=header_error=false;slot.size=0x600000;request.content_len=IMAGE_SIZE;response_status[0]=response_body[0]=0;dsr_test_sha_fault(0);memcpy(source,image,sizeof(image));}
+{CHECK(!owned&&!dsr_test_sha_live()&&!live&&!power_held);allocations=allocation_fail=0;read_offset=write_length=0;source_length=IMAGE_SIZE;first_read=next_read=4096;receives=begins=writes=ends=aborts=boots=fail_receive=fail_write=0;receive_error=HTTPD_SOCK_ERR_TIMEOUT;fail_begin=fail_end=fail_boot=oversize_receive=no_slot=header_error=false;slot.size=0x600000;request.content_len=IMAGE_SIZE;response_status[0]=response_body[0]=0;dsr_test_sha_fault(0);memcpy(source,image,sizeof(image));}
 int httpd_req_recv(httpd_req_t *r,char *buffer,size_t length)
 {CHECK(!dsr_activity_restart_reserve());CHECK(r==&request&&length>0&&length<=4096);receives++;if(receives==fail_receive)return receive_error;if(oversize_receive)return (int)length+1;size_t n=receives==1?first_read:next_read;if(n>length)n=length;if(n>source_length-read_offset)n=source_length-read_offset;memcpy(buffer,source+read_offset,n);read_offset+=n;return (int)n;}
 esp_err_t esp_ota_begin(const esp_partition_t *p,size_t size,esp_ota_handle_t *handle)
@@ -68,9 +76,14 @@ static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {CHECK(r==&request);snprintf(response_status,sizeof(response_status),"%s",status);snprintf(response_body,sizeof(response_body),"%s",body);return ESP_OK;}
 #include "ota_endpoint.inc"
 
-static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
+dsr_result_t dsr_ota_power_acquire(dsr_ota_power_result_t *out)
+{CHECK(out&&!power_held&&!begins&&!writes);power_checks++;*out=DSR_OTA_POWER_BUSY;if(power_busy)return DSR_BUSY;power_held=true;*out=power_result;return DSR_OK;}
+void dsr_ota_power_release(void){CHECK(power_held&&!owned&&!dsr_test_sha_live()&&!live);power_held=false;power_releases++;}
+static esp_err_t receive(httpd_req_t *r,const esp_partition_t *p,const uint8_t hash[32])
+{return dsr_ota_upload_receive(r,p,hash,true,&reported_power);}
+static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live&&!power_held);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}
 static void accepted(const uint8_t hash[32])
-{CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_OK);CHECK(read_offset==request.content_len&&write_length==request.content_len&&!memcmp(written,source,write_length));CHECK(begins==1&&ends==1&&!aborts&&!boots);CHECK(dsr_test_sha_calls()==receives+3);clean();}
+{CHECK(receive(&request,&slot,hash)==ESP_OK);CHECK(read_offset==request.content_len&&write_length==request.content_len&&!memcmp(written,source,write_length));CHECK(begins==1&&ends==1&&!aborts&&!boots);CHECK(dsr_test_sha_calls()==receives+3);clean();}
 int main(int argc,char **argv)
 {
  CHECK(argc==1||(argc==2&&!strcmp(argv[1],"uncertain")));bool uncertain=argc==2;
@@ -81,29 +94,36 @@ int main(int argc,char **argv)
  make_image(600);digest(image,sizeof(image),hash);reset();first_read=512;next_read=1;accepted(hash);
  reset();first_read=next_read=1;accepted(hash);
  /* Exact marker including NUL is required, even with a correct checksum. */
- reset();source[642]=1;digest(source,sizeof(source),parsed);CHECK(dsr_ota_upload_receive(&request,&slot,parsed)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends&&!boots);clean();
- reset();source[900]^=1;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(aborts==1&&!ends&&!boots);clean();
+ reset();source[642]=1;digest(source,sizeof(source),parsed);CHECK(receive(&request,&slot,parsed)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends&&!boots);clean();
+ reset();source[900]^=1;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(aborts==1&&!ends&&!boots);clean();
  const size_t faults[]={0,1,12,13,29,32,33,34,35,80,97};
- for(unsigned i=0;i<sizeof(faults)/sizeof(faults[0]);i++){reset();source[faults[i]]=faults[i]==1?0:255;digest(source,sizeof(source),parsed);CHECK(dsr_ota_upload_receive(&request,&slot,parsed)!=ESP_OK);CHECK(!begins&&!writes&&!ends&&!aborts);clean();}
- for(unsigned n=1;n<=2;n++){reset();allocation_fail=n;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(!receives&&!begins&&!aborts);clean();}
- for(unsigned n=1;n<=4;n++){reset();dsr_test_sha_fault(n);CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(!ends&&!boots);CHECK(aborts==(begins?1u:0u));clean();}
+ for(unsigned i=0;i<sizeof(faults)/sizeof(faults[0]);i++){reset();source[faults[i]]=faults[i]==1?0:255;digest(source,sizeof(source),parsed);CHECK(receive(&request,&slot,parsed)!=ESP_OK);CHECK(!begins&&!writes&&!ends&&!aborts);clean();}
+ for(unsigned n=1;n<=2;n++){reset();allocation_fail=n;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(!receives&&!begins&&!aborts);clean();}
+ for(unsigned n=1;n<=4;n++){reset();dsr_test_sha_fault(n);CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(!ends&&!boots);CHECK(aborts==(begins?1u:0u));clean();}
  /* SHA finish follows two chunk updates for this 8192-byte fixture. */
- reset();dsr_test_sha_fault(5);CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();
- for(unsigned n=1;n<=2;n++)for(unsigned error=0;error<2;error++){reset();fail_receive=n;receive_error=error?HTTPD_SOCK_ERR_TIMEOUT:0;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(!ends&&!boots&&aborts==(begins?1u:0u));clean();}
- reset();source_length=511;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(!begins&&!aborts);clean();
- reset();source_length=8191;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();
- reset();oversize_receive=true;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(!begins&&!aborts);clean();
- reset();fail_begin=true;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&!writes&&!aborts&&!ends);clean();
- for(unsigned n=1;n<=3;n++){reset();fail_write=n;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();}
- reset();fail_end=true;CHECK(dsr_ota_upload_receive(&request,&slot,hash)!=ESP_OK);CHECK(ends==1&&!aborts);clean();
- reset();CHECK(dsr_ota_upload_receive(NULL,&slot,hash)==ESP_ERR_INVALID_ARG);CHECK(dsr_ota_upload_receive(&request,NULL,hash)==ESP_ERR_INVALID_ARG);CHECK(dsr_ota_upload_receive(&request,&slot,NULL)==ESP_ERR_INVALID_ARG);
- request.content_len=511;CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);request.content_len=0x600001;CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);request.content_len=8192;slot.size=8191;CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);CHECK(!receives&&!begins);clean();
+ reset();dsr_test_sha_fault(5);CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();
+ for(unsigned n=1;n<=2;n++)for(unsigned error=0;error<2;error++){reset();fail_receive=n;receive_error=error?HTTPD_SOCK_ERR_TIMEOUT:0;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(!ends&&!boots&&aborts==(begins?1u:0u));clean();}
+ reset();source_length=511;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(!begins&&!aborts);clean();
+ reset();source_length=8191;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();
+ reset();oversize_receive=true;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(!begins&&!aborts);clean();
+ reset();fail_begin=true;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&!writes&&!aborts&&!ends);clean();
+ for(unsigned n=1;n<=3;n++){reset();fail_write=n;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(begins==1&&aborts==1&&!ends);clean();}
+ reset();fail_end=true;CHECK(receive(&request,&slot,hash)!=ESP_OK);CHECK(ends==1&&!aborts);clean();
+ reset();CHECK(receive(NULL,&slot,hash)==ESP_ERR_INVALID_ARG);CHECK(receive(&request,NULL,hash)==ESP_ERR_INVALID_ARG);CHECK(receive(&request,&slot,NULL)==ESP_ERR_INVALID_ARG);
+ request.content_len=511;CHECK(receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);request.content_len=0x600001;CHECK(receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);request.content_len=8192;slot.size=8191;CHECK(receive(&request,&slot,hash)==ESP_ERR_INVALID_ARG);CHECK(!receives&&!begins);clean();
+ /* No erase/write/boot after low/unavailable worker or absent USB consent. */
+ reset();power_result=DSR_OTA_POWER_LOW;CHECK(receive(&request,&slot,hash)!=ESP_OK&&reported_power==DSR_OTA_POWER_LOW);CHECK(!begins&&!writes&&!boots&&!power_held);clean();
+ reset();power_busy=true;CHECK(receive(&request,&slot,hash)!=ESP_OK&&reported_power==DSR_OTA_POWER_BUSY);CHECK(!begins&&!writes&&!boots&&!power_held);clean();power_busy=false;
+ reset();power_result=DSR_OTA_POWER_UNKNOWN;CHECK(receive(&request,&slot,hash)==ESP_OK&&reported_power==DSR_OTA_POWER_UNKNOWN);CHECK(begins==1&&!power_held);clean();power_result=DSR_OTA_POWER_READY;
+ reset();unsigned before_power=power_checks;CHECK(dsr_ota_upload_receive(&request,&slot,hash,false,&reported_power)!=ESP_OK&&reported_power==DSR_OTA_POWER_USB_REQUIRED);CHECK(!receives&&!begins&&power_checks==before_power);clean();
  /* Header parser: failure always clears all output bytes, including late hex. */
  for(unsigned i=0;i<32;i++)sprintf(header+i*2,"%02x",hash[i]);
  CHECK(dsr_ota_upload_sha256(header,64,parsed)&&!memcmp(parsed,hash,32));
  for(unsigned i=0;i<64;i++){char saved=header[i];header[i]='G';memset(parsed,0xa5,32);CHECK(!dsr_ota_upload_sha256(header,64,parsed));CHECK(!memcmp(parsed,(uint8_t[32]){0},32));header[i]=saved;}
  CHECK(!dsr_ota_upload_sha256(NULL,64,parsed)&&!dsr_ota_upload_sha256(header,63,parsed)&&!dsr_ota_upload_sha256(header,65,parsed)&&!dsr_ota_upload_sha256(header,64,NULL));
  char saved=header[63];header[63]=0;CHECK(!dsr_ota_upload_sha256(header,64,parsed)&&!memcmp(parsed,(uint8_t[32]){0},32));header[63]=saved;
+ reset();power_result=DSR_OTA_POWER_LOW;ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"422 Unprocessable Entity")&&strstr(response_body,"20%")&&!ota_until);CHECK(!begins&&!writes&&!boots&&!power_held);clean();power_result=DSR_OTA_POWER_READY;
+ reset();power_busy=true;ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&strstr(response_body,"Battery check")&&!ota_until);CHECK(!begins&&!writes&&!boots&&!power_held);clean();power_busy=false;
  reset();ota_until=0;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden"));CHECK(!receives&&!begins&&!boots);
  reset();ota_until=now;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden"));
  reset();ota_until=now+120000000;header_error=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!ota_until);CHECK(!begins);header_error=false;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"403 Forbidden"));
@@ -114,7 +134,7 @@ int main(int argc,char **argv)
  reset();ota_until=now+120000000;no_slot=true;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins);clean();
  reset();ota_until=now+120000000;request.content_len=511;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
  reset();ota_until=now+120000000;slot.size=8191;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"400 Bad Request")&&!begins&&!receives&&!ota_until);clean();
- reset();CHECK(dsr_activity_restart_reserve());CHECK(dsr_ota_upload_receive(&request,&slot,hash)==ESP_ERR_INVALID_STATE&&!receives&&!begins);dsr_activity_restart_cancel();clean();
+ reset();CHECK(dsr_activity_restart_reserve());CHECK(receive(&request,&slot,hash)==ESP_ERR_INVALID_STATE&&!receives&&!begins);dsr_activity_restart_cancel();clean();
  reset();CHECK(dsr_activity_restart_reserve());ota_until=now+120000000;CHECK(ota(&request)==ESP_OK&&!strcmp(response_status,"409 Conflict")&&!receives&&!begins&&!boots&&!ota_until);dsr_activity_restart_cancel();clean();
  /* Any boot choice attempt is terminal for BOTH OTA writers until reboot.
   * The activity lease is released, so explicit restart remains available. */

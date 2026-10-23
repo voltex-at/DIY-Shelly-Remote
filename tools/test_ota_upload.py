@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 import subprocess
 import tempfile
+import sys
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');args=p.parse_args()
 # Byte-for-byte source-invariance gate, NOT runtime HTTP authentication proof.
@@ -17,7 +18,8 @@ auth_blocks={
     'authorized':'effb45bc5a73931fe3a2acae29c646a013e8d8ff9dbe06ee140a4b623bba99c3',
     'api':'7725ecad42a0249d491b33d71fecbcbcc172c210b667a81ff1d62c6ec365b70f',
 }
-panel_bytes=(ROOT/'components/dsr_platform/dsr_panel.c').read_bytes()
+# Canonical source bytes: Windows checkout line endings do not change C code.
+panel_bytes=(ROOT/'components/dsr_platform/dsr_panel.c').read_bytes().replace(b'\r\n',b'\n')
 for name,expected in auth_blocks.items():
     start=re.search(rb'^static [^\n]+\b'+name.encode()+rb'\([^\n]*\)\n',panel_bytes,re.M)
     assert start,f'Missing authentication block: {name}'
@@ -47,6 +49,9 @@ for name,expected in auth_blocks.items():
         actions=b' if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);\n'
         assert block.count(actions)==1 and block.index(actions)>block.index(b'if(!authorized(r))'),'Actions must remain behind authorization'
         block=block.replace(actions,b'')
+        automation=b' if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);\n'
+        assert block.count(automation)==1 and block.index(automation)>block.index(b'if(!authorized(r))'),'Read-only automation status must remain behind authorization'
+        block=block.replace(automation,b'')
         privacy=b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
         assert block.count(privacy)==1 and block.index(privacy)>block.index(b'if(!authorized(r))'),'Settings preview privacy must remain after authorization'
         block=block.replace(privacy,b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())')
@@ -66,9 +71,25 @@ with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:
     flags=['-std=c11','-Wall','-Wextra','-Werror','-Wpedantic','-g']
     if args.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
     elif args.ubsan_only:flags+=['-fsanitize=undefined','-fno-omit-frame-pointer']
-    for folder in [tmp,ROOT/'tests/ota_upload',ROOT/'tests/ota_image',ROOT/'tests/support',ROOT/'components/dsr_platform/include',ROOT/'components/dsr_platform',ROOT/'components/dsr_ota/include']:flags+=['-I',str(folder)]
+    for folder in [tmp,ROOT/'tests/ota_upload',ROOT/'tests/ota_image',ROOT/'tests/support',ROOT/'components/dsr_platform/include',ROOT/'components/dsr_platform',ROOT/'components/dsr_ota/include',ROOT/'components/dsr_core/include']:flags+=['-I',str(folder)]
     sources=['components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_ota_stage.c','components/dsr_platform/dsr_ota_upload.c','components/dsr_ota/dsr_ota_image.c','tests/ota_image/sha256_adapter.c','tests/test_ota_upload.c']
     binary=tmp/'test-upload'
-    subprocess.run([os.environ.get('CC','cc'),*flags,*[str(ROOT/s) for s in sources],'-Wl,--wrap=malloc','-Wl,--wrap=calloc','-Wl,--wrap=free','-lcrypto','-o',str(binary)],check=True)
-    subprocess.run([str(binary)],check=True)
-    subprocess.run([str(binary),'uncertain'],check=True)
+    cc=os.environ.get('CC','cc')
+    if sys.platform=='cygwin':
+        # PE import --wrap recurses before main when OpenSSL loads. Keep the
+        # same fault injection on every allocation in the two production units.
+        objects=[]
+        for i,source in enumerate(sources):
+            obj=tmp/f'unit-{i}.o';extra=[]
+            if source.endswith(('dsr_ota_upload.c','dsr_ota_image.c')):
+                extra=['-include',str(ROOT/'tests/support/source_allocator_hooks.h')]
+            subprocess.run([cc,*flags,'-DDSR_SOURCE_ALLOCATORS',*extra,'-c',str(ROOT/source),'-o',str(obj)],check=True)
+            objects.append(str(obj))
+        subprocess.run([cc,*flags,*objects,'-lcrypto','-o',str(binary)],check=True)
+    else:
+        subprocess.run([cc,*flags,*[str(ROOT/s) for s in sources],'-Wl,--wrap=malloc','-Wl,--wrap=calloc','-Wl,--wrap=free','-lcrypto','-o',str(binary)],check=True)
+    for scenario in ([],['uncertain']):
+        result=subprocess.run([str(binary),*scenario],capture_output=True,text=True)
+        assert result.returncode==0,'Upload executable failed: '+result.stdout+result.stderr
+        assert 'actual legacy upload/endpoint checks;' in result.stdout,'Upload executable did not complete its checks: '+result.stderr
+        print(result.stdout.strip(),flush=True)

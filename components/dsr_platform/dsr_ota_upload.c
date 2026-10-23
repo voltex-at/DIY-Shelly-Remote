@@ -20,17 +20,19 @@ bool dsr_ota_upload_sha256(const char *text,size_t length,uint8_t out[32])
  }
  return true;
 }
-esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,const uint8_t expected[32])
+esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,const uint8_t expected[32],bool stable_usb,dsr_ota_power_result_t *power)
 {
+ if(power)*power=DSR_OTA_POWER_UNCHECKED;
  if(!r||!slot||!expected||r->content_len<512||r->content_len>slot->size
     ||r->content_len>DSR_OTA_IMAGE_MAX_SIZE)return ESP_ERR_INVALID_ARG;
+ if(!stable_usb){if(power)*power=DSR_OTA_POWER_USB_REQUIRED;return ESP_ERR_INVALID_STATE;}
  if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
  struct upload_buffers *buffers=malloc(sizeof(*buffers));
  if(!buffers){dsr_activity_end();return ESP_ERR_NO_MEM;}
  dsr_ota_image_t *image=NULL;
  /* Explicit legacy checksum path: never pretend X-SHA256 is verified metadata. */
  if(dsr_ota_image_create_dev_checksum(r->content_len,expected,&image)!=DSR_IMAGE_OK){free(buffers);dsr_activity_end();return ESP_FAIL;}
- size_t received=0,first_size=0;esp_ota_handle_t handle=0;bool live=false;
+ size_t received=0,first_size=0;esp_ota_handle_t handle=0;bool live=false,power_held=false;
  esp_err_t error=ESP_OK;
  while(received<r->content_len){
   size_t want=r->content_len-received;if(want>sizeof(buffers->chunk))want=sizeof(buffers->chunk);
@@ -43,6 +45,12 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
    size_t take=sizeof(buffers->first)-first_size;if(take>(size_t)n)take=(size_t)n;
    memcpy(buffers->first+first_size,buffers->chunk,take);first_size+=take;
    if(!dsr_ota_image_header_ready(image))continue;
+   dsr_ota_power_result_t checked=DSR_OTA_POWER_BUSY;
+   dsr_result_t acquired=dsr_ota_power_acquire(&checked);
+   if(power)*power=checked;
+   if(acquired!=DSR_OK){error=ESP_ERR_INVALID_STATE;break;}
+   power_held=true;
+   if(checked!=DSR_OTA_POWER_READY&&checked!=DSR_OTA_POWER_UNKNOWN){error=ESP_ERR_INVALID_STATE;break;}
    error=esp_ota_begin(slot,r->content_len,&handle);if(error!=ESP_OK)break;
    live=true;
    error=esp_ota_write(handle,buffers->first,sizeof(buffers->first));if(error!=ESP_OK)break;
@@ -58,5 +66,7 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
   live=false;
  }
  if(live)esp_ota_abort(handle);
- dsr_ota_image_destroy(image);free(buffers);dsr_activity_end();return error;
+ dsr_ota_image_destroy(image);free(buffers);
+ if(power_held)dsr_ota_power_release();
+ dsr_activity_end();return error;
 }

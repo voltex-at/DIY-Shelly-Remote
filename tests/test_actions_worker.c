@@ -17,7 +17,7 @@
 static unsigned checks,gets,posts,stops,mode;static uint32_t now=120000,run_id;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 typedef struct {size_t size;bool full;unsigned char bytes[sizeof(dsr_event_t)];} queue_t;
-static queue_t queues[2];static unsigned queue_count,lock_count;static bool locks[2],available;
+static queue_t queues[2];static unsigned queue_count,lock_count;static bool locks[3],available,power_done;static unsigned binary_count;
 static void(*worker)(void *);static jmp_buf idle;
 static bool(*urgent)(void);static dsr_http_job_guard_t guard;static dsr_http_job_write_hook_t write_hook;
 static bool mapping=true;static dsr_connection_t a,b;static uint32_t outer_id;
@@ -25,10 +25,10 @@ QueueHandle_t xQueueCreate(unsigned n,unsigned size){CHECK(n==1&&queue_count<2&&
 int xQueueSend(QueueHandle_t h,const void *p,TickType_t wait){(void)wait;queue_t *q=h;CHECK(!q->full);memcpy(q->bytes,p,q->size);q->full=true;return pdTRUE;}
 int xQueueReceive(QueueHandle_t h,void *p,TickType_t wait){queue_t *q=h;if(!q->full){if(wait)longjmp(idle,1);return pdFALSE;}memcpy(p,q->bytes,q->size);q->full=false;return pdTRUE;}
 void vQueueDelete(QueueHandle_t h){(void)h;}
-SemaphoreHandle_t xSemaphoreCreateMutex(void){CHECK(lock_count<2);return &locks[lock_count++];}
-SemaphoreHandle_t xSemaphoreCreateBinary(void){return &available;}
-int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;if(h==&available){if(!available)return pdFALSE;available=false;return pdTRUE;}bool *lock=h;CHECK((lock==&locks[0]||lock==&locks[1])&&!*lock);*lock=true;return pdTRUE;}
-int xSemaphoreGive(SemaphoreHandle_t h){bool *lock=h;if(h!=&available)CHECK((lock==&locks[0]||lock==&locks[1])&&*lock);*lock=h==&available;return pdTRUE;}
+SemaphoreHandle_t xSemaphoreCreateMutex(void){CHECK(lock_count<3);return &locks[lock_count++];}
+SemaphoreHandle_t xSemaphoreCreateBinary(void){CHECK(binary_count++<2);return binary_count==1?&available:&power_done;}
+int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;if(h==&available||h==&power_done){bool *v=h;if(!*v)return pdFALSE;*v=false;return pdTRUE;}bool *lock=h;CHECK((lock==&locks[0]||lock==&locks[1]||lock==&locks[2])&&!*lock);*lock=true;return pdTRUE;}
+int xSemaphoreGive(SemaphoreHandle_t h){bool *lock=h;if(h!=&available&&h!=&power_done)CHECK((lock==&locks[0]||lock==&locks[1]||lock==&locks[2])&&*lock);*lock=h==&available||h==&power_done;return pdTRUE;}
 void vSemaphoreDelete(SemaphoreHandle_t h){(void)h;}
 int xTaskCreate(void(*f)(void *),const char *name,unsigned stack,void *arg,unsigned pri,TaskHandle_t *out){CHECK(!strcmp(name,"dsr_network")&&stack==10240&&!arg&&pri==4&&!out);worker=f;return pdPASS;}
 void *heap_caps_calloc(size_t n,size_t s,unsigned caps){CHECK(caps==(MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT));return calloc(n,s);}

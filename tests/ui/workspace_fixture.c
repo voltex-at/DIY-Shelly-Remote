@@ -59,7 +59,9 @@ void test_pair_accept(bool accepted){pair_accepted=accepted;}
 void dsr_panel_pair_begin(char code[17]){pair_code_requests++;if(https_ready&&pair_accepted)strcpy(code,"0123456789abcdef");else code[0]=0;}
 static bool ota_accepted=true;
 void test_ota_accept(bool accepted){ota_accepted=accepted;}
-bool dsr_panel_allow_ota(void){return https_ready&&ota_accepted;}
+static unsigned ota_grants;
+unsigned test_ota_grants(void){return ota_grants;}
+bool dsr_panel_allow_ota(bool stable_usb){ota_grants++;return stable_usb&&https_ready&&ota_accepted;}
 /* Licensed review photos, available only in the explicit native fixture. */
 static bool photos_enabled;
 static uint16_t photos[2][DSR_PHOTO_BYTES/2];

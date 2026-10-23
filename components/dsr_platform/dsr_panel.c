@@ -99,8 +99,8 @@ static bool equal(const void *a,const void *b,size_t n)
 {const uint8_t *x=a,*y=b;unsigned d=0;while(n--)d|=*x++^*y++;return d==0;}
 void dsr_panel_pair_begin(char code[17])
 {if(!dsr_boot_ready()||!panel_ready||!lock||xSemaphoreTake(lock,0)!=pdTRUE){code[0]=0;return;}random_hex(pairing,8);memcpy(code,pairing,17);pair_until=esp_timer_get_time()+120000000;attempts=0;xSemaphoreGive(lock);}
-bool dsr_panel_allow_ota(void)
-{return dsr_panel_ota_enable(lock,panel_ready,&ota_until);}
+bool dsr_panel_allow_ota(bool stable_usb)
+{return dsr_panel_ota_enable(lock,panel_ready,&ota_until,stable_usb);}
 bool dsr_panel_preview_requested(void)
 {if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)
@@ -188,8 +188,14 @@ static esp_err_t ota(httpd_req_t *r)
  uint8_t digest[32];if(!dsr_ota_upload_sha256(expected,64,digest))return json(r,"400 Bad Request","{}");
  dsr_ota_stage_t *stage=dsr_ota_stage_acquire();
  if(!stage)return json(r,"409 Conflict","{\"error\":\"OTA staging or restart busy; upload not started\"}");
- esp_err_t error=dsr_ota_upload_receive(r,slot,digest);
- if(error!=ESP_OK){dsr_ota_stage_release(stage);return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");}
+ dsr_ota_power_result_t power=DSR_OTA_POWER_UNCHECKED;
+ esp_err_t error=dsr_ota_upload_receive(r,slot,digest,true,&power);
+ if(error!=ESP_OK){
+  dsr_ota_stage_release(stage);
+  if(power==DSR_OTA_POWER_LOW)return json(r,"422 Unprocessable Entity","{\"error\":\"Battery below 20%; recharge the remote and renew OTA consent\"}");
+  if(power==DSR_OTA_POWER_BUSY)return json(r,"409 Conflict","{\"error\":\"Battery check unavailable; renew OTA consent and retry\"}");
+  return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");
+ }
  error=esp_ota_set_boot_partition(slot);
  if(error!=ESP_OK){dsr_ota_stage_uncertain(stage);return json(r,"500 Internal Server Error","{\"error\":\"Boot selection unconfirmed; OTA blocked until restart\",\"restart_required\":true}");}
  dsr_ota_stage_commit(stage);

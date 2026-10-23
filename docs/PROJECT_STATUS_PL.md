@@ -391,16 +391,96 @@ Obejrzano piksele, w tym poprawkę stopki znalezioną podczas oględzin mimo
 wcześniejszego zielonego testu. Modele obejmują HTTP/uprawnienia/Flash/restart;
 nie wykonano uploadu na pilocie, nowego builda firmware ani pełnego atlasu.
 
-**Pozostała niespójność funkcjonalna:** próg 20% i nowy odczyt ADC przed
-instalacją dotyczą obecnie natywnego OTA. Lokalny uploader WWW nie ma jeszcze
-tej kontroli. Zgodna polityka baterii/USB wymaga osobnej integracji z workerem
-przed odbiorem wydania; tekst o USB nie zastępuje tej kontroli. **Właściciel
+**Niespójność stwierdzona w tej rundzie:** próg 20% i nowy odczyt ADC przed
+instalacją dotyczyły tylko natywnego OTA. Integrację uploadu WWW opisano
+w kolejnym etapie poniżej; tekst o USB nie zastępuje kontroli backendu. **Właściciel
 zaakceptował na podglądzie** oba pakiety (`2fd1427`): ekrany LCD z ramkami
 trzech skórek, instrukcją BIN/USB i złotymi komunikatami odmowy/wygaśnięcia
 oraz panel WWW z wyborem pliku, wskaźnikiem wysyłania/weryfikacji, nazwą pliku,
 wynikiem, złotymi błędami i ręcznym restartem. Ta akceptacja dotyczy wyglądu.
-Kontrola baterii dla WWW oraz rzeczywista instalacja, dane i rollback pozostają
-otwarte.
+Nowy krok potwierdzenia USB oraz komunikaty progu baterii opisane poniżej
+wymagają osobnej oceny podglądu. Rzeczywista instalacja, dane i rollback
+pozostają otwarte.
+
+### OTA-01 — próg baterii 20% dla uploadu WWW
+
+Właściciel wybrał wdrożenie kontroli baterii dla lokalnego OTA. Zastosowano
+uzgodnioną politykę natywnego updatera: świeży wynik poniżej 20% odmawia,
+dokładnie 20% pozwala kontynuować, a nieznany procent wymaga jawnego
+potwierdzenia stabilnego USB na LCD. Wejście na stronę nie udziela już zgody;
+przycisk „Zezwól na OTA” potwierdza USB i otwiera dotychczasowe jednorazowe
+okno 120 s. Backend odrzuca brak potwierdzenia. Nie dodano wykrywania USB
+ani ładowania z trendu napięcia.
+
+Po sprawdzeniu nagłówka obrazu, bezpośrednio przed `esp_ota_begin`, odbiornik
+rezerwuje istniejące miejsce w kolejce pracownika i prosi go o nowy odczyt
+ADC oraz profilu kalibracji. Natywny OTA korzysta z tej samej funkcji polityki.
+Odczyt nie używa cache LCD i nie odbywa się w zadaniu HTTP. Zajęty pracownik
+lub brak wyniku w 1000 ms blokuje upload; nie jest traktowany jako nieznany
+procent. Spóźniony wynik jest odrzucany, a następna próba wymaga nowego
+odczytu. Miejsce pracownika pozostaje zajęte do zakończenia zapisu/abort
+i zwolnienia pamięci odbiornika. Nie dodano zadania RTOS ani pól do job/event;
+priorytet STOP pozostaje bez zmian.
+
+Za niski poziom zwracany jest HTTP 422, a niedostępna kontrola HTTP 409.
+Oba wyniki występują przed pierwszym wywołaniem Flash i zużywają jednorazową
+zgodę. Panel pokazuje złoty komunikat PL/EN/DE oraz wymaga odnowienia zgody
+przed ręczną próbą. Parowanie, kontrola pochodzenia, weryfikacja obrazu,
+wyłączność obu trybów OTA, podpisy i partycje zachowują dotychczasowe zasady.
+Lokalny upload nadal jest deweloperskim trybem BIN z kontrolą SHA-256,
+bez weryfikacji podpisu wydawcy.
+
+Walidacja ograniczona do zmienionych modułów:
+
+- `python3 tools/test_ota_power.py` — PASS: rzeczywisty kod przekazania
+  do pracownika i lease, z modelami RTOS/ADC; zajętość, restart, brak pamięci,
+  timeout przed/w trakcie/po odczycie, odrzucenie późnego sygnału i świeża
+  kolejna próba. Bariery wątków odtwarzają wyścigi bez losowych opóźnień.
+- `python3 tools/test_ota_upload.py` — PASS dla obu wyników wyboru startowego:
+  rzeczywisty odbiornik, SHA i wyodrębniony endpoint; LOW/BUSY/brak USB
+  nie uruchamiają Flash. Zachowano wcześniejsze testy błędów odczytu,
+  zapisu, kończenia/abort i alokacji. Regresja kolejności sprzątania najpierw
+  odtworzyła przedwczesne zwolnienie miejsca, a po poprawce przeszła.
+  Dotychczasowe hashe kontroli dostępu pozostają bez zmian; normalizacja
+  CRLF i istniejącej autoryzowanej trasy statusu automatyzacji dotyczy
+  porównania źródeł, nie zastępuje testu autoryzacji w działającym serwerze.
+- Selektywnie uruchomione `battery`, `actions_worker`, `native_ota_actor`
+  (tryby 0…7) i `panel_permission` z `tools/test.py` — PASS. Rzeczywisty
+  pracownik wykonuje świeży odczyt; sprawdzono granicę 0/19/20%, brak
+  profilu/ADC, anulowanie, pilny STOP i zgodę USB. Radio/SDK są modelowane.
+- `python3 tools/dev/run_host.py test_ui.py --cases test_web_ota_ui
+  test_native_ota_ui --jobs 4` — PASS na przypiętym LVGL 9.3; nowe
+  potwierdzenie USB nie wywołuje backendu przed kliknięciem. Pozostałe stany
+  zgody/odmowy/wygaśnięcia w trzech skórkach i PL/EN/DE oraz powiązana
+  regresja natywnego OTA przeszły. Obejrzano rzeczywiste piksele.
+- `node tests/test_panel_ota.cjs` i `node tests/test_web_locale_dictionary.cjs`
+  — PASS: rzeczywiste zasoby w Chromium, złote wyniki LOW/BUSY we wszystkich
+  językach, dotychczasowe stany uploadu i kompletność tłumaczeń. HTTP,
+  Flash i restart w tych testach są modelowane.
+- `tools/dev/Build-Firmware.ps1 -Jobs 4`, następnie przyrostowe
+  `ninja -C build-ai -j4` po korekcie kolejności sprzątania — PASS,
+  ESP-IDF 5.5.4 / ESP32-S3. Końcowy obraz 0x427150 B; 31% wolnej partycji.
+  `check_boot_memory.py` i `check_native_ota_target.py` — PASS na tym ELF:
+  wewnętrzne BSS 60 912 B, stos UI 8192 B, pula LVGL w PSRAM 131 072 B.
+  Nowy stan przekazania zajmuje 20 B; własne statyczne ramki funkcji mają
+  32 B, a wspólny odczyt/polityka 80 B. Nie mierzono szczytu stosu/sterty SDK.
+
+Runner odbiornika ujawnił lokalny problem Cygwin: linkerowe `--wrap` alokacji
+przy OpenSSL kończyło proces przed `main`, czasem z kodem 0. Potwierdzono
+to minimalnym programem i śladem startu. Tylko dla Cygwin te same punkty
+alokacji obu jednostek produkcyjnych są teraz podmieniane podczas kompilacji
+źródeł testu. Wstrzykiwanie błędów pozostaje; Linux zachowuje `--wrap`
+i dotychczasowe sanitizery. Runner wymaga końcowego raportu wykonanych
+asercji, nie tylko kodu wyjścia.
+
+Jeden niezależny przegląd nie znalazł istotnych błędów; drobną uwagę dotyczącą
+kolejności sprzątania poprawiono i ponownie oceniono. Nowy krok USB oraz
+złote komunikaty LOW/BUSY są gotowe do oceny właściciela na podglądzie.
+Build i host nie potwierdzają dokładności SOC, fizycznego USB, instalacji,
+zachowania danych ani rollback. Kontrola odbywa się przed startem Flash,
+bez ciągłego monitorowania baterii podczas zapisu. Odbiór sprzętowy pozostaje
+otwarty. Bez pełnego atlasu, pełnej regresji/CI, uploadu, flashowania,
+push ani publikacji; wersja nadal `0.7.70-dev`.
 
 ## Baza dalszej pracy
 
@@ -493,7 +573,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): ramki i komunikaty LCD oraz wybór BIN, wysyłanie/weryfikacja, nazwa pliku, wynik, złote błędy i ręczny restart w panelu; powiązane testy PASS. Lokalny uploader nadal wymaga integracji progu baterii 20% z workerem. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. Nowy krok USB oraz złote wyniki LOW/BUSY oczekują oceny podglądu. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 

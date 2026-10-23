@@ -2,6 +2,7 @@
 #define main original_ui_main
 #include "test_ui.c"
 #undef main
+unsigned test_ota_grants(void);
 static void web_message(const char *key,bool warning,unsigned skin)
 {
  lv_obj_t *text=find_label(lv_screen_active(),key);CHECK(text);
@@ -22,7 +23,11 @@ int main(int argc,char **argv)
  for(unsigned s=0;s<3;s++)for(unsigned language=0;language<3;language++){
   dsr_sc_appearance(DSR_SC_BLUE,skins[s],language);dsr_ui_apply_theme();
   for(unsigned allowed=0;allowed<2;allowed++){
-   test_ota_accept(allowed);dsr_ui_web_ota_open(NULL);lv_obj_update_layout(lv_screen_active());
+   test_ota_accept(allowed);unsigned grants=test_ota_grants();dsr_ui_web_ota_open(NULL);lv_obj_update_layout(lv_screen_active());
+   CHECK(test_ota_grants()==grants);
+   web_message("Zezwól na OTA potwierdza stabilne zasilanie USB. Nie odłączaj go podczas aktualizacji.",true,skins[s]);
+   if(language==2){char consent[64];snprintf(consent,sizeof(consent),"web-ota-%u-%u-usb",skins[s],language);screenshot(consent);}
+   click("Zezwól na OTA");CHECK(test_ota_grants()==grants+1);lv_obj_update_layout(lv_screen_active());
    char path[64];snprintf(path,sizeof(path),"web-ota-%u-%u-%s",skins[s],language,allowed?"allowed":"denied");
    if(language==2||s==2)screenshot(path);
    web_message(allowed?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",!allowed,skins[s]);

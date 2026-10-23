@@ -25,6 +25,8 @@ async function shot(name){await page.evaluate(()=>{if(document.querySelector('#m
     uploads++;eq(req.method(),'POST');eq(req.postDataBuffer(),image);eq(req.headers()['x-sha256'],crypto.createHash('sha256').update(image).digest('hex'));
     if(hold)await new Promise(r=>release=r);
     if(mode==='lost')return route.abort('failed');
+    if(mode==='low')return send(422,{error:'Battery below 20%; recharge the remote and renew OTA consent'});
+    if(mode==='busy')return send(409,{error:'Battery check unavailable; renew OTA consent and retry'});
     if(mode==='denied')return send(403,{error:'Allow OTA on the remote first; approval expires after 2 minutes'});
     if(mode==='bad')return send(400,{error:'Image, board marker or checksum rejected; boot slot unchanged'});
     if(mode==='uncertain')return send(500,{error:'Boot selection unconfirmed; OTA blocked until restart',restart_required:true});
@@ -44,8 +46,10 @@ async function shot(name){await page.evaluate(()=>{if(document.querySelector('#m
   }
   await file.setInputFiles({name:'app.bin',mimeType:'application/octet-stream',buffer:image});ok(await install.isEnabled());
   if(outcome==='ok'){
-   mode='denied';await install.click();await page.locator('.ota-message[data-state=error]').waitFor();eq(uploads,1);ok(await install.isEnabled());await shot(lang+'-denied');
-   mode='bad';await install.click();await page.waitForFunction(()=>document.querySelector('.ota-message')?.textContent.match(/Odrzucono|rejected|abgelehnt/));eq(uploads,2);ok(await install.isEnabled());
+   mode='low';await install.click();await page.waitForFunction(()=>document.querySelector('.ota-message')?.textContent.includes('20%'));eq(uploads,1);ok(await install.isEnabled());await shot(lang+'-battery-low');
+   mode='busy';await install.click();await page.waitForFunction(()=>document.querySelector('.ota-message')?.textContent.match(/nie jest dostępny|unavailable|nicht verfügbar/));eq(uploads,2);ok(await install.isEnabled());await shot(lang+'-battery-busy');
+   mode='denied';await install.click();await page.locator('.ota-message[data-state=error]').waitFor();eq(uploads,3);ok(await install.isEnabled());await shot(lang+'-denied');
+   mode='bad';await install.click();await page.waitForFunction(()=>document.querySelector('.ota-message')?.textContent.match(/Odrzucono|rejected|abgelehnt/));eq(uploads,4);ok(await install.isEnabled());
   }
   const before=uploads;mode=outcome;hold=true;await install.click();while(!release)await new Promise(r=>setTimeout(r,5));ok(await install.isDisabled());ok(await file.isDisabled());ok(await page.locator('.ota-progress').isVisible());
   await page.evaluate(()=>document.querySelector('.ota-install').dispatchEvent(new Event('click')));eq(uploads,before+1);await shot(lang+'-upload');

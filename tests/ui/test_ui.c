@@ -341,8 +341,8 @@ static void global_settings_regression(void)
  tap_row("Wygeneruj kod parowania");CHECK(find_label(lv_screen_active(),"0123456789abcdef"));lv_tick_inc(120001);tick();CHECK(!find_label(lv_screen_active(),"0123456789abcdef")&&find_label(lv_screen_active(),"Kod parowania wygasł."));click("Wstecz");
  tap_row("System");tap_row("Informacje i diagnostyka");CHECK(find_label(lv_screen_active(),"lcdwiki-es3c35p-n16r8"));screenshot("153-global-system-info");click("Wstecz");
  tap_row("System");tap_row("Firmware Update");CHECK(find_label(lv_screen_active(),"Sprawdź aktualizacje")&&!find_label(lv_screen_active(),"Instaluj"));screenshot("154-global-native-ota-idle");
- test_ota_accept(false);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty."));click("Wstecz");
- tap_row("System");tap_row("Firmware Update");test_ota_accept(true);tap_row("Zezwól na OTA • 2 minuty");CHECK(find_label(lv_screen_active(),"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu."));lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda na OTA wygasła."));click("Wstecz");
+ test_ota_accept(false);tap_row("Zezwól na OTA • 2 minuty");click("Zezwól na OTA");CHECK(find_label(lv_screen_active(),"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty."));click("Wstecz");
+ tap_row("System");tap_row("Firmware Update");test_ota_accept(true);tap_row("Zezwól na OTA • 2 minuty");click("Zezwól na OTA");CHECK(find_label(lv_screen_active(),"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu."));lv_tick_inc(120001);tick();CHECK(find_label(lv_screen_active(),"Zgoda na OTA wygasła."));click("Wstecz");
  test_workspace_enable();cJSON *baseline=room_document();tap_row("Wygląd i język");
  lv_obj_t *language=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(language);lv_dropdown_set_selected(language,2);lv_obj_send_event(language,LV_EVENT_VALUE_CHANGED,NULL);
  click("Zapisz");dsr_ui_workspace_tick();CHECK(dsr_sc_language()==2&&find_label(lv_screen_active(),"Zapisano • zsynchronizowano"));screenshot("155-global-appearance-german");

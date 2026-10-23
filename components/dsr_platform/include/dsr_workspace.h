@@ -26,7 +26,8 @@ bool dsr_workspace_auto_boot(dsr_auto_record_t *record,bool *found,esp_err_t *re
  * No shared/factory password. Pairing credentials must never be logged. */
 void dsr_panel_pair_begin(char code[17]);
 /* True only when the ready panel accepted the physical 120-second window. */
-bool dsr_panel_allow_ota(void);
+/* Physical LCD action only: true attests stable USB for the one-shot window. */
+bool dsr_panel_allow_ota(bool stable_usb_confirmed);
 esp_err_t dsr_panel_start(void);
 bool dsr_panel_ready(void);
 /* LVGL owns rendering; the server only requests/copies a published frame. */

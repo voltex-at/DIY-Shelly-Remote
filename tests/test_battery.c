@@ -14,6 +14,7 @@
 #include <setjmp.h>
 static unsigned checks,mode,reads,adc_live,cal_live,adc_deletes,cal_deletes;
 static bool worker_context,fail_queue;
+int64_t esp_timer_get_time(void){return 1000000;}
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static int adc_token,cal_token;
 esp_err_t adc_oneshot_io_to_channel(int gpio,adc_unit_t *unit,adc_channel_t *channel)
@@ -41,7 +42,7 @@ static void reset(unsigned m){CHECK(!adc_live&&!cal_live);mode=m;reads=adc_delet
 
 /* Only existing queue/worker lifetime is used, no battery task or timer. */
 typedef struct {size_t size;bool occupied;unsigned char data[sizeof(dsr_event_t)+sizeof(dsr_job_t)];} queue_t;
-static queue_t queues[2];static unsigned queue_count;static bool semaphore,stop_lock;
+static queue_t queues[2];static unsigned queue_count;static bool semaphore,stop_lock,power_lock,power_done;static unsigned created_mutex,created_binary;
 static void (*worker)(void *);static jmp_buf stop;
 QueueHandle_t xQueueCreate(unsigned count,unsigned size)
 {CHECK(count==1&&queue_count<2&&size<=sizeof(queues[0].data));queue_t *q=&queues[queue_count++];q->size=size;return q;}
@@ -50,10 +51,10 @@ int xQueueSend(QueueHandle_t handle,const void *data,TickType_t wait)
 int xQueueReceive(QueueHandle_t handle,void *data,TickType_t wait)
 {queue_t *q=handle;if(!q->occupied){if(wait)longjmp(stop,1);return pdFALSE;}memcpy(data,q->data,q->size);q->occupied=false;return pdTRUE;}
 void vQueueDelete(QueueHandle_t q){(void)q;}
-SemaphoreHandle_t xSemaphoreCreateBinary(void){return &semaphore;}
-SemaphoreHandle_t xSemaphoreCreateMutex(void){return &stop_lock;}
-int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;if(h==&stop_lock){CHECK(!stop_lock);stop_lock=true;return pdTRUE;}CHECK(h==&semaphore);if(!semaphore)return pdFALSE;semaphore=false;return pdTRUE;}
-int xSemaphoreGive(SemaphoreHandle_t h){if(h==&stop_lock){CHECK(stop_lock);stop_lock=false;return pdTRUE;}CHECK(h==&semaphore);semaphore=true;return pdTRUE;}
+SemaphoreHandle_t xSemaphoreCreateBinary(void){CHECK(created_binary++<2);return created_binary==1?&semaphore:&power_done;}
+SemaphoreHandle_t xSemaphoreCreateMutex(void){CHECK(created_mutex++<2);return created_mutex==1?&stop_lock:&power_lock;}
+int xSemaphoreTake(SemaphoreHandle_t h,TickType_t wait){(void)wait;bool *v=h;if(h==&stop_lock||h==&power_lock){CHECK(!*v);*v=true;return pdTRUE;}CHECK(h==&semaphore||h==&power_done);if(h==&power_done&&wait==1000){bool previous=worker_context;worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=previous;}if(!*v)return pdFALSE;*v=false;return pdTRUE;}
+int xSemaphoreGive(SemaphoreHandle_t h){bool *v=h;if(h==&stop_lock||h==&power_lock){CHECK(*v);*v=false;return pdTRUE;}CHECK(h==&semaphore||h==&power_done);*v=true;return pdTRUE;}
 void vSemaphoreDelete(SemaphoreHandle_t h){(void)h;}
 int xTaskCreate(void (*entry)(void *),const char *name,unsigned bytes,void *arg,unsigned priority,TaskHandle_t *out)
 {CHECK(!strcmp(name,"dsr_network")&&bytes==10240&&!arg&&priority==4&&!out);worker=entry;return pdPASS;}
@@ -292,6 +293,11 @@ int main(void)
  CHECK(dsr_activity_restart_reserve());CHECK(dsr_worker_submit(&admitted)==DSR_BUSY&&!queues[0].occupied&&semaphore);dsr_activity_restart_cancel();admission_open();
  reset(0);CHECK(dsr_worker_submit(&admitted)==DSR_OK&&!dsr_activity_restart_reserve());worker_context=true;if(!setjmp(stop))worker(NULL);worker_context=false;
  CHECK(!dsr_activity_restart_reserve());dsr_event_t final_event;CHECK(dsr_worker_receive(&final_event)&&final_event.id==200);admission_open();
+ reset(0);unsigned power_reads=reads;dsr_ota_power_result_t power;
+ CHECK(dsr_ota_power_acquire(&power)==DSR_OK&&reads>power_reads);
+ dsr_event_t private_event;CHECK(!dsr_worker_receive(&private_event));
+ dsr_job_t blocked_power={.id=999,.kind=DSR_JOB_BATTERY_READ};CHECK(dsr_worker_submit(&blocked_power)==DSR_BUSY);
+ dsr_ota_power_release();admission_open();
  printf("PASS: %u battery/worker checks; actual ADC lifecycle/filter/calibration, failure cleanup, 100 cycles, offline/no-binding worker route; synthetic SDK, not physical voltage\n",checks);return 0;
 }
 

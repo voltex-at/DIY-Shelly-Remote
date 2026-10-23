@@ -347,9 +347,9 @@ static lv_obj_t *web_ota_message(lv_obj_t *body,const char *text,int y,bool warn
  lv_obj_t *label=dsr_sc_text(frame,text,44,12,240,&dsr_roboto_14,warning?web_ota_gold():DSR_SC_TEXT);
  lv_obj_update_layout(label);int h=lv_obj_get_height(label)+24;lv_obj_set_height(frame,h<56?56:h);lv_obj_update_layout(frame);return label;
 }
-void dsr_ui_web_ota_open(lv_event_t *event)
+static void web_ota_grant(lv_event_t *event)
 {
- (void)event;bool accepted=dsr_panel_allow_ota();lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
+ (void)event;bool accepted=dsr_panel_allow_ota(true);lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
  lv_obj_set_style_bg_opa(body,LV_OPA_TRANSP,0);
  lv_obj_t *status=web_ota_message(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",0,!accepted,&ota_expiry_icon);
  if(accepted){expiry_label=status;issued_at=lv_tick_get();expiry_pair=false;}
@@ -358,6 +358,18 @@ void dsr_ui_web_ota_open(lv_event_t *event)
  frame=lv_obj_get_parent(help);y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
  web_ota_message(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",y,true,NULL);
 }
+void dsr_ui_web_ota_open(lv_event_t *event)
+{
+ (void)event;lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");lv_obj_set_style_bg_opa(body,LV_OPA_TRANSP,0);
+ lv_obj_t *label=web_ota_message(body,"Lokalne OTA wymaga potwierdzenia USB.",0,false,NULL);
+ lv_obj_t *frame=lv_obj_get_parent(label);int y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
+ label=web_ota_message(body,"Zezwól na OTA potwierdza stabilne zasilanie USB. Nie odłączaj go podczas aktualizacji.",y,true,NULL);
+ frame=lv_obj_get_parent(label);y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
+ label=web_ota_message(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",y,true,NULL);
+ frame=lv_obj_get_parent(label);y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
+ dsr_ui_primary(dsr_ui_button(body,"Zezwól na OTA",0,y,296,web_ota_grant,NULL));
+}
+
 static void system_menu(lv_event_t *event);
 static void restart_cancel(lv_event_t *event)
 {if(!restart_accepted)system_menu(event);}

@@ -56,12 +56,13 @@ SUITES = [
     ('actions_http_uncertainty', HTTP + [P + 'dsr_actions_model.c', 'tests/test_actions_http_uncertainty.c'], ['tests/support', JSON, CORE, PLAT, CONF], ES3, CJSON, [[]], {}),
     ('native_ota_clock', [P + 'dsr_native_ota_clock.c', P + 'dsr_clock.c', 'tests/test_native_ota_clock.c'], ['tests/native_ota', 'tests/support', OTA, PLAT],
      ['-Wl,--wrap=time'], [], [[str(m)] for m in range(6)], {}),
-    ('native_ota_actor', [P + 'dsr_native_ota.c', P + 'dsr_battery_model.c', 'tests/test_native_ota_actor.c'], ['tests/native_ota', 'tests/support', 'tests/ui', PLAT, P, CORE, OTA, CONF, JSON], [], [], [[str(m)] for m in range(8)], {}),
+    ('native_ota_actor', [P + 'dsr_native_ota.c', P + 'dsr_ota_power_model.c', P + 'dsr_battery_model.c', 'tests/test_native_ota_actor.c'], ['tests/native_ota', 'tests/support', 'tests/ui', PLAT, P, CORE, OTA, CONF, JSON], [], [], [[str(m)] for m in range(8)], {}),
     ('runtime_api', [P + 'dsr_runtime_api.c', 'components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/test_runtime_api.c'],
      ['tests/support', PLAT, P, CONF, CORE, JSON], [], CJSON, [[]], {'UBSAN_OPTIONS': 'halt_on_error=1', 'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1'}),
 ]
 for suite in SUITES:
     if suite[0] in ('battery', 'actions_worker'):
+        suite[1].extend([P+'dsr_ota_power.c',P+'dsr_ota_power_model.c'])
         suite[1].append('tests/support/automation_runtime_stub.c')
 # script, forwards sanitizer switches ('all', 'asan' = --sanitize only, None)
 RUNNERS = [
@@ -70,7 +71,7 @@ RUNNERS = [
     ('test_target_auditors.py', None), ('test_actions_schema.py', 'all'), ('test_actions_workspace.py', 'all'), ('test_actions_runtime.py', 'all'),
     ('test_native_ota_target.py', None), ('test_ble_target.py', None), ('test_ble_rpc.py', 'all'), ('test_blu.py', 'all'), ('test_device_settings.py', 'all'),
     ('verify_crypto_vendor.py', None), ('test_release_tool.py', None), ('check_docs.py', None), ('gen_room_photos.py', None), ('test_ota.py', 'all'), ('test_ota_signer.py', 'asan'), ('test_ota_image.py', 'all'),
-    ('test_ota_upload.py', 'all'), ('test_ota_fetch.py', 'all'), ('test_ota_download.py', 'all'), ('test_ota_install.py', 'all'),
+    ('test_ota_upload.py', 'all'), ('test_ota_power.py', 'all'), ('test_ota_fetch.py', 'all'), ('test_ota_download.py', 'all'), ('test_ota_install.py', 'all'),
     ('test_ota_release.py', 'all'), ('test_ota_discovery.py', 'all'), ('test_ota_release_fetch.py', 'all'),
     ('test_ota_release_chain.py', 'all'), ('test_restart.py', 'all'), ('test_photo_names.py', 'all'),
 ]

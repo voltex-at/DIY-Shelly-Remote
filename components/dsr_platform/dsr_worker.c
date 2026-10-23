@@ -5,6 +5,7 @@
 #include "dsr_native_ota.h"
 #include "dsr_actions.h"
 #include "dsr_automation.h"
+#include "dsr_ota_power_internal.h"
 #endif
 #include "dsr_panel_pairing.h"
 #include "esp_log.h"
@@ -113,6 +114,9 @@ static void network_task(void *arg)
     dsr_job_t job;
     for (;;) {
         (void)run_stop();
+#ifdef DSR_BOARD_ES3C35P
+        (void)dsr_ota_power_poll();
+#endif
         if (xQueueReceive(jobs, &job, pdMS_TO_TICKS(50)) != pdTRUE) continue;
         dsr_event_t event = {.id = job.id, .device = job.connection.device};
         if(job.kind==DSR_JOB_DEVICE_SETTINGS){
@@ -222,11 +226,15 @@ esp_err_t dsr_worker_start(void)
     dsr_http_urgent_hook(run_stop);
     xSemaphoreGive(available);
 #ifdef DSR_BOARD_ES3C35P
+    if(dsr_ota_power_init(available)!=ESP_OK)goto fail;
     (void)dsr_native_ota_init();
 #endif
     if (xTaskCreate(network_task, "dsr_network", 10240, NULL, 4, NULL) != pdPASS) goto fail;
     return ESP_OK;
 fail:
+#ifdef DSR_BOARD_ES3C35P
+    dsr_ota_power_deinit();
+#endif
     if (jobs) vQueueDelete(jobs);
     if (events) vQueueDelete(events);
     if (available) vSemaphoreDelete(available);
