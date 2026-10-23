@@ -590,6 +590,17 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     return o;
 }
 
+lv_obj_t *dsr_sc_warning(lv_obj_t *parent,const char *text,int x,int y,int width,const lv_font_t *font)
+{
+    uint32_t gold=style==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;
+    lv_obj_t *panel=dsr_sc_panel(parent,x,y,width,48,DSR_SC_PANEL,10);
+    if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(panel,false);
+    else{dsr_sc_border_color(panel,lv_color_hex(gold),0);dsr_sc_border_width(panel,1,0);}
+    lv_obj_t *label=dsr_sc_text(panel,text,12,12,width-28,font,gold);
+    lv_obj_update_layout(label);int height=lv_obj_get_height(label)+28;
+    lv_obj_set_height(panel,height<48?48:height);return label;
+}
+
 /* Apache-2.0 Material Symbols Rounded, pre-filtered to coverage masks.
  * No SVG parser, web font, or integer-grid line approximation at runtime. */
 extern const lv_image_dsc_t dsr_symbol_atlas[40];

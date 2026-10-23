@@ -86,6 +86,36 @@ złote ramki automatyzacji w Cyber Blue po poprawce `1852e97` (PL/EN/DE), ich
 rozdzielenie i czytelność. Pozostałe kroki edytora oraz stany automatyzacji
 pozostają w ankiecie; nie jest to odbiór wykonawcy na sprzęcie ani całej funkcji.
 
+
+### NET-02 — konfiguracja sieci Shelly i BLU: pierwsza runda
+
+Właściciel wybrał „Wi-Fi/BLE — konfiguracja przez bramkę”. Ta runda obejmuje
+zmianę sieci docelowego Shelly oraz fizyczne parowanie/PIN, ustawienia BLU,
+potwierdzenie zapisu i usunięcia powiązania pilota. Wybranie bramki, jej
+uwierzytelnienie, rejestracja i zapis karty będą oceniane osobno; nie uznano
+całego NET-02 za wykonany na podstawie tych podglądów.
+
+Rzeczywisty render ujawnił brak złotych ramek przy ważnych komunikatach,
+nieprecyzyjny tytuł „Hasło Wi-Fi” na podsumowaniu zmiany sieci i brak tłumaczenia
+przycisku „Zapomnij” w EN/DE. Dodano wspólny, dopasowany do tłumaczenia panel
+ostrzeżenia z zaakceptowanym stylem Cyber Blue, zachowując kolory Grafit/Jasny.
+Podsumowanie pokazuje teraz „Sieć Wi-Fi”, a przycisk ma „Forget”/„Vergessen”.
+Instrukcja parowania, potwierdzenie BLU i informacja o zachowaniu karty/bramki
+mają złote ramki. Hasło i PIN pozostają zamaskowane; edycja wymaga osobnego
+potwierdzenia przed zapisem. Protokół RPC i zabezpieczenia nie były zmieniane.
+
+Walidacja: `DSR_UI_FOCUS_GATEWAY_CONFIG=1 python3 tools/dev/run_host.py test_ui.py
+--jobs 4 --case test_shelly_settings_ui` — PASS po regresjach wykazujących
+powyższe niespójności. Tylko 35 reprezentatywnych klatek: trzy skórki DE oraz
+Cyber Blue PL/EN, bez atlasu. Sprawdzono granice tekstu wewnątrz złotych ramek,
+podpis podsumowania, tłumaczenia, układ klawiatury, zamaskowanie danych i brak
+zapisu bez potwierdzenia. Hostowe `tools/test_blu.py` i
+`tools/test_device_settings.py` przeszły raz: powiązanie/PIN/GATT, aktor ustawień,
+rejestracja/brak odbioru, uzgadnianie niepewnego wyniku i prywatność podglądu.
+Radio, HTTP i Flash są modelowane. Nie powtarzano backendu po korekcie samych
+ramek, nie wykonywano nowego builda docelowego ani żadnej operacji na urządzeniu.
+**Pokazany wygląd tej rundy czeka na ocenę właściciela.**
+
 ## Baza dalszej pracy
 
 - Repozytorium: `voltex-at/DIY-Shelly-Remote`, lokalnie `C:\Users\franz\DIY-Shelly-Remote`.
@@ -171,7 +201,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | **Dimmer i RGB zaakceptowane na podglądzie we wszystkich trzech skórkach:** wspólny układ, pomiary, szybkie akcje, ramki, kontrast, edytor R/G/B, offline i odstęp 16 px od nawigacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | **Zaakceptowane na podglądzie:** edycja i usuwanie pomieszczeń, Góra/Dół dla Dashboardu i Urządzeń, opisy wartości i przygaszenie niedostępnych kontrolek oraz złote ważne komunikaty konfiguracji. Tworzenie pomieszczeń, pozostałe niespójności dashboardów i odbiór na sprzęcie pozostają otwarte |
 | NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Zaakceptowane na podglądzie:** Dalej, znacznik metody, górny powrót Cyber Blue; pokazane ekrany wyszukiwania, pustej listy i błędu logowania LAN z pełnym IP/MAC; wyszukiwanie, komunikat bez Wi-Fi, pusta lista i niedostępność Bluetooth; pokazane ekrany AP ze wskaźnikiem jak LAN, większymi ikonami i złotym komunikatem w ramce; **wspólny formularz nazwy/pomieszczenia/kanału i przebieg zapisu, złote błędy, nieaktywne „Zapisz”, widoczne pole hasła, zachowanie wpisów i powrót do Dashboardu**. Pozostałe kroki konfiguracji AP/BLE i odbiór na sprzęcie pozostają otwarte |
-| NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
+| NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. Ocena właściciela pozostaje otwarta; wybór/rejestracja na bramce i rzeczywiste RF nadal do odbioru |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | Oczekuje na ocenę |

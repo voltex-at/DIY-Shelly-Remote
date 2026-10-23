@@ -126,6 +126,7 @@
 {"Wybierz bramkę Shelly","Choose Shelly gateway","Shelly-Gateway wählen"},
 {"Odczytaj ponownie","Read again","Erneut auslesen"},
 {"Zapomnij parowanie","Forget pairing","Kopplung vergessen"},
+{"Zapomnij","Forget","Vergessen"},
 {"Nie znaleziono zgodnej bramki w sieci","No compatible gateway found on the network","Kein kompatibles Gateway im Netzwerk gefunden"},
 {"Ponów wyszukiwanie","Search again","Erneut suchen"},
 {"Czujnik dodany. Bramka odbiera pomiary.","Sensor added. Gateway is receiving readings.","Sensor hinzugefügt. Gateway empfängt Messwerte."},

@@ -85,6 +85,8 @@ void dsr_sc_border_width(lv_obj_t *obj,int32_t width,lv_style_selector_t selecto
 const lv_font_t *dsr_sc_font(const lv_font_t *font);
 void dsr_mobile_actions_shell(lv_obj_t *root,uint8_t kind);
 void dsr_sc_blu_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event_cb_t back,void *context,lv_event_cb_t help);
+/* Returns the label; its gold panel fits the translated text. */
+lv_obj_t *dsr_sc_warning(lv_obj_t *parent,const char *text,int x,int y,int width,const lv_font_t *font);
 void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event_cb_t callback);
 lv_obj_t *dsr_sc_chip(lv_obj_t *parent,const char *text,int x,int y,int max_width,uint32_t color);
 /* Shelly Smart Control look (owner references 2026-10-18). */
