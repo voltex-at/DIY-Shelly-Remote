@@ -101,6 +101,7 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {CHECK(!stop_lock&&!dsr_activity_restart_reserve()&&c->device.endpoint_kind==DSR_ENDPOINT_COVER&&!strcmp(c->credentials.password,"stop-private"));if(intent.command!=DSR_COVER_STOP){move_calls++;return DSR_OK;}stop_calls++;c->device.online=stop_http_result==DSR_OK;c->telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_STOPPED,.flags=DSR_COVER_VALID|DSR_COVER_POSITION,.current_pos=17};return stop_http_result;}
 static unsigned light_calls;
 static unsigned trv_calls;
+dsr_result_t dsr_http_trv_read(dsr_connection_t *c){(void)c;return DSR_UNSUPPORTED;}
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
 {CHECK(c->device.endpoint_kind==DSR_ENDPOINT_BLU&&intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);trv_calls++;c->device.online=true;c->telemetry.blu=(dsr_blu_status_t){.flags=DSR_BLU_VALID,.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET};c->telemetry.trv_target_c=21.5f;return DSR_OK;}
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)

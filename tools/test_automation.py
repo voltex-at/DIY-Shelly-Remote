@@ -18,6 +18,15 @@ cases = {
                   'components/dsr_core/dsr_core.c', 'tests/test_automation_queue.c'],
                   ['tests/actor', 'tests/support', 'components/dsr_config/include', '.test-deps', '/usr/include/cjson'],
                   ['-l:libcjson.so.1', '-lm']),
+ 'http': (['components/dsr_core/dsr_core.c', 'components/dsr_platform/dsr_device_settings_model.c',
+           'components/dsr_platform/dsr_http.c', 'components/dsr_platform/dsr_ap.c',
+           'components/dsr_platform/dsr_ap_model.c', 'components/dsr_platform/dsr_discovery_model.c',
+           'components/dsr_config/dsr_config.c', 'components/dsr_platform/dsr_connection.c',
+           'components/dsr_platform/dsr_fleet.c', 'components/dsr_platform/dsr_settings.c',
+           'components/dsr_platform/dsr_wifi_policy.c', 'components/dsr_platform/dsr_activity.c',
+           'tests/test_automation_http.c'],
+           ['tests/support', 'components/dsr_config/include', '.test-deps', '/usr/include/cjson'],
+           ['-l:libcjson.so.1', '-lm']),
 }
 selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else [a.case]
 with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:

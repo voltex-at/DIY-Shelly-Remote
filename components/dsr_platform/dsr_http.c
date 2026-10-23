@@ -67,7 +67,7 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         .auth_type = !authenticated ? HTTP_AUTH_TYPE_NONE :
             (connection->device.generation == DSR_GEN1 ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_DIGEST),
         /* AP provisioning never resends its secret-bearing body; device commands may answer a digest challenge. */
-        .max_authorization_retries = payload&&!control_write&&strcmp(request->path,"/rpc")?-1:1,
+        .max_authorization_retries = payload&&!control_write&&strcmp(request->path,"/rpc")&&strcmp(request->path,"/rpc/BluTrv.Call")?-1:1,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) { free(response.text); return DSR_IO; }
@@ -364,13 +364,17 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
         if(result==DSR_OK){snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetKnownObjects?id=%u",cid);result=fetch_json(connection,&request,false,&root);
             if(result==DSR_OK){result=dsr_blu_parse_known(root,cid,objects,DSR_BLU_MAX_OBJECTS,&count);}
             cJSON_Delete(root);root=NULL;}
+        bool contact_unknown=false;
         for(unsigned i=0;result==DSR_OK&&i<count;i++){
             if(!dsr_blu_sensor_shown(objects[i].obj_id))continue;
             snprintf(request.path,sizeof(request.path),"/rpc/BTHomeSensor.GetStatus?id=%u",(unsigned)objects[i].sensor);
             result=fetch_json(connection,&request,false,&root);
             if(result==DSR_OK){result=dsr_blu_apply_sensor(root,objects[i].sensor,objects[i].obj_id,&connection->telemetry);}
+            if((objects[i].obj_id==0x1A||objects[i].obj_id==0x2D)&&
+               (!(connection->telemetry.blu.flags&DSR_BLU_HAS_OPEN)||!connection->telemetry.blu_updated_s))contact_unknown=true;
             cJSON_Delete(root);root=NULL;
         }
+        if(contact_unknown)connection->telemetry.blu_updated_s=0;
         if(result==DSR_OK){
             int trv=(hint&DSR_BLU_TRV_CHECKED)?((hint&DSR_BLU_TRV)?1:0):-1;
             if(trv<0){
@@ -591,6 +595,43 @@ dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
  /* The gateway acknowledged the TRV call. Its mirrored target_C can lag the
   * BLE write by a poll; the LCD shows what the gateway reports, never the request. */
  return DSR_OK;
+}
+dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
+{
+ if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_BLU||c->device.generation!=DSR_GEN2_PLUS)return DSR_INVALID;
+ c->device.online=false;
+ /* Only the documented Gateway Gen3 forwarding contract is enabled. Other
+  * gateway families need their own physical readback acceptance. */
+ if(strncmp(c->device.device_id,"shellyblugwg3-",sizeof("shellyblugwg3-")-1))return DSR_UNSUPPORTED;
+ dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ unsigned cid=DSR_BLU_FIRST_CID+c->device.channel;dsr_request_t request={0};cJSON *root=NULL;
+ snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetConfig?id=%u",cid);
+ result=fetch_json(c,&request,false,&root);
+ if(result==DSR_OK&&!dsr_blu_trv_linked(root,cid,cid))result=DSR_UNSUPPORTED;
+ cJSON_Delete(root);root=NULL;if(result!=DSR_OK)return result;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ char payload[80];snprintf(payload,sizeof(payload),"{\"id\":%u,\"method\":\"TRV.GetStatus\",\"params\":{\"id\":0}}",cid);
+ request=(dsr_request_t){.post=true};strcpy(request.path,"/rpc/BluTrv.Call");
+ /* POST is only an RPC envelope. Never classify it as a write attempt. */
+ result=fetch_json_payload(c,&request,false,&root,15000,payload,"application/json",false);
+ dsr_telemetry_t sample={0};
+ if(result==DSR_OK){
+  result=dsr_blu_parse_trv(root,0,&sample);
+  if(result==DSR_OK&&!(sample.blu.errors&DSR_BLU_TRV_TARGET))result=DSR_BAD_RESPONSE;
+  if(result==DSR_OK){
+   const cJSON *target=cJSON_GetObjectItemCaseSensitive(root,"target_C");double half=target->valuedouble*2.0;
+   /* Check the original double BEFORE compact telemetry can round it. */
+   if(half<DSR_TRV_MIN_HALF||half>DSR_TRV_MAX_HALF||floor(half)!=half||
+     (sample.blu.errors&DSR_BLU_TRV_FAULT))result=DSR_UNSUPPORTED;
+  }
+ }
+ cJSON_Delete(root);
+ if(result==DSR_OK)result=allowed();
+ if(result==DSR_OK){sample.blu.flags|=DSR_BLU_VALID;sample.blu.errors|=DSR_BLU_TRV_CHECKED;c->telemetry=sample;c->device.online=true;}
+ return result;
 }
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
 {

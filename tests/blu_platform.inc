@@ -45,7 +45,8 @@ static void test_blu_protocol(void)
  for(unsigned i=0;i<3;i++){data[4].body=bad_sensor[i];fixture(data,5,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)!=DSR_OK&&!d.online&&!t.has_illuminance);}data[4].body="{\"id\":204,\"value\":92,\"last_updated_ts\":1767225500.25}";
  /* Parsers directly. */
  cJSON *j=cJSON_Parse("{\"id\":200,\"value\":false,\"last_updated_ts\":1}");dsr_telemetry_t w={0};CHECK(dsr_blu_apply_sensor(j,200,0x2D,&w)==DSR_OK&&(w.blu.flags&DSR_BLU_HAS_OPEN)&&!(w.blu.flags&DSR_BLU_OPEN));cJSON_Delete(j);
- j=cJSON_Parse("{\"id\":200,\"value\":true}");CHECK(dsr_blu_apply_sensor(j,200,0x1A,&w)==DSR_OK&&(w.blu.flags&DSR_BLU_OPEN));cJSON_Delete(j);
+ /* Separate poll, not a contradictory second object in the same bundle. */
+ w=(dsr_telemetry_t){0};j=cJSON_Parse("{\"id\":200,\"value\":true}");CHECK(dsr_blu_apply_sensor(j,200,0x1A,&w)==DSR_OK&&(w.blu.flags&DSR_BLU_OPEN));cJSON_Delete(j);
  j=cJSON_Parse("{\"id\":200,\"value\":21.37}");CHECK(dsr_blu_apply_sensor(j,200,0x45,&w)==DSR_OK&&w.has_blu_temperature&&w.blu_temperature_c>21.36f&&w.blu_temperature_c<21.38f);cJSON_Delete(j);
  j=cJSON_Parse("{\"id\":200,\"value\":54.6}");CHECK(dsr_blu_apply_sensor(j,200,0x2E,&w)==DSR_OK&&(w.blu.flags&DSR_BLU_HAS_HUMIDITY)&&w.blu.humidity==55);cJSON_Delete(j);
  j=cJSON_Parse("{\"id\":200,\"value\":4}");CHECK(dsr_blu_apply_sensor(j,200,0x3A,&w)==DSR_OK&&(w.blu.flags&DSR_BLU_HAS_BUTTON)&&w.blu.button==4);cJSON_Delete(j);

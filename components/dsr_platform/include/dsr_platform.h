@@ -83,6 +83,7 @@ dsr_result_t dsr_http_rgb(dsr_connection_t *connection,dsr_rgb_intent_t intent);
 dsr_result_t dsr_http_light(dsr_connection_t *connection,dsr_light_intent_t intent);
 /* BLU TRV: identity check, BluTrv.Call TRV.SetTarget, status read-back. */
 dsr_result_t dsr_http_trv(dsr_connection_t *connection,dsr_trv_intent_t intent);
+dsr_result_t dsr_http_trv_read(dsr_connection_t *connection);
 /* Sole worker invokes an optional urgent-STOP callback between HTTP legs.
  * The callback is never installed by HTTP fixtures or other transports. */
 void dsr_http_urgent_hook(bool (*hook)(void));
@@ -97,7 +98,7 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
 typedef void (*dsr_http_job_write_hook_t)(void);
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
 
-typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_RESERVED_17,DSR_JOB_RESERVED_18,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV, DSR_JOB_DEVICE_SETTINGS, DSR_JOB_BATTERY_PROFILE_LOAD, DSR_JOB_BATTERY_PROFILE_SAVE } dsr_job_kind_t;
+typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_RESERVED_17,DSR_JOB_RESERVED_18,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV, DSR_JOB_DEVICE_SETTINGS, DSR_JOB_BATTERY_PROFILE_LOAD, DSR_JOB_BATTERY_PROFILE_SAVE, DSR_JOB_TRV_READ } dsr_job_kind_t;
 typedef struct {
     uint32_t id;
     dsr_job_kind_t kind;

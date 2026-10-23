@@ -43,6 +43,8 @@ typedef struct {uint16_t sensor;uint8_t obj_id;} dsr_blu_object_t;
 dsr_result_t dsr_blu_parse_address(const cJSON *config,unsigned cid,char mac[13]);
 dsr_result_t dsr_blu_parse_known(const cJSON *known,unsigned cid,dsr_blu_object_t *objects,unsigned capacity,unsigned *count);
 dsr_result_t dsr_blu_parse_device(const cJSON *status,unsigned cid,dsr_telemetry_t *out);
+/* A contact replaces blu_updated_s with the VALUE source timestamp (zero
+ * when unknown). Non-contact packets cannot refresh it. Conflicts fail closed. */
 dsr_result_t dsr_blu_apply_sensor(const cJSON *status,unsigned sensor,uint8_t obj_id,dsr_telemetry_t *out);
 bool dsr_blu_sensor_shown(uint8_t obj_id);
 dsr_result_t dsr_lan_parse_capabilities(const cJSON *json,unsigned generation,dsr_lan_capabilities_t *out);

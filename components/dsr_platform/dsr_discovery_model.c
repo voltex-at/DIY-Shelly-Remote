@@ -123,8 +123,10 @@ dsr_result_t dsr_blu_parse_known(const cJSON *r,unsigned cid,dsr_blu_object_t *o
   char *end;long id=strtol(component->valuestring+13,&end,10);
   if(!component->valuestring[13]||*end||id<0||id>65535)return DSR_BAD_RESPONSE;
   uint8_t obj=(uint8_t)get(v,"obj_id")->valueint;bool seen=false;for(unsigned i=0;i<*count;i++)seen|=objects[i].obj_id==obj;
-  if(seen)continue; /* e.g. BLU TRV reports two temperatures: keep the first (idx 0) */
+  bool contact=obj==0x1A||obj==0x2D;
+  if(seen&&!contact)continue; /* TRV temperatures: first (idx0). Contacts must agree. */
   if(*count<capacity)objects[(*count)++]=(dsr_blu_object_t){.sensor=(uint16_t)id,.obj_id=obj};
+  else if(contact)return DSR_BAD_RESPONSE; /* never hide an unchecked contact */
  }
  return DSR_OK;
 }
@@ -151,13 +153,26 @@ dsr_result_t dsr_blu_parse_device(const cJSON *r,unsigned cid,dsr_telemetry_t *o
 dsr_result_t dsr_blu_apply_sensor(const cJSON *r,unsigned sensor,uint8_t obj_id,dsr_telemetry_t *out)
 {
  if(!cJSON_IsObject(r)||!ht_unique(r)||!integral(get(r,"id"),(int)sensor,(int)sensor))return DSR_BAD_RESPONSE;
- const cJSON *v=get(r,"value");if(!v||cJSON_IsNull(v))return DSR_OK; /* nothing received yet */
+ bool contact=obj_id==0x1A||obj_id==0x2D;
+ const cJSON *v=get(r,"value");if(!v||cJSON_IsNull(v)){if(contact)out->blu_updated_s=0;return DSR_OK;} /* nothing received yet */
  bool has;double value;
  switch(obj_id){
  case 0x21: /* motion */
   if(!cJSON_IsBool(v)){return DSR_BAD_RESPONSE;}out->blu.flags|=DSR_BLU_HAS_MOTION|(cJSON_IsTrue(v)?DSR_BLU_MOTION:0);break;
  case 0x1A: case 0x2D: /* door, window: true = open */
-  if(!cJSON_IsBool(v)){return DSR_BAD_RESPONSE;}out->blu.flags|=DSR_BLU_HAS_OPEN|(cJSON_IsTrue(v)?DSR_BLU_OPEN:0);break;
+  if(!cJSON_IsBool(v))return DSR_BAD_RESPONSE;
+  if((out->blu.flags&DSR_BLU_HAS_OPEN)&&((out->blu.flags&DSR_BLU_OPEN)!=0)!=cJSON_IsTrue(v))return DSR_BAD_RESPONSE;
+  {
+   const cJSON *a=get(r,"last_update_ts"),*b=get(r,"last_updated_ts"),*ts=a?a:b;
+   uint32_t source=0;
+   if(cJSON_IsNumber(ts)&&isfinite(ts->valuedouble)&&ts->valuedouble>0&&ts->valuedouble<=UINT32_MAX&&
+    (!a||!b||(cJSON_IsNumber(b)&&a->valuedouble==b->valuedouble)))source=(uint32_t)ts->valuedouble;
+   /* Multiple contact values require all source proofs; oldest wins. A
+    * battery/RSSI/device packet cannot supply this value's timestamp. */
+   if(out->blu.flags&DSR_BLU_HAS_OPEN){if(!out->blu_updated_s||source>out->blu_updated_s)source=out->blu_updated_s;}
+   out->blu_updated_s=source;
+  }
+  out->blu.flags|=DSR_BLU_HAS_OPEN|(cJSON_IsTrue(v)?DSR_BLU_OPEN:0);break;
  case 0x05: /* illuminance, lux */
   if(!ht_number(v,0,200000,&has,&value)){return DSR_BAD_RESPONSE;}out->has_illuminance=has;out->illuminance_lux=value;break;
  case 0x01: /* battery, % (BTHomeDevice battery may be absent) */

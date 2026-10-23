@@ -70,6 +70,7 @@ static dsr_result_t typed_transaction(dsr_connection_t *c)
 }
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent){CHECK(intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==65);return typed_transaction(c);}
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent){CHECK(intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);return typed_transaction(c);}
+dsr_result_t dsr_http_trv_read(dsr_connection_t *c){(void)c;return DSR_UNSUPPORTED;}
 dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){gets++;c->device.online=true;}return result;}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
 void dsr_ap_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
