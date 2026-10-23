@@ -484,6 +484,62 @@ bez ciągłego monitorowania baterii podczas zapisu. Odbiór sprzętowy pozostaj
 otwarty. Bez pełnego atlasu, pełnej regresji/CI, uploadu, flashowania,
 push ani publikacji; wersja nadal `0.7.70-dev`.
 
+### WEB-01 — konfiguracja, zgody i podgląd LCD — 2026-10-24
+
+Właściciel wybrał przegląd panelu WWW po zaakceptowaniu progu baterii OTA.
+Ta runda obejmuje parowanie przeglądarki, ustawienia wyglądu/języka, konflikt
+zapisu konfiguracji, podgląd LCD na żądanie oraz ekrany bezpieczeństwa,
+kodu i unieważnienia parowania na pilocie. Nie jest odbiorem wszystkich
+podstron WWW ani rzeczywistego HTTPS/NVS na urządzeniu.
+
+Odtworzono błąd podglądu: HTTP 202 po wcześniejszym sukcesie pozostawiał stary
+obraz i podpis „Obraz pobrany”. Rozpoczęcie nowej próby czyści teraz poprzednią
+klatkę. Panel rozróżnia pobieranie, oczekiwanie na nową klatkę, nieprawidłowy
+rozmiar obrazu i błąd połączenia; odmowy mają złote ramki PL/EN/DE.
+Odświeżanie pozostaje ręczne i pojedyncze. Spóźniony wynik po zmianie widoku,
+konfiguracji albo ukryciu karty nie maluje obrazu. Ważne komunikaty konfiguracji
+i parowania, w tym konflikt zapisu, również otrzymały złote obramowanie.
+Nie zmieniono reguł zapisu ani istniejącego jawnego wczytania konfiguracji.
+
+Na LCD informacje bezpieczeństwa, kod i ostrzeżenia korzystają z istniejących
+paneli, z podwójnymi sfazowanymi ramkami Cyber Blue. Bloki mają odstępy
+wyliczane z wysokości przetłumaczonego tekstu; przegląd pikseli wykrył i usunął
+kolizję niemieckiego podpisu certyfikatu z odciskiem. Stan dostępu jest w karcie
+HTTPS/adresów. Potwierdzenie i anulowanie unieważnienia pozostają w stałym
+wierszu, 16 px poniżej przewijanej treści i ponad Wstecz. Kod po 120 s znika,
+a komunikat wygaśnięcia jest złoty. Zachowano blokadę powtórnego unieważnienia,
+obsługę spóźnionego wyniku i powrót po zakończeniu operacji.
+
+Walidacja ograniczona do tego zakresu:
+
+- `node tests/test_panel_settings.cjs` — PASS w Chromium dla PL/EN/DE:
+  parowanie/utrata dostępu, trzy motywy, draft przed zapisem i dokładne
+  potwierdzenie, osobny język panelu/pilota, zachowany draft i nieaktywne
+  Zapisz przy konflikcie, jawne wczytanie oraz stany podglądu 200/202,
+  niepełny obraz i błąd transportu. Sprawdzono złote ramki i szerokość 390 px.
+- `node tests/test_panel_config_reads.cjs` — PASS: dotychczasowe wyścigi
+  odczyt/zapis/BIND/nawigacja i pojedyncze odświeżanie. Model testowy
+  uzupełniono o istniejący kontekst automatyzacji i metody canvas/klas CSS;
+  wcześniejszych wymagań ochrony draftu nie osłabiono.
+- `python3 tools/dev/run_host.py test_ui.py --case test_web_panel_ui --jobs 4`
+  — nowa regresja najpierw wykazała brak ramek. Po poprawkach powtarzano tylko
+  ten przypadek oraz powiązany `test_web_ota_ui`, z zachowaniem obiektów
+  niezmienionych od zakończonej kompilacji źródeł i kontrolą nagłówków.
+  Końcowo oba PASS na przypiętym LVGL 9.3. Trzy skórki i PL/EN/DE,
+  granice etykiet, odstępy paneli, stałe akcje, wygaśnięcie, zajętość i błąd;
+  również istniejąca regresja unieważnienia i 40 cykli bez ubytku wolnej pamięci.
+- `node tests/test_web_locale_dictionary.cjs` — PASS. Nowe przypadki dodano
+  do istniejących runnerów/CI. Jeden niezależny przegląd nie znalazł istotnych
+  błędów w zmianach. Obejrzano rzeczywiste piksele Chromium i LVGL.
+
+HTTP, sesja, zapis i worker w tych testach są modelowane. Klatka w przeglądarce
+pochodzi z zaakceptowanego renderu hosta Dashboardu, a nie z fizycznego pilota.
+Nie zmieniono backendu autoryzacji, protokołu parowania, ochrony poufnych
+ekranów ani API sterowania. Nie ponawiano pełnego atlasu, regresji, builda
+docelowego ani CI; nie wykonano operacji na sprzęcie, push ani publikacji.
+**Pokazane widoki tej rundy oczekują oceny właściciela.** Odbiór fizycznego
+HTTPS, trwałego unieważnienia, synchronizacji i podglądu pozostaje otwarty.
+
 ## Baza dalszej pracy
 
 - Repozytorium: `voltex-at/DIY-Shelly-Remote`, lokalnie `C:\Users\franz\DIY-Shelly-Remote`.
@@ -574,7 +630,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
-| WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
+| WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Przejrzane i poprawione parowanie, wygląd/język, konflikt zapisu, podgląd na żądanie oraz LCD bezpieczeństwa/kodu/unieważnienia. Powiązane Chromium/LVGL i słownik PASS. Pokazane widoki oczekują oceny; pozostałe podstrony i rzeczywiste HTTPS/NVS/synchronizacja/podgląd na sprzęcie pozostają otwarte |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. **Nowy krok USB oraz złote komunikaty niskiej baterii i niedostępnego pomiaru zaakceptowane na podglądzie** (`a415e17`). Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.

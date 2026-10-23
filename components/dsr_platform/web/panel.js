@@ -3,6 +3,10 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Pobieranie obrazu z pilota…", "Fetching the remote screen…", "Bild der Fernbedienung wird geladen…"],
+ ["Pilot jeszcze nie udostępnił nowej klatki. Odśwież podgląd ponownie.", "The remote has not provided a new frame yet. Refresh the preview again.", "Die Fernbedienung hat noch kein neues Bild bereitgestellt. Vorschau erneut aktualisieren."],
+ ["Nieprawidłowy obraz z pilota. Odśwież podgląd ponownie.", "Invalid screen image from the remote. Refresh the preview again.", "Ungültiges Bild der Fernbedienung. Vorschau erneut aktualisieren."],
+ ["Nie udało się pobrać obrazu. Sprawdź połączenie i odśwież podgląd.", "Could not fetch the screen image. Check the connection and refresh the preview.", "Bild konnte nicht geladen werden. Verbindung prüfen und Vorschau aktualisieren."],
  ["Battery below 20%; recharge the remote and renew OTA consent", "Bateria poniżej 20%; doładuj pilot i ponownie zezwól na OTA", "Akku unter 20%; Fernbedienung laden und OTA erneut erlauben"],
  ["Battery check unavailable; renew OTA consent and retry", "Pomiar baterii nie jest dostępny; ponownie zezwól na OTA i spróbuj jeszcze raz", "Akkuprüfung nicht verfügbar; OTA erneut erlauben und wiederholen"],
  ["Przed wysłaniem potwierdź stabilne USB na ekranie pilota. Zgoda jest jednorazowa i ważna 120 s. Znany poziom baterii poniżej 20% blokuje instalację.", "Before uploading, confirm stable USB power on the remote. Consent is one-time and valid for 120 s. A known battery level below 20% blocks installation.", "Vor dem Senden stabiles USB am Bildschirm der Fernbedienung bestätigen. Einmalige Freigabe für 120 s. Bekannter Akkustand unter 20% sperrt die Installation."],
@@ -234,7 +238,7 @@ const $=s=>document.querySelector(s), el=(tag,text,cls)=>{const n=document.creat
 let config=null,page='dashboards',dirty=false,saving=false,conflict=false,dragId=null,editSerial=0;
 const titles={automations:m('Automatyzacje'),dashboards:m('Pulpity'),rooms:m('Pomieszczenia'),devices:m('Urządzenia Shelly'),discovery:m('Dodaj urządzenie Shelly'),scenes:m('Sceny'),groups:m('Grupy'),activity:m('Aktywność'),appearance:m('Wygląd i język'),system:m('System i aktualizacje')};
 const kinds={light:m('Oświetlenie'),relay:m('Przekaźnik'),plug:m('Gniazdko'),cover:m('Roleta'),contact:m('Czujnik otwarcia'),sensor:m('Czujnik')};
-function notice(s){setText($('#notice'),s);}
+function notice(s){const n=$('#notice');setText(n,s);n.classList.toggle('automation-warning',!!n.textContent);}
 function changed(){editSerial++;dirty=true;setText($('#dirty'),m('Niezapisane zmiany'));$('#save').disabled=saving||conflict;}
 function button(text,fn,cls){const b=el('button',text,cls);b.type='button';if(text==='×')setUIAttribute(b,'aria-label',m('Usuń'));else if(text==='↑')setUIAttribute(b,'aria-label',m('Przesuń w górę'));else if(text==='↓')setUIAttribute(b,'aria-label',m('Przesuń w dół'));b.addEventListener('click',fn);return b;}
 function field(parent,label,value,fn,type='text'){const l=el('label',label),i=el('input');i.type=type;i.value=value;i.addEventListener('input',()=>{fn(type==='number'?Number(i.value):i.value);changed();});l.append(i);parent.append(l);return i;}
@@ -737,20 +741,26 @@ async function save(){
  }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#workspace .savebar').hidden=page==='system'&&!dirty;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();automationSession?.refresh?.();}
 }
 let statusPollBusy=false,previewBusy=false;
+function previewMessage(text,warning=false){const n=$('#preview-status');setText(n,text);n.classList.toggle('automation-warning',warning);}
 /* A 300 KiB snapshot is an explicit action, separate from lightweight status.
  * Keep one transfer in flight and discard a frame after navigation or hiding. */
 async function refreshPreview(){
  if(!config||$('#workspace').hidden||document.hidden||previewBusy)return;
  const owner=configReadOwner(),current=()=>!document.hidden&&configReadCurrent(owner);
  previewBusy=true;$('#preview-refresh').disabled=true;
+ previewMessage(m('Pobieranie obrazu z pilota…'));
  try{
-  const r=await request('preview.raw');if(!current()||r.status!==200)return;
-  const bytes=new Uint8Array(await r.arrayBuffer());if(!current()||bytes.length!==320*480*2)return;
-  const ctx=$('#preview').getContext('2d'),im=ctx.createImageData(320,480);
+  const ctx=$('#preview').getContext('2d');ctx.clearRect(0,0,320,480);
+  const r=await request('preview.raw');if(!current())return;
+  if(r.status===202){previewMessage(m('Pilot jeszcze nie udostępnił nowej klatki. Odśwież podgląd ponownie.'),true);return;}
+  if(r.status!==200){previewMessage(m('Nieprawidłowy obraz z pilota. Odśwież podgląd ponownie.'),true);return;}
+  const bytes=new Uint8Array(await r.arrayBuffer());if(!current())return;
+  if(bytes.length!==320*480*2){previewMessage(m('Nieprawidłowy obraz z pilota. Odśwież podgląd ponownie.'),true);return;}
+  const im=ctx.createImageData(320,480);
   for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}
-  ctx.putImageData(im,0,0);setText($('#preview-status'),m('Obraz pobrany z zadania LVGL pilota.'));
- }catch(e){if(current())setText($('#preview-status'),m('Brak połączenia'));}
- finally{previewBusy=false;$('#preview-refresh').disabled=false;}
+  ctx.putImageData(im,0,0);previewMessage(m('Obraz pobrany z zadania LVGL pilota.'));
+ }catch(e){if(current())previewMessage(m('Nie udało się pobrać obrazu. Sprawdź połączenie i odśwież podgląd.'),true);}
+ finally{previewBusy=false;$('#preview-refresh').disabled=false;if(!current())previewMessage(m('Oczekiwanie na klatkę z pilota…'));}
 }
 async function poll(){if(!config||$('#workspace').hidden||document.hidden||statusPollBusy)return;statusPollBusy=true;const serial=++statusReadSerial,owner=configReadOwner();const current=()=>!document.hidden&&serial===statusReadSerial&&configReadCurrent(owner);try{const response=await request('status');if(!current())return;const s=await response.json();if(!current())return;remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else{await load();return;}}}catch(e){if(!current())return;remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{statusPollBusy=false;if(current()){if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}}
 async function uploadPhoto(file,room,current=()=>true){

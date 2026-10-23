@@ -23,6 +23,8 @@ static unsigned touches;
 static lv_obj_t *expiry_label;
 static lv_obj_t *ota_expiry_icon;
 static void web_ota_warning(lv_obj_t *label);
+static void web_card_fit(lv_obj_t *label);
+static lv_obj_t *web_ota_message(lv_obj_t *body,const char *text,int y,bool warning,lv_obj_t **icon);
 static uint32_t issued_at;
 static bool expiry_pair;
 static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
@@ -41,7 +43,7 @@ void dsr_ui_settings_hide(void)
 void dsr_ui_settings_tick(void)
 {
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
-  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");if(!expiry_pair)web_ota_warning(expiry_label);expiry_label=NULL;
+  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");web_ota_warning(expiry_label);if(expiry_pair)web_card_fit(expiry_label);expiry_label=NULL;
  }
 }
 
@@ -262,15 +264,28 @@ static const char *pairing_state_text(void)
  if(state.revocation_unconfirmed)return "Trwałe unieważnienie: niepotwierdzone.";
  return state.paired?"Dostęp WWW: aktywny.":"Dostęp WWW: nieaktywny.";
 }
+static lv_obj_t *web_security_body(const char *title)
+{
+ lv_obj_t *body=settings_body(title);lv_obj_set_style_bg_opa(body,LV_OPA_TRANSP,0);
+ lv_obj_set_flex_flow(body,LV_FLEX_FLOW_COLUMN);lv_obj_set_style_pad_row(body,12,0);return body;
+}
+static void web_card_fit(lv_obj_t *label)
+{
+ lv_obj_update_layout(label);int height=lv_obj_get_y(label)+lv_obj_get_height(label)+12;
+ lv_obj_set_height(lv_obj_get_parent(label),height<56?56:height);
+}
 static void revoke_controls(void)
 {
  if(web_pairing_state){
   dsr_sc_label_set_text(web_pairing_state,revoke_pending?"Unieważnianie parowania…":pairing_state_text());
+  web_card_fit(web_pairing_state);
   if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);else lv_obj_remove_state(web_pairing_generate,LV_STATE_DISABLED);
  }
  if(!revoke_status)return;
  dsr_sc_label_set_text(revoke_status,revoke_pending?"Unieważnianie parowania…":revoke_message);
  dsr_sc_label_set_text(revoke_state_label,pairing_state_text());
+ web_card_fit(revoke_status);web_card_fit(revoke_state_label);
+ lv_obj_scroll_to_view(lv_obj_get_parent(revoke_status),LV_ANIM_OFF);
  lv_obj_t *items[]={revoke_confirm_button,revoke_cancel_button};
  for(unsigned i=0;i<2;i++)if(revoke_pending)lv_obj_add_state(items[i],LV_STATE_DISABLED);else lv_obj_remove_state(items[i],LV_STATE_DISABLED);
 }
@@ -293,41 +308,45 @@ static void revoke_cancel(lv_event_t *event)
 {if(!revoke_pending)web_panel(event);}
 static void revoke_screen(lv_event_t *event)
 {
- (void)event;lv_obj_t *body=settings_body("Unieważnij parowanie WWW");
- revoke_state_label=dsr_sc_text(body,pairing_state_text(),4,6,284,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_sc_text(body,"Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną.",4,62,284,&dsr_roboto_14,DSR_SC_MUTED);
- revoke_status=dsr_sc_text(body,"",4,144,284,&dsr_roboto_14,DSR_SC_TEXT);
- revoke_confirm_button=row(body,"Unieważnij parowanie",210,revoke_confirm);
- revoke_cancel_button=row(body,"Anuluj",268,revoke_cancel);revoke_controls();
+ (void)event;lv_obj_t *body=web_security_body("Unieważnij parowanie WWW");
+ lv_obj_set_height(body,248);lv_obj_t *root=lv_obj_get_parent(body);
+ revoke_state_label=web_ota_message(body,pairing_state_text(),0,false,NULL);
+ web_ota_message(body,"Stare cookie utracą dostęp. Trwające operacje mogą się zakończyć. Wi-Fi i dane pozostaną.",0,true,NULL);
+ revoke_status=web_ota_message(body,revoke_pending?"Unieważnianie parowania…":revoke_message,0,true,NULL);
+ revoke_confirm_button=dsr_ui_button(root,"Unieważnij parowanie",12,350,180,revoke_confirm,NULL);
+ revoke_cancel_button=dsr_ui_button(root,"Anuluj",204,350,104,revoke_cancel,NULL);revoke_controls();
 }
 static void pair_browser(lv_event_t *event)
 {
  (void)event;char code[17]={0};if(!revoke_pending&&dsr_panel_ready())dsr_panel_pair_begin(code);
- lv_obj_t *body=settings_body("Parowanie Web Panelu");
- if(!code[0]){dsr_sc_text(body,"Nie utworzono kodu. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);row(body,"Panel WWW / bezpieczeństwo",110,web_panel);return;}
- dsr_sc_text(body,"Jednorazowy kod • 120 s • 5 prób",4,8,284,&dsr_roboto_14,DSR_SC_MUTED);
- expiry_label=dsr_sc_text(body,code,4,54,284,&dsr_roboto_18,DSR_SC_TEXT);issued_at=lv_tick_get();expiry_pair=true;memset(code,0,sizeof(code));
- dsr_sc_text(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",4,112,284,&dsr_roboto_14,DSR_SC_MUTED);
- row(body,"Panel WWW / bezpieczeństwo",214,web_panel);
+ lv_obj_t *body=web_security_body("Parowanie Web Panelu");
+ if(!code[0]){web_ota_message(body,"Nie utworzono kodu. HTTPS niedostępny lub zajęty.",0,true,NULL);row(body,"Panel WWW / bezpieczeństwo",0,web_panel);return;}
+ web_ota_message(body,"Jednorazowy kod • 120 s • 5 prób",0,false,NULL);
+ expiry_label=web_ota_message(body,code,0,false,&ota_expiry_icon);lv_obj_set_style_text_font(expiry_label,&dsr_roboto_18,0);web_card_fit(expiry_label);issued_at=lv_tick_get();expiry_pair=true;memset(code,0,sizeof(code));
+ web_ota_message(body,"Sprawdź odcisk certyfikatu w przeglądarce przed wpisaniem kodu.",0,true,NULL);
+ row(body,"Panel WWW / bezpieczeństwo",0,web_panel);
 }
 static void web_panel(lv_event_t *event)
 {
- (void)event;lv_obj_t *body=settings_body("Panel WWW / bezpieczeństwo");
+ (void)event;lv_obj_t *body=web_security_body("Panel WWW / bezpieczeństwo");
  dsr_wifi_info_t wifi;dsr_wifi_get_info(&wifi);dsr_config_health_t health;dsr_config_health_snapshot(&health);
- dsr_sc_text(body,dsr_panel_ready()?"HTTPS uruchomiony":"HTTPS niedostępny",4,4,284,&dsr_roboto_16,DSR_SC_TEXT);
+ lv_obj_t *label=web_ota_message(body,dsr_panel_ready()?"HTTPS uruchomiony":"HTTPS niedostępny",0,!dsr_panel_ready(),NULL),*frame=lv_obj_get_parent(label);lv_obj_set_height(frame,92);
  char address[48];if(wifi.connected&&wifi.ip[0])snprintf(address,sizeof(address),"https://%s",wifi.ip);else snprintf(address,sizeof(address),"IPv4: —");
- dsr_sc_text(body,address,4,36,284,&dsr_roboto_14,DSR_SC_BLUE);dsr_sc_text(body,"https://shelly-remote.local",4,62,284,&dsr_roboto_14,DSR_SC_BLUE);
+ lv_obj_update_layout(label);int y=lv_obj_get_y(label)+lv_obj_get_height(label)+8;
+ label=dsr_sc_text(frame,address,44,y,240,&dsr_roboto_14,DSR_SC_BLUE);lv_obj_update_layout(label);y+=lv_obj_get_height(label)+8;
+ label=dsr_sc_text(frame,"https://shelly-remote.local",44,y,240,&dsr_roboto_14,DSR_SC_BLUE);lv_obj_update_layout(label);y+=lv_obj_get_height(label)+8;
+ web_pairing_state=dsr_sc_text(frame,revoke_pending?"Unieważnianie parowania…":pairing_state_text(),44,y,240,&dsr_roboto_14,DSR_SC_TEXT);web_card_fit(web_pairing_state);
  const char *fp=dsr_tls_fingerprint();char digest[80];snprintf(digest,sizeof(digest),"%.32s\n%.32s",fp?fp:"",fp&&strlen(fp)>32?fp+32:"");
- dsr_sc_text(body,"SHA-256 certyfikatu tego pilota",4,100,284,&dsr_roboto_12,DSR_SC_MUTED);
- dsr_sc_text(body,fp&&strlen(fp)==64?digest:"—",4,128,284,&dsr_roboto_12,DSR_SC_TEXT);
+ label=web_ota_message(body,"SHA-256 certyfikatu tego pilota",0,false,NULL);lv_obj_set_style_text_font(label,&dsr_roboto_12,0);frame=lv_obj_get_parent(label);lv_obj_update_layout(label);
+ y=lv_obj_get_y(label)+lv_obj_get_height(label)+8;
+ label=dsr_sc_text(frame,fp&&strlen(fp)==64?digest:"—",12,y,272,&dsr_roboto_12,DSR_SC_TEXT);lv_obj_update_layout(label);y+=lv_obj_get_height(label)+12;
  char status[64];snprintf(status,sizeof(status),"SPIFFS: %d / 0x%x",(int)health.storage,(unsigned)health.storage_error);
- dsr_sc_text(body,status,4,172,284,&dsr_roboto_12,DSR_SC_MUTED);
- web_pairing_generate=row(body,"Wygeneruj kod parowania",210,pair_browser);if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);
- web_pairing_state=dsr_sc_text(body,revoke_pending?"Unieważnianie parowania…":pairing_state_text(),4,276,284,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_sc_text(body,"Wspólne parowanie, nie lista aktywnych sesji.",4,324,284,&dsr_roboto_12,DSR_SC_MUTED);
- row(body,"Unieważnij parowanie WWW",366,revoke_screen);
- row(body,"Diagnostyka konfiguracji",424,dsr_ui_config_diagnostics);
- row(body,"Odśwież",482,web_panel);
+ label=dsr_sc_text(frame,status,12,y,272,&dsr_roboto_12,DSR_SC_MUTED);web_card_fit(label);
+ web_pairing_generate=row(body,"Wygeneruj kod parowania",0,pair_browser);if(revoke_pending)lv_obj_add_state(web_pairing_generate,LV_STATE_DISABLED);
+ web_ota_message(body,"Wspólne parowanie, nie lista aktywnych sesji.",0,false,NULL);
+ row(body,"Unieważnij parowanie WWW",0,revoke_screen);
+ row(body,"Diagnostyka konfiguracji",0,dsr_ui_config_diagnostics);
+ row(body,"Odśwież",0,web_panel);
 }
 static uint32_t web_ota_gold(void){return dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;}
 static void web_ota_warning(lv_obj_t *label)

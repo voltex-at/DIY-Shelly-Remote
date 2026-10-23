@@ -11,8 +11,8 @@ const ok=(v,m)=>{assert(v,m);checks++;},eq=(a,b,m)=>{assert.deepEqual(a,b,m);che
 function fixture(){
  const nodes=new Map(),holds=new Map(),calls=[],notices=[],frames=[];
  const document={revision:5,dashboards:[{id:1,name:'Old saved name'}]};let server=structuredClone(document),renders=0,refreshes=0;
- const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',firstElementChild:{},getContext:()=>({createImageData:(w,h)=>({data:new Uint8Array(w*h*4)}),putImageData:im=>frames.push(Array.from(im.data.slice(0,8)))})});return nodes.get(id);};
- const c={document:{hidden:false},actionSession:null,config:structuredClone(document),dirty:false,conflict:false,saving:false,editSerial:0,page:'dashboards',lanGeneration:0,remoteReachable:true,window:{dsrActionsRefresh:()=>refreshes++},
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,textContent:'',classList:{toggle(){}},firstElementChild:{},getContext:()=>({clearRect(){},createImageData:(w,h)=>({data:new Uint8Array(w*h*4)}),putImageData:im=>frames.push(Array.from(im.data.slice(0,8)))})});return nodes.get(id);};
+ const c={document:{hidden:false},actionSession:null,automationSession:null,autoView:null,autoCache:null,config:structuredClone(document),dirty:false,conflict:false,saving:false,editSerial:0,page:'dashboards',lanGeneration:0,remoteReachable:true,window:{dsrActionsRefresh:()=>refreshes++},
   $:node,setText:(n,t)=>n.textContent=t,m:x=>x,notice:x=>notices.push(x),failure:x=>Error(x),serverMessage:x=>x,structuredClone,Uint8Array,JSON,
   render:()=>{renders++;node('#editor').firstElementChild={};},updateOnboardingChoice:()=>{},setTimeout:fn=>{queueMicrotask(fn);return 1;},
   request:async(route,options)=>{
