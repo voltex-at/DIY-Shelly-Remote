@@ -454,7 +454,15 @@ Walidacja: `DSR_UI_FOCUS_ADD_SAVE=1 python3 tools/dev/run_host.py test_ui.py --j
 - Po przewinięciu do komunikatu górna część pola nazwy wychodzi poza widoczny obszar formularza. Nie zachodzi na kartę tożsamości, ale widoczny fragment wymaga oceny wyglądu.
 - Podczas oczekiwania na końcowe potwierdzenie nadal widnieje ogólny tekst sprawdzania przed zapisem. Po sukcesie następuje powrót do Dashboardu z nową kartą, bez osobnego okna sukcesu.
 
-**Odbiór:** formularz, przebieg zapisu i powyższe komunikaty oczekują na ocenę właściciela. Wcześniejsze akceptacje pokazanych ekranów LAN, Bluetooth i AP pozostają w mocy. NET-01 jako całość, pozostałe kroki konfiguracji AP/BLE i odbiór na pilocie po nowym DEV pozostają otwarte.
+**Odbiór:** właściciel ocenił formularz i przebieg zapisu jako „Wymagają korekty — opiszę”. Ten punkt pozostaje otwarty. W kolejnym zgłoszeniu wskazał także dublowanie informacji o pomiarach na karcie Dashboardu po zapisie, opisane poniżej. Propozycja złotego wyróżnienia błędów formularza i czytelniejszego nieaktywnego „Zapisz” nadal czeka na odpowiedź. Wcześniejsze akceptacje pokazanych ekranów LAN, Bluetooth i AP pozostają w mocy. NET-01 jako całość, pozostałe kroki konfiguracji AP/BLE i odbiór na pilocie po nowym DEV pozostają otwarte.
+
+### UI-06 — pojedynczy komunikat o niedostępnych pomiarach
+
+Właściciel wskazał podwójny komunikat na pokazanej karcie Dashboardu: „Messwert veraltet” w wierszu stanu i „Keine Messwerte” w ramce pomiarów. Zlecił pozostawienie tylko komunikatu w ramce. Dodatkowy napis o nieaktualnym odczycie jest teraz pomijany, jeżeli karta ma już ramkę informującą o niedostępnych pomiarach. Zmiana dotyczy wspólnych kart w trzech skórkach i PL/EN/DE; nie zmienia geometrii zaakceptowanych kart.
+
+Osobne przyczyny, takie jak brak Wi-Fi, brak odpowiedzi, błąd logowania i oczekiwanie na pierwszy odczyt, pozostają widoczne. Na karcie z wyłączonymi polami pomiarowymi zachowano jedyny komunikat o nieaktualnym odczycie. Po ponownym uzyskaniu odczytu wracają zwykły stan oraz pomiary W/V.
+
+Walidacja: `DSR_UI_FOCUS_CARD_NOTICE=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, 83 sprawdzenia i trzy wybrane klatki, trzy skórki i PL/EN/DE. Najpierw poprawiono dane scenariusza karty bez ramki; prawidłowy test przed zmianą kodu następnie wykazał duplikat we wszystkich dziewięciu wariantach skórki/języka. Po poprawce przeszedł ten sam przypadek. Obejrzano rzeczywiste piksele LVGL 9.3. Dostawcy radia i odczytów są modelami hosta; nie ponawiano pozostałych ekranów, atlasu, pełnej regresji ani builda docelowego i CI. Kod pozostaje roboczy, bez nowego DEV i odbioru na pilocie. Formularz konfiguracji z NET-01 nadal wymaga oceny zgłoszonych korekt.
 
 ## Porządkowanie — wykonane
 

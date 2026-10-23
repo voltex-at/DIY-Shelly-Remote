@@ -549,6 +549,9 @@ static lv_obj_t *device_card(lv_obj_t *parent,unsigned i,int x,int y,int width,i
     bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
     if(hud)dsr_ui_cyber_device(card,on,d->error!=DSR_OK||unbound(d)||!d->online);else{edge(card,on?DSR_SC_GLOW:0x3a3f44,on?2:1);dsr_sc_glow(card,on);}
     const char *cover_room=card_cover_room(d),*state=cover_room?cover_room:card_state(d,fields);bool warn=card_warn(d);
+    /* The measurement frame already reports stale readings. Keep distinct
+     * connection/authentication warnings, and the state when no frame is shown. */
+    if(fields&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind)&&!unbound(d)&&!d->online&&d->error==DSR_OK&&model.wifi&&d->has_sample_time)state="";
     card_layout_t layout=card_layout(d,width);int body=layout.body;
     bool state_box=card_state_box(d);
     lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(d->name),12,8,layout.name_w,card_name_font(),DSR_SC_TEXT);truncate(name,layout.name_h);

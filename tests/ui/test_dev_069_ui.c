@@ -723,6 +723,26 @@ static void relay_spacing_review(unsigned language)
  d->online=true;d->error=DSR_OK;d->has_sample_time=false;dsr_mobile_update(&m);relay_spacing_geometry("— V","— A",NULL);CHECK(lv_obj_has_state(relay_spacing_power(),LV_STATE_DISABLED));if(language==2)shot("relay-spacing-missing",3);
  dsr_ui_open_settings();
 }
+static unsigned card_notice_issues;
+static void dashboard_notice_review(unsigned theme,unsigned language)
+{
+ dsr_ui_open_settings();dsr_sc_appearance(DSR_SC_BLUE,theme,language);dsr_ui_apply_theme();dsr_mobile_actions_t actions={0};dsr_mobile_bind(&actions);
+ dsr_mobile_model_t m={.wifi=true,.dashboard_name="Mein Dashboard",.room_count=1,.rooms={{.id=1,.name="Wohnzimmer"}},.device_count=1};
+ m.devices[0]=(dsr_mobile_device_t){.id=1,.identity="survey-notice",.name="Licht Küche",.room=0,.kind=DSR_DEVICE_RELAY,.endpoint_kind=DSR_ENDPOINT_SWITCH,.has_sample_time=true,.has_power=true,.power_w=9.5,.has_voltage=true,.voltage_v=231.8};
+ dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_HOME,0);
+ lv_obj_t *card=lv_obj_get_parent(find_label(lv_screen_active(),m.devices[0].name)),*notice=find_label(card,"Odczyty niedostępne");CHECK(notice&&lv_obj_get_parent(notice)!=card);
+ if(find_label(card,"Odczyt nieaktualny")){card_notice_issues++;printf("CARD issue theme=%u language=%u: stale state duplicates framed notice\n",theme,language);}
+ if(language==2)shot("dashboard-notice-stale",theme);
+ m.devices[0].error=DSR_OFFLINE;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));
+ m.devices[0].error=DSR_AUTH_REQUIRED;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Błąd logowania"));
+ m.devices[0].error=DSR_OK;m.wifi=false;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Brak Wi-Fi"));
+ m.wifi=true;m.devices[0].has_sample_time=false;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Oczekiwanie na odczyt…"));
+ /* Without a measurement frame, keep the only notice of an old reading. */
+ m.devices[0].has_sample_time=true;m.configured_layout=true;m.tile_count=1;m.tiles[0]=(dsr_mobile_tile_t){.type=0,.index=0,.span=2,.height=1,.fields=0};dsr_mobile_update(&m);
+ CHECK(find_label(lv_screen_active(),"Odczyt nieaktualny")&&!find_label(lv_screen_active(),"Odczyty niedostępne"));
+ m.configured_layout=false;m.tile_count=0;m.devices[0].online=true;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Wyłączone")&&containing(lv_screen_active(),"9.5 W"));CHECK(!find_label(lv_screen_active(),"Odczyty niedostępne"));
+ dsr_ui_open_settings();fflush(stdout);
+}
 static unsigned add_save_draft_issues;
 static void add_save_idle(void)
 {
@@ -789,7 +809,8 @@ int main(int argc,char **argv)
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_ADD_SAVE")){for(unsigned i=0;i<3;i++)add_save_review(themes[i]);CHECK(add_save_draft_issues==0);}
+ if(getenv("DSR_UI_FOCUS_CARD_NOTICE")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_notice_review(themes[i],language);CHECK(card_notice_issues==0);}
+ else if(getenv("DSR_UI_FOCUS_ADD_SAVE")){for(unsigned i=0;i<3;i++)add_save_review(themes[i]);CHECK(add_save_draft_issues==0);}
  else if(getenv("DSR_UI_FOCUS_RELAY_SPACING")){for(unsigned language=0;language<3;language++)relay_spacing_review(language);}
  else if(getenv("DSR_UI_FOCUS_NAVIGATION")){for(unsigned i=0;i<3;i++)navigation_review(themes[i]);CHECK(navigation_issues==0);}
  else if(getenv("DSR_UI_FOCUS_STATUS_NAME")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)status_lighting_review(themes[i],language);}
