@@ -58,5 +58,5 @@ backup i reset mają odrębny plan z uwagi na wspólną warstwę trwałości.
 
 **Interfaces:** consumes task 1 screenshots and fresh focused command result; produces truthful SYS-02 activity acceptance status, separate from backup/reset.
 
-- [ ] Pokazać wybrane rzeczywiste kadry LVGL i zapytać w ankiecie o wygląd Aktywności. Nie powtarzać testów wyłącznie po odpowiedzi „zaakceptowane”.
-- [ ] Zapisać polecenie, wynik, zakres i ograniczenie: backend/LVGL hosta nie są odbiorem na urządzeniu. Sprawdzić `python3 -X utf8 tools/check_docs.py` i `git diff --check`, lokalnie commit dokumentacji. Sprzęt i końcowa integracja należą do drugiego planu; brak nowego DEV na tym etapie.
+- [x] Pokazać wybrane rzeczywiste kadry LVGL i zapytać w ankiecie o wygląd Aktywności. Nie powtarzać testów wyłącznie po odpowiedzi „zaakceptowane”.
+- [x] Zapisać polecenie, wynik, zakres i ograniczenie: backend/LVGL hosta nie są odbiorem na urządzeniu. Sprawdzić `python3 -X utf8 tools/check_docs.py` i `git diff --check`, lokalnie commit dokumentacji. Sprzęt i końcowa integracja należą do drugiego planu; brak nowego DEV na tym etapie.
