@@ -537,8 +537,21 @@ pochodzi z zaakceptowanego renderu hosta Dashboardu, a nie z fizycznego pilota.
 Nie zmieniono backendu autoryzacji, protokołu parowania, ochrony poufnych
 ekranów ani API sterowania. Nie ponawiano pełnego atlasu, regresji, builda
 docelowego ani CI; nie wykonano operacji na sprzęcie, push ani publikacji.
-**Pokazane widoki tej rundy oczekują oceny właściciela.** Odbiór fizycznego
-HTTPS, trwałego unieważnienia, synchronizacji i podglądu pozostaje otwarty.
+**Właściciel zaakceptował wszystkie trzy pokazane zestawy widoków** z kodu
+`3cdd2f7`:
+
+- konfigurację WWW na komputerze i telefonie, osobny język panelu i pilota
+  oraz złoty konflikt zapisu z nieaktywnym Zapisz;
+- parowanie przeglądarki oraz komunikaty oczekiwania i błędu podglądu LCD,
+  z ręcznym odświeżaniem;
+- ekrany LCD bezpieczeństwa/certyfikatu, kodu oraz unieważnienia parowania,
+  ich ramki i stałe przyciski.
+
+Odpowiedzi: „Tak, pokazana konfiguracja WWW zaakceptowana”, „Tak, te widoki WWW
+zaakceptowane” i „Tak, pokazane ekrany LCD zaakceptowane”. Akceptacja dotyczy
+wyglądu pokazanych widoków. Do jej zapisania wykorzystano istniejące rendery,
+bez ponawiania testów firmware. Odbiór fizycznego HTTPS, trwałego unieważnienia,
+synchronizacji i podglądu pozostaje otwarty.
 
 ## Baza dalszej pracy
 
@@ -630,7 +643,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
-| WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Przejrzane i poprawione parowanie, wygląd/język, konflikt zapisu, podgląd na żądanie oraz LCD bezpieczeństwa/kodu/unieważnienia. Powiązane Chromium/LVGL i słownik PASS. Pokazane widoki oczekują oceny; pozostałe podstrony i rzeczywiste HTTPS/NVS/synchronizacja/podgląd na sprzęcie pozostają otwarte |
+| WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | **Pokazane widoki konfiguracji WWW, parowania/podglądu oraz LCD bezpieczeństwa/kodu/unieważnienia zaakceptowane na podglądzie** (`3cdd2f7`), w tym układ komputer/telefon, osobne języki, złoty konflikt z nieaktywnym Zapisz, komunikaty podglądu i stałe akcje LCD. Powiązane Chromium/LVGL i słownik PASS. Pozostałe podstrony i rzeczywiste HTTPS/NVS/synchronizacja/podgląd na sprzęcie pozostają otwarte |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. **Nowy krok USB oraz złote komunikaty niskiej baterii i niedostępnego pomiaru zaakceptowane na podglądzie** (`a415e17`). Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
