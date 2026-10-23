@@ -13,7 +13,7 @@ static lv_obj_t *action_pick(const char *label,int y,bool selected,lv_event_cb_t
 }
 static void action_back(lv_event_t *event)
 {
- (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ (void)event;if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
  if(action_editor.pending_device){action_editor.pending_device=0;if(action_editor.edit_index)action_editor.selecting=false;action_editor.edit_index=0;action_form();return;}
  if(action_editor.selecting){action_editor.selecting=false;action_form();return;}
  if(action_editor.step==3){action_editor.step=action_editor.return_step;action_form();return;}
@@ -132,7 +132,7 @@ static void action_form(void)
 {
  lv_obj_t *root=screen(action_editor.kind?(action_editor.fresh?"Nowa scena":"Edytuj scenę"):(action_editor.fresh?"Nowa grupa":"Edytuj grupę"));view_save_target=SAVE_ACTIONS;action_editor.next=action_editor.back=NULL;lv_obj_set_y(body,138);lv_obj_set_height(body,260);
  unsigned progress=action_editor.step==3?action_editor.return_step:action_editor.step;for(unsigned i=0;i<3;i++)dsr_sc_panel(root,12+(int)i*102,118,94,4,i<=progress?DSR_SC_BLUE:DSR_SC_EDGE,2);
- const char *title=action_editor.step==3?"Opcjonalne ustawienia":action_editor.step==0?"1/3 • Nazwa":action_editor.step==1?(action_editor.kind?"2/3 • Polecenia":"2/3 • Urządzenia"):"3/3 • Podsumowanie";dsr_sc_label_set_text(status_label,title);
+ const char *title=action_editor.step==3?"Opcjonalne ustawienia":action_editor.step==0?"1/3 • Nazwa":action_editor.step==1?(action_editor.kind?"2/3 • Polecenia":"2/3 • Urządzenia"):"3/3 • Podsumowanie";config_status(title,false);
  lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_CANCEL,NULL);
  if(action_editor.deleted){dsr_sc_text(body,"Zapisz, aby usunąć wpis.",4,32,276,&dsr_roboto_18,DSR_SC_TEXT);actions(root,action_back);return;}
  if(action_editor.step==0){add_field(action_editor.kind?"Nazwa sceny":"Nazwa grupy","name",0,false);lv_textarea_set_placeholder_text(lv_obj_get_child(body,-1),dsr_sc_tr(action_editor.kind?"np. Dobranoc":"np. Lampy na parterze"));dsr_sc_text(body,action_editor.kind?"Jedno dotknięcie uruchomi wybrane polecenia.":"Wspólne włączanie i wyłączanie wybranych przekaźników i gniazdek.",4,82,276,&dsr_roboto_14,DSR_SC_MUTED);action_pick("Pokój i zdjęcie (opcjonalnie)",164,false,action_details,0);}

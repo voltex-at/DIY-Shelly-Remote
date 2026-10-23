@@ -78,7 +78,7 @@ static void editor_checks(unsigned language)
  p0_generic("Pulpity","Mój pulpit");shot(630,"dashboard-editor",language);
  char tile_title[128];snprintf(tile_title,sizeof(tile_title),"Lampa nad stołem w salonie na piętrze • %s",dsr_sc_tr("standard"));
  lv_obj_t *title=find_label(lv_screen_active(),tile_title);CHECK(title);
- no_overlap(title,lv_obj_get_parent(find_label(lv_screen_active(),"Obiekt")));
+ no_overlap(title,lv_obj_get_parent(find_label(lv_screen_active(),"Góra")));
  lv_obj_t *kb=focus_editor();key(kb,"123");key(kb,"ąä");key(kb,"ą");key(kb,"ä");
  CHECK(strstr(lv_textarea_get_text(lv_keyboard_get_textarea(kb)),"ąä"));
  lv_textarea_set_text(lv_keyboard_get_textarea(kb),"Pulpit Łódź Küche");visible_press("Zapisz");dsr_ui_workspace_tick();

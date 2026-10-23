@@ -95,6 +95,17 @@ const char *dsr_sc_tr(const char *text)
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
  {"Temperatura zadana","Target temperature","Soll"},
+ {"Kolejność urządzeń","Device order","Reihenfolge der Geräte"},
+ {"Edytuj dashboard","Edit dashboard","Dashboard bearbeiten"},
+ {"Następny obiekt","Next object","Nächstes Objekt"},
+ {"Tylko jeden obiekt","Only one object","Nur ein Objekt"},
+ {"Typ: %s","Type: %s","Typ: %s"},
+ {"Urządzenie","Device","Gerät"},{"Scena","Scene","Szene"},{"Grupa","Group","Gruppe"},
+ {"Rozmiar: %s","Size: %s","Größe: %s"},
+ {"Pełna szerokość","Full width","Volle Breite"},
+ {"Połowa szerokości","Half width","Halbe Breite"},
+ {"Dane na karcie","Card readings","Kartenwerte"},
+ {"Usuń kartę","Remove card","Karte entfernen"},
  {"Znaleziono AP: %u","Access points found: %u","Zugangspunkte gefunden: %u"},
  {"Sprawdź tryb konfiguracji Shelly. Jeśli AP zniknął po przekazaniu Wi-Fi, wyszukaj urządzenie w sieci lokalnej.","Check Shelly setup mode. If its AP disappeared after sharing Wi-Fi, find the device on the local network.","Shelly-Konfigurationsmodus prüfen. Ist der AP nach der WLAN-Einrichtung verschwunden, das Gerät im lokalen Netzwerk suchen."},
  {"Poczekaj na zakończenie dodawania urządzenia.","Wait until device onboarding finishes.","Warten, bis das Hinzufügen abgeschlossen ist."},

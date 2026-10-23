@@ -855,7 +855,7 @@ static void room_dashboard_long_review(unsigned theme)
  for(unsigned language=0;language<3;language++){
   cJSON *r=room_document();const char *long_name="Wohnzimmer und offene Küche im Erdgeschoss";CHECK(strlen(long_name)<=47);
   cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"rooms")->child,"name",cJSON_CreateString(long_name));cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"name",cJSON_CreateString("Startbereich"));cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));publish_document(r);dsr_sc_appearance(DSR_SC_BLUE,theme,language);
-  p0_generic("Pulpity","Startbereich");char title[100];snprintf(title,sizeof(title),"%s • %s",long_name,dsr_sc_tr("standard"));lv_obj_t *label=find_label(lv_screen_active(),title),*object=find_label(lv_screen_active(),"Obiekt");CHECK(label&&object);lv_area_t a=rect(label),b=rect(lv_obj_get_parent(object));
+  p0_generic("Pulpity","Startbereich");char title[100];snprintf(title,sizeof(title),"%s • %s",long_name,dsr_sc_tr("standard"));lv_obj_t *label=find_label(lv_screen_active(),title),*object=find_label(lv_screen_active(),"Góra");CHECK(label&&object);lv_area_t a=rect(label),b=rect(lv_obj_get_parent(object));
   if(a.y2>=b.y1){config_long_issues++;fprintf(stderr,"CONFIG issue theme=%u language=%u: long tile title overlaps its controls\n",theme,language);}
   if(language==2)shot("config-dashboard-long",theme);
   lv_obj_t *down=lv_obj_get_parent(find_label(lv_screen_active(),"Dół"));char next_title[100];snprintf(next_title,sizeof(next_title),"Deckenlicht Küche • %s",dsr_sc_tr("standard"));CHECK(rect(down).y2<rect(find_label(lv_screen_active(),next_title)).y1);
@@ -863,13 +863,50 @@ static void room_dashboard_long_review(unsigned theme)
   dsr_ui_open_settings();
  }
 }
+static unsigned config_control_issues;
+static void config_review_move(lv_obj_t *parent,bool down,unsigned index)
+{
+ for(unsigned i=0;i<lv_obj_get_child_count(parent);i++){
+  lv_obj_t *label=find_label(lv_obj_get_child(parent,(int)i),down?"Dół":"Góra");if(!label)continue;if(index--!=0)continue;
+  lv_obj_t *button=lv_obj_get_parent(label);CHECK(!lv_obj_has_state(button,LV_STATE_DISABLED));lv_obj_scroll_to_view(button,LV_ANIM_OFF);lv_area_t a=rect(button);CHECK(a.y1>=0&&a.y2<420);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);return;
+ }CHECK(false);
+}
+static void config_controls_review(unsigned theme,unsigned language)
+{
+ config_review_fixture(theme);cJSON *r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(language==0?"pl":language==1?"en":"de"));
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"devices"),cJSON_Parse("{\"id\":2,\"name\":\"Steckdose Terrasse\",\"kind\":\"plug\",\"host\":\"192.0.2.21\",\"channel\":1,\"room\":2}"));
+ cJSON *dashboard=cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child;cJSON_ReplaceItemInObjectCaseSensitive(dashboard,"name",cJSON_CreateString("Startbereich"));
+ cJSON_ReplaceItemInObjectCaseSensitive(dashboard,"tiles",cJSON_Parse("[{\"id\":1,\"type\":\"device\",\"ref\":1,\"span\":2,\"height\":1,\"fields\":255},{\"id\":2,\"type\":\"device\",\"ref\":2,\"span\":2,\"height\":1,\"fields\":255},{\"id\":3,\"type\":\"room\",\"ref\":1,\"span\":1,\"height\":1,\"fields\":255},{\"id\":4,\"type\":\"room\",\"ref\":2,\"span\":1,\"height\":1,\"fields\":255}]"));publish_document(r);
+ dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);tap(234,126);
+ if(!find_label(lv_screen_active(),"Kolejność urządzeń")){config_control_issues++;fprintf(stderr,"CONFIG issue theme=%u language=%u: devices pencil has no ordering view\n",theme,language);dsr_ui_open_settings();return;}
+ lv_obj_t *row=lv_obj_get_parent(find_label(lv_screen_active(),"Deckenlicht Küche"));CHECK(lv_obj_has_state(lv_obj_get_parent(find_label(row,"Góra")),LV_STATE_DISABLED));if(language==2)shot("config-order-devices",theme);
+ char *before=dsr_workspace_snapshot();CHECK(before);
+ lv_area_t move=rect(lv_obj_get_parent(find_label(row,"Dół")));pointer_move((move.x1+move.x2)/2,(move.y1+move.y2)/2,true);pointer_move(move.x1-24,(move.y1+move.y2)/2,true);pointer_move(move.x1-24,(move.y1+move.y2)/2,false);CHECK(rect(find_label(lv_screen_active(),"Deckenlicht Küche")).y1<rect(find_label(lv_screen_active(),"Steckdose Terrasse")).y1);
+ row=lv_obj_get_parent(find_label(lv_screen_active(),"Deckenlicht Küche"));config_review_move(row,true,0);CHECK(find_label(lv_screen_active(),"Steckdose Terrasse"));test_workspace_defer(true);config_review_saved();
+ row=lv_obj_get_parent(find_label(lv_screen_active(),"Steckdose Terrasse"));config_review_move(row,true,0);config_review_press("Wstecz");CHECK(find_label(lv_screen_active(),"Kolejność urządzeń")&&rect(find_label(lv_screen_active(),"Steckdose Terrasse")).y1<rect(find_label(lv_screen_active(),"Deckenlicht Küche")).y1);test_workspace_finish(false);dsr_ui_workspace_tick();
+ lv_obj_t *error=find_label(lv_screen_active(),"Zapis nie powiódł się. Zmiany pozostają w edytorze.");CHECK(error&&lv_color_eq(lv_obj_get_style_text_color(error,0),dsr_sc_text_color(theme==2?0xf0a020:0xffc107)));if(language==2)shot("config-order-error",theme);
+ char *after=dsr_workspace_snapshot();CHECK(after&&!strcmp(before,after));free(after);config_review_press("Zapisz");test_workspace_finish(true);dsr_ui_workspace_tick();test_workspace_defer(false);CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_DEVICES);
+ CHECK(rect(find_label(lv_screen_active(),"Steckdose Terrasse")).y1<rect(find_label(lv_screen_active(),"Deckenlicht Küche")).y1);
+ r=room_document();cJSON *old=cJSON_Parse(before);CHECK(old);free(before);cJSON *devices=cJSON_GetObjectItemCaseSensitive(r,"devices");CHECK(cJSON_GetObjectItemCaseSensitive(devices->child,"id")->valueint==2&&cJSON_GetObjectItemCaseSensitive(devices->child->next,"id")->valueint==1);
+ const char *keys[]={"rooms","dashboards","scenes","groups"};for(unsigned i=0;i<4;i++)CHECK(cJSON_Compare(cJSON_GetObjectItemCaseSensitive(r,keys[i]),cJSON_GetObjectItemCaseSensitive(old,keys[i]),true));cJSON_Delete(old);cJSON_Delete(r);
+ tap(234,126);row=lv_obj_get_parent(find_label(lv_screen_active(),"Deckenlicht Küche"));config_review_move(row,false,0);config_review_press("Wstecz");CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));config_review_press("Zostań");CHECK(find_label(lv_screen_active(),"Kolejność urządzeń"));config_review_press("Wstecz");config_review_press("Odrzuć");CHECK(dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_DEVICES&&rect(find_label(lv_screen_active(),"Steckdose Terrasse")).y1<rect(find_label(lv_screen_active(),"Deckenlicht Küche")).y1);
+ dsr_network_home(NULL);p0_generic("Pulpity","Startbereich");lv_obj_t *title=containing(lv_screen_active(),"Deckenlicht Küche •"),*body=lv_obj_get_parent(title);CHECK(title);lv_obj_t *down=find_label(body,"Dół");lv_area_t a=rect(lv_obj_get_parent(down)),viewport=rect(body);CHECK(a.y1>=viewport.y1&&a.y2<=viewport.y2);if(language==2)shot("config-order-dashboard",theme);
+ config_review_move(body,true,2);CHECK(containing(lv_screen_active(),"Wohnzimmer und offene Küche •"));if(language==2)shot("config-order-dashboard-page",theme);config_review_saved();r=room_document();cJSON *tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(tiles,2),"id")->valueint==4&&cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(tiles,3),"id")->valueint==3);cJSON_Delete(r);
+ dsr_network_home(NULL);p0_generic("Pulpity","Startbereich");CHECK(lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Pełna szerokość")),LV_STATE_DISABLED));config_review_press("Następny obiekt");config_review_saved();r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(cJSON_GetObjectItemCaseSensitive(tiles->child,"ref")->valueint==2);cJSON_Delete(r);config_review_press("Startbereich");
+ config_review_press("Dane na karcie");CHECK(find_label(lv_screen_active(),"Dane wyświetlane na karcie"));config_review_press("Wstecz");CHECK(find_label(lv_screen_active(),"Edytuj dashboard"));
+ lv_obj_t *data=lv_obj_get_parent(find_label(lv_screen_active(),"Dane na karcie"));lv_obj_scroll_to_view(data,LV_ANIM_OFF);if(language==2)shot("config-card-controls",theme);
+ char caption[80];snprintf(caption,sizeof(caption),dsr_sc_tr("Rozmiar: %s"),dsr_sc_tr("standard"));config_review_press(caption);snprintf(caption,sizeof(caption),dsr_sc_tr("Typ: %s"),dsr_sc_tr("Urządzenie"));config_review_press(caption);CHECK(!lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Pełna szerokość")),LV_STATE_DISABLED));config_review_press("Pełna szerokość");CHECK(lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Dane na karcie")),LV_STATE_DISABLED));config_review_saved();r=room_document();tiles=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"dashboards")->child,"tiles");CHECK(!strcmp(cJSON_GetObjectItemCaseSensitive(tiles->child,"type")->valuestring,"room")&&cJSON_GetObjectItemCaseSensitive(tiles->child,"height")->valueint==2&&cJSON_GetObjectItemCaseSensitive(tiles->child,"span")->valueint==1);cJSON_Delete(r);
+ dsr_ui_edit_room(1);room_delete_button();lv_obj_t *warning=find_label(lv_screen_active(),"Pomieszczenie jest używane");CHECK(warning);lv_obj_t *description=lv_obj_get_child(lv_obj_get_parent(warning),1);CHECK(lv_color_eq(lv_obj_get_style_text_color(description,0),dsr_sc_text_color(theme==2?0xf0a020:0xffc107)));if(language==2)shot("config-important-warning",theme);
+ dsr_ui_open_settings();
+}
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
  pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=true;test_workspace_enable();dsr_ui_init();tick();
  const unsigned themes[]={0,2,3};
- if(getenv("DSR_UI_FOCUS_CONFIG_LONG")){for(unsigned i=0;i<3;i++)room_dashboard_long_review(themes[i]);CHECK(config_long_issues==0);}
+ if(getenv("DSR_UI_FOCUS_CONFIG_CONTROLS")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)config_controls_review(themes[i],language);CHECK(config_control_issues==0);}
+ else if(getenv("DSR_UI_FOCUS_CONFIG_LONG")){for(unsigned i=0;i<3;i++)room_dashboard_long_review(themes[i]);CHECK(config_long_issues==0);}
  else if(getenv("DSR_UI_FOCUS_ROOM_DASHBOARD")){for(unsigned i=0;i<3;i++)room_dashboard_review(themes[i]);}
  else if(getenv("DSR_UI_FOCUS_CARD_NOTICE")){for(unsigned i=0;i<3;i++)for(unsigned language=0;language<3;language++)dashboard_notice_review(themes[i],language);CHECK(card_notice_issues==0);}
  else if(getenv("DSR_UI_FOCUS_ADD_SAVE")){for(unsigned i=0;i<3;i++)add_save_review(themes[i]);CHECK(add_save_draft_issues==0);}

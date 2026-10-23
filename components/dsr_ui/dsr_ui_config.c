@@ -89,8 +89,10 @@ static const char *device_input_error;
 static lv_obj_t *room_dialog,*settings_dialog;
 static bool settings_context,appearance_editor;
 static unsigned tile_page;
+static int tile_focus=-1;
+static uint32_t device_order_focus;
 static cJSON *fields_tile;
-typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY,SAVE_DEVICE,SAVE_ACTIONS} save_target_t;
+typedef enum {SAVE_STAY,SAVE_HOME,SAVE_ROOMS,SAVE_MENU,SAVE_COLLECTION,SAVE_SETTINGS,SAVE_ENTITY,SAVE_DEVICE,SAVE_ACTIONS,SAVE_DEVICES} save_target_t;
 static save_target_t view_save_target,submitted_save_target;
 static uint32_t view_generation,submitted_generation;
 static bool room_return_detail;
@@ -98,6 +100,12 @@ static uint32_t room_return_id;
 typedef enum {OPEN_OK,OPEN_STORAGE,OPEN_SNAPSHOT_MEMORY,OPEN_PARSE,OPEN_INVALID,OPEN_BASELINE_MEMORY,OPEN_OBJECT_MEMORY,OPEN_PANEL} open_result_t;
 static open_result_t open_error;
 static bool error_return_rooms,error_return_settings;
+static void config_status(const char *text,bool important)
+{
+ if(!status_label)return;
+ dsr_sc_label_set_text(status_label,text);
+ lv_obj_set_style_text_color(status_label,dsr_sc_text_color(important?(dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107):DSR_SC_MUTED),0);
+}
 static void config_log(const char *stage,int code)
 {
 #ifdef ESP_PLATFORM
@@ -111,14 +119,14 @@ static void config_log(const char *stage,int code)
 }
 static void clear_draft(void)
 {memset(&action_editor,0,sizeof(action_editor));cJSON_Delete(draft);cJSON_Delete(submitted_draft);cJSON_Delete(saved_baseline);draft=submitted_draft=saved_baseline=editing=NULL;own_save=false;save_failed=save_confirmed=false;device_input_error=NULL;deletion_id=0;deletion_state=NULL;submitted_save_target=view_save_target=SAVE_STAY;}
-void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;clear_draft();}
+void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;tile_focus=-1;device_order_focus=0;clear_draft();}
 static void settings_stay(lv_event_t *event)
 {(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
 static void settings_discard(lv_event_t *event)
 {(void)event;dsr_ui_workspace_hide();dsr_ui_open_settings();}
 bool dsr_ui_settings_can_open(void)
 {
- if(own_save){if(status_label)dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return false;}
+ if(own_save){if(status_label)config_status("Poczekaj na zakończenie zapisu.",true);return false;}
  if(!editor_active||!draft||(saved_baseline&&cJSON_Compare(draft,saved_baseline,true)))return true;
  if(settings_dialog)return false;
  if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
@@ -146,7 +154,7 @@ static void close_keyboard(lv_event_t *event)
   if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_t *field=lv_keyboard_get_textarea(keyboard);if(field)lv_obj_remove_state(field,LV_STATE_FOCUSED);lv_keyboard_set_textarea(keyboard,NULL);}
   lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  }
- if(body)lv_obj_set_height(body,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?398-lv_obj_get_y(body):292);
+ if(body)lv_obj_set_height(body,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE||!strcmp(collection_name,"dashboards")?398-lv_obj_get_y(body):292);
 }
 static void focus(lv_event_t *event)
 {
@@ -221,7 +229,7 @@ static void diagnostics(lv_event_t *event)
   card=diagnostic_card(y,height,DSR_ICON_WARNING,0xffc107);dsr_ui_cyber_warning(card,false);dsr_sc_text(card,warning,56,10,226,&dsr_roboto_14,0xffc107);
   dsr_ui_button(root,"Wstecz",12,420,296,error_back,NULL);config_log("diagnostics",open_error);return;
  }
- lv_obj_t *root=screen("Diagnostyka konfiguracji");dsr_sc_label_set_text(status_label,"Tylko odczyt • dane zachowane");
+ lv_obj_t *root=screen("Diagnostyka konfiguracji");config_status("Tylko odczyt • dane zachowane",true);
  dsr_sc_text(body,storage,4,8,284,&dsr_roboto_16,DSR_SC_TEXT);
  char codes[96];snprintf(codes,sizeof(codes),"Storage: %d / 0x%x\nWorkspace: %d / 0x%x\nHTTPS: %d / 0x%x",(int)h.storage,(unsigned)h.storage_error,(int)h.workspace,(unsigned)h.workspace_error,(int)h.panel,(unsigned)h.panel_error);dsr_sc_text(body,codes,4,50,284,&dsr_roboto_14,DSR_SC_MUTED);
  dsr_sc_text(body,h.panel==DSR_PANEL_READY?"HTTPS uruchomiony":h.panel==DSR_PANEL_FAILED?"HTTPS: błąd uruchomienia":"HTTPS nie został uruchomiony",4,123,284,&dsr_roboto_14,DSR_SC_TEXT);
@@ -235,7 +243,7 @@ void dsr_ui_config_diagnostics(lv_event_t *event)
 static void config_error(open_result_t result)
 {
  clear_draft();editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=settings_dialog=NULL;open_error=result;
- lv_obj_t *root=screen("Konfiguracja niedostępna");dsr_sc_label_set_text(status_label,"Nie można otworzyć edytora");
+ lv_obj_t *root=screen("Konfiguracja niedostępna");config_status("Nie można otworzyć edytora",true);
  dsr_config_health_t h;dsr_config_health_snapshot(&h);
  const char *reason=result==OPEN_PANEL?"Serwer HTTPS jest niedostępny. Kod parowania nie został utworzony.":result==OPEN_STORAGE?(h.storage==DSR_STORAGE_NONEMPTY?"Magazyn konfiguracji niedostępny: niepusta partycja SPIFFS nie została zamontowana.":"Magazyn konfiguracji jest niedostępny."):result==OPEN_PARSE||result==OPEN_INVALID?"Nie można odczytać poprawnej konfiguracji. Sprawdź pamięć i kopię danych.":"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.";
  lv_obj_t *message=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?dsr_sc_panel(body,0,0,296,284,DSR_SC_CARD,12):body;
@@ -256,18 +264,18 @@ static open_result_t prepare_draft(void)
 }
 static void save(lv_event_t *event)
 {
- (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Zapisywanie…");return;}
+ (void)event;if(own_save){config_status("Zapisywanie…",false);return;}
  if((room_editor||action_editor.active)&&editing&&(!string(editing,"name")[0]||strlen(string(editing,"name"))>47||(action_editor.active&&!action_name_valid(string(editing,"name"))))){
-  dsr_sc_label_set_text(status_label,action_editor.active?"Podaj nazwę (maks. 47 bajtów).":!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.");return;
+  config_status(action_editor.active?"Podaj nazwę (maks. 47 bajtów).":!string(editing,"name")[0]?"Podaj nazwę pomieszczenia.":"Podaj krótszą nazwę pomieszczenia.",true);return;
  }
  if(device_editor&&editing&&strlen(string(editing,"name"))>47){
-  device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";dsr_sc_label_set_text(status_label,device_input_error);return;
+  device_input_error=!string(editing,"name")[0]?"Podaj nazwę urządzenia.":"Podaj krótszą nazwę urządzenia.";config_status(device_input_error,true);return;
  }
- char error[96];if(!dsr_config_validate(draft,error)){dsr_sc_label_set_text(status_label,"Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.");return;}
+ char error[96];if(!dsr_config_validate(draft,error)){config_status("Nieprawidłowa konfiguracja. Sprawdź pola i powiązania.",true);return;}
  cJSON *snapshot=cJSON_Duplicate(draft,true);char *json=snapshot?cJSON_PrintUnformatted(snapshot):NULL;
  bool ok=json&&dsr_workspace_submit(json,draft_revision);free(json);
  if(ok){cJSON_Delete(submitted_draft);submitted_draft=snapshot;own_save=true;save_failed=false;submitted_save_target=view_save_target;submitted_generation=view_generation;}else{cJSON_Delete(snapshot);save_failed=true;}
- dsr_sc_label_set_text(status_label,ok?"Zapisywanie…":"Konflikt lub zapis w toku. Wczytaj z pilota.");
+ config_status(ok?"Zapisywanie…":"Konflikt lub zapis w toku. Wczytaj z pilota.",!ok);
 }
 static void actions(lv_obj_t *root,lv_event_cb_t back)
 {dsr_ui_button(root,"Wstecz",12,420,140,back,NULL);dsr_ui_button(root,"Zapisz",168,420,140,save,NULL);}
@@ -338,11 +346,11 @@ static lv_obj_t *room_modal(const char *title,const char *text)
  room_dialog=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);lv_obj_set_style_bg_opa(room_dialog,180,0);lv_obj_add_flag(room_dialog,LV_OBJ_FLAG_CLICKABLE);
  lv_obj_t *panel=dsr_sc_panel(room_dialog,12,117,296,246,DSR_SC_PANEL,14);
  dsr_sc_text(panel,title,14,16,268,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(panel,text,14,53,268,&dsr_roboto_14,DSR_SC_MUTED);return panel;
+ dsr_sc_text(panel,text,14,53,268,&dsr_roboto_14,dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107);return panel;
 }
 static void room_back(lv_event_t *event)
 {
- (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ (void)event;if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
  if(!room_dirty()){room_leave(NULL);return;}
  lv_obj_t *panel=room_modal("Odrzucić zmiany?","Niezapisane zmiany tego formularza zostaną utracone.");
  dsr_ui_button(panel,"Zostań",12,188,130,room_dialog_close,NULL);dsr_ui_button(panel,"Odrzuć",154,188,130,room_leave,NULL);
@@ -356,7 +364,7 @@ static void room_delete_confirm(lv_event_t *event)
 }
 static void room_delete(lv_event_t *event)
 {
- (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ (void)event;if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
  unsigned devices=0,tiles=0;const cJSON *d,*t;int id=integer(editing,"id");
  cJSON_ArrayForEach(d,item(draft,"devices"))if(integer(d,"room")==id)devices++;
  cJSON_ArrayForEach(d,item(draft,"dashboards"))cJSON_ArrayForEach(t,item(d,"tiles"))if(!strcmp(string(t,"type"),"room")&&integer(t,"ref")==id)tiles++;
@@ -467,7 +475,7 @@ static void group_member(lv_event_t *event)
 }
 static bool entity_deletable(void)
 {
- if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return false;}
+ if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return false;}
  if(!draft||!editing)return false;
  const cJSON *a=item(draft,collection_name),*member;bool present=false;
  cJSON_ArrayForEach(member,a)if(member==editing)present=true;
@@ -475,7 +483,7 @@ static bool entity_deletable(void)
  /* Device removal cleans exact references in one workspace CAS. A running
   * bind may still be publishing its locator and must finish first. */
  if(!strcmp(collection_name,"devices")){
-  if(dsr_network_bind_busy()){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie dodawania urządzenia.");return false;}
+  if(dsr_network_bind_busy()){config_status("Poczekaj na zakończenie dodawania urządzenia.",true);return false;}
   return true;
  }
  int id=integer(editing,"id");const cJSON *v,*t;bool referenced=false;
@@ -488,13 +496,13 @@ static bool entity_deletable(void)
   cJSON_ArrayForEach(v,item(draft,"groups"))if(integer(v,"room")==id)referenced=true;
   cJSON_ArrayForEach(v,item(draft,"scenes"))if(integer(v,"room")==id)referenced=true;
  }
- if(strcmp(collection_name,"dashboards")&&referenced){dsr_sc_label_set_text(status_label,"Najpierw usuń powiązane karty lub działania.");return false;}
- if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)<=1){dsr_sc_label_set_text(status_label,"Zachowaj przynajmniej jeden pulpit.");return false;}
+ if(strcmp(collection_name,"dashboards")&&referenced){config_status("Najpierw usuń powiązane karty lub działania.",true);return false;}
+ if(!strcmp(collection_name,"dashboards")&&cJSON_GetArraySize(a)<=1){config_status("Zachowaj przynajmniej jeden pulpit.",true);return false;}
  return true;
 }
 static void deletion_back(lv_event_t *event)
 {
- (void)event;if(own_save){dsr_sc_label_set_text(status_label,"Poczekaj na zakończenie zapisu.");return;}
+ (void)event;if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
  if(save_confirmed){dsr_ui_workspace_hide();dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);}
  else room_back(NULL);
 }
@@ -511,7 +519,7 @@ static void delete_entity_confirm(lv_event_t *event)
  (void)event;room_dialog_close(NULL);if(!entity_deletable())return;
  if(!strcmp(collection_name,"devices")){
   uint32_t id=(uint32_t)integer(editing,"id");char error[96];cJSON *next=dsr_config_remove_device(draft,id,error);
-  if(!next){dsr_sc_label_set_text(status_label,"Nie udało się przygotować usunięcia. Dane zachowane.");return;}
+  if(!next){config_status("Nie udało się przygotować usunięcia. Dane zachowane.",true);return;}
   cJSON_Delete(draft);draft=next;editing=NULL;deletion_id=id;
   show_device_deletion();save(NULL);return;
  }
@@ -535,32 +543,81 @@ static void delete_entity(lv_event_t *event)
 }
 #include "dsr_ui_action_editor.inc"
 static void edit_event(lv_event_t *event){show_entity(lv_event_get_user_data(event));}
+static void inactive_control(lv_obj_t *button)
+{lv_obj_add_state(button,LV_STATE_DISABLED);lv_obj_set_style_opa(button,LV_OPA_60,LV_STATE_DISABLED);lv_obj_set_style_text_color(lv_obj_get_child(button,0),dsr_sc_text_color(DSR_SC_MUTED),0);}
+static lv_obj_t *order_button(lv_obj_t *parent,int x,int y,int width,bool down,bool enabled,lv_event_cb_t callback,uintptr_t value)
+{
+ lv_obj_t *button=dsr_ui_button(parent,down?"Dół":"Góra",x,y,width,callback,(void *)value),*caption=lv_obj_get_child(button,0);
+ dsr_ui_icon_t arrow=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?(down?DSR_ICON_COVER_CLOSE:DSR_ICON_COVER_OPEN):(down?DSR_ICON_DOWN:DSR_ICON_UP);
+ lv_obj_remove_flag(button,LV_OBJ_FLAG_PRESS_LOCK);
+ if(width<80){
+  lv_obj_set_style_text_font(caption,dsr_sc_font(&dsr_roboto_11),0);lv_obj_set_width(caption,width-4);lv_obj_align(caption,LV_ALIGN_BOTTOM_MID,0,-3);
+  dsr_sc_icon(button,arrow,(width-20)/2,4,20,enabled?DSR_SC_GLOW:DSR_SC_OFF);
+ }else{
+  lv_obj_set_width(caption,width-44);lv_obj_align(caption,LV_ALIGN_RIGHT_MID,-4,0);dsr_sc_icon(button,arrow,8,12,24,enabled?DSR_SC_GLOW:DSR_SC_OFF);
+ }
+ if(!enabled)inactive_control(button);
+ return button;
+}
+static void device_order_leave(lv_event_t *event)
+{(void)event;dsr_ui_workspace_hide();dsr_network_home(NULL);dsr_mobile_show(DSR_MOBILE_DEVICES,0);}
+static void device_order_back(lv_event_t *event)
+{
+ (void)event;if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
+ if(!room_dirty()){device_order_leave(NULL);return;}
+ lv_obj_t *panel=room_modal("Odrzucić zmiany?","Niezapisane zmiany tego formularza zostaną utracone.");
+ dsr_ui_button(panel,"Zostań",12,188,130,room_dialog_close,NULL);dsr_ui_button(panel,"Odrzuć",154,188,130,device_order_leave,NULL);
+}
+static void show_device_order(void);
+static void reorder_device(lv_event_t *event)
+{
+ if(own_save){config_status("Poczekaj na zakończenie zapisu.",true);return;}
+ uintptr_t value=(uintptr_t)lv_event_get_user_data(event);int at=(int)(value/2),to=at+(value%2?1:-1);cJSON *devices=cJSON_GetObjectItemCaseSensitive(draft,"devices");
+ if(at>=cJSON_GetArraySize(devices)||to<0||to>=cJSON_GetArraySize(devices))return;
+ cJSON *device=cJSON_DetachItemFromArray(devices,at);device_order_focus=(uint32_t)integer(device,"id");cJSON_InsertItemInArray(devices,to,device);show_device_order();
+}
+static void show_device_order(void)
+{
+ lv_obj_t *root=screen("Kolejność urządzeń");view_save_target=SAVE_DEVICES;lv_obj_set_y(body,118);lv_obj_set_height(body,280);dsr_sc_header_back(root,device_order_back,NULL);
+ const cJSON *devices=item(draft,"devices"),*device;int y=0,index=0,count=cJSON_GetArraySize(devices);lv_obj_t *focus_row=NULL;
+ cJSON_ArrayForEach(device,devices){
+  const char *name=display_name(device);lv_point_t size;lv_text_get_size(&size,name,dsr_sc_font(&dsr_roboto_14),0,0,148,LV_TEXT_FLAG_NONE);int height=size.y+20;if(height<68)height=68;
+  lv_obj_t *row=dsr_sc_panel(body,0,y,284,height,DSR_SC_CARD,8),*label=dsr_sc_text(row,dsr_sc_user(name),10,0,148,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_align(label,LV_ALIGN_LEFT_MID,10,0);
+  order_button(row,168,(height-48)/2,48,false,index>0,reorder_device,(uintptr_t)(index*2));order_button(row,224,(height-48)/2,48,true,index+1<count,reorder_device,(uintptr_t)(index*2+1));
+  if((uint32_t)integer(device,"id")==device_order_focus)focus_row=row;
+  y+=height+8;index++;
+ }
+ if(!count)dsr_sc_text(body,"Brak urządzeń",12,24,260,&dsr_roboto_16,DSR_SC_MUTED);
+ actions(root,device_order_back);if(focus_row){lv_obj_update_layout(body);lv_obj_scroll_to_view(focus_row,LV_ANIM_OFF);}device_order_focus=0;
+}
+static void tile_redraw(void)
+{int scroll=lv_obj_get_scroll_y(body);show_entity(editing);lv_obj_update_layout(body);lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);}
 static void reorder(lv_event_t *event)
 {
  uintptr_t value=(uintptr_t)lv_event_get_user_data(event);int at=(int)(value/2),direction=value%2?1:-1;
- cJSON *a=cJSON_GetObjectItemCaseSensitive(editing,"tiles");int to=at+direction;if(to<0||to>=cJSON_GetArraySize(a))return;cJSON *t=cJSON_DetachItemFromArray(a,at);cJSON_InsertItemInArray(a,to,t);show_entity(editing);
+ cJSON *a=cJSON_GetObjectItemCaseSensitive(editing,"tiles");int to=at+direction;if(to<0||to>=cJSON_GetArraySize(a))return;cJSON *t=cJSON_DetachItemFromArray(a,at);cJSON_InsertItemInArray(a,to,t);tile_page=(unsigned)to/3;tile_focus=to;show_entity(editing);
 }
 static void tile_remove(lv_event_t *event){cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(editing,"tiles"),(int)(uintptr_t)lv_event_get_user_data(event));show_entity(editing);}
 static void tile_add(lv_event_t *event)
 {
  unsigned type=(unsigned)(uintptr_t)lv_event_get_user_data(event);const char *key=type==0?"devices":type==1?"rooms":type==2?"scenes":"groups";
- const cJSON *objects=item(draft,key);if(!objects->child){dsr_sc_label_set_text(status_label,"Najpierw dodaj obiekt tego typu");return;}
+ const cJSON *objects=item(draft,key);if(!objects->child){config_status("Najpierw dodaj obiekt tego typu",true);return;}
  cJSON *tiles=cJSON_GetObjectItemCaseSensitive(editing,"tiles");if(cJSON_GetArraySize(tiles)>=24)return;int id=1;for(cJSON *t=tiles->child;t;t=t->next)if(integer(t,"id")>=id)id=integer(t,"id")+1;
  cJSON *t=cJSON_CreateObject();cJSON_AddNumberToObject(t,"id",id);cJSON_AddStringToObject(t,"type",type==0?"device":type==1?"room":type==2?"scene":"group");cJSON_AddNumberToObject(t,"ref",integer(objects->child,"id"));cJSON_AddNumberToObject(t,"span",type==1?1:2);cJSON_AddNumberToObject(t,"height",1);cJSON_AddNumberToObject(t,"fields",255);cJSON_AddItemToArray(tiles,t);show_entity(editing);
 }
 static void tile_next(lv_event_t *event)
 {
  cJSON *t=lv_event_get_user_data(event);const char *type=string(t,"type");const cJSON *objects=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":!strcmp(type,"scene")?"scenes":"groups"),*v;
- unsigned i=object_index(objects,integer(t,"ref"));v=cJSON_GetArrayItem(objects,(int)((i+1)%(unsigned)cJSON_GetArraySize(objects)));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(v,"id"));show_entity(editing);
+ unsigned count=(unsigned)cJSON_GetArraySize(objects);if(count<2)return;unsigned i=object_index(objects,integer(t,"ref"));v=cJSON_GetArrayItem(objects,(int)((i+1)%count));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(v,"id"));tile_redraw();
 }
 static void tile_size(lv_event_t *event)
-{cJSON *t=lv_event_get_user_data(event);cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"height"),integer(t,"height")==1?2:1);show_entity(editing);}
+{cJSON *t=lv_event_get_user_data(event);cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"height"),integer(t,"height")==1?2:1);tile_redraw();}
 static void tile_span(lv_event_t *event)
-{cJSON *t=lv_event_get_user_data(event);if(strcmp(string(t,"type"),"room")){dsr_sc_label_set_text(status_label,"Urządzenia i sceny używają pełnej szerokości.");return;}cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),integer(t,"span")==1?2:1);show_entity(editing);}
+{cJSON *t=lv_event_get_user_data(event);if(strcmp(string(t,"type"),"room"))return;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),integer(t,"span")==1?2:1);tile_redraw();}
 static void tile_type(lv_event_t *event)
 {
  cJSON *t=lv_event_get_user_data(event);const char *types[]={"device","room","scene","group"},*keys[]={"devices","rooms","scenes","groups"};unsigned current=!strcmp(string(t,"type"),"device")?0:!strcmp(string(t,"type"),"room")?1:!strcmp(string(t,"type"),"scene")?2:3;
- for(unsigned n=1;n<=4;n++){unsigned to=(current+n)%4;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to!=1)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}show_entity(editing);
+ for(unsigned n=1;n<=4;n++){unsigned to=(current+n)%4;const cJSON *a=item(draft,keys[to]);if(a->child){cJSON_ReplaceItemInObjectCaseSensitive(t,"type",cJSON_CreateString(types[to]));cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"ref"),integer(a->child,"id"));if(to!=1)cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(t,"span"),2);break;}}tile_redraw();
 }
 static void field_changed(lv_event_t *event)
 {unsigned bit=(unsigned)(uintptr_t)lv_event_get_user_data(event);int f=integer(fields_tile,"fields");if(lv_obj_has_state(lv_event_get_target(event),LV_STATE_CHECKED))f|=(int)bit;else f&=~(int)bit;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(fields_tile,"fields"),f);}
@@ -576,9 +633,9 @@ static void show_entity(cJSON *entity)
 {
  if(room_editor){editing=entity;show_room_form();return;}
  if(device_editor){editing=entity;show_device_form();return;}
- editing=entity;lv_obj_t *root=screen("Edytuj konfigurację");add_field("Nazwa","name",0,false);
+ editing=entity;bool dashboard=!strcmp(collection_name,"dashboards");lv_obj_t *root=screen(dashboard?"Edytuj dashboard":"Edytuj konfigurację");if(dashboard){lv_obj_set_y(body,118);lv_obj_set_height(body,280);}add_field("Nazwa","name",0,false);
  view_save_target=SAVE_COLLECTION;
- bool room=!strcmp(collection_name,"rooms"),dashboard=!strcmp(collection_name,"dashboards");
+ bool room=!strcmp(collection_name,"rooms");
  if(room||dashboard)dsr_ui_button(body,room?"Usuń pomieszczenie":"Usuń pulpit",0,76,284,delete_entity,NULL);
  if(room){add_choice("Ikona",&icon_choice,140);dsr_ui_button(body,string(editing,"photo")[0]?"Zmień zdjęcie z pamięci":"Wybierz zdjęcie z pamięci",0,228,284,choose_photo,NULL);dsr_sc_text(body,"Własne zdjęcia dodaj w lokalnym Web Panelu. Zostaną zapisane w pilocie.",0,288,284,&dsr_roboto_12,DSR_SC_MUTED);}
  if(!strcmp(collection_name,"devices")){add_choice("Typ",&kind_choice,80);add_field("Adres IPv4 Shelly","host",160,false);add_field("Kanał (0–15)","channel",240,true);object_choice("Pomieszczenie","room",320);}
@@ -593,7 +650,7 @@ static void show_entity(cJSON *entity)
  if(!strcmp(collection_name,"dashboards")){
   bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
   /* Every skin reserves two title lines before the tile controls. */
-  int stride=208,offset=48;
+  int stride=260,offset=48;lv_obj_t *focus_order=NULL;
   cJSON *tiles=cJSON_GetObjectItemCaseSensitive(entity,"tiles");int i=0,visible=0;
   unsigned pages=((unsigned)cJSON_GetArraySize(tiles)+2)/3;if(tile_page>=pages)tile_page=pages?pages-1:0;
   for(cJSON *t=tiles->child;t;t=t->next,i++){
@@ -602,19 +659,25 @@ static void show_entity(cJSON *entity)
    int y=140+visible++*stride;char text[100];snprintf(text,sizeof(text),"%s • %s",string(target,"name"),dsr_sc_tr(integer(t,"height")==2?"duża":"standard"));
    lv_obj_t *title=dsr_sc_text(body,dsr_sc_user(text),0,y,280,hud?&dsr_roboto_16:&dsr_roboto_14,DSR_SC_TEXT);
    lv_obj_set_height(title,40);lv_label_set_long_mode(title,LV_LABEL_LONG_MODE_DOTS);
-   dsr_ui_button(body,"Obiekt",0,y+offset,87,tile_next,t);dsr_ui_button(body,"Układ",96,y+offset,87,tile_span,t);dsr_ui_button(body,"Typ",192,y+offset,87,tile_type,t);
-   dsr_ui_button(body,"Wys.",0,y+offset+52,87,tile_size,t);dsr_ui_button(body,"Dane",96,y+offset+52,87,tile_fields,t);dsr_ui_button(body,"Usuń",192,y+offset+52,87,tile_remove,(void *)(uintptr_t)i);
-   dsr_ui_button(body,"Góra",0,y+offset+104,136,reorder,(void *)(uintptr_t)(i*2));dsr_ui_button(body,"Dół",148,y+offset+104,136,reorder,(void *)(uintptr_t)(i*2+1));
+   lv_obj_t *up=order_button(body,0,y+offset,136,false,i>0,reorder,(uintptr_t)(i*2));order_button(body,148,y+offset,136,true,i+1<cJSON_GetArraySize(tiles),reorder,(uintptr_t)(i*2+1));if(i==tile_focus)focus_order=up;
+   bool multiple=cJSON_GetArraySize(a)>1,is_device=!strcmp(type,"device"),is_room=!strcmp(type,"room");
+   lv_obj_t *object=dsr_ui_button(body,multiple?"Następny obiekt":"Tylko jeden obiekt",0,y+offset+52,136,tile_next,t);if(!multiple)inactive_control(object);
+   const char *kinds[]={"devices","rooms","scenes","groups"};unsigned available=0;for(unsigned k=0;k<4;k++)if(cJSON_GetArraySize(item(draft,kinds[k])))available++;
+   const char *kind=is_device?"Urządzenie":is_room?"Pomieszczenie":!strcmp(type,"scene")?"Scena":"Grupa";char caption[80];snprintf(caption,sizeof(caption),dsr_sc_tr("Typ: %s"),dsr_sc_tr(kind));lv_obj_t *type_button=dsr_ui_button(body,caption,148,y+offset+52,136,tile_type,t);if(available<2)inactive_control(type_button);
+   lv_obj_t *width=dsr_ui_button(body,integer(t,"span")==1?"Połowa szerokości":"Pełna szerokość",0,y+offset+104,136,tile_span,t);if(!is_room)inactive_control(width);
+   snprintf(caption,sizeof(caption),dsr_sc_tr("Rozmiar: %s"),dsr_sc_tr(integer(t,"height")==2?"duża":"standard"));dsr_ui_button(body,caption,148,y+offset+104,136,tile_size,t);
+   lv_obj_t *data=dsr_ui_button(body,"Dane na karcie",0,y+offset+156,136,tile_fields,t);if(!is_device)inactive_control(data);dsr_ui_button(body,"Usuń kartę",148,y+offset+156,136,tile_remove,(void *)(uintptr_t)i);
   }
   int y=148+visible*stride;if(tile_page)dsr_ui_button(body,"Poprzednie karty",0,y,284,tiles_page,(void *)(uintptr_t)(tile_page-1));if(tile_page+1<pages)dsr_ui_button(body,"Następne karty",0,y+56,284,tiles_page,(void *)(uintptr_t)(tile_page+1));
   dsr_ui_button(body,"+ Urządzenie",0,y+112,284,tile_add,(void *)0);dsr_ui_button(body,"+ Pomieszczenie",0,y+168,284,tile_add,(void *)1);dsr_ui_button(body,"+ Scena",0,y+224,284,tile_add,(void *)2);dsr_ui_button(body,"+ Grupa",0,y+280,284,tile_add,(void *)3);
+  if(focus_order){lv_obj_update_layout(body);lv_obj_scroll_to_view(focus_order,LV_ANIM_OFF);}tile_focus=-1;
  }
  if(!room&&!dashboard){int bottom=!strcmp(collection_name,"scenes")?160+cJSON_GetArraySize(item(entity,"actions"))*112:!strcmp(collection_name,"groups")?160+cJSON_GetArraySize(item(draft,"devices"))*44:420;dsr_ui_button(body,!strcmp(collection_name,"devices")?"Usuń urządzenie":"Usuń wpis",0,bottom,284,delete_entity,NULL);}actions(root,show_collection);
 }
 static void add_entity(lv_event_t *event)
 {
  (void)event;cJSON *a=cJSON_GetObjectItemCaseSensitive(draft,collection_name);int id=1;for(cJSON *v=a->child;v;v=v->next)if(integer(v,"id")>=id)id=integer(v,"id")+1;
- int limit=!strcmp(collection_name,"dashboards")?4:!strcmp(collection_name,"devices")?16:8;if(cJSON_GetArraySize(a)>=limit){dsr_sc_label_set_text(status_label,"Osiągnięto limit wpisów");return;}
+ int limit=!strcmp(collection_name,"dashboards")?4:!strcmp(collection_name,"devices")?16:8;if(cJSON_GetArraySize(a)>=limit){config_status("Osiągnięto limit wpisów",true);return;}
  cJSON *v=cJSON_CreateObject();cJSON_AddNumberToObject(v,"id",id);cJSON_AddStringToObject(v,"name","Nowy wpis");
  if(!strcmp(collection_name,"dashboards"))cJSON_AddItemToObject(v,"tiles",cJSON_CreateArray());
  if(!strcmp(collection_name,"rooms")){cJSON_AddNumberToObject(v,"icon",0);cJSON_AddStringToObject(v,"photo","");}
@@ -664,6 +727,12 @@ void dsr_ui_edit_dashboard(void)
 {
  settings_context=appearance_editor=error_return_settings=false;error_return_rooms=false;config_log("edit_dashboard",0);open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
  room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_dialog=NULL;editor_active=true;dashboard_picker=false;tile_page=0;config_log("show_menu",0);show_menu();
+}
+void dsr_ui_edit_layout(void)
+{
+ if(!dsr_mobile_active()||dsr_mobile_page()!=DSR_MOBILE_DEVICES){dsr_ui_edit_dashboard();return;}
+ settings_context=appearance_editor=error_return_settings=error_return_rooms=false;open_result_t result=prepare_draft();if(result!=OPEN_OK){config_error(result);return;}
+ room_editor=room_new=room_deleted=device_editor=dashboard_picker=false;context_device_id=0;room_dialog=NULL;editor_active=true;snprintf(collection_name,sizeof(collection_name),"devices");show_device_order();
 }
 static bool room_begin(void)
 {
@@ -728,7 +797,7 @@ void dsr_ui_workspace_tick(void)
   }
   if(!acknowledged){
    if(own_save&&!busy){own_save=false;save_failed=true;cJSON_Delete(submitted_draft);submitted_draft=NULL;}
-   dsr_sc_label_set_text(status_label,"Zmieniono konfigurację. Wróć i otwórz edycję ponownie.");if(deletion_id&&deletion_state)dsr_sc_label_set_text(deletion_state,"Nie potwierdzono zapisu usunięcia. Spróbuj ponownie.");return;
+   config_status("Zmieniono konfigurację. Wróć i otwórz edycję ponownie.",true);if(deletion_id&&deletion_state)dsr_sc_label_set_text(deletion_state,"Nie potwierdzono zapisu usunięcia. Spróbuj ponownie.");return;
   }
   draft_revision=revision;own_save=false;save_confirmed=true;save_failed=false;
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(draft,"revision"),revision);
@@ -739,6 +808,7 @@ void dsr_ui_workspace_tick(void)
   bool clean=cJSON_Compare(draft,saved_baseline,true);
   if(clean&&submitted_generation==view_generation&&target!=SAVE_STAY){
    if(target==SAVE_ACTIONS){action_leave(NULL);return;}
+   if(target==SAVE_DEVICES){device_order_leave(NULL);return;}
    if(target==SAVE_HOME){return_home(NULL);return;}
    if(target==SAVE_ROOMS){room_leave(NULL);return;}
    if(target==SAVE_DEVICE){room_leave(NULL);return;}
@@ -761,11 +831,11 @@ void dsr_ui_workspace_tick(void)
   dsr_sc_label_set_text(deletion_state,text);
  }
  bool dirty=!saved_baseline||!cJSON_Compare(draft,saved_baseline,true);
- if(device_editor&&device_input_error){dsr_sc_label_set_text(status_label,device_input_error);return;}
- if(own_save)dsr_sc_label_set_text(status_label,"Zapisywanie…");
- else if(save_failed)dsr_sc_label_set_text(status_label,"Zapis nie powiódł się. Zmiany pozostają w edytorze.");
- else if(dirty)dsr_sc_label_set_text(status_label,save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany");
- else if(save_confirmed)dsr_sc_label_set_text(status_label,"Zapisano • zsynchronizowano");
+ if(device_editor&&device_input_error){config_status(device_input_error,true);return;}
+ if(own_save)config_status("Zapisywanie…",false);
+ else if(save_failed)config_status("Zapis nie powiódł się. Zmiany pozostają w edytorze.",true);
+ else if(dirty)config_status(save_confirmed?"Zapisano wcześniejszą wersję • są niezapisane zmiany":"Niezapisane zmiany",true);
+ else if(save_confirmed)config_status("Zapisano • zsynchronizowano",false);
 }
 typedef struct {dsr_device_t device;uint32_t layout_id,room,version,candidate_id;char previous_host[16];} migration_t;
 static migration_t migrations[DSR_MAX_DEVICES];
