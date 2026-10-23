@@ -41,12 +41,15 @@ static bool rate_ready(uint32_t id,uint32_t now)
 {for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(ctx->rate[i].id==id)return (int32_t)(now-ctx->rate[i].until)>=0;return true;}
 static void rate_result(uint32_t id,dsr_result_t result,uint32_t now)
 {
- for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(ctx->rate[i].id==id||!ctx->rate[i].id){
-  if(result==DSR_OK){memset(&ctx->rate[i],0,sizeof(ctx->rate[i]));return;}
-  if(result!=DSR_RATE_LIMITED)return;
-  ctx->rate[i].id=id;if(ctx->rate[i].failures<3)ctx->rate[i].failures++;
-  ctx->rate[i].until=now+(DSR_FLEET_RATE_LIMIT_MS<<(ctx->rate[i].failures-1));return;
- }
+ int at=-1;
+ for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(ctx->rate[i].id==id){at=(int)i;break;}
+ if(result==DSR_OK){if(at>=0)memset(&ctx->rate[at],0,sizeof(ctx->rate[at]));return;}
+ if(result!=DSR_RATE_LIMITED)return;
+ if(at<0)for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(!ctx->rate[i].id){at=(int)i;break;}
+ if(at<0)for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(find_key(&ctx->public_rules,ctx->rate[i].id)<0){at=(int)i;memset(&ctx->rate[i],0,sizeof(ctx->rate[i]));break;}
+ if(at<0)return; /* one slot per bounded participant; never evict an applicable cooldown */
+ ctx->rate[at].id=id;if(ctx->rate[at].failures<3)ctx->rate[at].failures++;
+ ctx->rate[at].until=now+(DSR_FLEET_RATE_LIMIT_MS<<(ctx->rate[at].failures-1));
 }
 static dsr_auto_key_t actual_key(const dsr_connection_t *c,uint8_t role)
 {
@@ -188,8 +191,11 @@ bool dsr_automation_prepare_read(const dsr_fleet_t *fleet,uint32_t job,uint32_t 
  if(!fleet||!job||!out||!take())return false;
  bool ready=ctx->online&&ctx->effect.kind==DSR_AUTO_EFFECT_READ_TRV&&!ctx->read_job;
  const dsr_fleet_slot_t *s=ready?find_slot(fleet,ctx->effect.layout_id):NULL;
- if(!s||!s->layout_enabled||s->queued||s->mailbox_pending||s->in_flight||s->blocked||
-  !rate_ready(ctx->effect.layout_id,now)||(s->result==DSR_RATE_LIMITED&&(int32_t)(now-s->next_poll)<0))ready=false;
+ if(ready&&(!s||!s->layout_enabled||s->queued||s->mailbox_pending||s->in_flight||s->blocked||
+  !rate_ready(ctx->effect.layout_id,now)||(s->result==DSR_RATE_LIMITED&&(int32_t)(now-s->next_poll)<0))){
+  dsr_result_t reason=s&&s->blocked&&s->result!=DSR_OK?s->result:!s||!s->layout_enabled?DSR_OFFLINE:DSR_BUSY;
+  dsr_auto_defer_read(&ctx->model,&ctx->effect,now,reason);ctx->effect=(dsr_auto_effect_t){0};ready=false;
+ }
  if(ready){*out=(dsr_job_t){.id=job,.kind=DSR_JOB_TRV_READ,.connection=s->connection};ctx->read_job=job;ctx->read_started=now;}
  give();return ready;
 }
@@ -253,7 +259,7 @@ void dsr_automation_tick(dsr_fleet_t *fleet,uint32_t now,uint32_t utc,bool onlin
   /* TRV mirror has read_id0: key verification only, never direct proof. */
   dsr_auto_observe(&ctx->model,&o);
  }
- if(ctx->effect.kind==DSR_AUTO_EFFECT_SET_TRV&&!ctx->run_id&&
+ if((ctx->effect.kind==DSR_AUTO_EFFECT_SET_TRV||ctx->effect.kind==DSR_AUTO_EFFECT_READ_TRV)&&!ctx->run_id&&!ctx->read_job&&
    (!public_allows(&ctx->effect)||!dsr_auto_effect_allowed(&ctx->model,&ctx->effect,now,utc))){
   dsr_auto_unqueue(&ctx->model,&ctx->effect);ctx->effect=(dsr_auto_effect_t){0};
  }

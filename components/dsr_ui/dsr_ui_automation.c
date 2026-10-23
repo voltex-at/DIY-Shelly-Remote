@@ -117,12 +117,14 @@ static void enabled(lv_event_t *e)
 static void save(lv_event_t *e)
 {
  (void)e;if(form.saving)return;char error[96];
- if(!dsr_config_validate(form.doc,error)){fail(a("Sprawdź nazwę i wybrane urządzenia.","Check the name and selected devices.","Name und ausgewählte Geräte prüfen."));draw();return;}
- if(!dsr_automation_config_allowed(form.doc,error)){fail(a("Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Disable and save an active rule before changing it.","Aktive Regel vor Änderungen deaktivieren und speichern."));draw();return;}
- if(dsr_workspace_revision()!=form.revision){fail(a("Konfiguracja zmieniona. Wróć i otwórz ponownie; szkic pozostaje.","Configuration changed. Reopen before saving; draft retained.","Konfiguration geändert. Neu öffnen; Entwurf bleibt erhalten."));draw();return;}
- char *json=cJSON_PrintUnformatted(form.doc);if(!json){fail(a("Błąd pamięci","Storage error","Speicherfehler"));draw();return;}
- cJSON_Delete(form.expected);form.expected=cJSON_Duplicate(form.doc,true);
- if(!form.expected){free(json);fail(a("Błąd pamięci","Storage error","Speicherfehler"));draw();return;}
+ cJSON *candidate=cJSON_Duplicate(form.doc,true);
+ if(!candidate){fail(a("Błąd pamięci","Storage error","Speicherfehler"));draw();return;}
+ if(form.deleting){cJSON *rules=cJSON_GetObjectItemCaseSensitive(candidate,"automations");for(int i=0;i<cJSON_GetArraySize(rules);i++)if(num(cJSON_GetArrayItem(rules,i),"id")==form.id){cJSON_DeleteItemFromArray(rules,i);break;}}
+ if(!dsr_config_validate(candidate,error)){cJSON_Delete(candidate);fail(a("Sprawdź nazwę i wybrane urządzenia.","Check the name and selected devices.","Name und ausgewählte Geräte prüfen."));draw();return;}
+ if(!dsr_automation_config_allowed(candidate,error)){cJSON_Delete(candidate);fail(a("Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Disable and save an active rule before changing it.","Aktive Regel vor Änderungen deaktivieren und speichern."));draw();return;}
+ if(dsr_workspace_revision()!=form.revision){cJSON_Delete(candidate);fail(a("Konfiguracja zmieniona. Wróć i otwórz ponownie; szkic pozostaje.","Configuration changed. Reopen before saving; draft retained.","Konfiguration geändert. Neu öffnen; Entwurf bleibt erhalten."));draw();return;}
+ char *json=cJSON_PrintUnformatted(candidate);if(!json){cJSON_Delete(candidate);fail(a("Błąd pamięci","Storage error","Speicherfehler"));draw();return;}
+ cJSON_Delete(form.expected);form.expected=candidate;
  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(form.expected,"revision"),form.revision+1);
  form.saving=dsr_workspace_submit(json,form.revision);free(json);
  fail(form.saving?a("Zapisywanie…","Saving…","Speichern…"):a("Nie zapisano. Szkic zachowany.","Not saved. Draft retained.","Nicht gespeichert. Entwurf erhalten."));draw();
@@ -152,25 +154,38 @@ static void deletion(lv_event_t *e)
 static void remove_rule(lv_event_t *e)
 {
  (void)e;if(form.saving)return;
- cJSON *rules=cJSON_GetObjectItemCaseSensitive(form.doc,"automations");
- for(int i=0;i<cJSON_GetArraySize(rules);i++)if(num(cJSON_GetArrayItem(rules,i),"id")==form.id){cJSON_DeleteItemFromArray(rules,i);break;}
- form.rule=NULL;save(NULL);
+ save(NULL);
+}
+static const char *read_reason(dsr_result_t result)
+{
+ switch(result){
+ case DSR_UNSUPPORTED:return a("Bezpośredni odczyt TRV lub nastawa nieobsługiwane.","Direct TRV read or target is unsupported.","Direkte TRV-Abfrage oder Sollwert nicht unterstützt.");
+ case DSR_AUTH_REQUIRED:return a("Wymagane logowanie do bramki.","Gateway authentication required.","Gateway-Anmeldung erforderlich.");
+ case DSR_IDENTITY_MISMATCH:return a("Powiązanie termostatu zmienione. Sprawdź konfigurację.","Thermostat binding changed. Review configuration.","Thermostat-Zuordnung geändert. Konfiguration prüfen.");
+ case DSR_RATE_LIMITED:return a("Limit zapytań. Oczekiwanie przed ponowieniem.","Rate limited. Waiting before retry.","Abfragelimit. Wartezeit vor Wiederholung.");
+ case DSR_BUSY:return a("Oczekiwanie na dostęp do urządzenia.","Waiting for device access.","Warte auf Gerätezugriff.");
+ case DSR_OFFLINE:return a("Brak odpowiedzi termostatu. Oczekiwanie na nowy odczyt.","Thermostat did not respond. Waiting for a new read.","Thermostat antwortet nicht. Warte auf neue Abfrage.");
+ case DSR_IO:return a("Błąd pamięci.","Storage error.","Speicherfehler.");
+ default:return a("Niepoprawny odczyt termostatu.","Invalid thermostat reading.","Ungültiger Thermostatwert.");
+ }
 }
 static void details(lv_event_t *e){form.id=(uint32_t)(uintptr_t)lv_event_get_user_data(e);form.page=2;form.error[0]=0;draw();}
 static void status_page(void)
 {
  dsr_auto_snapshot_t s;dsr_automation_snapshot(&s);int y=4;const dsr_auto_rule_status_t *r=NULL;
  for(unsigned i=0;i<s.count;i++)if(s.rules[i].rule_id==form.id)r=&s.rules[i];
+ const cJSON *rule;cJSON_ArrayForEach(rule,get(form.doc,"automations"))if(num(rule,"id")==form.id)break;
+ bool target_error=false;for(unsigned i=0;i<s.target_count;i++)if(selected(get(rule,"targets"),s.targets[i].layout_id)&&r&&s.targets[i].result!=DSR_OK&&s.targets[i].result==r->result)target_error=true;
  y=paragraph(form.body,r?state(r->state):state(DSR_AUTO_WAITING),y,r&&(r->state>=DSR_AUTO_MANUAL));
  if(r&&r->missing_id){char text[128];snprintf(text,sizeof(text),"%s: %s (#%u)",a("Brak nowego raportu","Waiting for a new report","Neuer Bericht fehlt"),device_name(r->missing_id),(unsigned)r->missing_id);y=paragraph(form.body,text,y,true);}
- if(r&&r->result!=DSR_OK)y=paragraph(form.body,r->result==DSR_CONFLICT?a("Sprawdź powiązania. Wyłącz, zapisz i włącz regułę ponownie.","Review bindings. Disable, save, then enable the rule again.","Zuordnung prüfen. Regel deaktivieren, speichern und erneut aktivieren."):r->result==DSR_IO?a("Błąd dziennika. Automatyzacja wstrzymana.","Journal error. Automation paused.","Journalfehler. Automatik angehalten."):a("Brak potwierdzenia urządzenia.","Device confirmation unavailable.","Gerätebestätigung fehlt."),y,true);
- const cJSON *rule;cJSON_ArrayForEach(rule,get(form.doc,"automations"))if(num(rule,"id")==form.id)break;
+ if(r&&r->result!=DSR_OK&&!target_error)y=paragraph(form.body,r->result==DSR_CONFLICT?a("Sprawdź powiązania. Wyłącz, zapisz i włącz regułę ponownie.","Review bindings. Disable, save, then enable the rule again.","Zuordnung prüfen. Regel deaktivieren, speichern und erneut aktivieren."):r->result==DSR_IO?a("Błąd dziennika. Automatyzacja wstrzymana.","Journal error. Automation paused.","Journalfehler. Automatik angehalten."):read_reason(r->result),y,true);
  for(unsigned i=0;i<s.target_count;i++)if(selected(get(rule,"targets"),s.targets[i].layout_id)){
   char text[192],baseline[24]="—",requested[24]="—",read[24]="—";
   if(s.targets[i].baseline)snprintf(baseline,24,"%.1f °C",s.targets[i].baseline/2.0);
   if(s.targets[i].requested)snprintf(requested,24,"%.1f °C",s.targets[i].requested/2.0);
   if(s.targets[i].read_half)snprintf(read,24,"%.1f °C",s.targets[i].read_half/2.0);
   snprintf(text,sizeof(text),"%s\n%s: %s\n%s: %s\n%s: %s",device_name(s.targets[i].layout_id),a("Poprzednia","Previous","Vorher"),baseline,a("Żądana","Requested","Angefordert"),requested,a("Odczytana","Read back","Ausgelesen"),read);y=paragraph(form.body,text,y,false);
+  if(s.targets[i].result!=DSR_OK)y=paragraph(form.body,read_reason(s.targets[i].result),y,true);
  }
  paragraph(form.body,a("Wznowienie wymaga nowych raportów wszystkich kontaktów i odczytów TRV. Tryb beacon można włączyć samodzielnie w Shelly.","Resume requires new reports from all contacts and TRV reads. Beacon mode can be enabled manually in Shelly.","Fortsetzung nach neuen Berichten aller Kontakte und TRV-Abfragen. Beacon-Modus bei Bedarf selbst in Shelly aktivieren."),y,false);
 }

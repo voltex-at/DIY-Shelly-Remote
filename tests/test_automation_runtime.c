@@ -143,6 +143,9 @@ static void manual_scene(unsigned nonce){
 int main(int argc,char **argv){
  CHECK(argc==2);const char *scenario=argv[1];current_scenario=scenario;bool reboot=!strncmp(scenario,"reboot-",7)||!strcmp(scenario,"corrupt");
  auto_flash_reset();if(reboot)prepare_reboot(scenario);
+ if(!strcmp(scenario,"blocked-independent")){
+  cJSON *r=cJSON_Parse(config_json);cJSON_ReplaceItemInObjectCaseSensitive(r,"automations",cJSON_Parse("[{\"id\":7,\"name\":\"Room A\",\"kind\":\"contact_heating\",\"enabled\":false,\"sensors\":[1],\"targets\":[3],\"target_half\":16},{\"id\":8,\"name\":\"Room B\",\"kind\":\"contact_heating\",\"enabled\":false,\"sensors\":[2],\"targets\":[4],\"target_half\":16}]"));durable=cJSON_PrintUnformatted(r);cJSON_Delete(r);
+ }
  if(!strcmp(scenario,"manual-read-wait")){
   cJSON *r=cJSON_Parse(config_json);cJSON *step=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(r,"scenes")->child,"actions")->child;
   cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(step,"device"),4);durable=cJSON_PrintUnformatted(r);cJSON_Delete(r);
@@ -161,8 +164,17 @@ int main(int argc,char **argv){
  }
  frames(3);CHECK(sets==0);char *json=dsr_workspace_snapshot();cJSON *root=cJSON_Parse(json);free(json);
  cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root,"automations"),0),"enabled",cJSON_CreateTrue());
+ if(!strcmp(scenario,"blocked-independent"))cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root,"automations"),1),"enabled",cJSON_CreateTrue());
  json=cJSON_PrintUnformatted(root);CHECK(dsr_workspace_submit(json,7));free(json);cJSON_Delete(root);pump(config_task);CHECK(dsr_workspace_revision()==8);
- dsr_auto_snapshot_t pending;dsr_automation_snapshot(&pending);CHECK(pending.count==1&&pending.revision==8&&pending.rules[0].state!=DSR_AUTO_DISABLED);
+ dsr_auto_snapshot_t pending;dsr_automation_snapshot(&pending);CHECK(pending.count==(!strcmp(scenario,"blocked-independent")?2:1)&&pending.revision==8&&pending.rules[0].state!=DSR_AUTO_DISABLED);
+ if(!strcmp(scenario,"blocked-independent")){
+  fleet.slots[2].blocked=true;windows[0]=windows[1]=true;frames(90);CHECK(sets==1&&remote[2]==40&&remote[3]==16);
+  windows[1]=false;frames(45);CHECK(sets==2&&remote[3]==44);
+  now+=16000;samples();dsr_automation_tick(&fleet,now,1800000000+now/1000,true);
+  json=dsr_workspace_snapshot();root=cJSON_Parse(json);free(json);cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(root,"automations"),0);
+  json=cJSON_PrintUnformatted(root);cJSON_Delete(root);CHECK(dsr_workspace_submit(json,8));free(json);pump(config_task);frames(2);dsr_automation_snapshot(&pending);CHECK(pending.count==1&&pending.target_count==1);
+  windows[1]=true;frames(45);CHECK(sets==3&&remote[3]==16);windows[1]=false;frames(45);CHECK(sets==4&&remote[3]==44);goto finished;
+ }
  windows[0]=windows[1]=true;frames(!strcmp(scenario,"rate-limit")?120:45);CHECK(sets==2&&reads>=4&&remote[2]==16&&remote[3]==16);
  dsr_auto_snapshot_t snapshot;dsr_automation_snapshot(&snapshot);CHECK(snapshot.count==1&&snapshot.rules[0].state==DSR_AUTO_ACTIVE);
  if(!strncmp(scenario,"reopen-",7)){

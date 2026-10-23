@@ -6,6 +6,15 @@ const WEB_MESSAGES=new Map([
  ["Disable the active automation before changing its contacts, targets or temperature","Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Aktive Regel vor Änderungen deaktivieren und speichern."],
  ["Automatyzacje","Automations","Automatisierungen"],
  ["Stan reguły","Rule status","Regelstatus"],["Reguła ogrzewania","Heating rule","Heizungsregel"],
+ ["Bezpośredni odczyt TRV lub nastawa nieobsługiwane.","Direct TRV read or target is unsupported.","Direkte TRV-Abfrage oder Sollwert nicht unterstützt."],
+ ["Wymagane logowanie do bramki.","Gateway authentication required.","Gateway-Anmeldung erforderlich."],
+ ["Powiązanie termostatu zmienione. Sprawdź konfigurację.","Thermostat binding changed. Review configuration.","Thermostat-Zuordnung geändert. Konfiguration prüfen."],
+ ["Limit zapytań. Oczekiwanie przed ponowieniem.","Rate limited. Waiting before retry.","Abfragelimit. Wartezeit vor Wiederholung."],
+ ["Oczekiwanie na dostęp do urządzenia.","Waiting for device access.","Warte auf Gerätezugriff."],
+ ["Brak odpowiedzi termostatu. Oczekiwanie na nowy odczyt.","Thermostat did not respond. Waiting for a new read.","Thermostat antwortet nicht. Warte auf neue Abfrage."],
+ ["Niepoprawny odczyt termostatu.","Invalid thermostat reading.","Ungültiger Thermostatwert."],
+ ["Błąd pamięci.","Storage error.","Speicherfehler."],
+ ["Błąd dziennika. Automatyzacja wstrzymana.","Journal error. Automation paused.","Journalfehler. Automatik angehalten."],
  ["Odśwież","Refresh","Aktualisieren"],
  ["+ Nowa reguła","+ New rule","+ Neue Regel"],["Nazwa reguły","Rule name","Regelname"],
  ["Temperatura przy otwarciu","Temperature while open","Temperatur bei Öffnung"],
@@ -575,12 +584,14 @@ function autoDiscard(){
  automationSession=null;autoView=null;notice('');
 }
 function autoTemperature(value){return Number.isInteger(value)&&value>=8&&value<=60?`${(value/2).toFixed(1)} °C`:'—';}
+function autoReadReason(result){return m(({3:'Bezpośredni odczyt TRV lub nastawa nieobsługiwane.',4:'Wymagane logowanie do bramki.',9:'Powiązanie termostatu zmienione. Sprawdź konfigurację.',10:'Limit zapytań. Oczekiwanie przed ponowieniem.',8:'Oczekiwanie na dostęp do urządzenia.',5:'Brak odpowiedzi termostatu. Oczekiwanie na nowy odczyt.',7:'Błąd pamięci.'})[result]||'Niepoprawny odczyt termostatu.');}
 function autoStatus(parent,item,data){
  parent.replaceChildren();const status=data?.rules?.find(r=>r.id===item.id);parent.append(el('p',autoState(status?.state??(item.enabled?1:0)),status?.state>=3?'automation-warning':'muted'));
  if(status?.missing_id)parent.append(autoWarning(m('Brak nowego raportu: {0}',config.devices.find(d=>d.id===status.missing_id)?.name||`#${status.missing_id}`)));
- if(status?.result)parent.append(autoWarning(m(status.result===11?'Przed zmianą aktywnej reguły wyłącz ją i zapisz.':'Stan reguł niedostępny. Odśwież, aby spróbować ponownie.')));
+ const targetError=data?.targets?.some(t=>item.targets.includes(t.id)&&t.result&&t.result===status?.result);
+ if(status?.result&&!targetError)parent.append(autoWarning(status.result===11?m('Przed zmianą aktywnej reguły wyłącz ją i zapisz.'):status.result===7?m('Błąd dziennika. Automatyzacja wstrzymana.'):autoReadReason(status.result)));
  for(const target of data?.targets||[])if(item.targets.includes(target.id)){
-  const row=el('div',undefined,'automation-target');row.append(el('strong',config.devices.find(d=>d.id===target.id)?.name||`#${target.id}`),el('p',m('Poprzednia: {0} · Żądana: {1} · Odczytana: {2}',autoTemperature(target.baseline_half),autoTemperature(target.requested_half),autoTemperature(target.read_half))));if(target.overridden)row.append(autoWarning(m('Ręczna zmiana')));parent.append(row);
+  const row=el('div',undefined,'automation-target');row.append(el('strong',config.devices.find(d=>d.id===target.id)?.name||`#${target.id}`),el('p',m('Poprzednia: {0} · Żądana: {1} · Odczytana: {2}',autoTemperature(target.baseline_half),autoTemperature(target.requested_half),autoTemperature(target.read_half))));if(target.overridden)row.append(autoWarning(m('Ręczna zmiana')));if(target.result)row.append(autoWarning(autoReadReason(target.result)));parent.append(row);
  }
 }
 async function autoRefresh(view){

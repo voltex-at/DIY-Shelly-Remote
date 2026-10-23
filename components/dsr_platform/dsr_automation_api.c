@@ -21,7 +21,7 @@ char *dsr_automation_status_json(void)
  for(unsigned i=0;ok&&i<s.target_count;i++){
   cJSON *v=row(targets);ok=v&&cJSON_AddNumberToObject(v,"id",s.targets[i].layout_id)&&
    cJSON_AddNumberToObject(v,"baseline_half",s.targets[i].baseline)&&cJSON_AddNumberToObject(v,"requested_half",s.targets[i].requested)&&
-   cJSON_AddNumberToObject(v,"read_half",s.targets[i].read_half)&&cJSON_AddNumberToObject(v,"phase",s.targets[i].phase)&&cJSON_AddBoolToObject(v,"overridden",s.targets[i].overridden);
+   cJSON_AddNumberToObject(v,"read_half",s.targets[i].read_half)&&cJSON_AddNumberToObject(v,"phase",s.targets[i].phase)&&cJSON_AddBoolToObject(v,"overridden",s.targets[i].overridden)&&cJSON_AddNumberToObject(v,"result",s.targets[i].result);
  }
  for(size_t i=0;ok&&i<count;i++){
   const dsr_runtime_device_t *r=&devices[i];const dsr_blu_status_t *b=&r->telemetry.blu;

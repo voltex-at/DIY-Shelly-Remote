@@ -190,7 +190,29 @@ static void uncertain_restore_at_setback_remains_uncertain(void){
  sample(0,false,0,0);sample(1,false,0,0);dsr_auto_effect_t e=next();read_ack(e,8);
  CHECK(m.record.targets[e.layout_id-1].phase==DSR_AUTO_UNCERTAIN&&!m.record.targets[e.layout_id-1].override);
 }
-int main(void){
+static void rule_barrier_survives_reorder(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);now+=1000;utc++;m.observations[0].valid=false;
+ dsr_auto_effect_t e={0};dsr_auto_next(&m,now,utc,&e);if(e.kind)CHECK(dsr_auto_unqueue(&m,&e));uint32_t barrier=m.rule_barrier_utc[0];CHECK(barrier>m.barrier_utc);
+ rules.key_count=6;rules.count=2;rules.keys[4]=rules.keys[0];rules.keys[4].layout_id=5;rules.keys[5]=rules.keys[2];rules.keys[5].layout_id=6;
+ rules.items[1]=rules.items[0];rules.items[0]=(dsr_auto_rule_t){.id=6,.signature=200,.sensors=16,.targets=32,.target_half=16,.enabled=0};
+ CHECK(dsr_auto_configure(&m,&rules)==DSR_OK);journal();CHECK(m.rule_barrier_utc[1]==barrier);
+ for(unsigned pass=0;pass<2;pass++){now+=16000;utc+=16;sample(0,false,0,0);sample(1,false,0,0);m.observations[0].source_utc=m.observations[1].source_utc=barrier-1;
+  for(unsigned n=0;n<8;n++){e=(dsr_auto_effect_t){0};if(!dsr_auto_next(&m,now,utc,&e))break;CHECK(e.kind!=DSR_AUTO_EFFECT_SET_TRV);if(e.kind==DSR_AUTO_EFFECT_READ_TRV)read_ack(e,8);else ack(e);}}
+ rules.items[0]=rules.items[1];rules.count=1;CHECK(dsr_auto_configure(&m,&rules)==DSR_OK);CHECK(m.rule_barrier_utc[0]==barrier);
+}
+static void read_failure_has_public_reason(void){
+ init();journal();set_and_confirm(16);set_and_confirm(16);now+=16000;utc+=16;sample(0,true,0,0);sample(1,false,0,0);
+ dsr_auto_effect_t e=next();CHECK(e.kind==DSR_AUTO_EFFECT_READ_TRV);dsr_auto_complete(&m,&e,DSR_UNSUPPORTED);
+ dsr_auto_snapshot_t s;dsr_auto_model_snapshot(&m,&s);CHECK(s.rules[0].state==DSR_AUTO_ERROR&&s.rules[0].result==DSR_UNSUPPORTED);
+ CHECK(s.targets[0].result==DSR_UNSUPPORTED);
+ now+=16000;utc+=16;sample(0,true,0,0);sample(1,false,0,0);e=next();CHECK(e.layout_id==3);read_ack(e,8);
+ dsr_auto_model_snapshot(&m,&s);CHECK(s.targets[0].result==DSR_OK&&s.rules[0].result==DSR_OK);
+ now+=16000;utc+=16;sample(0,true,0,0);sample(1,false,0,0);e=next();CHECK(e.kind==DSR_AUTO_EFFECT_READ_TRV);dsr_auto_complete(&m,&e,DSR_RATE_LIMITED);
+ dsr_auto_model_snapshot(&m,&s);CHECK(s.rules[0].state==DSR_AUTO_WAITING&&s.rules[0].result==DSR_RATE_LIMITED);
+ m.fault=DSR_IO;dsr_auto_model_snapshot(&m,&s);CHECK(s.rules[0].state==DSR_AUTO_ERROR&&s.rules[0].result==DSR_IO);
+}
+int main(int argc,char **argv){
+ if(argc==2){if(!strcmp(argv[1],"barrier"))rule_barrier_survives_reorder();else if(!strcmp(argv[1],"reason"))read_failure_has_public_reason();else return 2;printf("automation focused model: %u checks\n",checks);return 0;}
 #define RUN(c) do{fprintf(stderr,"case: %s\n",#c);c();}while(0)
  RUN(restore_requires_new_direct_read);
  RUN(first_open_all_closed);RUN(no_raise_already_lower);RUN(manual_during_prepared_inflight_uncertain);RUN(stale_effect_ack);
@@ -202,5 +224,6 @@ int main(void){
  RUN(remap_new_row_before_owned_rows);
  RUN(missing_clock_does_not_block_manual_journal);RUN(first_valid_clock_sets_resume_barrier);
  RUN(reopen_cancels_unsent_restore_without_losing_baseline);RUN(uncertain_restore_at_setback_remains_uncertain);
+ RUN(rule_barrier_survives_reorder);RUN(read_failure_has_public_reason);
  printf("automation model: %u checks passed\n",checks);return 0;
 }

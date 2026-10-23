@@ -11,6 +11,7 @@ typedef struct {
  dsr_auto_effect_t pending;
  uint32_t next_id,barrier_utc,last_utc,now_ms,durable_generation,epoch_id,pending_epoch;
  dsr_result_t fault;
+ dsr_result_t read_result[DSR_AUTO_PARTICIPANTS];
  bool epoch,ready,loaded,read_received;
  uint8_t cursor;
  uint16_t ready_rules;
@@ -29,4 +30,6 @@ bool dsr_auto_key_equal(const dsr_auto_key_t *a,const dsr_auto_key_t *b);
 bool dsr_auto_effect_allowed(const dsr_auto_model_t *m,const dsr_auto_effect_t *effect,uint32_t now_ms,uint32_t utc);
 /* Only after the owner proves no worker/actor admitted this effect. */
 bool dsr_auto_unqueue(dsr_auto_model_t *m,const dsr_auto_effect_t *effect);
+/* Only a proven-unsent read: reschedule without a proof or a success ACK. */
+bool dsr_auto_defer_read(dsr_auto_model_t *m,const dsr_auto_effect_t *effect,uint32_t now,dsr_result_t reason);
 #endif

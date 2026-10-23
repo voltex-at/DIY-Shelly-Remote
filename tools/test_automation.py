@@ -8,8 +8,9 @@ from hostcc import ROOT, build, parse_args
 
 p = argparse.ArgumentParser(description=__doc__)
 RUNTIME_SCENARIOS = ['happy', 'manual', 'manual-failure', 'manual-retry', 'reboot-own',
- 'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit']
-p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'api', 'all'], default='all')
+ 'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit', 'blocked-independent']
+p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'api', 'rate', 'all'], default='all')
+p.add_argument('--model-case', choices=['barrier','reason'], help='One focused model review regression')
 p.add_argument('--runtime-module', choices=['actor', 'native'], help='Run one controller in the runtime case')
 p.add_argument('--scenario', nargs='+', choices=RUNTIME_SCENARIOS, help='Run selected runtime scenarios without repeating controller cases')
 a = parse_args(p)
@@ -45,6 +46,7 @@ cases = {
 }
 cases['runtime_native'] = (['tests/test_automation_native.c'], ['tests/history', 'tests/actor', 'tests/support'], [])
 cases['api'] = (['components/dsr_platform/dsr_automation_api.c','tests/test_automation_api.c'], ['tests/support','components/dsr_config/include','.test-deps','/usr/include/cjson'], ['-l:libcjson.so.1','-lm'])
+cases['rate'] = (['tests/test_automation_rate.c'], ['tests/history','tests/actor','tests/support','components/dsr_config/include','.test-deps','/usr/include/cjson'], ['-Wl,--gc-sections','-l:libcjson.so.1','-lm'])
 cases['runtime'] = (cases['runtime_actor'][0][:-1] + [
  'components/dsr_platform/dsr_automation.c', 'components/dsr_platform/dsr_automation_model.c',
  'components/dsr_platform/dsr_automation_store.c', 'components/dsr_platform/dsr_automation_config.c',
@@ -52,6 +54,7 @@ cases['runtime'] = (cases['runtime_actor'][0][:-1] + [
  'components/dsr_platform/dsr_fleet.c', 'tests/automation/nvs_fixture.c', 'tests/test_automation_runtime.c'],
  cases['runtime_actor'][1], cases['runtime_actor'][2])
 selected = list(cases) if a.case == 'all' else ['store', 'store_queue'] if a.case == 'store' else ['runtime_actor', 'runtime_native', 'runtime'] if a.case == 'runtime' else [a.case]
+if a.model_case and a.case!='model':p.error('--model-case requires --case model')
 if a.scenario:
  if a.case!='runtime':p.error('--scenario requires --case runtime')
  selected=['runtime']
@@ -64,6 +67,11 @@ with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
    raise SystemExit(f'{name}: case not implemented yet')
   sources, includes, libs = cases[name]
   binary = Path(tmp) / name
+  if name=='rate':
+   runtime=(ROOT/'components/dsr_platform/dsr_automation.c').read_text()
+   key=runtime[runtime.index('static int find_key('):runtime.index('static bool has_approval(')]
+   start=runtime.index('static bool rate_ready(');end=runtime.index('static dsr_auto_key_t actual_key(',start)
+   Path(tmp,'automation_rate.inc').write_text(key+runtime[start:end])
   if name=='api':
    panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
    start=panel.index('static esp_err_t automation_api(');end=panel.index('static esp_err_t api(',start)
@@ -73,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
    Path(tmp,'automation_route.inc').write_text(panel[start:end]+' return json(r,"404 Not Found","{}");\n}\n')
   build(binary, sources, [tmp,'components/dsr_core/include', 'components/dsr_platform/include',
         'components/dsr_platform', *includes], flags=(['-DDSR_BOARD_ES3C35P=1'] if name.startswith('runtime') else []) +
-        (['-Wl,--wrap=time'] if name=='runtime' else []), libs=libs, args=a)
+        (['-Wl,--wrap=time'] if name=='runtime' else []) + (['-ffunction-sections','-fdata-sections'] if name=='rate' else []), libs=libs, args=a)
   scenarios = (a.scenario if a.scenario else RUNTIME_SCENARIOS) if name=='runtime' else [None]
   for scenario in scenarios:
-   subprocess.run([str(binary), *([scenario] if scenario else [])], check=True, cwd=ROOT)
+   subprocess.run([str(binary), *([scenario] if scenario else [a.model_case] if name=='model' and a.model_case else [])], check=True, cwd=ROOT)
