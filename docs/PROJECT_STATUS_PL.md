@@ -454,7 +454,7 @@ Walidacja: `DSR_UI_FOCUS_ADD_SAVE=1 python3 tools/dev/run_host.py test_ui.py --j
 - Po przewinięciu do komunikatu górna część pola nazwy wychodzi poza widoczny obszar formularza. Nie zachodzi na kartę tożsamości, ale widoczny fragment wymaga oceny wyglądu.
 - Podczas oczekiwania na końcowe potwierdzenie nadal widnieje ogólny tekst sprawdzania przed zapisem. Po sukcesie następuje powrót do Dashboardu z nową kartą, bez osobnego okna sukcesu.
 
-**Odbiór:** właściciel ocenił formularz i przebieg zapisu jako „Wymagają korekty — opiszę”. Ten punkt pozostaje otwarty. W kolejnym zgłoszeniu wskazał także dublowanie informacji o pomiarach na karcie Dashboardu po zapisie, opisane poniżej. Propozycja złotego wyróżnienia błędów formularza i czytelniejszego nieaktywnego „Zapisz” nadal czeka na odpowiedź. Wcześniejsze akceptacje pokazanych ekranów LAN, Bluetooth i AP pozostają w mocy. NET-01 jako całość, pozostałe kroki konfiguracji AP/BLE i odbiór na pilocie po nowym DEV pozostają otwarte.
+**Odbiór:** właściciel ocenił formularz i przebieg zapisu jako „Wymagają korekty — opiszę”. Ten punkt pozostaje otwarty. W kolejnym zgłoszeniu wskazał także dublowanie informacji o pomiarach na karcie Dashboardu po zapisie, opisane poniżej. Po poleceniu „dalej?” dopracowano wyróżnienie błędów formularza i nieaktywnego „Zapisz”; ich nowy podgląd wymaga oceny, jak opisano w następnej rundzie. Wcześniejsze akceptacje pokazanych ekranów LAN, Bluetooth i AP pozostają w mocy. NET-01 jako całość, pozostałe kroki konfiguracji AP/BLE i odbiór na pilocie po nowym DEV pozostają otwarte.
 
 ### UI-06 — pojedynczy komunikat o niedostępnych pomiarach
 
@@ -463,6 +463,18 @@ Właściciel wskazał podwójny komunikat na pokazanej karcie Dashboardu: „Mes
 Osobne przyczyny, takie jak brak Wi-Fi, brak odpowiedzi, błąd logowania i oczekiwanie na pierwszy odczyt, pozostają widoczne. Na karcie z wyłączonymi polami pomiarowymi zachowano jedyny komunikat o nieaktualnym odczycie. Po ponownym uzyskaniu odczytu wracają zwykły stan oraz pomiary W/V.
 
 Walidacja: `DSR_UI_FOCUS_CARD_NOTICE=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, 83 sprawdzenia i trzy wybrane klatki, trzy skórki i PL/EN/DE. Najpierw poprawiono dane scenariusza karty bez ramki; prawidłowy test przed zmianą kodu następnie wykazał duplikat we wszystkich dziewięciu wariantach skórki/języka. Po poprawce przeszedł ten sam przypadek. Obejrzano rzeczywiste piksele LVGL 9.3. Dostawcy radia i odczytów są modelami hosta; nie ponawiano pozostałych ekranów, atlasu, pełnej regresji ani builda docelowego i CI. Kod pozostaje roboczy, bez nowego DEV i odbioru na pilocie. Formularz konfiguracji z NET-01 nadal wymaga oceny zgłoszonych korekt.
+
+### NET-01 — złote komunikaty, nieaktywne „Zapisz” i przewinięcie formularza
+
+Kontynuowano poprawki po poleceniu właściciela „dalej?”. Błędy walidacji, zapisu i logowania oraz informacja o nieobsługiwanym urządzeniu mają teraz złoty tekst 14 px w ramce. Cyber Blue korzysta z istniejącego helpera sfazowanych ostrzeżeń AP; Grafit i Jasny zachowują swoje powierzchnie i odpowiedni kontrast. Zwykły opis i trwająca weryfikacja nadal mają neutralny wygląd.
+
+Wyróżniony komunikat znajduje się pod polami w przewijanym formularzu. Wysokość ramki wynika z długości tłumaczenia. Automatyczne przewinięcie ustawia początek pełnego wiersza, tak aby nie pozostawiać przypadkowego fragmentu poprzedniego pola. Początkowy widok formularza i pełna wysokość pola kanału pozostają zachowane. Podgląd ujawnił zbyt duże przewinięcie po błędzie logowania mimo poprawnych granic samej ramki; skorygowano je i dodano kontrolę widoczności pola hasła wraz z komunikatem.
+
+Wyłącznie przycisk zapisu tego formularza w Cyber Blue otrzymał ciemne tło, przygaszony podpis, ikonę i kontur w stanie nieaktywnym. Po nieudanym zapisie odzyskuje aktywny niebieski wygląd. Blokada powtórnego wysłania pozostaje zachowana. Nie zmieniano zaakceptowanej nawigacji ani pozostałych akcji skórki.
+
+Walidacja: `DSR_UI_FOCUS_ADD_SAVE=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_dev_069_ui` — PASS, 338 sprawdzeń i 27 klatek, zapis w trzech skórkach z etykietami DE. Następnie uruchomiono ten sam, świeżo zbudowany plik `build-ui/native/test_dev_069_ui` z `DSR_UI_FOCUS_LAN_FORM=1`, bez powtarzania kompilacji — PASS, 597 sprawdzeń i dziewięć klatek, formularz w trzech skórkach i PL/EN/DE. Sprawdzono pełną ramkę i tekst w obszarze przewijania, widoczne pole hasła po błędzie logowania, zamknięcie klawiatury, zachowanie szkicu, nieudany zapis i ponowienie. Dodatkowa kontrola pikseli początkowego renderu wykazała brak złotego konturu, a po poprawce potwierdziła jego obecność. Obejrzano rzeczywiste piksele LVGL 9.3: błędy zapisu, logowania, brak kanału, stan oczekiwania i przygaszone „Zapisz”. Pierwsza kompilacja wykryła brak nagłówka helpera Cyber Blue; dodano właściwy nagłówek, bez wyciszania ostrzeżenia. Dostawcy radia i zapisu są modelami hosta. Bez pełnego atlasu, pozostałych regresji, builda docelowego i CI.
+
+Odbiór nowych komunikatów i formularza pozostaje otwarty. Ogólny opis oczekiwania na końcowe potwierdzenie i powrót po sukcesie bez osobnego okna nie zostały zmienione; nie dodawano nowego DEV.
 
 ## Porządkowanie — wykonane
 

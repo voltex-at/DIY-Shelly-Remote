@@ -1,5 +1,6 @@
 #include "dsr_ui_internal.h"
 #include "dsr_ui_mobile.h"
+#include "dsr_ui_cyber.h"
 #include "dsr_discovery.h"
 #include "dsr_workspace.h"
 #include <stdio.h>
@@ -13,7 +14,7 @@ static dsr_lan_device_t selected;
 static dsr_lan_capabilities_t capabilities;
 static dsr_credentials_t credentials;
 static lv_obj_t *notice,*username,*password,*name,*room,*channel,*save_button;
-static lv_obj_t *form_body,*identity_card;
+static lv_obj_t *form_body,*identity_card,*notice_box;
 static int form_height;
 static uint32_t room_ids[9];
 static uint8_t channels[64],channel_count;
@@ -27,7 +28,7 @@ bool dsr_ui_lan_active(void){return active;}
 
 void dsr_ui_lan_reset(void)
 {
-    active=false;notice=username=password=name=room=channel=save_button=form_body=identity_card=NULL;
+    active=false;notice=username=password=name=room=channel=save_button=form_body=identity_card=notice_box=NULL;
     if(!building){memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));waiting_scan=waiting_inspect=false;}
 }
 static char auto_name[48];
@@ -118,9 +119,46 @@ static void toggle_secret(lv_event_t *event){if(password)lv_textarea_set_passwor
 static lv_obj_t *form(lv_obj_t *root,int height)
 {form_height=height;form_body=dsr_sc_panel(root,0,FORM_Y,320,height,DSR_SC_BG,0);lv_obj_add_flag(form_body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(form_body,LV_DIR_VER);dsr_sc_scrollbar(form_body);return form_body;}
 static void reveal_notice(void)
-{if(form_body&&notice&&lv_obj_get_parent(notice)==form_body){lv_obj_update_layout(form_body);lv_obj_scroll_to_view(notice,LV_ANIM_OFF);}}
-static void bind_notice(const char *text)
-{dsr_sc_label_set_text(notice,text);reveal_notice();}
+{
+    lv_obj_t *target=notice_box?notice_box:notice;
+    if(!form_body||!target||lv_obj_get_parent(target)!=form_body)return;
+    lv_obj_update_layout(form_body);
+    int end=lv_obj_get_y(target)+lv_obj_get_height(target),needed=end+8-form_height,top=0;
+    /* Align to complete rows instead of leaving the previous field clipped. */
+    if(needed>0)top=form_height==COMPONENT_FORM_H?(needed<=68?68:needed<=136?136:212):(needed<=76?76:needed<=152?152:192);
+    if(top<needed)top=needed;
+    int padding=top+form_height-end;if(padding<8)padding=8;
+    lv_obj_set_style_pad_bottom(form_body,padding,0);lv_obj_update_layout(form_body);lv_obj_scroll_to_y(form_body,top,LV_ANIM_OFF);
+}
+static void make_notice(lv_obj_t *parent,const char *text,int y,bool warning)
+{
+    notice_box=NULL;
+    if(!warning){notice=dsr_sc_text(parent,text,16,y,288,&dsr_roboto_12,DSR_SC_MUTED);return;}
+    uint32_t gold=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107;
+    notice_box=dsr_sc_panel(parent,16,y,288,24,DSR_SC_PANEL,8);
+    if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(notice_box,false);
+    else{dsr_sc_border_width(notice_box,1,0);dsr_sc_border_color(notice_box,dsr_sc_color(gold),0);}
+    notice=dsr_sc_text(notice_box,text,12,10,260,&dsr_roboto_14,gold);lv_obj_update_layout(notice);lv_obj_set_height(notice_box,lv_obj_get_height(notice)+24);
+}
+static void bind_notice(const char *text,bool warning)
+{
+    lv_obj_t *old=notice_box?notice_box:notice,*parent=lv_obj_get_parent(old);int y=lv_obj_get_y(old);
+    if(form_body){parent=form_body;y=form_height==COMPONENT_FORM_H?212:192;}
+    lv_obj_delete(old);make_notice(parent,text,y,warning);reveal_notice();
+}
+static void save_enabled(bool enabled)
+{
+    if(!save_button)return;
+    if(enabled)lv_obj_remove_state(save_button,LV_STATE_DISABLED);else lv_obj_add_state(save_button,LV_STATE_DISABLED);
+    if(dsr_sc_style()!=DSR_SC_STYLE_CYBER_BLUE)return;
+    lv_obj_set_style_bg_color(save_button,lv_color_hex(0x182638),LV_STATE_DISABLED);lv_obj_set_style_bg_grad_color(save_button,lv_color_hex(0x182638),LV_STATE_DISABLED);
+    lv_obj_set_style_opa(save_button,LV_OPA_60,LV_STATE_DISABLED);
+    for(unsigned i=0;i<lv_obj_get_child_count(save_button);i++){
+        lv_obj_t *child=lv_obj_get_child(save_button,(int)i);
+        if(lv_obj_check_type(child,&lv_label_class))lv_obj_set_style_text_color(child,dsr_sc_text_color(enabled?DSR_SC_TEXT:DSR_SC_MUTED),0);
+        else dsr_sc_icon_color(child,enabled?dsr_sc_icon_accent():DSR_SC_OFF);
+    }
+}
 static void line(lv_obj_t *card,const char *text,int y,const lv_font_t *font,uint32_t color)
 {lv_obj_t *l=dsr_sc_text(card,dsr_sc_user(text),52,y,236,font,color);lv_obj_set_height(l,font==&dsr_roboto_16?20:17);lv_label_set_long_mode(l,LV_LABEL_LONG_MODE_DOTS);}
 /* Owner 2026-10-18: show what the remote actually knows about the device
@@ -147,9 +185,9 @@ static void identity(lv_obj_t *root)
 static void inspect(lv_event_t *event)
 {
     (void)event;if(username&&password){const char *u=lv_textarea_get_text(username),*p=lv_textarea_get_text(password);
-        if(strlen(u)>=sizeof(credentials.username)||strlen(p)>=sizeof(credentials.password)){dsr_sc_label_set_text(notice,"Dane logowania są za długie.");return;}
+        if(strlen(u)>=sizeof(credentials.username)||strlen(p)>=sizeof(credentials.password)){bind_notice("Dane logowania są za długie.",true);return;}
         strcpy(credentials.username,u);strcpy(credentials.password,p);}
-    if(!dsr_lan_inspect(selected.host,selected.id,&credentials)){dsr_sc_label_set_text(notice,"Operacja w toku. Poczekaj.");return;}
+    if(!dsr_lan_inspect(selected.host,selected.id,&credentials)){bind_notice("Operacja w toku. Poczekaj.",false);return;}
     waiting_inspect=true;observed=0;lv_obj_t *root=screen("Sprawdź urządzenie",2);identity(root);
     notice=dsr_sc_text(root,"Odczyt możliwości urządzenia…",16,206,288,&dsr_roboto_14,DSR_SC_MUTED);dsr_onboarding_footer(root,"Anuluj",leave,NULL,NULL);
 }
@@ -192,19 +230,19 @@ static void show_credentials(void)
 static void bind(lv_event_t *event)
 {
     (void)event;bool blu_choice=channel_count&&lv_dropdown_get_selected(channel)<channel_count&&(channels[lv_dropdown_get_selected(channel)]&32);
-    if((blu_gateway()&&!blu_choice)||!channel_count){bind_notice(blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");return;}
+    if((blu_gateway()&&!blu_choice)||!channel_count){bind_notice(blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",true);return;}
     unsigned selected_channel=lv_dropdown_get_selected(channel);if(selected_channel>=channel_count)return;
     unsigned code=channels[selected_channel];bool supported=(code&32)?(capabilities.blu&(1u<<(code&15)))!=0:(code&16)?capabilities.ht:((((code&192)==192)?capabilities.rgbs:code&128?capabilities.covers:code&64?capabilities.lights:capabilities.switches)&(1u<<(code&15)))!=0;if(!supported)return;
-    const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){bind_notice("Wpisz nazwę do 47 bajtów.");return;}
+    const char *text=lv_textarea_get_text(name);if(!text[0]||strlen(text)>=48){bind_notice("Wpisz nazwę do 47 bajtów.",true);return;}
     remember_draft();
     dsr_connection_t c={.credentials=credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",selected.host);snprintf(c.device.name,sizeof(c.device.name),"%s",text);strcpy(c.device.device_id,selected.id);
     c.device.generation=selected.generation==1?DSR_GEN1:DSR_GEN2_PLUS;c.device.channel=channels[lv_dropdown_get_selected(channel)]&15;c.device.endpoint_kind=code&32?DSR_ENDPOINT_BLU:code&16?DSR_ENDPOINT_HT:(code&192)==192?DSR_ENDPOINT_RGB:(code&128)?DSR_ENDPOINT_COVER:(code&64)?DSR_ENDPOINT_LIGHT:DSR_ENDPOINT_SWITCH;
     dsr_result_t result=dsr_network_bind_verified(&c,room_ids[lv_dropdown_get_selected(room)]);memset(&c,0,sizeof(c));
-    if(result==DSR_OK){lv_obj_add_state(save_button,LV_STATE_DISABLED);bind_notice("Sprawdzanie urządzenia przed zapisem…");}
-    else bind_notice(failure(result));
+    if(result==DSR_OK){save_enabled(false);bind_notice("Sprawdzanie urządzenia przed zapisem…",false);}
+    else bind_notice(failure(result),result!=DSR_BUSY);
 }
 void dsr_ui_lan_bind_result(dsr_result_t result,dsr_bind_stage_t stage)
-{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY){remember_draft();show_credentials();}bind_notice(stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage));if(save_button)lv_obj_remove_state(save_button,LV_STATE_DISABLED);}}
+{if(active&&notice){if(result==DSR_AUTH_REQUIRED&&stage==DSR_BIND_VERIFY){remember_draft();show_credentials();}bind_notice(stage==DSR_BIND_VERIFY?failure(result):dsr_network_bind_result_text(result,stage),result!=DSR_OK&&result!=DSR_BUSY);save_enabled(true);}}
 static void show_components(void)
 {
     lv_obj_t *root=screen("Nazwa i pomieszczenie",3);identity(root);
@@ -224,8 +262,9 @@ static void show_components(void)
     channel_count=(uint8_t)count;channel=lv_dropdown_create(body);lv_obj_set_pos(channel,16,156);lv_obj_set_size(channel,288,44);lv_dropdown_set_options(channel,count?options:dsr_sc_tr("Brak obsługiwanego kanału"));
     snprintf(auto_name,sizeof(auto_name),"%s",lv_textarea_get_text(name));lv_obj_add_event_cb(channel,channel_changed,LV_EVENT_VALUE_CHANGED,NULL);if(count)channel_changed(NULL);
     restore_draft();
-    notice=dsr_sc_text(body,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",16,212,288,&dsr_roboto_12,DSR_SC_MUTED);
-    save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);if(!count||(blu_gateway()&&!capabilities.blu)){lv_obj_add_state(save_button,LV_STATE_DISABLED);reveal_notice();}keyboard(root,name,NULL);
+    bool supported=count&&(!blu_gateway()||capabilities.blu);
+    make_notice(body,capabilities.blu?"Czujniki BLU są odczytywane przez tę bramkę Shelly.":blu_gateway()?"Bramka BLU • przekaźnik nieobsługiwany.":count?"Dodanie zachowuje poprzednie urządzenia i ich kanały.":"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.",212,!supported);
+    save_button=dsr_onboarding_footer(root,"Wstecz",results_back,"Zapisz",bind);save_enabled(supported);if(!supported)reveal_notice();keyboard(root,name,NULL);
 }
 void dsr_ui_lan_tick(void)
 {
@@ -238,7 +277,7 @@ void dsr_ui_lan_tick(void)
         if(snapshot.phase==DSR_LAN_INSPECTING)return;
         waiting_inspect=false;
         if(snapshot.phase==DSR_LAN_INSPECTED&&snapshot.selected.generation==selected.generation&&!strcmp(snapshot.selected.id,selected.id)&&!strcmp(snapshot.selected.host,selected.host)){capabilities=snapshot.capabilities;dsr_lan_blu_labels(&blu_labels);show_components();}
-        else{show_credentials();dsr_sc_label_set_text(notice,failure(snapshot.result));}
+        else{show_credentials();bind_notice(failure(snapshot.result),true);}
     }
 }
 

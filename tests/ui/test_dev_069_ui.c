@@ -378,7 +378,12 @@ static void lan_form_fields(lv_obj_t *body,lv_obj_t *field,lv_obj_t *channel)
 }
 static void lan_form_notice(lv_obj_t *body,const char *text)
 {
- lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label&&lv_obj_get_parent(label)==body);lv_area_t a=rect(label),b=rect(body);
+ lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label);lv_obj_t *container=lv_obj_get_parent(label);lv_area_t a=rect(label),b=rect(body);
+ if(container!=body){
+  CHECK(lv_obj_get_parent(container)==body);lv_area_t frame=rect(container);CHECK(frame.x1>=16&&frame.x2<=303&&frame.y1>=b.y1&&frame.y2<=b.y2-8);
+  CHECK(a.x1>=frame.x1+10&&a.x2<=frame.x2-10&&a.y1>=frame.y1+8&&a.y2<=frame.y2-8);
+  CHECK(lv_color_eq(lv_obj_get_style_border_color(container,0),dsr_sc_color(dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107)));
+ }else CHECK(lv_obj_get_parent(label)==body);
  CHECK(a.y1>=b.y1&&a.y2<=b.y2-8&&a.x1>=16&&a.x2<=303);
 }
 static void lan_form(unsigned theme,unsigned language)
@@ -397,6 +402,7 @@ static void lan_form(unsigned theme,unsigned language)
  if(language==2)shot("lan-form-save-error",theme);
  dsr_ui_lan_bind_result(DSR_FULL,DSR_BIND_VERIFY);lan_form_notice(body,"Limit 16 urządzeń. Usuń jedno, aby dodać nowe.");
  dsr_ui_lan_bind_result(DSR_AUTH_REQUIRED,DSR_BIND_VERIFY);field=find_type(lv_screen_active(),&lv_textarea_class);body=lv_obj_get_parent(field);kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(lv_obj_get_height(body)==184&&find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));
+ unsigned credential_index=1;lv_obj_t *secret=nth_type(body,&lv_textarea_class,&credential_index);lv_area_t password_area=rect(secret),visible=rect(body);CHECK(password_area.y1>=visible.y1&&password_area.y2<visible.y2-8);lan_form_notice(body,"Błąd logowania. Sprawdź dane.");
  lv_obj_send_event(field,LV_EVENT_CLICKED,NULL);lv_obj_send_event(kb,LV_EVENT_READY,NULL);CHECK(lv_obj_get_height(body)==184&&lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));
  if(theme==3&&language==2)shot("lan-form-auth",theme);
  dsr_ui_open_settings();
@@ -778,7 +784,7 @@ static void add_save_review(unsigned theme)
  bool pending_save;char status[96];dsr_workspace_status(&pending_save,status);CHECK(pending_save&&dsr_network_bind_busy()&&publish_jobs==published);
  test_workspace_finish(false);test_workspace_defer(false);for(unsigned i=0;i<12&&dsr_network_bind_busy();i++){tick();}CHECK(!dsr_network_bind_busy()&&!in_flight&&publish_jobs==published);
  char *after_document=dsr_workspace_snapshot();CHECK(after_document&&!strcmp(before_document,after_document));free(after_document);free(before_document);
- CHECK(find_label(lv_screen_active(),dsr_network_bind_result_text(DSR_IO,DSR_BIND_WORKSPACE)));CHECK(!lv_obj_has_state(save,LV_STATE_DISABLED));shot("add-save-workspace-error",theme);
+ CHECK(find_label(lv_screen_active(),dsr_network_bind_result_text(DSR_IO,DSR_BIND_WORKSPACE)));CHECK(!lv_obj_has_state(save,LV_STATE_DISABLED));lan_form_notice(lv_obj_get_parent(field),dsr_network_bind_result_text(DSR_IO,DSR_BIND_WORKSPACE));shot("add-save-workspace-error",theme);
  add_save_fields(&field,&room_field,&channel_field);CHECK(!strcmp(lv_textarea_get_text(field),local_name)&&lv_dropdown_get_selected(room_field)==1&&lv_dropdown_get_selected(channel_field)==1);
  hold_maintenance=true;tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);
  response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_voltage=true,.voltage_v=231.8,.has_current=true,.current_a=.041}};response.device.online=response.device.has_switch=response.device.has_power=true;response.device.power_w=9.5;deliver(DSR_OK,DSR_WIFI_IDLE);
@@ -791,7 +797,7 @@ static void add_save_review(unsigned theme)
  hold_maintenance=false;tick();CHECK(!dsr_network_bind_busy()&&dsr_mobile_active()&&dsr_mobile_page()==DSR_MOBILE_HOME&&dsr_sc_style()==theme);
  lv_obj_t *added=find_label(lv_screen_active(),local_name);CHECK(added);lv_obj_scroll_to_view(lv_obj_get_parent(added),LV_ANIM_OFF);shot("add-save-success",theme);
  add_save_idle();dsr_ui_lan_adopt(&device,&caps);add_save_fields(&field,&room_field,&channel_field);lv_textarea_set_text(field,local_name);lv_dropdown_set_selected(room_field,1);lv_dropdown_set_selected(channel_field,1);
- tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);response=(dsr_event_t){0};deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));shot("add-save-auth",theme);
+ tap(238,444);CHECK(in_flight&&submitted.kind==DSR_JOB_BIND);response=(dsr_event_t){0};deliver(DSR_AUTH_REQUIRED,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Błąd logowania. Sprawdź dane."));lan_form_notice(lv_obj_get_parent(find_type(lv_screen_active(),&lv_textarea_class)),"Błąd logowania. Sprawdź dane.");shot("add-save-auth",theme);
  click("Sprawdź");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false},\"switch:4\":{\"id\":4,\"output\":false}}");dsr_ui_lan_tick();CHECK(find_label(lv_screen_active(),"Nazwa i pomieszczenie"));
  add_save_fields(&field,&room_field,&channel_field);shot("add-save-after-auth",theme);
  if(strcmp(lv_textarea_get_text(field),local_name)||lv_dropdown_get_selected(room_field)!=1||lv_dropdown_get_selected(channel_field)!=1){add_save_draft_issues++;printf("ADD issue theme=%u: reauthentication loses name, room or channel draft\n",theme);}
@@ -800,7 +806,7 @@ static void add_save_review(unsigned theme)
  click("Sprawdź");test_lan_inspected(DSR_OK,"{\"switch:1\":{\"id\":1,\"output\":false}}");dsr_ui_lan_tick();add_save_fields(&field,&room_field,&channel_field);
  CHECK(lv_dropdown_get_option_count(channel_field)==1&&lv_dropdown_get_selected(channel_field)==0&&!strcmp(lv_textarea_get_text(field),device.name));
  dsr_lan_device_t another=device;strcpy(another.id,"shellyplus1-112233445566");strcpy(another.name,"New Shelly");dsr_lan_capabilities_t unsupported={0};dsr_ui_lan_adopt(&another,&unsupported);
- save=lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"));CHECK(save&&lv_obj_has_state(save,LV_STATE_DISABLED));field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field&&!strcmp(lv_textarea_get_text(field),another.name));shot("add-save-unsupported",theme);
+ save=lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"));CHECK(save&&lv_obj_has_state(save,LV_STATE_DISABLED));field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field&&!strcmp(lv_textarea_get_text(field),another.name));lan_form_notice(lv_obj_get_parent(field),"Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.");shot("add-save-unsupported",theme);
  dsr_ui_open_settings();fflush(stdout);
 }
 int main(int argc,char **argv)
