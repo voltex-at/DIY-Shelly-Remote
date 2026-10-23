@@ -264,6 +264,44 @@ litery. Napis poprawiono we wspólnym tłumaczeniu używanym wyłącznie przez
 ten wiersz; polskie i angielskie brzmienie oraz działanie BLE pozostają.
 Odbiór rzeczywistych pomiarów i działania na pilocie jest nadal otwarty.
 
+### OTA-01 — natywne OTA: ekrany i komunikaty
+
+Właściciel wybrał kolejny punkt ankiety: ekrany OTA. Pierwszy pakiet obejmuje
+natywny aktualizator: kanał, dostępne wydanie, zgodę USB, sprawdzanie,
+instalowanie, zakończenie/restart oraz błędy. Osobny ekran lokalnego OTA przez
+panel WWW i fizyczne testy instalacji/rollback pozostają do przeglądu.
+
+Rzeczywiste rendery potwierdziły sprzeczność opisu USB z istniejącym restartem
+po 10 s, przycięty niemiecki przycisk potwierdzenia, brak ramek potwierdzeń
+Cyber Blue, kolizję odliczania z ramką stanu i obcinanie szczegółów błędu.
+Ważne komunikaty były białe zamiast złotych. Poprawiono wspólne karty trzech
+skórek i ich pozycjonowanie po przeliczeniu rzeczywistych rozmiarów LVGL.
+Komunikaty i szczegóły przewija teraz cała strona, bez drugiej przewijanej
+ramki błędu. Tekst i obramowanie ostrzeżeń są złote, z ciemniejszym złotem
+w Jasny. Potwierdzenie i informacje Cyber Blue mają podwójne sfazowane ramki.
+
+Opis USB mówi o stabilnym zasilaniu, restarcie po 10 s i opcji Później;
+niemiecki przycisk brzmi „USB OK • installieren” i mieści się w dwóch
+wierszach. To korekta opisu istniejącego działania, nie nowa polityka restartu.
+Wyszukiwanie ma okrągły wskaźnik; instalacja pokazuje pasek, procent i bajty
+w każdej skórce. Wstecz i Anuluj mieszczą się w dolnym wierszu; odliczanie ma
+własne miejsce w karcie stanu. Zachowano jawny wybór kanału, jednorazową zgodę,
+jej powiązanie z operacją i TTL, odmowę po błędnym podpisie oraz informację
+o niepotwierdzonym wyborze startowym. Opis wydania pozostaje ograniczonym,
+niezaufanym tekstem bez interpretacji znaczników.
+
+Walidacja: `python3 tools/test_ui.py --case test_native_ota_ui` przez adapter
+Cygwin — PASS, 47 reprezentatywnych klatek rzeczywistego LVGL 9.3 (DE w trzech
+skórkach, długie komunikaty i potwierdzenie także PL/EN). Sprawdzono odstępy
+między sąsiednimi kartami, marginesy tekstu, podpisy dolnych akcji, złote ramki
+i napisy, a także istniejącą regresję UI: jawną zgodę, TTL, anulowanie,
+spóźniony wynik, notatki wydania, odłożenie restartu i 40 cykli nawigacji.
+To modele aktora, Flash, workera i restartu; nie dowód fizycznej instalacji,
+zachowania danych ani rollback. Nie zmieniono backendu, kluczy, partycji ani
+polityki OTA. Nie uruchamiano pełnego atlasu, całej regresji, nowego builda
+docelowego ani aktualizacji/publikacji. **Pokazane widoki czekają na ocenę
+właściciela w ankiecie.** Numer 0.7.71 w renderach jest przykładowym kandydatem.
+
 ## Baza dalszej pracy
 
 - Repozytorium: `voltex-at/DIY-Shelly-Remote`, lokalnie `C:\Users\franz\DIY-Shelly-Remote`.
@@ -355,7 +393,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Oczekuje na ocenę |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Natywne ekrany poprawione i sprawdzone hostem; czekają na ocenę podglądu. Osobno pozostają lokalne OTA przez WWW oraz rzeczywista instalacja, zachowanie danych i rollback |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 

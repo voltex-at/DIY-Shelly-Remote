@@ -23,8 +23,10 @@ static lv_obj_t *screen(void)
 {
  building=true;lv_obj_t *root=dsr_ui_screen("Firmware Update",false);building=false;active=true;
  lv_obj_t *body=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);
+ lv_obj_set_style_bg_opa(body,LV_OPA_TRANSP,0);
  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
- back_button=dsr_ui_button(root,"Wstecz",12,420,296,dsr_ui_system_open,NULL);return body;
+ bool running=snapshot.state==DSR_NATIVE_CHECKING||snapshot.state==DSR_NATIVE_INSTALLING;
+ back_button=dsr_ui_button(root,"Wstecz",12,420,running?108:296,dsr_ui_system_open,NULL);return body;
 }
 static lv_obj_t *raw(lv_obj_t *body,const char *text,int y)
 {
@@ -32,10 +34,32 @@ static lv_obj_t *raw(lv_obj_t *body,const char *text,int y)
  lv_label_set_recolor(label,false);lv_label_set_text(label,text);return label;
 }
 static void show(void);
-static void notice_resized(lv_event_t *event)
+static uint32_t gold(void){return dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;}
+static lv_obj_t *card(lv_obj_t *body,int y,int height,bool warning)
 {
- lv_obj_t *notice=lv_event_get_target(event),*code=lv_event_get_user_data(event);
- lv_obj_set_y(code,lv_obj_get_y(notice)+lv_obj_get_height(notice)+6);
+ lv_obj_t *o=dsr_sc_panel(body,0,y,296,height,DSR_SC_CARD,10);
+ dsr_sc_border_width(o,1,0);dsr_sc_border_color(o,dsr_sc_color(warning?gold():DSR_SC_EDGE),0);
+ if(warning&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(o,false);
+ return o;
+}
+/* Text determines its frame height. Never scroll the error inside another
+ * scroller: the page owns scrolling, including diagnostic details. */
+static lv_obj_t *message(lv_obj_t *body,const char *text,int y,bool warning,const lv_font_t *font)
+{
+ lv_obj_t *o=card(body,y,56,warning);
+ dsr_sc_icon(o,warning?DSR_ICON_WARNING:DSR_ICON_INFO,12,12,24,warning?gold():DSR_SC_GLOW);
+ lv_obj_t *label=dsr_sc_text(o,text,44,12,240,font,warning?gold():DSR_SC_TEXT);
+ lv_obj_update_layout(label);int height=lv_obj_get_height(label)+24;lv_obj_set_height(o,height<56?56:height);
+ return label;
+}
+static int after(lv_obj_t *o,int gap)
+{lv_obj_update_layout(o);return lv_obj_get_y(o)+lv_obj_get_height(o)+gap;}
+static void local_warning(const char *text)
+{
+ if(!local_notice)return;
+ dsr_sc_label_set_text(local_notice,text);lv_obj_set_style_text_color(local_notice,lv_color_hex(gold()),0);
+ lv_obj_t *o=lv_obj_get_parent(local_notice);dsr_sc_border_color(o,lv_color_hex(gold()),0);
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(o,false);
 }
 static void cancelled_action(lv_event_t *event)
 {(void)event;dsr_native_ota_cancel();confirming=false;show();}
@@ -81,7 +105,7 @@ static void check(lv_event_t *event)
  (void)event;confirming=false;
  dsr_result_t result=dsr_network_request_ota(DSR_JOB_OTA_CHECK,selected_channel,false);
  if(result==DSR_OK)show();
- else if(local_notice)dsr_sc_label_set_text(local_notice,"Pilot jest zajęty. Spróbuj ponownie.");
+ else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
 }
 static void install(lv_event_t *event)
 {
@@ -91,28 +115,32 @@ static void install(lv_event_t *event)
   * charging status and no automatic consent after a CHECK or HTTP request. */
  dsr_result_t result=dsr_network_request_ota(DSR_JOB_OTA_INSTALL,selected_channel,true);
  confirming=false;
- if(result==DSR_OK)show();else if(local_notice)dsr_sc_label_set_text(local_notice,"Pilot jest zajęty. Spróbuj ponownie.");
+ if(result==DSR_OK)show();else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
 }
 static void prompt(lv_event_t *event)
 {
  (void)event;dsr_native_ota_snapshot(&snapshot);if(snapshot.state!=DSR_NATIVE_AVAILABLE)return;
  confirming=true;consent_operation=snapshot.operation_id;shown=snapshot;
  lv_obj_t *body=screen();
- dsr_sc_text(body,"Zainstalować podpisane wydanie?",4,4,284,&dsr_roboto_18,DSR_SC_TEXT);
- raw(body,snapshot.version,60);
- char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);raw(body,size,90);
- dsr_sc_text(body,"Podłącz stabilne zasilanie USB. Nie odłączaj go podczas zapisu. Instalacja nie uruchamia pilota ponownie automatycznie.",4,132,284,&dsr_roboto_14,DSR_SC_TEXT);
- local_notice=dsr_sc_text(body,"Potwierdzenie jest jednorazowe i ważne przez 120 s od sprawdzenia.",4,245,284,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *heading=message(body,"Zainstalować podpisane wydanie?",0,false,&dsr_roboto_18);
+ int y=after(lv_obj_get_parent(heading),12);lv_obj_t *release=card(body,y,60,false);
+ lv_obj_t *version=raw(release,snapshot.version,8);lv_obj_set_x(version,12);lv_obj_set_width(version,156);lv_obj_set_style_text_font(version,dsr_sc_font(&dsr_roboto_18),0);
+ char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);lv_obj_t *bytes=raw(release,size,10);lv_obj_set_x(bytes,172);lv_obj_set_width(bytes,112);lv_obj_set_style_text_font(bytes,&dsr_roboto_12,0);lv_obj_set_style_text_align(bytes,LV_TEXT_ALIGN_RIGHT,0);
+ dsr_sc_text(release,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",12,32,272,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *power=message(body,"Podłącz stabilne zasilanie USB. Nie odłączaj podczas zapisu. Po instalacji restart za 10 s; można wybrać Później.",after(release,12),true,&dsr_roboto_14);
+ local_notice=message(body,"Potwierdzenie jest jednorazowe i ważne przez 120 s od sprawdzenia.",after(lv_obj_get_parent(power),12),false,&dsr_roboto_12);
  lv_obj_t *root=lv_obj_get_parent(body);lv_obj_delete(back_button);back_button=NULL;
  dsr_ui_button(root,"Anuluj",12,420,140,cancelled_action,NULL);
- dsr_ui_primary(dsr_ui_button(root,"USB podłączone • instaluj",168,420,140,install,NULL));
+ lv_obj_t *accept=dsr_ui_button(root,"USB podłączone • instaluj",168,420,140,install,NULL);dsr_ui_primary(accept);
+ /* Keep the physical power attestation readable in two lines in DE too. */
+ lv_obj_t *caption=lv_obj_get_child(accept,0);lv_obj_set_style_text_font(caption,dsr_sc_font(&dsr_roboto_14),0);lv_obj_center(caption);
 }
 static void restart(lv_event_t *event)
 {
  (void)event;if(restart_accepted)return;
  dsr_restart_result_t result=dsr_restart_request();
  if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
- else if(local_notice)dsr_sc_label_set_text(local_notice,"Pilot jest zajęty. Spróbuj ponownie.");
+ else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
 }
 static void countdown(void)
 {
@@ -128,10 +156,12 @@ static void channel_apply(lv_event_t *event)
 static void channel_prompt(lv_event_t *event)
 {
  (void)event;confirming=true;lv_obj_t *body=screen();
- dsr_sc_text(body,"Wybierz kanał aktualizacji",4,4,284,&dsr_roboto_18,DSR_SC_TEXT);
- dsr_sc_text(body,"Dev zawiera wersje testowe. Wybór kanału nie rozpoczyna pobierania ani instalacji.",4,64,284,&dsr_roboto_14,DSR_SC_TEXT);
- dsr_ui_button(body,"Stable",0,200,296,channel_apply,(void *)(uintptr_t)DSR_OTA_STABLE);
- dsr_ui_button(body,"Dev • wersje testowe",0,258,296,channel_apply,(void *)(uintptr_t)DSR_OTA_DEV);
+ lv_obj_t *heading=message(body,"Wybierz kanał aktualizacji",0,false,&dsr_roboto_18);
+ lv_obj_t *info=message(body,"Dev zawiera wersje testowe. Wybór kanału nie rozpoczyna pobierania ani instalacji.",after(lv_obj_get_parent(heading),12),true,&dsr_roboto_14);
+ int y=after(lv_obj_get_parent(info),12);
+ lv_obj_t *stable=dsr_ui_button(body,"Stable",0,y,296,channel_apply,(void *)(uintptr_t)DSR_OTA_STABLE);
+ lv_obj_t *dev=dsr_ui_button(body,"Dev • wersje testowe",0,y+60,296,channel_apply,(void *)(uintptr_t)DSR_OTA_DEV);
+ dsr_ui_primary(selected_channel==DSR_OTA_DEV?dev:stable);
 }
 static void progress(void)
 {
@@ -147,65 +177,60 @@ static void progress(void)
 static void show(void)
 {
  dsr_native_ota_snapshot(&snapshot);shown=snapshot;confirming=false;lv_obj_t *body=screen();
- bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
- lv_obj_t *notice_box=NULL;
- if(hud){
-  lv_obj_t *version=dsr_sc_panel(body,0,0,296,56,DSR_SC_CARD,10);dsr_sc_icon(version,DSR_ICON_FIRMWARE,12,12,32,DSR_SC_BLUE);
-  lv_obj_t *channel=dsr_sc_panel(body,0,64,296,38,DSR_SC_CARD,10);dsr_sc_icon(channel,DSR_ICON_GIT_BRANCH,12,7,24,DSR_SC_BLUE);
-  notice_box=dsr_sc_panel(body,0,108,296,snapshot.state==DSR_NATIVE_AVAILABLE?64:82,DSR_SC_PANEL,10);
-  lv_obj_add_flag(notice_box,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(notice_box,LV_DIR_VER);dsr_sc_scrollbar(notice_box);
-  if(snapshot.state==DSR_NATIVE_FAILED){dsr_ui_cyber_warning(notice_box,false);dsr_sc_icon(notice_box,DSR_ICON_WARNING,8,7,24,0xffc107);}
- }
- dsr_sc_text(body,"Current version",hud?54:4,hud?6:4,hud?230:284,&dsr_roboto_12,DSR_SC_MUTED);
- lv_obj_t *installed=raw(body,snapshot.installed,hud?26:30);
- if(hud){lv_obj_set_x(installed,54);lv_obj_set_width(installed,230);lv_obj_set_height(installed,28);lv_label_set_long_mode(installed,LV_LABEL_LONG_MODE_DOTS);lv_obj_set_style_text_font(installed,&dsr_roboto_22,0);}
- dsr_sc_text(body,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",hud?48:4,hud?74:64,hud?236:284,&dsr_roboto_14,DSR_SC_TEXT);
- local_notice=dsr_sc_text(hud?notice_box:body,status_text(),hud?(snapshot.state==DSR_NATIVE_FAILED?42:12):4,hud?6:104,hud?(snapshot.state==DSR_NATIVE_FAILED?244:272):284,&dsr_roboto_14,DSR_SC_TEXT);
+ lv_obj_t *version=card(body,0,56,false);dsr_sc_icon(version,DSR_ICON_FIRMWARE,12,12,32,DSR_SC_GLOW);
+ dsr_sc_text(version,"Current version",54,6,230,&dsr_roboto_12,DSR_SC_MUTED);
+ lv_obj_t *installed=raw(version,snapshot.installed,26);lv_obj_set_x(installed,54);lv_obj_set_width(installed,230);lv_obj_set_style_text_font(installed,dsr_sc_font(&dsr_roboto_18),0);lv_label_set_long_mode(installed,LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
+ lv_obj_t *channel=card(body,64,38,false);dsr_sc_icon(channel,DSR_ICON_GIT_BRANCH,12,7,24,DSR_SC_GLOW);
+ dsr_sc_text(channel,selected_channel==DSR_OTA_DEV?"Kanał: Dev • wersje testowe":"Kanał: Stable",48,11,236,&dsr_roboto_14,DSR_SC_TEXT);
  bool running=snapshot.state==DSR_NATIVE_CHECKING||snapshot.state==DSR_NATIVE_INSTALLING;
+ local_notice=message(body,status_text(),110,snapshot.state==DSR_NATIVE_FAILED||snapshot.state==DSR_NATIVE_INSTALLING,&dsr_roboto_14);
+ lv_obj_t *notice_box=lv_obj_get_parent(local_notice);int y=after(notice_box,12);
  if(running){
-  lv_obj_set_height(body,hud?272:260);if(!hud){lv_obj_set_height(local_notice,84);lv_label_set_long_mode(local_notice,LV_LABEL_LONG_MODE_DOTS);}
-  progress_bar=lv_bar_create(body);lv_obj_set_pos(progress_bar,4,202);lv_obj_set_size(progress_bar,284,12);lv_bar_set_range(progress_bar,0,1000);lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_EDGE),0);lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);lv_obj_set_style_radius(progress_bar,6,0);lv_obj_set_style_radius(progress_bar,6,LV_PART_INDICATOR);
-  progress_label=dsr_sc_text(body,"",4,224,284,&dsr_roboto_14,DSR_SC_MUTED);progress();
-  if(hud){
-   lv_obj_set_y(progress_bar,196);lv_obj_set_height(progress_bar,16);
-   lv_obj_set_y(progress_label,216);lv_obj_set_style_text_font(progress_label,&dsr_roboto_28,0);lv_obj_set_style_text_color(progress_label,dsr_sc_text_color(DSR_SC_BLUE),0);lv_obj_set_style_text_align(progress_label,LV_TEXT_ALIGN_CENTER,0);
-   progress_bytes=dsr_sc_text(body,"",4,252,284,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(progress_bytes,LV_TEXT_ALIGN_CENTER,0);progress();
+  if(snapshot.state==DSR_NATIVE_CHECKING){
+   lv_obj_t *well=card(body,y,76,false),*spinner=lv_spinner_create(well);lv_obj_set_pos(spinner,124,14);lv_obj_set_size(spinner,48,48);lv_spinner_set_anim_params(spinner,1000,200);
+  }else{
+   lv_obj_t *well=card(body,y,96,false);
+   progress_bar=lv_bar_create(well);lv_obj_set_pos(progress_bar,12,12);lv_obj_set_size(progress_bar,272,12);lv_bar_set_range(progress_bar,0,1000);
+   lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_EDGE),0);lv_obj_set_style_bg_color(progress_bar,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR);lv_obj_set_style_radius(progress_bar,6,0);lv_obj_set_style_radius(progress_bar,6,LV_PART_INDICATOR);
+   progress_label=dsr_sc_text(well,"",12,32,272,&dsr_roboto_28,DSR_SC_GLOW);lv_obj_set_style_text_align(progress_label,LV_TEXT_ALIGN_CENTER,0);
+   progress_bytes=dsr_sc_text(well,"",12,70,272,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(progress_bytes,LV_TEXT_ALIGN_CENTER,0);progress();
   }
-  dsr_ui_button(lv_obj_get_parent(body),"Anuluj",12,360,296,cancelled_action,NULL);return;
+  dsr_ui_button(lv_obj_get_parent(body),"Anuluj",128,420,180,cancelled_action,NULL);return;
  }
  if(snapshot.state==DSR_NATIVE_FAILED){
-  /* error/fetch/HTTP/manifest: what the owner reports from a failed check. */
-  int y=snapshot.boot_selection_attempted?196:164;
-  if(hud){lv_obj_update_layout(local_notice);y=lv_obj_get_height(local_notice)+12;}
-  lv_obj_t *code=dsr_sc_text(hud?notice_box:body,"",hud?12:4,y,hud?272:284,&dsr_roboto_12,DSR_SC_MUTED);
+  /* Diagnostic details belong below the full message inside its frame. */
+  int code_y=after(local_notice,8);lv_obj_t *code=dsr_sc_text(notice_box,"",12,code_y,272,&dsr_roboto_12,DSR_SC_MUTED);
   dsr_sc_label_set_text_fmt(code,"Kod błędu: %d/%d/%d/%d",(int)snapshot.error,(int)snapshot.fetch_result,snapshot.http_status,(int)snapshot.manifest_result);
   if(snapshot.error==DSR_NATIVE_ERROR_INSTALL){
    char detail[72];snprintf(detail,sizeof(detail),"\nOTA %d • SDK 0x%x • I/O %d",(int)snapshot.install_result,(unsigned)snapshot.sdk_error,snapshot.io_result);lv_label_ins_text(code,LV_LABEL_POS_LAST,detail);
   }
-  if(hud)lv_obj_add_event_cb(local_notice,notice_resized,LV_EVENT_SIZE_CHANGED,code);
+  lv_obj_update_layout(code);lv_obj_set_height(notice_box,after(code,12));y=after(notice_box,12);
  }
  if(snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
   if(!restart_accepted&&armed_operation!=snapshot.operation_id){armed_operation=snapshot.operation_id;auto_restart_armed=true;auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RESTART_MS;}
-  countdown_label=dsr_sc_text(body,"",4,166,284,&dsr_roboto_14,DSR_SC_TEXT);countdown();
-  dsr_ui_primary(dsr_ui_button(body,"Uruchom ponownie",0,206,296,restart,NULL));
-  if(auto_restart_armed)dsr_ui_button(body,"Później",0,262,296,postpone,NULL);
+  if(auto_restart_armed){
+   countdown_label=dsr_sc_text(notice_box,"",12,after(local_notice,8),272,&dsr_roboto_14,DSR_SC_GLOW);countdown();lv_obj_update_layout(countdown_label);lv_obj_set_height(notice_box,after(countdown_label,12));
+  }
+  y=after(notice_box,12);dsr_ui_primary(dsr_ui_button(body,"Uruchom ponownie",0,y,296,restart,NULL));
+  if(auto_restart_armed)dsr_ui_button(body,"Później",0,y+60,296,postpone,NULL);
   return;
  }
- if(snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,270,296,restart,NULL);return;}
- /* Both main actions fit inside the initial 318 px viewport above Back. */
- int y=198;
+ if(snapshot.boot_selection_attempted){dsr_ui_button(body,"Uruchom ponownie",0,y,296,restart,NULL);return;}
  if(snapshot.state==DSR_NATIVE_AVAILABLE){
-  raw(body,snapshot.version,186);char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);raw(body,size,214);
-  dsr_ui_primary(dsr_ui_button(body,"Zainstaluj",0,250,296,prompt,NULL));
-  dsr_sc_text(body,"Opis wydania z GitHuba • niezweryfikowany",4,314,284,&dsr_roboto_12,DSR_SC_MUTED);
-  lv_obj_t *notes=raw(body,snapshot.notes[0]?snapshot.notes:"—",354);lv_obj_update_layout(notes);
+  lv_obj_t *release=card(body,y,60,false);lv_obj_t *candidate=raw(release,snapshot.version,8);lv_obj_set_x(candidate,12);lv_obj_set_width(candidate,156);lv_obj_set_style_text_font(candidate,dsr_sc_font(&dsr_roboto_18),0);
+  char size[48];snprintf(size,sizeof(size),"%lu B",(unsigned long)snapshot.total);lv_obj_t *bytes=raw(release,size,30);lv_obj_set_x(bytes,12);lv_obj_set_width(bytes,272);lv_obj_set_style_text_font(bytes,&dsr_roboto_12,0);
+  int action_y=after(release,12);dsr_ui_primary(dsr_ui_button(body,"Zainstaluj",0,action_y,296,prompt,NULL));
+  lv_obj_t *notes_card=card(body,action_y+60,64,false);
+  lv_obj_t *heading=dsr_sc_text(notes_card,"Opis wydania z GitHuba • niezweryfikowany",12,12,272,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_update_layout(heading);
+  lv_obj_t *notes=raw(notes_card,snapshot.notes[0]?snapshot.notes:"—",after(heading,8));lv_obj_set_x(notes,12);lv_obj_set_width(notes,272);lv_obj_update_layout(notes);
   if(lv_obj_get_height(notes)>240){lv_obj_set_height(notes,240);lv_label_set_long_mode(notes,LV_LABEL_LONG_DOT);}
-  y=354+lv_obj_get_height(notes)+24;
+  lv_obj_set_height(notes_card,after(notes,12));y=after(notes_card,12);
  }
  dsr_ui_button(body,"Sprawdź aktualizacje",0,y,296,check,NULL);
- dsr_ui_button(body,"Zmień kanał",0,y+58,296,channel_prompt,NULL);
- dsr_ui_button(body,"Zezwól na OTA • 2 minuty",0,y+130,296,dsr_ui_web_ota_open,NULL);
+ dsr_ui_button(body,"Zmień kanał",0,y+60,296,channel_prompt,NULL);
+ dsr_ui_button(body,"Zezwól na OTA • 2 minuty",0,y+132,296,dsr_ui_web_ota_open,NULL);
 }
+
 void dsr_ui_native_ota_open(lv_event_t *event)
 {(void)event;show();}
 void dsr_ui_native_ota_tick(void)
