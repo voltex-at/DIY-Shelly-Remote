@@ -215,9 +215,16 @@ zamknięciach formularza wolna pamięć pozostaje 90 832 B; pełny Dashboard
 24 kafli po powrocie ma 4 888 B wolne, największy blok 4 664 B w puli 128 KiB.
 To pomiary hosta; ADC, worker i NVS mają dostawców modelowych. Nie wykonywano
 pełnego atlasu, całego zestawu testów, nowego builda docelowego ani operacji
-na pilocie. **Wygląd tej rundy czeka na ocenę właściciela.** Rzeczywisty pomiar
-vs multimetr, trwałość profilu, wybudzanie/reconnect/restart i końcowa walidacja
-nowego DEV pozostają osobnymi punktami.
+na pilocie. **Właściciel zaakceptował pokazany wygląd kodu `6a47dcc`:**
+główny ekran baterii w trzech skórkach; pokazane elementy kalibracji (typ ogniwa,
+progi, opcja trendu i korekta z multimetrem); złote komunikaty błędnych progów
+i niepotwierdzonego zapisu, ponowne wczytanie oraz układ z klawiaturą.
+Odpowiedzi: „Tak, ten ekran zaakceptowany na podglądzie”, „Tak, pokazane
+elementy zaakceptowane na podglądzie” i „Tak, te stany zaakceptowane na
+podglądzie”. Akceptacja dotyczy pokazanych widoków. Rzeczywisty pomiar vs
+multimetr, trwałość profilu, wybudzanie/reconnect/restart i końcowa walidacja
+nowego DEV pozostają osobnymi punktami. Zapis odbioru wymagał tylko kontroli
+dokumentacji, bez ponawiania testów firmware ani renderów.
 
 
 ## Baza dalszej pracy
@@ -308,7 +315,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. **Turkusowe obramowania i odstępy czterech pokazanych ekranów Wi-Fi/BLU Cyber Blue zaakceptowane na podglądzie** (`638b56c`); **Wybór bramki, logowanie, instrukcja TRV i trzy pokazane wyniki rejestracji zaakceptowane na podglądzie** (`c2627bc`). **Pozostałe pokazane stany wyszukiwania/rejestracji, oba błędy i formularz karty również zaakceptowane na podglądzie**; odbiór wyglądu pokazanego przepływu bramki zakończony. Końcowy zapis karty oraz rzeczywiste RF nadal do odbioru |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
-| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **W trakcie ankiety:** przygotowano podglądy baterii i kalibracji w trzech skórkach, poprawiono ramki komunikatów, duplikat błędu i EN/DE ponownego odczytu. Wygląd czeka na ocenę. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
+| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`): główny ekran baterii w trzech skórkach, pokazane elementy kalibracji (typ ogniwa, progi, trend, korekta), złote błędy, ponowny odczyt i układ z klawiaturą. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Oczekuje na ocenę |
