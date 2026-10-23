@@ -398,9 +398,8 @@ zaakceptował na podglądzie** oba pakiety (`2fd1427`): ekrany LCD z ramkami
 trzech skórek, instrukcją BIN/USB i złotymi komunikatami odmowy/wygaśnięcia
 oraz panel WWW z wyborem pliku, wskaźnikiem wysyłania/weryfikacji, nazwą pliku,
 wynikiem, złotymi błędami i ręcznym restartem. Ta akceptacja dotyczy wyglądu.
-Nowy krok potwierdzenia USB oraz komunikaty progu baterii opisane poniżej
-wymagają osobnej oceny podglądu. Rzeczywista instalacja, dane i rollback
-pozostają otwarte.
+Akceptację nowego kroku potwierdzenia USB i komunikatów progu baterii opisano
+poniżej. Rzeczywista instalacja, dane i rollback pozostają otwarte.
 
 ### OTA-01 — próg baterii 20% dla uploadu WWW
 
@@ -474,8 +473,11 @@ i dotychczasowe sanitizery. Runner wymaga końcowego raportu wykonanych
 asercji, nie tylko kodu wyjścia.
 
 Jeden niezależny przegląd nie znalazł istotnych błędów; drobną uwagę dotyczącą
-kolejności sprzątania poprawiono i ponownie oceniono. Nowy krok USB oraz
-złote komunikaty LOW/BUSY są gotowe do oceny właściciela na podglądzie.
+kolejności sprzątania poprawiono i ponownie oceniono. **Właściciel zaakceptował
+na podglądzie** nowy krok potwierdzenia stabilnego USB na LCD oraz złote
+komunikaty niskiej baterii i niedostępnego pomiaru: „Tak, te widoki zaakceptowane
+na podglądzie” (kod `a415e17`). Akceptacja dotyczy pokazanych widoków;
+do jej zapisania wykorzystano istniejące rendery, bez ponawiania testów firmware.
 Build i host nie potwierdzają dokładności SOC, fizycznego USB, instalacji,
 zachowania danych ani rollback. Kontrola odbywa się przed startem Flash,
 bez ciągłego monitorowania baterii podczas zapisu. Odbiór sprzętowy pozostaje
@@ -573,7 +575,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. Nowy krok USB oraz złote wyniki LOW/BUSY oczekują oceny podglądu. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. **Nowy krok USB oraz złote komunikaty niskiej baterii i niedostępnego pomiaru zaakceptowane na podglądzie** (`a415e17`). Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 

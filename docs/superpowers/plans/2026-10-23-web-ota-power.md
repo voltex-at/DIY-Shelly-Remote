@@ -43,5 +43,6 @@ audits pass. Independent review has no remaining findings after moving worker
 release behind receiver heap cleanup; the new cleanup-order regression passed.
 Details and explicit model/hardware limits are in PROJECT_STATUS_PL.md.
 
-New USB confirmation/LOW/BUSY preview acceptance is pending. No live upload,
-flash/restart, push, CI dispatch or release was performed.
+Owner accepted the shown USB confirmation and LOW/BUSY previews from a415e17.
+Hardware acceptance remains open. No live upload, flash/restart, push,
+CI dispatch or release was performed.
