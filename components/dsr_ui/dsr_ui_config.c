@@ -592,7 +592,8 @@ static void show_entity(cJSON *entity)
  }
  if(!strcmp(collection_name,"dashboards")){
   bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-  int stride=hud?208:182,offset=hud?48:22;
+  /* Every skin reserves two title lines before the tile controls. */
+  int stride=208,offset=48;
   cJSON *tiles=cJSON_GetObjectItemCaseSensitive(entity,"tiles");int i=0,visible=0;
   unsigned pages=((unsigned)cJSON_GetArraySize(tiles)+2)/3;if(tile_page>=pages)tile_page=pages?pages-1:0;
   for(cJSON *t=tiles->child;t;t=t->next,i++){
@@ -600,7 +601,7 @@ static void show_entity(cJSON *entity)
    const char *type=string(t,"type");const cJSON *a=item(draft,!strcmp(type,"device")?"devices":!strcmp(type,"room")?"rooms":!strcmp(type,"scene")?"scenes":"groups"),*target=cJSON_GetArrayItem(a,(int)object_index(a,integer(t,"ref")));
    int y=140+visible++*stride;char text[100];snprintf(text,sizeof(text),"%s • %s",string(target,"name"),dsr_sc_tr(integer(t,"height")==2?"duża":"standard"));
    lv_obj_t *title=dsr_sc_text(body,dsr_sc_user(text),0,y,280,hud?&dsr_roboto_16:&dsr_roboto_14,DSR_SC_TEXT);
-   if(hud){lv_obj_set_height(title,40);lv_label_set_long_mode(title,LV_LABEL_LONG_MODE_DOTS);}
+   lv_obj_set_height(title,40);lv_label_set_long_mode(title,LV_LABEL_LONG_MODE_DOTS);
    dsr_ui_button(body,"Obiekt",0,y+offset,87,tile_next,t);dsr_ui_button(body,"Układ",96,y+offset,87,tile_span,t);dsr_ui_button(body,"Typ",192,y+offset,87,tile_type,t);
    dsr_ui_button(body,"Wys.",0,y+offset+52,87,tile_size,t);dsr_ui_button(body,"Dane",96,y+offset+52,87,tile_fields,t);dsr_ui_button(body,"Usuń",192,y+offset+52,87,tile_remove,(void *)(uintptr_t)i);
    dsr_ui_button(body,"Góra",0,y+offset+104,136,reorder,(void *)(uintptr_t)(i*2));dsr_ui_button(body,"Dół",148,y+offset+104,136,reorder,(void *)(uintptr_t)(i*2+1));
