@@ -556,7 +556,7 @@ synchronizacji i podglądu pozostaje otwarty.
 ### SYS-02 — uzgodniony zakres System — 2026-10-24
 
 Właściciel wybrał ustalenie zakresu Aktywności, backupu i resetu oraz
-potwierdził trzy decyzje:
+potwierdził zakres i docelowy egzemplarz odtwarzania:
 
 1. **Aktywność:** zachować istniejące 128 wpisów w RAM od uruchomienia pilota.
    Dodać brakujący widok LCD korzystający z tego samego backendu co WWW;
@@ -569,6 +569,8 @@ potwierdził trzy decyzje:
    również Wi-Fi, połączenia Shelly, powiązania BLE oraz dostęp WWW.
    Firmware i weryfikacja OTA pozostają. To decyzja o działaniu przyszłej
    funkcji; nie jest poleceniem wykonania resetu na urządzeniu podczas prac.
+4. **Odtwarzanie:** wyłącznie na tym samym fizycznym pilocie, również po
+   pełnym resecie. Bez migracji na inny egzemplarz.
 
 Rozpoznanie potwierdziło osobne magazyny publicznej konfiguracji/zdjęć,
 ustawień Wi-Fi, prywatnych połączeń oraz powiązań NimBLE. Dla pełnej kopii
@@ -576,11 +578,13 @@ trzeba uwzględnić obie strony rekordów zabezpieczeń BLE i lokalną tożsamo�
 a nie tylko adres/nazwę urządzenia. Wi-Fi projektu działa z pamięcią RAM
 sterownika i zapisuje ustawienia przez `dsr_settings`, co należy zachować.
 
-**Do doprecyzowania przed projektem:** odtwarzanie wyłącznie na tym samym
-pilocie (także po pełnym resecie) czy również migracja na inny egzemplarz.
-Pytanie zostało przedstawione właścicielowi. Szczegółowy projekt spójnego
-zapisu/odtwarzania, formatu szyfrowania i resetu oraz plan wdrożenia nadal
-pozostają do przygotowania i zatwierdzenia. Funkcje nie są jeszcze wdrożone.
+Projekt spójnego zapisu/odtwarzania, formatu szyfrowania, resetu i LCD
+Aktywności znajduje się w
+[projekcie SYS-02](superpowers/specs/2026-10-24-system-data-design.md).
+Jest propozycją do zatwierdzenia; plan wdrożenia powstanie po jego odbiorze.
+Niezależny przegląd projektu zakończono po doprecyzowaniu przywracania zgód
+automatyzacji bez historycznych nastaw. Sprawdzono tylko dokumentację;
+funkcje nie są jeszcze wdrożone.
 Na etapie ustalania zakresu nie uruchamiano testów firmware, nie zmieniano
 kodu, nie wykonywano resetu ani operacji na urządzeniu.
 
@@ -673,7 +677,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
-| SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | **Zakres wybrany:** LCD Aktywności na istniejących 128 wpisach RAM, pełna kopia konfiguracji/zdjęć/połączeń szyfrowana hasłem przez WWW i pełny reset danych po potwierdzeniu na LCD. Do doprecyzowania odtwarzanie na tym samym/innym pilocie; projekt i plan nadal do przygotowania. Funkcje niewdrożone; resetu na sprzęcie nie wykonywano |
+| SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | **Zakres wybrany:** LCD Aktywności na 128 wpisach RAM, pełna kopia konfiguracji/zdjęć/połączeń szyfrowana hasłem przez WWW, odtwarzanie tylko na tym samym pilocie także po resecie i pełny reset danych po potwierdzeniu na LCD. [Projekt do zatwierdzenia](superpowers/specs/2026-10-24-system-data-design.md); plan po odbiorze. Funkcje niewdrożone; resetu na sprzęcie nie wykonywano |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | **Pokazane widoki konfiguracji WWW, parowania/podglądu oraz LCD bezpieczeństwa/kodu/unieważnienia zaakceptowane na podglądzie** (`3cdd2f7`), w tym układ komputer/telefon, osobne języki, złoty konflikt z nieaktywnym Zapisz, komunikaty podglądu i stałe akcje LCD. Powiązane Chromium/LVGL i słownik PASS. Pozostałe podstrony i rzeczywiste HTTPS/NVS/synchronizacja/podgląd na sprzęcie pozostają otwarte |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. **Nowy krok USB oraz złote komunikaty niskiej baterii i niedostępnego pomiaru zaakceptowane na podglądzie** (`a415e17`). Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
