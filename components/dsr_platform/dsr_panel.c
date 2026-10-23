@@ -1,3 +1,4 @@
+#include "dsr_automation.h"
 #include "dsr_workspace.h"
 #include "dsr_runtime_api.h"
 #include "dsr_actions.h"
@@ -292,12 +293,19 @@ static esp_err_t ap_handoff_api(httpd_req_t *r)
  }
  return json(r,"405 Method Not Allowed","{\"error\":\"Unsupported AP handoff request\"}");
 }
+static esp_err_t automation_api(httpd_req_t *r)
+{
+ if(r->method!=HTTP_GET)return json(r,"405 Method Not Allowed","{}");
+ char *out=dsr_automation_status_json();if(!out)return json(r,"503 Service Unavailable","{\"error\":\"Automation status unavailable\"}");
+ esp_err_t result=json(r,"200 OK",out);free(out);return result;
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!dsr_boot_ready())return json(r,"503 Service Unavailable","{\"error\":\"Startup incomplete or diagnostic mode; collect USB boot log\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);
  if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);
  if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb")||!strcmp(r->uri,"/api/v1/devices/refresh"))return runtime_api(r);
  if(!strncmp(r->uri,"/api/v1/actions/",16)||!strcmp(r->uri,"/api/v1/groups/run")||!strcmp(r->uri,"/api/v1/scenes/run"))return actions_api(r);

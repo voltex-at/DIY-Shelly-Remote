@@ -65,7 +65,8 @@ typedef struct {
 } dsr_auto_rule_status_t;
 typedef struct {
  dsr_auto_rule_status_t rules[DSR_AUTO_RULES];
- struct {uint32_t layout_id;uint8_t baseline,requested,read_half,phase;} targets[DSR_AUTO_PARTICIPANTS];
+ struct {uint32_t layout_id;uint8_t baseline,requested,read_half,phase;bool overridden;} targets[DSR_AUTO_PARTICIPANTS];
+ uint32_t revision;
  uint8_t count,target_count;
 } dsr_auto_snapshot_t;
 #endif

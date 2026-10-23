@@ -10,6 +10,7 @@ dsr_result_t dsr_automation_manual_result(uint32_t layout_id,uint32_t intent_id)
 bool dsr_automation_config_allowed(const cJSON *candidate,char error[96]);
 void dsr_automation_config_published(const cJSON *root);
 void dsr_automation_snapshot(dsr_auto_snapshot_t *out);
+char *dsr_automation_status_json(void);
 /* Trusted worker/actor entrances, never HTTP fields. */
 bool dsr_automation_auto_allowed(uint32_t rule_id,uint32_t cycle,uint32_t generation,uint32_t layout_id,uint8_t half);
 bool dsr_automation_job_owned(uint32_t job_id);

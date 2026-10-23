@@ -3,6 +3,33 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Disable the active automation before changing its contacts, targets or temperature","Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Aktive Regel vor Änderungen deaktivieren und speichern."],
+ ["Automatyzacje","Automations","Automatisierungen"],
+ ["Stan reguły","Rule status","Regelstatus"],["Reguła ogrzewania","Heating rule","Heizungsregel"],
+ ["Odśwież","Refresh","Aktualisieren"],
+ ["+ Nowa reguła","+ New rule","+ Neue Regel"],["Nazwa reguły","Rule name","Regelname"],
+ ["Temperatura przy otwarciu","Temperature while open","Temperatur bei Öffnung"],
+ ["Okna i drzwi","Windows and doors","Fenster und Türen"],["Termostaty","Thermostats","Thermostate"],
+ ["Włącz regułę","Enable rule","Regel aktivieren"],["Zapisz regułę","Save rule","Regel speichern"],
+ ["Edytuj regułę","Edit rule","Regel bearbeiten"],["Usuń regułę","Delete rule","Regel löschen"],
+ ["Odśwież stan reguł","Refresh rule status","Regelstatus aktualisieren"],
+ ["Szukaj urządzeń","Search devices","Geräte suchen"],
+ ["Wyłączona","Disabled","Deaktiviert"],["Oczekiwanie na dane","Waiting for data","Warte auf Daten"],
+ ["Aktywna","Active","Aktiv"],["Ręczna zmiana","Manual change","Manuell geändert"],
+ ["Oczekiwanie na potwierdzenie","Waiting for confirmation","Bestätigung ausstehend"],["Błąd reguły","Rule error","Regelfehler"],
+ ["Brak nowego raportu: {0}","Waiting for a new report: {0}","Neuer Bericht fehlt: {0}"],
+ ["Poprzednia: {0} · Żądana: {1} · Odczytana: {2}","Previous: {0} · Requested: {1} · Read back: {2}","Vorher: {0} · Angefordert: {1} · Ausgelesen: {2}"],
+ ["Nowe raporty wszystkich kontaktów i odczyty TRV są wymagane po przerwie. Tryb beacon można włączyć samodzielnie w Shelly.","After a pause, new reports from every contact and TRV reads are required. Beacon mode can be enabled manually in Shelly.","Nach einer Pause sind neue Berichte aller Kontakte und TRV-Abfragen erforderlich. Beacon-Modus bei Bedarf selbst in Shelly aktivieren."],
+ ["Reakcja natychmiastowa. Powrót po zamknięciu wszystkich kontaktów. Ręczne zmiany zostają zachowane.","Immediate response. Restore after all contacts close. Manual changes are preserved.","Sofortige Reaktion. Rückkehr nach Schließen aller Kontakte. Manuelle Änderungen bleiben erhalten."],
+ ["Wyłączenie lub usunięcie zatrzymuje przyszłe polecenia bez przywracania temperatury. Aktywną regułę wyłącz i zapisz przed zmianą czujników, celów lub nastawy.","Disabling or deleting stops future commands without restoring temperature. Disable and save an active rule before changing contacts, targets or setback.","Deaktivieren oder Löschen stoppt künftige Befehle ohne Temperaturrückkehr. Aktive Regel vor Änderungen an Kontakten, Zielen oder Sollwert deaktivieren und speichern."],
+ ["Brak zweryfikowanych urządzeń. Dodaj kontakt BLU lub termostat TRV przez bramkę.","No verified devices. Add a BLU contact or TRV through its gateway.","Keine verifizierten Geräte. BLU-Kontakt oder TRV über das Gateway hinzufügen."],
+ ["Zajęty przez inną regułę","Used by another rule","Von anderer Regel verwendet"],
+ ["Status innej rewizji. Odśwież lub wczytaj konfigurację; szkic pozostaje.","Status has another revision. Refresh or reload configuration; draft retained.","Status hat andere Revision. Aktualisieren oder Konfiguration neu laden; Entwurf bleibt erhalten."],
+ ["Stan reguł niedostępny. Odśwież, aby spróbować ponownie.","Rule status unavailable. Refresh to retry.","Regelstatus nicht verfügbar. Zum Wiederholen aktualisieren."],
+ ["Przed zapisem podaj nazwę (maks. 47 bajtów), wybierz kontakty i termostaty oraz temperaturę 4–30°C co 0,5°C.","Before saving, enter a name (max. 47 bytes), select contacts and thermostats, and a temperature of 4–30°C in 0.5°C steps.","Vor dem Speichern Namen (max. 47 Bytes), Kontakte, Thermostate und Temperatur 4–30°C in 0,5°C-Schritten angeben."],
+ ["Odrzucić niezapisane zmiany reguły?","Discard unsaved rule changes?","Ungespeicherte Regeländerungen verwerfen?"],
+ ["Usunąć regułę? Przyszłe polecenia zostaną anulowane bez przywracania temperatury.","Delete rule? Future commands will be cancelled without restoring temperature.","Regel löschen? Künftige Befehle werden ohne Temperaturrückkehr abgebrochen."],
+ ["Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Disable and save an active rule before changing it.","Aktive Regel vor Änderungen deaktivieren und speichern."],
  ["Nastawa {0} °C","Target {0} °C","Soll {0} °C"],
  ["Ustaw temperaturę","Set temperature","Temperatur einstellen"],
  ["Temperatura zadana","Target temperature","Soll"],
@@ -155,7 +182,7 @@ const WEB_MESSAGES=new Map([
 ].map(([key,en,de])=>[key,{pl:key,en,de}]));
 /* Backend diagnostics use English canonical keys. Their PL entries are given
  * separately above, rather than translating arbitrary user-controlled text. */
-const SERVER_MESSAGE_KEYS=new Set(["Workspace saved; private binding unconfirmed; add again","Shelly verified; workspace unconfirmed; add again","Expected current BLE scan serial and index only","BLE wizard unavailable; refresh the scan and check the remote","AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
+const SERVER_MESSAGE_KEYS=new Set(["Disable the active automation before changing its contacts, targets or temperature","Workspace saved; private binding unconfirmed; add again","Shelly verified; workspace unconfirmed; add again","Expected current BLE scan serial and index only","BLE wizard unavailable; refresh the scan and check the remote","AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
 for(const key of SERVER_MESSAGE_KEYS){const row=WEB_MESSAGES.get(key);const pl=row.en;row.en=key;row.pl=pl;}
 const uiTextBindings=new WeakMap(),uiAttributeBindings=new WeakMap();
 const supportedLocale=value=>typeof value==='string'&&['pl','en','de'].includes(value)?value:null;
@@ -182,7 +209,7 @@ function failure(message){const error=Error(translate(message));if(message?.uiMe
 function serverMessage(message){return WEB_MESSAGES.has(message)?m(message):message;}
 const $=s=>document.querySelector(s), el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.append(uiText(text));if(cls)n.className=cls;return n;};
 let config=null,page='dashboards',dirty=false,saving=false,conflict=false,dragId=null,editSerial=0;
-const titles={dashboards:m('Pulpity'),rooms:m('Pomieszczenia'),devices:m('Urządzenia Shelly'),discovery:m('Dodaj urządzenie Shelly'),scenes:m('Sceny'),groups:m('Grupy'),activity:m('Aktywność'),appearance:m('Wygląd i język'),system:m('System i aktualizacje')};
+const titles={automations:m('Automatyzacje'),dashboards:m('Pulpity'),rooms:m('Pomieszczenia'),devices:m('Urządzenia Shelly'),discovery:m('Dodaj urządzenie Shelly'),scenes:m('Sceny'),groups:m('Grupy'),activity:m('Aktywność'),appearance:m('Wygląd i język'),system:m('System i aktualizacje')};
 const kinds={light:m('Oświetlenie'),relay:m('Przekaźnik'),plug:m('Gniazdko'),cover:m('Roleta'),contact:m('Czujnik otwarcia'),sensor:m('Czujnik')};
 function notice(s){setText($('#notice'),s);}
 function changed(){editSerial++;dirty=true;setText($('#dirty'),m('Niezapisane zmiany'));$('#save').disabled=saving||conflict;}
@@ -196,7 +223,7 @@ async function request(path,options={}){const r=await fetch('/api/v1/'+path,{...
 let configGeneration=0,configReadSerial=0,statusReadSerial=0;
 function configReadOwner(){return{generation:configGeneration,read:configReadSerial,document:config,revision:config?.revision,edits:editSerial,view:page,lan:lanGeneration,editor:$('#editor').firstElementChild,hidden:$('#workspace').hidden,saving};}
 function configReadCurrent(owner){return owner.generation===configGeneration&&owner.read===configReadSerial&&owner.document===config&&owner.revision===config?.revision&&owner.edits===editSerial&&owner.view===page&&owner.lan===lanGeneration&&owner.editor===$('#editor').firstElementChild&&owner.hidden===$('#workspace').hidden&&owner.saving===saving;}
-function showConfig(next){actionSession=null;configGeneration++;config=next;dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}
+function showConfig(next){actionSession=null;automationSession=null;autoView=null;autoCache=null;configGeneration++;config=next;dirty=conflict=false;$('#workspace').hidden=false;$('#pairing').hidden=true;setText($('#revision'),config.revision);setText($('#dirty'),m('Wszystkie zmiany zapisane'));$('#save').disabled=true;render();notice('');}
 async function load(){
  if(saving)return; // Never replace the submitted document before its exact ACK.
  ++configReadSerial;const owner=configReadOwner();
@@ -260,7 +287,7 @@ function actionList(kind){
  const filter=()=>window.dsrActionsFilter?.(search.value,Number(room.value));search.addEventListener('input',filter);room.addEventListener('change',filter);tools.append(searchLabel,roomLabel);n.append(tools);n.append(button(m(kind==='groups'?'+ Nowa grupa':'+ Nowa scena'),()=>{
   if(config[kind].length>=8)return notice(m('Osiągnięto limit wpisów.'));
   const before=structuredClone(config),wasDirty=dirty,item={id:nextId(config[kind]),name:'',...(kind==='groups'?{members:[]}:{actions:[]})};config[kind].push(item);changed();openAction(kind,item,true,before,wasDirty);
- },'primary'));return n;
+  },'primary'));if(kind==='scenes')n.append(button(m('Automatyzacje'),()=>{page='automations';render();}));return n;
 }
 function editAction(kind,item,step,view={}){
  document.body.classList.add('editing-action');
@@ -538,10 +565,86 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;document.body.classList.toggle('showing-automations',page==='automations');document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page==='automations'?'scenes':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}if(page==='automations'){target.replaceChildren(automationList());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+let automationSession=null,autoView=null,autoCache=null,autoRead=0;
+const autoState=value=>m(['Wyłączona','Oczekiwanie na dane','Aktywna','Ręczna zmiana','Oczekiwanie na potwierdzenie','Błąd reguły'][value]||'Oczekiwanie na dane');
+function autoValid(item){return typeof item.name==='string'&&item.name.trim().length>0&&new TextEncoder().encode(item.name).length<=47&&item.sensors.length>0&&item.targets.length>0&&new Set(item.sensors).size===item.sensors.length&&new Set(item.targets).size===item.targets.length&&Number.isInteger(item.target_half)&&item.target_half>=8&&item.target_half<=60;}
+function autoWarning(text){return el('p',text,'automation-warning');}
+function autoDiscard(){
+ const s=automationSession;if(s?.owner===config){config=structuredClone(s.before);dirty=s.wasDirty;editSerial++;configGeneration++;setText($('#dirty'),m(dirty?'Niezapisane zmiany':'Wszystkie zmiany zapisane'));$('#save').disabled=!dirty||saving||conflict;}
+ automationSession=null;autoView=null;notice('');
+}
+function autoTemperature(value){return Number.isInteger(value)&&value>=8&&value<=60?`${(value/2).toFixed(1)} °C`:'—';}
+function autoStatus(parent,item,data){
+ parent.replaceChildren();const status=data?.rules?.find(r=>r.id===item.id);parent.append(el('p',autoState(status?.state??(item.enabled?1:0)),status?.state>=3?'automation-warning':'muted'));
+ if(status?.missing_id)parent.append(autoWarning(m('Brak nowego raportu: {0}',config.devices.find(d=>d.id===status.missing_id)?.name||`#${status.missing_id}`)));
+ if(status?.result)parent.append(autoWarning(m(status.result===11?'Przed zmianą aktywnej reguły wyłącz ją i zapisz.':'Stan reguł niedostępny. Odśwież, aby spróbować ponownie.')));
+ for(const target of data?.targets||[])if(item.targets.includes(target.id)){
+  const row=el('div',undefined,'automation-target');row.append(el('strong',config.devices.find(d=>d.id===target.id)?.name||`#${target.id}`),el('p',m('Poprzednia: {0} · Żądana: {1} · Odczytana: {2}',autoTemperature(target.baseline_half),autoTemperature(target.requested_half),autoTemperature(target.read_half))));if(target.overridden)row.append(autoWarning(m('Ręczna zmiana')));parent.append(row);
+ }
+}
+async function autoRefresh(view){
+ if(!view||autoView!==view||!view.root.isConnected||page!=='automations'||saving||$('#workspace').hidden)return;
+ const owner=config,generation=configGeneration,revision=config.revision,serial=++autoRead;
+ const current=()=>autoView===view&&view.root.isConnected&&page==='automations'&&owner===config&&generation===configGeneration&&revision===config.revision&&!saving&&!$('#workspace').hidden&&serial===autoRead;
+ try{const response=await request('automations/status'),data=await response.json();if(!current())return;
+  if(data.revision!==revision){view.message.replaceChildren(autoWarning(m('Status innej rewizji. Odśwież lub wczytaj konfigurację; szkic pozostaje.')));return;}
+  if(!Array.isArray(data.devices)||!Array.isArray(data.rules)||!Array.isArray(data.targets))throw Error('Invalid automation status');
+  autoCache=data;view.message.replaceChildren();view.update(data);
+ }catch{if(current())view.message.replaceChildren(autoWarning(m('Stan reguł niedostępny. Odśwież, aby spróbować ponownie.')));}
+}
+function autoTools(root,update){
+ const message=el('div'),view={root,message,update};autoView=view;root.append(button(m('Odśwież stan reguł'),()=>autoRefresh(view)),message);
+ queueMicrotask(()=>autoRefresh(view));return view;
+}
+function automationList(){
+ const root=box(m('Automatyzacje')),rows=[];root.classList.add('automations');
+ root.append(button(m('← Wróć do listy'),()=>{page='scenes';render();}));
+ root.append(button(m('+ Nowa reguła'),()=>{
+  if(config.automations.length>=8)return notice(m('Osiągnięto limit wpisów.'));
+  const before=structuredClone(config),wasDirty=dirty,item={id:nextId(config.automations),name:'',kind:'contact_heating',enabled:false,sensors:[],targets:[],target_half:16};config.automations.push(item);changed();automationEdit(item,before,wasDirty);
+ },'primary'));
+ for(const item of config.automations){const card=el('section',undefined,'automation-card'),status=el('div');card.append(el('h3',item.name),status,button(m('Edytuj regułę'),()=>automationEdit(item)));rows.push([status,item]);root.append(card);}
+ const view=autoTools(root,data=>{for(const [row,item]of rows)autoStatus(row,item,data);});for(const [row,item]of rows)autoStatus(row,item,autoCache?.revision===config.revision?autoCache:null);return root;
+}
+function automationEdit(item,before=structuredClone(config),wasDirty=dirty){
+ const session={owner:config,item,before,wasDirty};automationSession=session;
+ const root=box(m('Automatyzacje')),body=el('fieldset',undefined,'automation-form'),status=el('div'),selections=[];document.body.classList.add('editing-action');root.classList.add('automations');$('#editor').replaceChildren(root);autoView=null;
+ body.append(el('legend',m('Reguła ogrzewania')),el('p',m('Reakcja natychmiastowa. Powrót po zamknięciu wszystkich kontaktów. Ręczne zmiany zostają zachowane.')));root.append(body);
+ const name=field(body,m('Nazwa reguły'),item.name,value=>{item.name=value;refresh();});name.maxLength=47;
+ const temperature=field(body,m('Temperatura przy otwarciu'),(item.target_half??16)/2,value=>{item.target_half=value*2;refresh();},'number');temperature.min='4';temperature.max='30';temperature.step='0.5';
+ const search=el('input'),searchLabel=el('label',m('Szukaj urządzeń'));search.type='search';searchLabel.append(search);body.append(searchLabel);
+ const options=el('div',undefined,'automation-selections');body.append(options);
+ const enableLabel=el('label',m('Włącz regułę'),'automation-choice'),enable=el('input');enable.type='checkbox';enable.checked=item.enabled;enableLabel.prepend(enable);enable.addEventListener('change',()=>{item.enabled=enable.checked;changed();refresh();});body.append(enableLabel);
+ body.append(autoWarning(m('Wyłączenie lub usunięcie zatrzymuje przyszłe polecenia bez przywracania temperatury. Aktywną regułę wyłącz i zapisz przed zmianą czujników, celów lub nastawy.')));
+ const statusHeading=el('h3',m('Stan reguły'));root.append(statusHeading,status,el('p',m('Nowe raporty wszystkich kontaktów i odczyty TRV są wymagane po przerwie. Tryb beacon można włączyć samodzielnie w Shelly.'),'muted'));
+ function choices(data){
+  const focused=document.activeElement?.dataset.autoDevice;options.replaceChildren();selections.length=0;
+  for(const [key,role,title]of [['sensors',1,'Okna i drzwi'],['targets',2,'Termostaty']]){
+   const group=el('fieldset'),legend=el('legend',m(title));group.append(legend);let count=0;
+   for(const d of config.devices){const checked=item[key].includes(d.id),eligible=data?.devices?.some(v=>v.id===d.id&&v.role===role);if(!checked&&!eligible)continue;
+    const label=el('label',d.name,'automation-choice'),input=el('input');input.type='checkbox';setUIAttribute(input,'aria-label',d.name);input.dataset.autoDevice=`${key}-${d.id}`;input.checked=checked;
+    const used=key==='targets'&&config.automations.some(r=>r!==item&&r.targets.includes(d.id));input.disabled=!checked&&used;
+    if(used)label.append(el('small',m('Zajęty przez inną regułę')));
+    input.addEventListener('change',()=>{if(saving)return;if(input.checked&&(!eligible||used)){input.checked=false;return;}item[key]=input.checked?[...new Set([...item[key],d.id])]:item[key].filter(id=>id!==d.id);changed();refresh();});label.prepend(input);group.append(label);selections.push({label,name:d.name.toLocaleLowerCase()});count++;
+   }
+   if(!count)group.append(autoWarning(m('Brak zweryfikowanych urządzeń. Dodaj kontakt BLU lub termostat TRV przez bramkę.')));options.append(group);
+  }
+  filter();if(focused)options.querySelector(`[data-auto-device="${focused}"]`)?.focus();
+ }
+ function filter(){const q=search.value.toLocaleLowerCase().trim();for(const row of selections)row.label.hidden=!row.name.includes(q);}
+ search.addEventListener('input',filter);
+ const footer=el('div',undefined,'onboarding-footer'),cancel=button(m('Anuluj'),()=>{if(saving)return;autoDiscard();render();});
+ const commit=button(m('Zapisz regułę'),async()=>{if(!autoValid(item)||saving)return;body.disabled=true;cancel.disabled=commit.disabled=true;await save();if(automationSession!==session||!root.isConnected)return;body.disabled=false;refresh();if(!dirty&&!saving){automationSession=null;render();}},'primary');footer.append(cancel,commit);root.insertBefore(footer,statusHeading);
+ const remove=button(m('Usuń regułę'),async()=>{if(saving||!confirm(translate(m('Usunąć regułę? Przyszłe polecenia zostaną anulowane bez przywracania temperatury.'))))return;const position=config.automations.indexOf(item);if(position<0)return;config.automations.splice(position,1);changed();automationSession=null;await save();if(dirty){config.automations.splice(position,0,item);automationSession=session;refresh();return;}render();},'danger');body.append(remove);
+ function refresh(){commit.disabled=saving||conflict||!autoValid(item);cancel.disabled=saving;}
+ session.refresh=refresh;
+ const view=autoTools(root,data=>{choices(data);autoStatus(status,item,data);});if(autoCache?.revision===config.revision)view.update(autoCache);else choices(null);refresh();
+}
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])]));return value;}
 async function save(){
  if(!dirty||saving||conflict)return;
+ if(automationSession?.owner===config&&!autoValid(automationSession.item))return notice(m('Przed zapisem podaj nazwę (maks. 47 bajtów), wybierz kontakty i termostaty oraz temperaturę 4–30°C co 0,5°C.'));
  if(actionSession?.owner===config&&(!actionNameValid(actionSession.item)||!(actionSession.kind==='groups'?actionSession.item.members.length:actionSession.item.actions.length))){notice(m('Uzupełnij nazwę i wybierz co najmniej jedno urządzenie lub polecenie.'));editAction(actionSession.kind,actionSession.item,actionNameValid(actionSession.item)?1:0);return;}
  const submitted=structuredClone(config),serial=editSerial;configGeneration++;saving=true;$('#save').disabled=true;
  try{
@@ -558,7 +661,7 @@ async function save(){
    else{dirty=true;setText($('#dirty'),m('Niezapisane zmiany'));notice(m('Zapisano wcześniejszą wersję. Późniejsze zmiany pozostają niezapisane.'));}break;
   }
   if(!acknowledged)throw failure(m('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.'));
- }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();}
+ }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();automationSession?.refresh?.();}
 }
 let statusPollBusy=false,previewBusy=false;
 /* A 300 KiB snapshot is an explicit action, separate from lightweight status.
@@ -594,7 +697,7 @@ document.querySelectorAll('[data-ui]').forEach(node=>setText(node,m(node.dataset
 document.querySelectorAll('[data-ui-aria]').forEach(node=>setUIAttribute(node,'aria-label',m(node.dataset.uiAria)));
 $('#web-locale').addEventListener('change',event=>updateWebLocale(event.target.value));
 updateWebLocale(webLocale,false);
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{page=b.dataset.page;render();}));$('#save').addEventListener('click',save);$('#reload').addEventListener('click',load);$('#preview-refresh').addEventListener('click',refreshPreview);$('#pair-form').addEventListener('submit',async e=>{e.preventDefault();try{await request('pair',{method:'POST',body:$('#pair-code').value.trim()});$('#pair-code').value='';await load();}catch(error){notice(error.uiMessage||serverMessage(error.message));}});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});load();
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{if(automationSession?.owner===config){if(saving||!confirm(translate(m('Odrzucić niezapisane zmiany reguły?'))))return;autoDiscard();}page=b.dataset.page;render();}));$('#save').addEventListener('click',save);$('#reload').addEventListener('click',load);$('#preview-refresh').addEventListener('click',refreshPreview);$('#pair-form').addEventListener('submit',async e=>{e.preventDefault();try{await request('pair',{method:'POST',body:$('#pair-code').value.trim()});$('#pair-code').value='';await load();}catch(error){notice(error.uiMessage||serverMessage(error.message));}});window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});load();
 /* Schedule the next read only after the previous read and body have settled. */
 async function pollLoop(){try{await poll();}finally{setTimeout(pollLoop,1500);}}
 setTimeout(pollLoop,1500);

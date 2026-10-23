@@ -17,7 +17,7 @@ typedef struct {
  dsr_auto_rules_t public_rules,staged;
  dsr_auto_record_t journal;
  dsr_auto_effect_t effect;
- uint32_t approvals[DSR_AUTO_RULES],run_id,read_job,read_started;
+ uint32_t approvals[DSR_AUTO_RULES],run_id,read_job,read_started,revision;
  struct {uint32_t id,until;uint8_t failures;} rate[DSR_AUTO_PARTICIPANTS];
  dsr_result_t config_error;
  bool journal_submitted,online,configured,config_invalid;
@@ -87,6 +87,7 @@ esp_err_t dsr_automation_init(void)
  else if(found&&!dsr_auto_recover(&next->model,boot))next->model.fault=DSR_IO;
  free(boot);char *json=dsr_workspace_snapshot();cJSON *root=json?cJSON_Parse(json):NULL;free(json);char error[96];
  if(!dsr_auto_rules_parse(root,&next->public_rules,error)){cJSON_Delete(root);vSemaphoreDelete(lock);free(next);return ESP_FAIL;}
+ const cJSON *rev=cJSON_GetObjectItemCaseSensitive(root,"revision");next->revision=cJSON_IsNumber(rev)?(uint32_t)rev->valueint:0;
  cJSON_Delete(root);ctx=next;mutex=lock;dsr_auto_pause(&ctx->model,clock_ms(),wall());return ESP_OK;
 }
 bool dsr_automation_config_allowed(const cJSON *candidate,char error[96])
@@ -112,6 +113,7 @@ void dsr_automation_config_published(const cJSON *root)
   const dsr_auto_rule_t *n=&rules->items[i],*old=find_rule(&ctx->public_rules,n->id);
   if(n->enabled&&(!old||!old->enabled||!dsr_auto_rule_same(rules,n,&ctx->public_rules,old)||has_approval(n->id)))approved[i]=n->id;
  }
+ const cJSON *rev=cJSON_GetObjectItemCaseSensitive(root,"revision");ctx->revision=cJSON_IsNumber(rev)?(uint32_t)rev->valueint:0;
  memcpy(ctx->approvals,approved,sizeof(approved));ctx->public_rules=*rules;ctx->configured=false;ctx->config_invalid=false;give();
 }
 static bool enrollment_same(const dsr_auto_rules_t *next,const dsr_auto_rule_t *r)
@@ -275,7 +277,7 @@ void dsr_automation_snapshot(dsr_auto_snapshot_t *out)
 {
  if(!out)return;
  memset(out,0,sizeof(*out));if(!take())return;
- dsr_auto_snapshot_t model;dsr_auto_model_snapshot(&ctx->model,&model);*out=model;out->count=ctx->public_rules.count;
+ dsr_auto_snapshot_t model;dsr_auto_model_snapshot(&ctx->model,&model);*out=model;out->count=ctx->public_rules.count;out->revision=ctx->revision;
  for(unsigned i=0;i<out->count;i++){
   const dsr_auto_rule_t *r=&ctx->public_rules.items[i];out->rules[i]=(dsr_auto_rule_status_t){.rule_id=r->id,.state=r->enabled?DSR_AUTO_WAITING:DSR_AUTO_DISABLED,.result=ctx->config_error};
   for(unsigned j=0;j<model.count;j++)if(model.rules[j].rule_id==r->id&&ctx->configured){out->rules[i]=model.rules[j];break;}

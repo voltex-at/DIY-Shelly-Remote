@@ -36,5 +36,6 @@ async function fixture(){
  await f.button('Cancel remaining steps').listeners.click();eq(f.requests.filter(r=>r.route==='actions/cancel').at(-1).body,{boot_id:18,run_id:f.status().run_id});
  f.mount('activity');await flush();ok(f.text().includes('UTC unset'));ok(f.text().includes('120 s'));const query=f.requests.filter(r=>r.route==='actions/log/query').at(-1);eq(query.body,{epoch:0,offset:0,limit:16});await f.button('Clear RAM activity log').listeners.click();ok(f.text().includes('No entries'));eq(f.requests.filter(r=>r.route.endsWith('/run')).length,count+2);eq(JSON.stringify(f.published),original);
  f.log({epoch:2,total:1,entries:[{utc:0,monotonic_ms:120000,layout_id:43,kind:2,command:0,outcome:2,result:5}]});await f.refresh();ok(f.text().includes('State change'));ok(f.text().includes('Error or no response'));ok(!f.text().includes('Confirmed'));ok(!f.text().includes(' · Off ·'));
+ f.set({active:false,steps:[{layout_id:42,command:9,outcome:1,result:0}]});f.mount('scenes');await f.refresh();ok(f.text().includes('Target'));ok(!f.text().includes('No connection or executor unavailable'));
  console.log(`PASS: ${checks} shipped actions JS checks; persisted definitions, dirty guard, metadata/nonce/generation, lost POST GET-only, reboot, cancel, redacted activity/UTC/clear, locale; DOM/HTTP MODEL`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

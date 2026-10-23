@@ -23,3 +23,8 @@
 
 /* A contextual form has its own Save; keep its mobile screen focused. */
 .editing-action .savebar{display:none}.editing-action .onboarding-footer{bottom:12px}@media(max-width:900px){.editing-action .preview-panel{display:none}}
+
+/* Rule editing shares the existing CAS save and native, focusable controls. */
+.automations{min-width:0}.automation-form,.automation-selections fieldset{min-width:0;border:1px solid var(--edge);border-radius:12px;padding:16px;margin:12px 0}.automation-form input:not([type=checkbox]){width:100%;min-width:0}.automation-choice{display:flex;align-items:center;gap:12px;min-height:44px;overflow-wrap:anywhere}.automation-choice input{flex:none;width:22px;height:22px;accent-color:var(--blue)}.automation-choice small{color:var(--muted)}.automation-card,.automation-target{padding:16px;border:1px solid var(--edge);border-radius:12px;margin:12px 0;overflow-wrap:anywhere}.automation-warning{color:#ffd166;border:1px solid #bd862c;border-radius:10px;padding:12px;overflow-wrap:anywhere}.automation-target p{margin:6px 0}.automation-selections{display:grid;grid-template-columns:1fr 1fr;gap:12px}.automation-selections label[hidden]{display:none}.automation-form:disabled{opacity:.65}@media(max-width:600px){.automation-selections{grid-template-columns:minmax(0,1fr)}.automation-form{padding:12px}.automations .onboarding-footer{flex-wrap:wrap}}
+
+.automations .onboarding-footer{position:static;margin:16px 0 24px;padding:12px 0}.automations .automation-form{margin-bottom:0}@media(max-width:600px){.showing-automations header{grid-template-columns:minmax(0,1fr)}.showing-automations .header-tools{width:100%;flex-direction:row;align-items:center;justify-content:space-between}}

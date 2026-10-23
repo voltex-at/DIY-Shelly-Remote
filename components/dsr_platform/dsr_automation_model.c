@@ -415,5 +415,6 @@ void dsr_auto_model_snapshot(const dsr_auto_model_t *m,dsr_auto_snapshot_t *out)
   out->targets[j].baseline=m->record.targets[i].baseline;out->targets[j].requested=m->record.targets[i].desired;
   out->targets[j].read_half=m->observations[i].valid?(uint8_t)(m->observations[i].target_c*2.0):0;
   out->targets[j].phase=m->record.targets[i].phase;
+  out->targets[j].overridden=m->record.targets[i].override!=0;
  }
 }

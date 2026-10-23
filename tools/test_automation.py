@@ -9,7 +9,7 @@ from hostcc import ROOT, build, parse_args
 p = argparse.ArgumentParser(description=__doc__)
 RUNTIME_SCENARIOS = ['happy', 'manual', 'manual-failure', 'manual-retry', 'reboot-own',
  'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit']
-p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'all'], default='all')
+p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'api', 'all'], default='all')
 p.add_argument('--runtime-module', choices=['actor', 'native'], help='Run one controller in the runtime case')
 p.add_argument('--scenario', nargs='+', choices=RUNTIME_SCENARIOS, help='Run selected runtime scenarios without repeating controller cases')
 a = parse_args(p)
@@ -44,6 +44,7 @@ cases = {
                     ['-l:libcjson.so.1', '-lm']),
 }
 cases['runtime_native'] = (['tests/test_automation_native.c'], ['tests/history', 'tests/actor', 'tests/support'], [])
+cases['api'] = (['components/dsr_platform/dsr_automation_api.c','tests/test_automation_api.c'], ['tests/support','components/dsr_config/include','.test-deps','/usr/include/cjson'], ['-l:libcjson.so.1','-lm'])
 cases['runtime'] = (cases['runtime_actor'][0][:-1] + [
  'components/dsr_platform/dsr_automation.c', 'components/dsr_platform/dsr_automation_model.c',
  'components/dsr_platform/dsr_automation_store.c', 'components/dsr_platform/dsr_automation_config.c',
@@ -63,7 +64,14 @@ with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
    raise SystemExit(f'{name}: case not implemented yet')
   sources, includes, libs = cases[name]
   binary = Path(tmp) / name
-  build(binary, sources, ['components/dsr_core/include', 'components/dsr_platform/include',
+  if name=='api':
+   panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
+   start=panel.index('static esp_err_t automation_api(');end=panel.index('static esp_err_t api(',start)
+   Path(tmp,'automation_endpoint.inc').write_text(panel[start:end])
+   end=panel.index(' if(!strcmp(r->uri,"/api/v1/ap")',end)
+   start=panel.index('static esp_err_t api(')
+   Path(tmp,'automation_route.inc').write_text(panel[start:end]+' return json(r,"404 Not Found","{}");\n}\n')
+  build(binary, sources, [tmp,'components/dsr_core/include', 'components/dsr_platform/include',
         'components/dsr_platform', *includes], flags=(['-DDSR_BOARD_ES3C35P=1'] if name.startswith('runtime') else []) +
         (['-Wl,--wrap=time'] if name=='runtime' else []), libs=libs, args=a)
   scenarios = (a.scenario if a.scenario else RUNTIME_SCENARIOS) if name=='runtime' else [None]
