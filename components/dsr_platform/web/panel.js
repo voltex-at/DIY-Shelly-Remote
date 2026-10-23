@@ -3,6 +3,17 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Plik: {0} ({1} B)","File: {0} ({1} B)","Datei: {0} ({1} B)"],
+ ["Instaluj", "Install", "Installieren"],
+ ["Wybierz plik aplikacji BIN.", "Select the application BIN file.", "Anwendungs-BIN-Datei auswählen."],
+ ["Przed wysłaniem zezwól na OTA na ekranie pilota. Zgoda jest jednorazowa i ważna 120 s. Podłącz stabilne zasilanie USB.", "Before uploading, allow OTA on the remote screen. Approval is one-time and valid for 120 s. Connect stable USB power.", "Vor dem Senden OTA am Bildschirm der Fernbedienung erlauben. Einmalige Freigabe für 120 s. Stabile USB-Versorgung anschließen."],
+ ["Wybierz BIN aplikacji o rozmiarze od 512 B do 6 MiB.", "Select an application BIN between 512 B and 6 MiB.", "Anwendungs-BIN zwischen 512 B und 6 MiB auswählen."],
+ ["Obliczanie sumy SHA-256…", "Calculating SHA-256…", "SHA-256 wird berechnet…"],
+ ["Wysyłanie i weryfikacja obrazu…", "Uploading and verifying the image…", "Abbild wird übertragen und geprüft…"],
+ ["Nie potwierdzono wyniku aktualizacji. Sprawdź pilot przed ponowieniem.", "Update outcome unconfirmed. Check the remote before retrying.", "Update-Ergebnis unbestätigt. Fernbedienung vor erneutem Versuch prüfen."],
+ ["Nie potwierdzono restartu. Sprawdź pilot.", "Restart unconfirmed. Check the remote.", "Neustart unbestätigt. Fernbedienung prüfen."],
+ ["OTA staging or restart busy; upload not started", "OTA lub restart zajęte; przesyłanie nie rozpoczęło się", "OTA oder Neustart belegt; Übertragung nicht gestartet"],
+ ["Boot selection unconfirmed; OTA blocked until restart", "Nie potwierdzono wyboru startowego; OTA zablokowane do restartu", "Startauswahl unbestätigt; OTA bis zum Neustart gesperrt"],
  ["Disable the active automation before changing its contacts, targets or temperature","Przed zmianą aktywnej reguły wyłącz ją i zapisz.","Aktive Regel vor Änderungen deaktivieren und speichern."],
  ["Automatyzacje","Automations","Automatisierungen"],
  ["Stan reguły","Rule status","Regelstatus"],["Reguła ogrzewania","Heating rule","Heizungsregel"],
@@ -191,7 +202,7 @@ const WEB_MESSAGES=new Map([
 ].map(([key,en,de])=>[key,{pl:key,en,de}]));
 /* Backend diagnostics use English canonical keys. Their PL entries are given
  * separately above, rather than translating arbitrary user-controlled text. */
-const SERVER_MESSAGE_KEYS=new Set(["Disable the active automation before changing its contacts, targets or temperature","Workspace saved; private binding unconfirmed; add again","Shelly verified; workspace unconfirmed; add again","Expected current BLE scan serial and index only","BLE wizard unavailable; refresh the scan and check the remote","AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
+const SERVER_MESSAGE_KEYS=new Set(["OTA staging or restart busy; upload not started","Boot selection unconfirmed; OTA blocked until restart","Disable the active automation before changing its contacts, targets or temperature","Workspace saved; private binding unconfirmed; add again","Shelly verified; workspace unconfirmed; add again","Expected current BLE scan serial and index only","BLE wizard unavailable; refresh the scan and check the remote","AP handoff accepts no configuration or credentials","AP wizard unavailable; check the remote and home Wi-Fi","Unsupported AP handoff request",'Configuration changed; reload and retry adding the device','Failed to fetch','Load failed','NetworkError when attempting to fetch resource.','Enter the 16-character code shown on the remote','Restart pending; pairing not saved','Pairing expired, locked or invalid; reopen pairing on the remote','Pairing could not be saved','Allow OTA on the remote first; approval expires after 2 minutes','Upload the application BIN, not a merged USB image','SHA256 required','Restart pending; upload not started','Image, board marker or checksum rejected; boot slot unchanged','Boot slot not changed','Operation pending; retry restart after saving finishes','Restart service unavailable','Local same-origin access only','Startup incomplete or diagnostic mode; collect USB boot log','Pair this browser on the remote','Invalid configuration or revision conflict; reload','Busy or revision conflict','Invalid details or another device check is running','Expected a 320x180 RGB565 room photo','Unknown API route','Checking Shelly identity…','Shelly verified and saved','Authentication failed; check Shelly credentials','Shelly offline / Wi-Fi disconnected','Shelly check failed; previous binding retained']);
 for(const key of SERVER_MESSAGE_KEYS){const row=WEB_MESSAGES.get(key);const pl=row.en;row.en=key;row.pl=pl;}
 const uiTextBindings=new WeakMap(),uiAttributeBindings=new WeakMap();
 const supportedLocale=value=>typeof value==='string'&&['pl','en','de'].includes(value)?value:null;
@@ -226,7 +237,7 @@ function button(text,fn,cls){const b=el('button',text,cls);b.type='button';if(te
 function field(parent,label,value,fn,type='text'){const l=el('label',label),i=el('input');i.type=type;i.value=value;i.addEventListener('input',()=>{fn(type==='number'?Number(i.value):i.value);changed();});l.append(i);parent.append(l);return i;}
 function select(parent,label,value,options,fn){const l=el('label',label),s=el('select');setUIAttribute(s,'aria-label',label);for(const [v,t]of options){const o=el('option',t);o.value=v;s.append(o);}s.value=String(value);s.addEventListener('change',()=>{fn(s.value);changed();});l.append(s);parent.append(l);return s;}
 function nextId(items){return Math.max(0,...items.map(x=>x.id))+1;}
-async function request(path,options={}){const r=await fetch('/api/v1/'+path,{...options,headers:{'X-DSR-Request':'1',...(options.headers||{})}});if(r.status===401){$('#workspace').hidden=true;$('#pairing').hidden=false;throw failure(m('Parowanie wymagane'));}if(!r.ok){let e;try{e=await r.json();}catch{}const error=failure(e?.error?serverMessage(e.error):m('Błąd {0}',r.status));error.httpStatus=r.status;throw error;}return r;}
+async function request(path,options={}){const r=await fetch('/api/v1/'+path,{...options,headers:{'X-DSR-Request':'1',...(options.headers||{})}});if(r.status===401){$('#workspace').hidden=true;$('#pairing').hidden=false;throw failure(m('Parowanie wymagane'));}if(!r.ok){let e;try{e=await r.json();}catch{}const error=failure(e?.error?serverMessage(e.error):m('Błąd {0}',r.status));error.httpStatus=r.status;error.restartRequired=e?.restart_required===true;throw error;}return r;}
 // A read owns the document, edit/view and explicit-load generation that
 // existed when it began. Save/BIND/new reload must invalidate older reads.
 let configGeneration=0,configReadSerial=0,statusReadSerial=0;
@@ -378,7 +389,55 @@ function editTile(d,t){
  n.append(c,button(m('← Wróć do pulpitu'),()=>editDashboard(d)));
 }
 function appearance(){const n=box(m('Wygląd i język')),f=el('div',undefined,'fields');n.append(f,el('p',m('Język pilota jest wspólnym ustawieniem i wymaga zapisu w pilocie.'),'muted'),el('p',m('Język Web Panelu: preferencja tej przeglądarki, wybierana w nagłówku. Nie wymaga zapisu w pilocie.'),'muted'));select(f,m('Język pilota'),config.language,[['pl','Polski'],['en','English'],['de','Deutsch']],v=>config.language=v);select(f,m('Motyw'),config.theme==='midnight'?'graphite':config.theme,[['graphite',m('Grafit')],['light',m('Jasny')],['cyber_blue','Cyber Blue']],v=>config.theme=v);field(f,m('Kolor akcentu'),'#'+config.accent.toString(16).padStart(6,'0'),v=>config.accent=parseInt(v.slice(1),16),'color');return n;}
-function system(){const n=box(m('Aktualizacja OTA'));n.append(el('p',m('Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.')));const f=el('input');f.type='file';f.accept='.bin';setUIAttribute(f,'aria-label',m('Plik aplikacji BIN'));n.append(f,button(m('Sprawdź i zainstaluj OTA'),async()=>{if(!f.files[0])return;try{const data=await f.files[0].arrayBuffer();notice(m('Wysyłanie obrazu do nieaktywnej partycji…'));const r=await request('ota',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SHA256':sha256(new Uint8Array(data))},body:data});const result=await r.json();if(result.installed){notice(m('Obraz zweryfikowany. Uruchom ponownie pilot, aby go zastosować.'));n.append(button(m('Uruchom ponownie'),async()=>{await request('restart',{method:'POST'});notice(m('Pilot uruchamia się ponownie…'));}));}}catch(e){notice(e.uiMessage||serverMessage(e.message));}},'primary'));n.append(el('p',m('Najpierw zweryfikuj źródło pliku. Suma SHA256 sprawdza przesyłanie, a nie podpis wydawcy. To rozwojowy instalator lokalny.'),'muted'));return n;}
+// A pending upload survives navigation; no view may submit it twice.
+const localOta={phase:'idle',message:null,restarting:false,filename:'',size:0};
+let localOtaUpdate=()=>{};
+function system(){
+ const n=box(m('Aktualizacja OTA'));n.classList.add('ota-flow');
+ n.append(el('p',m('Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.')));
+ n.append(el('p',m('Przed wysłaniem zezwól na OTA na ekranie pilota. Zgoda jest jednorazowa i ważna 120 s. Podłącz stabilne zasilanie USB.'),'automation-warning'));
+ const label=el('label',m('Plik aplikacji BIN')),f=el('input');f.type='file';f.accept='.bin';setUIAttribute(f,'aria-label',m('Plik aplikacji BIN'));label.append(f);n.append(label);
+ const fileSummary=el('p',undefined,'ota-file-summary');n.append(fileSummary);
+ const status=el('p',undefined,'ota-message');status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+ const progress=el('progress',undefined,'ota-progress');setUIAttribute(progress,'aria-label',m('Wysyłanie i weryfikacja obrazu…'));progress.hidden=true;
+ const install=button(m('Instaluj'),async()=>{
+  if(['pending','staged','uncertain','unconfirmed'].includes(localOta.phase)||!f.files[0])return;
+  const file=f.files[0];let sent=false;
+  if(!/\.bin$/i.test(file.name)||file.size<512||file.size>0x600000){localOta.phase='error';localOta.message=m('Wybierz BIN aplikacji o rozmiarze od 512 B do 6 MiB.');localOtaUpdate();return;}
+  localOta.phase='pending';localOta.filename=file.name;localOta.size=file.size;localOta.message=m('Obliczanie sumy SHA-256…');localOtaUpdate();
+  try{
+   const data=await file.arrayBuffer();const hash=sha256(new Uint8Array(data));
+   localOta.message=m('Wysyłanie i weryfikacja obrazu…');localOtaUpdate();sent=true;
+   const r=await request('ota',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-SHA256':hash},body:data});
+   const result=await r.json();if(result.installed!==true)throw failure(m('Nie potwierdzono wyniku aktualizacji. Sprawdź pilot przed ponowieniem.'));
+   localOta.phase='staged';localOta.message=m('Obraz zweryfikowany. Uruchom ponownie pilot, aby go zastosować.');
+  }catch(e){
+   localOta.phase=e.restartRequired?'uncertain':sent&&(!e.httpStatus||e.httpStatus>=500)?'unconfirmed':'error';
+   localOta.message=localOta.phase==='unconfirmed'?m('Nie potwierdzono wyniku aktualizacji. Sprawdź pilot przed ponowieniem.'):e.uiMessage||serverMessage(e.message);
+  }
+  localOtaUpdate();
+ },'primary ota-install');
+ const restart=button(m('Uruchom ponownie'),async()=>{
+  if(localOta.restarting||!['staged','uncertain'].includes(localOta.phase))return;
+  localOta.restarting=true;localOtaUpdate();
+  try{await request('restart',{method:'POST'});localOta.message=m('Pilot uruchamia się ponownie…');}
+  catch(e){localOta.restarting=!e.httpStatus||e.httpStatus>=500;localOta.message=localOta.restarting?m('Nie potwierdzono restartu. Sprawdź pilot.'):(e.uiMessage||serverMessage(e.message));}
+  localOtaUpdate();
+ },'ota-restart');
+ const actions=el('div',undefined,'actions');actions.append(install,restart);n.append(status,progress,actions);
+ n.append(el('p',m('Najpierw zweryfikuj źródło pliku. Suma SHA256 sprawdza przesyłanie, a nie podpis wydawcy. To rozwojowy instalator lokalny.'),'automation-warning'));
+ const update=()=>{
+  const locked=['pending','staged','uncertain','unconfirmed'].includes(localOta.phase);
+  install.disabled=locked||!f.files[0];f.disabled=locked;
+  label.hidden=locked;fileSummary.hidden=!locked;
+  if(locked)setText(fileSummary,m('Plik: {0} ({1} B)',localOta.filename,localOta.size));
+  restart.hidden=!['staged','uncertain'].includes(localOta.phase);restart.disabled=localOta.restarting;
+  progress.hidden=localOta.phase!=='pending';status.dataset.state=localOta.phase;
+  status.classList.toggle('automation-warning',['error','uncertain','unconfirmed'].includes(localOta.phase));
+  setText(status,localOta.message||m('Wybierz plik aplikacji BIN.'));
+ };
+ localOtaUpdate=()=>{if(n.isConnected)update();};f.addEventListener('change',update);update();return n;
+}
 /* Selection is local state. Only an explicit Next can enter a real method. */
 let onboardingChoice=null,onboardingStarting=false,onboardingNext=null,onboardingCards=[],remoteReachable=true;
 // Every async LAN owner keeps this epoch across all awaits. Reopening or
@@ -574,7 +633,7 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;document.body.classList.toggle('showing-automations',page==='automations');document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page==='automations'?'scenes':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}if(page==='automations'){target.replaceChildren(automationList());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;$('#workspace .savebar').hidden=page==='system'&&!dirty;document.body.classList.toggle('showing-automations',page==='automations');document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page==='automations'?'scenes':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}if(page==='automations'){target.replaceChildren(automationList());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
 let automationSession=null,autoView=null,autoCache=null,autoRead=0;
 const autoState=value=>m(['Wyłączona','Oczekiwanie na dane','Aktywna','Ręczna zmiana','Oczekiwanie na potwierdzenie','Błąd reguły'][value]||'Oczekiwanie na dane');
 function autoValid(item){return typeof item.name==='string'&&item.name.trim().length>0&&new TextEncoder().encode(item.name).length<=47&&item.sensors.length>0&&item.targets.length>0&&new Set(item.sensors).size===item.sensors.length&&new Set(item.targets).size===item.targets.length&&Number.isInteger(item.target_half)&&item.target_half>=8&&item.target_half<=60;}
@@ -672,7 +731,7 @@ async function save(){
    else{dirty=true;setText($('#dirty'),m('Niezapisane zmiany'));notice(m('Zapisano wcześniejszą wersję. Późniejsze zmiany pozostają niezapisane.'));}break;
   }
   if(!acknowledged)throw failure(m('Nie potwierdzono zapisu w wymaganym czasie. Zachowano zmiany w edytorze.'));
- }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();automationSession?.refresh?.();}
+ }catch(e){notice(e.uiMessage||serverMessage(e.message));}finally{saving=false;$('#workspace .savebar').hidden=page==='system'&&!dirty;$('#save').disabled=!dirty||conflict;actionSession?.refresh?.();automationSession?.refresh?.();}
 }
 let statusPollBusy=false,previewBusy=false;
 /* A 300 KiB snapshot is an explicit action, separate from lightweight status.

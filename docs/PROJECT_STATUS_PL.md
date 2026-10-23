@@ -346,6 +346,58 @@ To akceptacja wyglądu; działanie progu na ogniwie/USB, rzeczywista instalacja,
 zachowanie danych i rollback pozostają do odbioru na sprzęcie. Lokalne OTA
 przez WWW pozostaje osobnym punktem. Numer 0.7.71 w renderach jest przykładowy.
 
+### OTA-01 — lokalny upload BIN przez WWW: podgląd do oceny
+
+Właściciel wybrał przegląd lokalnego OTA przez WWW. Ten istniejący tryb
+deweloperski przyjmuje BIN aplikacji po fizycznej zgodzie na LCD (jednorazowej,
+maksymalnie 120 s), parowaniu przeglądarki i dotychczasowych kontrolach HTTP.
+Sprawdza format/znacznik płytki i SHA-256; nie weryfikuje podpisu wydawcy.
+Backend uploadu, partycje, klucze i reguły dostępu nie zostały zmienione.
+
+Na LCD trzy informacje mają własne ramki wyliczane z wysokości tekstu.
+Cyber Blue używa podwójnych sfazowanych obramowań. Odmowa, wygaśnięcie oraz
+informacja o trybie deweloperskim są złote, z ciemniejszym złotem w Jasny.
+Instrukcja prowadzi do System i OTA w panelu oraz przypomina o stabilnym USB.
+Pełne ramki mieszczą się nad Wstecz w PL/EN/DE. Zmiana ekranu usuwa referencje
+etykiety i ikony; późniejszy tick wygaśnięcia nie dotyka usuniętych obiektów.
+LCD pokazuje przyznanie zgody i lokalne wygaśnięcie, nie postęp zapisu Flash.
+
+Panel blokuje Instaluj bez pliku, odrzuca przed wysłaniem plik inny niż BIN
+lub poza zakresem 512 B…6 MiB i blokuje powtórne wysłanie podczas operacji.
+Pokazuje obliczanie sumy, następnie nieokreślony wskaźnik wysyłania/weryfikacji
+— bez wymyślonego procentu Flash. Nazwa i rozmiar wysłanego pliku oraz wynik
+przetrwają nawigację. Spóźniony wynik nie nadpisuje innego ekranu. HTTP 400/403
+pozwala na ręczne ponowienie po usunięciu przyczyny i odnowieniu zgody;
+niepotwierdzony wybór startowy pokazuje złote ostrzeżenie i jawny restart.
+Utrata odpowiedzi lub nieokreślony błąd 5xx nie oznacza sukcesu ani pozostawienia slotu bez zmian:
+panel prosi o sprawdzenie pilota i blokuje ponowienie w tej sesji widoku.
+Restart wysyłany jest wyłącznie po kliknięciu, bez automatycznych ponowień.
+
+Na stronie OTA stopka zapisu konfiguracji jest ukryta, gdy nie ma niezapisanych
+zmian. Jeśli istnieje draft konfiguracji, stopka pozostaje dostępna; znika po
+potwierdzonym zapisie. Nie zapisujemy go automatycznie z powodu operacji OTA.
+Ważne komunikaty panelu mają złote ramki, również na szerokości 320 px.
+
+Walidacja: `test_web_ota_ui` w rzeczywistym przypiętym LVGL 9.3 — PASS,
+PL/EN/DE w trzech skórkach, 15 wybranych klatek zgody, odmowy i wygaśnięcia.
+Kontrola koloru, wewnętrznych marginesów i pełnych ramek nad dolną akcją.
+`node tests/test_panel_ota.cjs` — PASS: rzeczywiste zasoby w Chromium,
+próg rozmiaru i wyliczony SHA w żądaniu, brak pliku/duplikatu, odmowa,
+odrzucony obraz, wysyłanie, potwierdzony wynik, niepewny wybór startowy,
+utrata odpowiedzi, powrót na stronę, mobilny układ i draft/zapis konfiguracji.
+`test_web_locale_dictionary.cjs` i istniejący `test_panel_locale.cjs` — PASS.
+Nowe przypadki dodano do normalnych runnerów/CI; CI nie było uruchamiane.
+Obejrzano piksele, w tym poprawkę stopki znalezioną podczas oględzin mimo
+wcześniejszego zielonego testu. Modele obejmują HTTP/uprawnienia/Flash/restart;
+nie wykonano uploadu na pilocie, nowego builda firmware ani pełnego atlasu.
+
+**Pozostała niespójność funkcjonalna:** próg 20% i nowy odczyt ADC przed
+instalacją dotyczą obecnie natywnego OTA. Lokalny uploader WWW nie ma jeszcze
+tej kontroli. Zgodna polityka baterii/USB wymaga osobnej integracji z workerem
+przed odbiorem wydania; tekst o USB nie zastępuje tej kontroli. Podgląd
+lokalnych ekranów czeka na ocenę. Rzeczywista instalacja, dane i rollback
+pozostają otwarte.
+
 ## Baza dalszej pracy
 
 - Repozytorium: `voltex-at/DIY-Shelly-Remote`, lokalnie `C:\Users\franz\DIY-Shelly-Remote`.
@@ -437,7 +489,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): krótkie Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS; próg sprawdzany w UI i workerze. Nieznany procent wymaga potwierdzenia stabilnego USB. Osobno pozostają lokalne OTA przez WWW, odbiór progu na sprzęcie, instalacja, zachowanie danych i rollback |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS. **Lokalne OTA przez WWW:** ramki LCD, stan pliku/wysyłania/wyniku/błędu i mobilna stopka poprawione; powiązane testy PASS, podgląd do oceny. Lokalny uploader nadal wymaga integracji progu baterii 20% z workerem. Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 

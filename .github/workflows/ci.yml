@@ -48,6 +48,7 @@ jobs:
           node tests/test_panel_onboarding_model.cjs
           node tests/test_web_locale_dictionary.cjs
           node tests/test_panel_locale.cjs
+          node tests/test_panel_ota.cjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -60,6 +61,7 @@ jobs:
             build-ui/skin-atlas/
             build-ui/panel-review/
             build-ui/panel-locale/
+            build-ui/panel-ota/
             build-ui/panel-runtime/
             build-ui/panel-actions/
             build-ui/panel-automation/

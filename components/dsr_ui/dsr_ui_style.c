@@ -261,6 +261,7 @@ const char *dsr_sc_tr(const char *text)
  {"Zainstaluj","Install","Installieren"},
  {"Instaluj","Install","Installieren"},
  {"Sprawdź baterię","Check battery","Akku prüfen"},
+ {"Otwórz w przeglądarce System i OTA. Wybierz BIN aplikacji. Podłącz stabilne zasilanie USB.","In the browser open System and OTA. Select the application BIN. Connect stable USB power.","Im Browser System und OTA öffnen. Anwendungs-BIN auswählen. Stabile USB-Versorgung anschließen."},
  {"Sprawdzanie baterii…","Checking battery…","Akku wird geprüft…"},
  {"Bateria poniżej 20%. Doładuj pilot do co najmniej 20% i sprawdź baterię ponownie.","Battery below 20%. Charge the remote to at least 20% and check the battery again.","Akku unter 20%. Fernbedienung auf mindestens 20% laden und Akku erneut prüfen."},
  {"Procent baterii nieznany. Zgoda jednorazowa: 120 s od sprawdzenia.","Battery percentage unknown. One-time consent: 120 s after checking.","Akkustand unbekannt. Einmalige Zustimmung: 120 s ab Prüfung."},

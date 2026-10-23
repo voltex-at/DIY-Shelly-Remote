@@ -21,6 +21,8 @@
 static lv_obj_t *touch_status;
 static unsigned touches;
 static lv_obj_t *expiry_label;
+static lv_obj_t *ota_expiry_icon;
+static void web_ota_warning(lv_obj_t *label);
 static uint32_t issued_at;
 static bool expiry_pair;
 static lv_obj_t *restart_status,*restart_confirm_button,*restart_cancel_button;
@@ -33,13 +35,13 @@ static lv_obj_t *web_pairing_state,*web_pairing_generate;
 static bool revoke_pending;
 static const char *revoke_message="Potwierdź unieważnienie przyciskiem poniżej.";
 void dsr_ui_settings_hide(void)
-{expiry_label=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
+{expiry_label=ota_expiry_icon=NULL;restart_status=NULL;restart_confirm_button=NULL;restart_cancel_button=NULL;
  revoke_state_label=revoke_status=revoke_confirm_button=revoke_cancel_button=NULL;
  web_pairing_state=web_pairing_generate=NULL;}
 void dsr_ui_settings_tick(void)
 {
  if(expiry_label&&(uint32_t)(lv_tick_get()-issued_at)>=120000){
-  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");expiry_label=NULL;
+  dsr_sc_label_set_text(expiry_label,expiry_pair?"Kod parowania wygasł.":"Zgoda na OTA wygasła.");if(!expiry_pair)web_ota_warning(expiry_label);expiry_label=NULL;
  }
 }
 
@@ -327,12 +329,34 @@ static void web_panel(lv_event_t *event)
  row(body,"Diagnostyka konfiguracji",424,dsr_ui_config_diagnostics);
  row(body,"Odśwież",482,web_panel);
 }
+static uint32_t web_ota_gold(void){return dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;}
+static void web_ota_warning(lv_obj_t *label)
+{
+ lv_obj_t *frame=lv_obj_get_parent(label);uint32_t gold=web_ota_gold();
+ lv_obj_set_style_text_color(label,dsr_sc_color(gold),0);dsr_sc_border_color(frame,dsr_sc_color(gold),0);
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(frame,false);
+ if(ota_expiry_icon)dsr_sc_icon_color(ota_expiry_icon,gold);
+}
+static lv_obj_t *web_ota_message(lv_obj_t *body,const char *text,int y,bool warning,lv_obj_t **icon)
+{
+ lv_obj_t *frame=dsr_sc_panel(body,0,y,296,56,DSR_SC_CARD,10);
+ dsr_sc_border_width(frame,1,0);dsr_sc_border_color(frame,dsr_sc_color(warning?web_ota_gold():DSR_SC_EDGE),0);
+ if(warning&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(frame,false);
+ lv_obj_t *symbol=dsr_sc_icon(frame,warning?DSR_ICON_WARNING:DSR_ICON_INFO,12,12,24,warning?web_ota_gold():DSR_SC_GLOW);
+ if(icon)*icon=symbol;
+ lv_obj_t *label=dsr_sc_text(frame,text,44,12,240,&dsr_roboto_14,warning?web_ota_gold():DSR_SC_TEXT);
+ lv_obj_update_layout(label);int h=lv_obj_get_height(label)+24;lv_obj_set_height(frame,h<56?56:h);lv_obj_update_layout(frame);return label;
+}
 void dsr_ui_web_ota_open(lv_event_t *event)
 {
  (void)event;bool accepted=dsr_panel_allow_ota();lv_obj_t *body=settings_body("Lokalne OTA • Web Panel");
- lv_obj_t *status=dsr_sc_text(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",4,12,284,&dsr_roboto_18,DSR_SC_TEXT);
+ lv_obj_set_style_bg_opa(body,LV_OPA_TRANSP,0);
+ lv_obj_t *status=web_ota_message(body,accepted?"OTA dozwolone przez 2 minuty. Wybierz BIN w panelu.":"Nie udzielono zgody OTA. HTTPS niedostępny lub zajęty.",0,!accepted,&ota_expiry_icon);
  if(accepted){expiry_label=status;issued_at=lv_tick_get();expiry_pair=false;}
- dsr_sc_text(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",4,146,284,&dsr_roboto_14,DSR_SC_MUTED);
+ lv_obj_t *frame=lv_obj_get_parent(status);int y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
+ lv_obj_t *help=web_ota_message(body,"Otwórz w przeglądarce System i OTA. Wybierz BIN aplikacji. Podłącz stabilne zasilanie USB.",y,false,NULL);
+ frame=lv_obj_get_parent(help);y=lv_obj_get_y(frame)+lv_obj_get_height(frame)+12;
+ web_ota_message(body,"To lokalny tryb deweloperski, nie podpisany updater z pilota.",y,true,NULL);
 }
 static void system_menu(lv_event_t *event);
 static void restart_cancel(lv_event_t *event)
