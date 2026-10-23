@@ -1,6 +1,7 @@
 # SYS-02 — Aktywność, szyfrowany backup i reset danych
 
-Data: 2026-10-24. **Status: projekt do zatwierdzenia przez właściciela.**
+Data: 2026-10-24. **Status: projekt zatwierdzony przez właściciela w rozmowie**
+(„Tak, projekt zatwierdzony”). Podstawa przygotowania planów wdrożenia SYS-02.
 Podstawa: ankieta #74, kod na `work/dev-0.7.70` po `1baf1a0`.
 Dokument opisuje przyszłe funkcje; nie jest poleceniem resetu urządzenia.
 Niezależny przegląd wykonalności wskazał brak określenia enrollment reguł po imporcie.
@@ -20,9 +21,9 @@ po resecie bez ponownego wprowadzania wszystkich połączeń. Uzgodniono:
 4. Pełny reset danych wymaga potwierdzenia na fizycznym LCD i usuwa również
    Wi-Fi, Shelly, BLE oraz dostęp WWW. Firmware i weryfikacja OTA pozostają.
 
-Poniższe wybory architektury, ograniczenia i szczegóły UX są propozycją wykonawcy
-do zatwierdzenia wraz z dokumentem; nie przypisujemy ich wcześniejszym odpowiedziom
-właściciela. Dotychczas zaakceptowane ekrany i działanie zwykłego restartu pozostają.
+Poniższe wybory architektury, ograniczenia i szczegóły UX zostały zaproponowane przez
+wykonawcę i zatwierdzone wraz z dokumentem; nie przypisujemy ich wcześniejszym
+odpowiedziom właściciela. Dotychczas zaakceptowane ekrany i działanie zwykłego restartu pozostają.
 
 ## Podejście i granice
 
