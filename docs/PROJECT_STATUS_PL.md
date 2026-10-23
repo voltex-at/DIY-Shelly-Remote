@@ -89,7 +89,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Zaakceptowane na podglądzie:** Dalej, znacznik metody, górny powrót Cyber Blue; pokazane ekrany wyszukiwania, pustej listy i błędu logowania LAN z pełnym IP/MAC; wyszukiwanie, komunikat bez Wi-Fi, pusta lista i niedostępność Bluetooth; pokazane ekrany AP ze wskaźnikiem jak LAN, większymi ikonami i złotym komunikatem w ramce; **wspólny formularz nazwy/pomieszczenia/kanału i przebieg zapisu, złote błędy, nieaktywne „Zapisz”, widoczne pole hasła, zachowanie wpisów i powrót do Dashboardu**. Pozostałe kroki konfiguracji AP/BLE i odbiór na sprzęcie pozostają otwarte |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
-| CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Oczekuje na ocenę |
+| CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | Grupy/sceny: przygotowano podglądy tworzenia, wyboru urządzeń, edycji poleceń i kolejności, zapisu oraz błędów wykonania w trzech skórkach; szczegóły i poprawki poniżej. Odbiór tych podglądów oraz sterowania na fizycznych Shelly pozostaje otwarty |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | Oczekuje na ocenę |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
@@ -509,6 +509,24 @@ Walidacja dotyczyła wyłącznie tej rundy: `DSR_UI_FOCUS_CONFIG_CONTROLS=1 pyth
 Obejrzano rzeczywiste piksele LVGL 9.3: listę Urządzeń, edytor Dashboardu przed i po przesunięciu przez granicę strony, pełne rzędy właściwości, błąd zapisu oraz dialog używanego pomieszczenia. Kontrola wizualna wykryła symbol rolety w miejscu strzałki Cyber Blue; zastąpiono go istniejącymi prostymi strzałkami przed końcowym podglądem. Nie generowano pełnego atlasu, nie uruchamiano pełnego CI ani builda docelowego. Zapis i sieć mają dostawców hosta; trwałość po restarcie pilota wymaga późniejszego odbioru sprzętowego.
 
 **Odbiór:** właściciel potwierdził „Tak, te elementy zaakceptowane na podglądzie” dla Góra/Dół w obu miejscach, podpisów i przygaszenia niedostępnych opcji oraz „Tak, złote komunikaty zaakceptowane” dla ważnych tekstów konfiguracji i ostrzeżeń w trzech skórkach. Kod tej rundy jest zapisany w lokalnym commicie `970ee07`. Przy zapisie akceptacji sprawdzono dokumentację i diff, bez ponawiania testów firmware i renderów. Nadal otwarte: wyróżnienie Zapisz w Grafit/Jasny, ochrona niezapisanych zmian przy wyjściu z ogólnej edycji dashboardów do Home oraz pozostały odbiór CFG-01. Akceptacja podglądu nie zastępuje odbioru na pilocie. Nowy DEV dopiero po zakończeniu ankiety i walidacji commita wydania.
+
+### CTRL-02 — grupy i sceny: tworzenie, edycja i wynik uruchomienia
+
+Właściciel wybrał kolejny punkt ankiety: „Grupy i sceny — tworzenie, edycja i działanie”. Przegląd obejmuje istniejący kreator LCD, bez nowego modelu konfiguracji. Grupy obsługują przekaźniki i gniazdka; ręczne sceny także polecenia rolet. Automatyczne warunki i harmonogramy pozostają poza tym zakresem.
+
+Wykryto i poprawiono:
+
+- Górny powrót w pierwszym kroku omijał ochronę szkicu. Teraz używa tej samej obsługi co Anuluj/Wstecz, z dialogiem Zostań/Odrzuć i blokadą wyjścia podczas zapisu. Po zamknięciu dialogu formularz kończy się nad stopką we wszystkich skórkach.
+- Wybór urządzenia do sceny i podsumowanie skracały dłuższe nazwy. Przyciski wyboru zawijają tekst, a wysokość pozycji podsumowania wynika z pomiaru tekstu. Natywny checkbox LVGL rysował nazwę grupowanego urządzenia w jednej linii mimo szerokości pola; otrzymał osobną, zawijaną etykietę w tym samym obszarze dotyku.
+- Karty grup/scen bez zdjęcia miały biały tekst także na jasnej powierzchni. Używają teraz koloru tekstu skórki; na zdjęciach zachowano biały tekst i ciemne tło opisu.
+- Odwzorowanie zapisanych zaznaczeń rozpoczynało animację od pustego pola, szczególnie nieczytelnego w Jasny. Znany stan jest teraz odtwarzany przed ponownym zastosowaniem motywu i lokalnych stylów; późniejsze dotknięcia zachowują animacje motywu. Cyber Blue ma sfazowane ramki wierszy wyboru.
+- Strzałki kolejności scen w Cyber Blue używają prostych symboli góra/dół, z przygaszeniem niedostępnego kierunku. Błędy i niepewne wyniki poszczególnych kroków oraz ważny opis wyniku są złote, z ciemniejszym odcieniem w Jasny. Wyśrodkowano opisy przycisków kart i wykonania.
+
+Walidacja: `DSR_UI_FOCUS_ACTION_REVIEW=1 python3 tools/dev/run_host.py test_ui.py --jobs 4 --case test_actions_editor_ui` — końcowy PASS, 922 sprawdzenia, 33 wybrane klatki; trzy skórki i PL/EN/DE, zapisane podglądy DE. Sprawdzono tworzenie i edycję grupy, przypisanie pomieszczenia, wybór dwóch urządzeń, błąd zapisu bez zmiany dokumentu i udane ponowienie; utworzenie sceny, zmianę polecenia, kolejności i zapis. Próby Włącz/Wyłącz grupę i uruchomienia sceny dla niepowiązanych urządzeń modelu kończą się osobnym błędem dla każdego kroku, bez wysłania SET/Cover. Nie jest to potwierdzenie udanego sterowania rzeczywistym Shelly. Test przed zmianami wykazał pomijanie ochrony powrotu i skracanie wyboru w dziewięciu kombinacjach skórki/języka. Obejrzano rzeczywiste piksele LVGL 9.3 przed i po poprawkach, w tym brak kontrastu Jasny, pełne nazwy, zaznaczenia, opcjonalne zdjęcia i złote błędy.
+
+Następnie uruchomiono istniejący `test_actions_editor_ui` bez zmiennej przeglądu, na tym samym pliku wykonywalnym i bez ponownej kompilacji — PASS, 367 sprawdzeń, 27 klatek; między innymi zachowanie późniejszych edycji przy potwierdzeniu wcześniejszego zapisu, nieudany zapis/odrzucenie oraz cykl pamięci edytorów. Nie uruchamiano pełnego atlasu, testów innych modułów, CI ani builda docelowego. W toku diagnozy dopasowano helpery do zakończenia układu LVGL i tłumaczonego licznika. Próba użycia pustego wskaźnika przejścia została odrzucona po awarii testu na LVGL 9.3; wersja końcowa korzysta z publicznego usunięcia stylów i ponownego zastosowania motywu, bez zmiany wersji LVGL ani wyciszania ostrzeżeń.
+
+**Odbiór pozostaje otwarty.** Wynik wykonania nadal pokazuje numery identyfikatorów urządzeń, np. `#3`, zamiast ich nazw; ten element wymaga decyzji właściciela w ankiecie. Udane wykonanie poleceń, readback i trwałość po restarcie wymagają późniejszego odbioru na sprzęcie. Nowego DEV nie publikowano.
 
 ## Porządkowanie — wykonane
 

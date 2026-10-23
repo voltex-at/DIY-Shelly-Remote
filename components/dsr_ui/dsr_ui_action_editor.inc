@@ -9,7 +9,7 @@ static bool action_named(void)
 static lv_obj_t *action_pick(const char *label,int y,bool selected,lv_event_cb_t callback,uintptr_t value)
 {
  lv_obj_t *b=dsr_ui_button(body,label,0,y,284,callback,(void *)value);lv_obj_set_style_bg_color(b,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_radius(b,12,0);dsr_sc_border_width(b,selected?2:1,0);dsr_sc_border_color(b,dsr_sc_color(selected?DSR_SC_BLUE:DSR_SC_EDGE),0);
- lv_obj_t *label_obj=lv_obj_get_child(b,0);lv_obj_set_width(label_obj,264);lv_obj_set_height(label_obj,22);lv_label_set_long_mode(label_obj,LV_LABEL_LONG_MODE_DOTS);return b;
+ lv_obj_t *label_obj=lv_obj_get_child(b,0);lv_obj_set_width(label_obj,264);lv_obj_set_height(label_obj,LV_SIZE_CONTENT);lv_label_set_long_mode(label_obj,LV_LABEL_LONG_MODE_WRAP);lv_obj_center(label_obj);return b;
 }
 static void action_back(lv_event_t *event)
 {
@@ -37,6 +37,14 @@ static bool action_device_supported(const cJSON *d)
 {const char *k=string(d,"kind");return !strcmp(k,"relay")||!strcmp(k,"plug")||(action_editor.kind&&!strcmp(k,"cover"));}
 static bool action_included(uint32_t id)
 {const cJSON *v;cJSON_ArrayForEach(v,item(editing,"members"))if((uint32_t)v->valueint==id)return true;return false;}
+static void action_restore_checked(lv_obj_t *check)
+{
+ /* Apply the theme to the known state, without an unchecked entry frame.
+  * Local row styles are added afterwards; later taps retain theme transitions. */
+ lv_obj_add_state(check,LV_STATE_CHECKED);
+ lv_obj_remove_style_all(check);
+ lv_theme_apply(check);
+}
 static void action_member(lv_event_t *event)
 {
  uint32_t id=(uint32_t)(uintptr_t)lv_event_get_user_data(event);cJSON *members=cJSON_GetObjectItemCaseSensitive(editing,"members");int at=0;
@@ -71,7 +79,7 @@ static void action_devices(void)
    if((uint32_t)integer(d,"room")!=room_id||(!action_device_supported(d)&&!included)||!dsr_ui_search_match(display_name(d),action_editor.query))continue;
    if(!heading){dsr_sc_text(body,room?dsr_sc_user(string(room,"name")):"Nieprzypisane",6,y,272,&dsr_roboto_12,DSR_SC_MUTED);heading=true;y+=26;}
    if(action_editor.kind)action_pick(dsr_sc_user(display_name(d)),y,false,action_select_device,id);
-   else{lv_obj_t *check=lv_checkbox_create(body);lv_obj_set_pos(check,0,y);lv_obj_set_size(check,284,64);lv_checkbox_set_text(check,dsr_sc_user(display_name(d)));lv_obj_set_style_text_font(check,&dsr_roboto_14,0);lv_obj_set_style_text_color(check,dsr_sc_color(DSR_SC_TEXT),0);lv_obj_set_style_bg_color(check,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(check,LV_OPA_COVER,0);lv_obj_set_style_radius(check,10,0);lv_obj_set_style_pad_all(check,12,0);if(included)lv_obj_add_state(check,LV_STATE_CHECKED);lv_obj_t *label=lv_obj_get_child(check,0);if(label){lv_obj_set_width(label,230);lv_obj_set_height(label,22);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);}lv_obj_add_event_cb(check,action_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)id);}
+   else{lv_obj_t *check=lv_checkbox_create(body);if(included)action_restore_checked(check);lv_obj_set_pos(check,0,y);lv_obj_set_size(check,284,64);lv_checkbox_set_text(check,"");lv_obj_set_style_text_font(check,&dsr_roboto_14,0);lv_obj_set_style_text_color(check,dsr_sc_color(DSR_SC_TEXT),0);lv_obj_set_style_bg_color(check,dsr_sc_color(DSR_SC_CARD),0);lv_obj_set_style_bg_opa(check,LV_OPA_COVER,0);lv_obj_set_style_radius(check,10,0);lv_obj_set_style_pad_hor(check,12,0);lv_obj_set_style_pad_ver(check,20,0);lv_obj_set_style_bg_color(check,dsr_sc_color(DSR_SC_BLUE),LV_PART_INDICATOR|LV_STATE_CHECKED);lv_obj_set_style_bg_image_recolor(check,lv_color_white(),LV_PART_INDICATOR|LV_STATE_CHECKED);lv_obj_set_style_bg_image_recolor_opa(check,LV_OPA_COVER,LV_PART_INDICATOR|LV_STATE_CHECKED);if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(check,false);lv_obj_t *label=dsr_sc_text(check,dsr_sc_user(display_name(d)),32,0,228,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_align(label,LV_ALIGN_LEFT_MID,32,0);lv_obj_add_event_cb(check,action_member,LV_EVENT_VALUE_CHANGED,(void *)(uintptr_t)id);}
    y+=action_editor.kind?56:72;shown++;
   }
  }
@@ -87,8 +95,8 @@ static void action_remove_step(lv_event_t *event)
 {cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(editing,"actions"),(int)(uintptr_t)lv_event_get_user_data(event));action_form();}
 static void action_move_step(lv_event_t *event)
 {unsigned value=(unsigned)(uintptr_t)lv_event_get_user_data(event);int at=(int)(value>>1),to=at+((value&1)?1:-1);cJSON *all=cJSON_GetObjectItemCaseSensitive(editing,"actions");if(to>=0&&to<cJSON_GetArraySize(all)){cJSON *a=cJSON_DetachItemFromArray(all,at);cJSON_InsertItemInArray(all,to,a);}action_form();}
-static lv_obj_t *action_order(int x,int y,dsr_ui_icon_t icon,lv_event_cb_t callback,uintptr_t data)
-{lv_obj_t *b=dsr_sc_button(body,x,y,44,44,DSR_SC_CARD,10,callback,(void *)data);dsr_sc_icon_centered(b,icon,22,dsr_sc_icon_accent());return b;}
+static lv_obj_t *action_order(int x,int y,bool down,bool enabled,lv_event_cb_t callback,uintptr_t data)
+{lv_obj_t *b=dsr_sc_button(body,x,y,44,44,DSR_SC_CARD,10,callback,(void *)data);lv_obj_remove_flag(b,LV_OBJ_FLAG_PRESS_LOCK);dsr_ui_icon_t icon=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?(down?DSR_ICON_COVER_CLOSE:DSR_ICON_COVER_OPEN):(down?DSR_ICON_DOWN:DSR_ICON_UP);dsr_sc_icon_centered(b,icon,22,enabled?dsr_sc_icon_accent():DSR_SC_OFF);if(!enabled)lv_obj_add_state(b,LV_STATE_DISABLED);return b;}
 static void action_steps(void)
 {
  int i=0,total=cJSON_GetArraySize(item(editing,"actions"));const cJSON *a;
@@ -96,8 +104,8 @@ static void action_steps(void)
  cJSON_ArrayForEach(a,item(editing,"actions")){
   int y=i*120;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));char title[96];snprintf(title,sizeof(title),"%u. %s",(unsigned)i+1,display_name(d));lv_obj_t *name=dsr_sc_text(body,dsr_sc_user(title),4,y,280,&dsr_roboto_16,DSR_SC_TEXT);lv_obj_set_height(name,40);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
   lv_obj_t *cmd=dsr_ui_button(body,action_command_name(string(a,"command")),0,y+48,110,action_edit_step,(void *)(uintptr_t)i);lv_obj_set_height(cmd,44);
-  lv_obj_t *up=action_order(118,y+48,DSR_ICON_UP,action_move_step,(uintptr_t)i*2);if(!i)lv_obj_add_state(up,LV_STATE_DISABLED);
-  lv_obj_t *down=action_order(170,y+48,DSR_ICON_DOWN,action_move_step,(uintptr_t)i*2+1);if(i==total-1)lv_obj_add_state(down,LV_STATE_DISABLED);
+  action_order(118,y+48,false,i>0,action_move_step,(uintptr_t)i*2);
+  action_order(170,y+48,true,i+1<total,action_move_step,(uintptr_t)i*2+1);
   lv_obj_t *remove=dsr_ui_button(body,"Usuń",222,y+48,62,action_remove_step,(void *)(uintptr_t)i);lv_obj_set_height(remove,44);lv_obj_t *label=lv_obj_get_child(remove,0);lv_obj_set_style_text_font(label,&dsr_roboto_12,0);lv_obj_set_width(label,58);lv_obj_center(label);
   i++;
  }
@@ -126,11 +134,11 @@ static void action_summary(void)
 {
  lv_obj_t *name=dsr_sc_text(body,dsr_sc_user(string(editing,"name")),4,0,276,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);action_pick("Zmień nazwę i opcje",52,false,action_edit_name,0);
  const cJSON *room=cJSON_GetArrayItem(item(draft,"rooms"),(int)object_index(item(draft,"rooms"),integer(editing,"room")));dsr_sc_text(body,room?dsr_sc_user(string(room,"name")):"Cały dom",4,112,276,&dsr_roboto_12,DSR_SC_MUTED);
- int y=144;unsigned order=0;const cJSON *v;cJSON_ArrayForEach(v,item(editing,action_editor.kind?"actions":"members")){unsigned id=action_editor.kind?(unsigned)integer(v,"device"):(unsigned)v->valueint;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),(int)id));char title[96];if(action_editor.kind)snprintf(title,sizeof(title),"%u. %s",++order,display_name(d));else snprintf(title,sizeof(title),"%s",display_name(d));lv_obj_t *label=dsr_sc_text(body,dsr_sc_user(title),4,y,276,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(label,22);lv_label_set_long_mode(label,LV_LABEL_LONG_MODE_DOTS);if(action_editor.kind)dsr_sc_text(body,action_command_name(string(v,"command")),12,y+24,264,&dsr_roboto_14,DSR_SC_BLUE);y+=action_editor.kind?62:34;}
+ int y=144;unsigned order=0;const cJSON *v;cJSON_ArrayForEach(v,item(editing,action_editor.kind?"actions":"members")){unsigned id=action_editor.kind?(unsigned)integer(v,"device"):(unsigned)v->valueint;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),(int)id));char title[96];if(action_editor.kind)snprintf(title,sizeof(title),"%u. %s",++order,display_name(d));else snprintf(title,sizeof(title),"%s",display_name(d));lv_point_t size;lv_text_get_size(&size,title,dsr_sc_font(&dsr_roboto_14),0,0,276,LV_TEXT_FLAG_NONE);int height=size.y<22?22:size.y;lv_obj_t *label=dsr_sc_text(body,dsr_sc_user(title),4,y,276,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(label,height);if(action_editor.kind)dsr_sc_text(body,action_command_name(string(v,"command")),12,y+height+2,264,&dsr_roboto_14,DSR_SC_BLUE);y+=height+(action_editor.kind?40:12);}
 }
 static void action_form(void)
 {
- lv_obj_t *root=screen(action_editor.kind?(action_editor.fresh?"Nowa scena":"Edytuj scenę"):(action_editor.fresh?"Nowa grupa":"Edytuj grupę"));view_save_target=SAVE_ACTIONS;action_editor.next=action_editor.back=NULL;lv_obj_set_y(body,138);lv_obj_set_height(body,260);
+ lv_obj_t *root=screen(action_editor.kind?(action_editor.fresh?"Nowa scena":"Edytuj scenę"):(action_editor.fresh?"Nowa grupa":"Edytuj grupę"));dsr_sc_header_back(root,action_back,NULL);view_save_target=SAVE_ACTIONS;action_editor.next=action_editor.back=NULL;lv_obj_set_y(body,138);lv_obj_set_height(body,260);
  unsigned progress=action_editor.step==3?action_editor.return_step:action_editor.step;for(unsigned i=0;i<3;i++)dsr_sc_panel(root,12+(int)i*102,118,94,4,i<=progress?DSR_SC_BLUE:DSR_SC_EDGE,2);
  const char *title=action_editor.step==3?"Opcjonalne ustawienia":action_editor.step==0?"1/3 • Nazwa":action_editor.step==1?(action_editor.kind?"2/3 • Polecenia":"2/3 • Urządzenia"):"3/3 • Podsumowanie";config_status(title,false);
  lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,action_keyboard_done,LV_EVENT_CANCEL,NULL);

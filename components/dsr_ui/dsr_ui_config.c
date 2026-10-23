@@ -154,7 +154,7 @@ static void close_keyboard(lv_event_t *event)
   if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_t *field=lv_keyboard_get_textarea(keyboard);if(field)lv_obj_remove_state(field,LV_STATE_FOCUSED);lv_keyboard_set_textarea(keyboard,NULL);}
   lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  }
- if(body)lv_obj_set_height(body,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE||!strcmp(collection_name,"dashboards")?398-lv_obj_get_y(body):292);
+ if(body)lv_obj_set_height(body,dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE||action_editor.active||!strcmp(collection_name,"dashboards")?398-lv_obj_get_y(body):292);
 }
 static void focus(lv_event_t *event)
 {

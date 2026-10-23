@@ -44,7 +44,7 @@ static uint32_t status_hash(const dsr_actions_snapshot_t *s)
  for(unsigned i=0;i<s->count;i++){hash=hash*33u+s->steps[i].outcome;hash=hash*33u+(uint32_t)s->steps[i].result;}return hash;
 }
 static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,lv_event_cb_t cb,uintptr_t data)
-{lv_obj_t *b=dsr_sc_button(parent,x,y,width,44,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,12,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);return b;}
+{lv_obj_t *b=dsr_sc_button(parent,x,y,width,44,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,0,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(l);return b;}
 static void back(lv_event_t *event){(void)event;dsr_network_rooms();}
 static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);browse.query[0]=0;browse.room=0;admission=DSR_OK;draw();}
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
@@ -60,10 +60,12 @@ static void cancel(lv_event_t *event)
 {(void)event;dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);(void)dsr_actions_cancel(s.boot_id,s.run_id);draw();}
 static void progress(lv_obj_t *root,const dsr_actions_snapshot_t *s)
 {
+ uint32_t warning=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xf0a020:0xffc107;bool important=admission!=DSR_OK;
+ for(unsigned i=0;i<s->count;i++)if(s->steps[i].outcome==DSR_ACTION_FAILED||s->steps[i].outcome==DSR_ACTION_UNCERTAIN)important=true;
  char text[128];snprintf(text,sizeof(text),"#%u • %u/%u",(unsigned)s->run_id,(unsigned)s->current,(unsigned)s->count);dsr_sc_text(root,text,12,96,296,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(root,admission!=DSR_OK?"Nie przyjęto. Odśwież i sprawdź urządzenia.":s->active?"Wykonywanie kolejno. Możliwy częściowy wynik.":s->run_id?"Zakończono. Wyniki dotyczą każdego kroku osobno.":"Brak uruchomienia",12,125,296,&dsr_roboto_12,DSR_SC_MUTED);
+ dsr_sc_text(root,admission!=DSR_OK?"Nie przyjęto. Odśwież i sprawdź urządzenia.":s->active?"Wykonywanie kolejno. Możliwy częściowy wynik.":s->run_id?"Zakończono. Wyniki dotyczą każdego kroku osobno.":"Brak uruchomienia",12,125,296,&dsr_roboto_12,important?warning:DSR_SC_MUTED);
  lv_obj_t *list=body=dsr_sc_panel(root,12,177,296,228,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(list,LV_DIR_VER);dsr_sc_scrollbar(list);
- for(unsigned i=0;i<s->count;i++){const dsr_action_result_t *step=&s->steps[i];snprintf(text,sizeof(text),"#%u • %s",(unsigned)step->layout_id,dsr_sc_tr(command(step->command)));dsr_sc_text(list,text,6,(int)i*58,270,&dsr_roboto_14,DSR_SC_TEXT);snprintf(text,sizeof(text),"%s%s%s",dsr_sc_tr(outcome(step->outcome)),step->result==DSR_OK?"":" • ",step->result==DSR_OK?"":dsr_sc_tr(reason(step->result)));dsr_sc_text(list,text,6,(int)i*58+24,270,&dsr_roboto_12,step->outcome==DSR_ACTION_UNCERTAIN?0xffc18c:DSR_SC_MUTED);}
+ for(unsigned i=0;i<s->count;i++){const dsr_action_result_t *step=&s->steps[i];snprintf(text,sizeof(text),"#%u • %s",(unsigned)step->layout_id,dsr_sc_tr(command(step->command)));dsr_sc_text(list,text,6,(int)i*58,270,&dsr_roboto_14,DSR_SC_TEXT);snprintf(text,sizeof(text),"%s%s%s",dsr_sc_tr(outcome(step->outcome)),step->result==DSR_OK?"":" • ",step->result==DSR_OK?"":dsr_sc_tr(reason(step->result)));dsr_sc_text(list,text,6,(int)i*58+24,270,&dsr_roboto_12,step->outcome==DSR_ACTION_FAILED||step->outcome==DSR_ACTION_UNCERTAIN?warning:DSR_SC_MUTED);}
  if(s->active)button(root,"Anuluj pozostałe kroki",12,426,296,cancel,0);else dsr_sc_text(root,"Bez automatycznego ponawiania poleceń.",12,432,296,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static const cJSON *get(const cJSON *o,const char *key){return cJSON_GetObjectItemCaseSensitive(o,key);}
@@ -96,11 +98,11 @@ static __attribute__((noinline)) int object_card(lv_obj_t *list,const cJSON *r,c
   lv_image_set_scale(image,scale>vertical?scale:vertical);lv_obj_center(image);
  }
  if(has_photo){lv_obj_t *shade=dsr_sc_panel(card,0,0,280,112,0x101820,0);lv_obj_set_style_bg_opa(shade,170,0);}
- lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(text(v,"name")),10,10,210,&dsr_roboto_16,0xffffff);
+ lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(text(v,"name")),10,10,210,&dsr_roboto_16,has_photo?0xffffff:DSR_SC_TEXT);
  lv_obj_set_height(name,44);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_DOTS);
  lv_obj_t *pencil=dsr_sc_button(card,232,4,44,44,DSR_SC_PANEL,10,edit,(void *)(uintptr_t)id);dsr_sc_icon_centered(pencil,DSR_ICON_EDIT,24,DSR_SC_BLUE);
  char caption[96];snprintf(caption,sizeof(caption),"%s • %u",*text(room,"name")?text(room,"name"):dsr_sc_tr("Cały dom"),count);
- dsr_sc_text(card,dsr_sc_user(caption),10,has_photo?83:60,258,&dsr_roboto_12,0xffffff);
+ dsr_sc_text(card,dsr_sc_user(caption),10,has_photo?83:60,258,&dsr_roboto_12,has_photo?0xffffff:DSR_SC_TEXT);
  lv_obj_t *first=button(card,page?"Uruchom scenę":"Włącz grupę",4,has_photo?114:82,page?272:132,run,((uintptr_t)id<<2)|(page?1:2));
  if(!s->available||!count)lv_obj_add_state(first,LV_STATE_DISABLED);
  if(!page){lv_obj_t *off=button(card,"Wyłącz grupę",144,has_photo?114:82,132,run,(uintptr_t)id<<2);if(!s->available||!count)lv_obj_add_state(off,LV_STATE_DISABLED);}
