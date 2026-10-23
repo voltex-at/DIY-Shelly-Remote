@@ -3,6 +3,11 @@
  * configuration values remain plain text. Weak bindings follow the existing
  * DOM: changing locale neither reconstructs forms nor touches remote state. */
 const WEB_MESSAGES=new Map([
+ ["Nastawa {0} °C","Target {0} °C","Soll {0} °C"],
+ ["Ustaw temperaturę","Set temperature","Temperatur einstellen"],
+ ["Temperatura zadana","Target temperature","Soll"],
+ ["Odczyt typów urządzeń…","Reading device types…","Gerätetypen werden gelesen…"],
+ ["Nie można odczytać typów urządzeń.","Cannot read device types.","Gerätetypen können nicht gelesen werden."],
  ['Odśwież podgląd','Refresh preview','Vorschau aktualisieren'],
  ['Na żądanie','On demand','Auf Abruf'],
  ["Zapis", "Save", "Speichern"],
@@ -227,8 +232,10 @@ function editDevice(item){
 let actionSession=null;
 const actionNameValid=item=>item.name.trim().length>0&&Array.from(item.name).reduce((n,c)=>n+(c.codePointAt(0)<128?1:c.codePointAt(0)<2048?2:c.codePointAt(0)<65536?3:4),0)<=47;
 const actionDeviceName=d=>d?.name||window.dsrRuntimeDeviceName?.(d?.id)||'Shelly';
-const actionCommands=d=>d?.kind==='cover'?[['open','Otwórz'],['close','Zamknij'],['stop','Stop']]:[['on','Włącz'],['off','Wyłącz']];
-const actionSupported=(d,group)=>['relay','plug',...(group?[]:['cover'])].includes(d?.kind);
+const actionTrv=d=>actionSession?.runtime?.find(r=>r.layout_id===d?.id&&r.endpoint_kind===5&&r.blu?.trv);
+const actionCommands=d=>actionTrv(d)?[['target','Ustaw temperaturę']]:d?.kind==='cover'?[['open','Otwórz'],['close','Zamknij'],['stop','Stop']]:[['on','Włącz'],['off','Wyłącz']];
+const actionSupported=(d,group)=>['relay','plug',...(group?[]:['cover'])].includes(d?.kind)||(!group&&!!actionTrv(d));
+const actionStepLabel=(d,a)=>a.command==='target'?m('Nastawa {0} °C',(a.value/2).toFixed(1)):m(actionCommands(d).find(c=>c[0]===a.command)?.[1]||a.command);
 function openAction(kind,item,fresh=false,before=null,wasDirty=dirty){
  actionSession={owner:config,kind,item,fresh,baseline:fresh?null:structuredClone(item),before:before||structuredClone(config),wasDirty};editAction(kind,item,0);
 }
@@ -274,15 +281,24 @@ function editAction(kind,item,step,view={}){
   body.append(button(m('Bez zdjęcia'),()=>{item.photo='';changed();rerender();}));if(!actionSession?.fresh)body.append(button(m('Usuń wpis'),()=>remove(kind,item.id),'danger'));
  }else if(step===2){
   const summary=el('section',undefined,'action-summary');summary.append(el('h3',item.name),el('p',config.rooms.find(r=>r.id===item.room)?.name||m('Cały dom')));body.append(summary);
-  const list=el(group?'ul':'ol');for(const value of group?item.members:item.actions){const d=config.devices.find(d=>d.id===(group?value:value.device)),row=el('li');row.append(el('strong',actionDeviceName(d)));if(!group)row.append(el('span',m(actionCommands(d).find(c=>c[0]===value.command)?.[1]||value.command),'action-command'));list.append(row);}summary.append(list);
+  const list=el(group?'ul':'ol');for(const value of group?item.members:item.actions){const d=config.devices.find(d=>d.id===(group?value:value.device)),row=el('li');row.append(el('strong',actionDeviceName(d)));if(!group)row.append(el('span',actionStepLabel(d,value),'action-command'));list.append(row);}summary.append(list);
   body.append(button(m('Zmień nazwę i opcje'),()=>editAction(kind,item,0)));body.append(el('p',m('Sprawdź listę i zapisz.'),'muted'));
  }else if(group||view.selecting){
   const count=el('p',group?m('Wybrano: {0}',item.members.length):m('Wybierz urządzenie'));body.append(count);
-  if(view.device){
+   if(actionSession?.runtimeError){body.append(el('p',m('Nie można odczytać typów urządzeń.'),'runtime-error'),button(m('Odśwież'),()=>{actionSession.runtime=null;actionSession.loading=false;rerender();}));}
+  if(!group&&actionSession&&!actionSession.runtime){
+   body.append(el('p',m('Odczyt typów urządzeń…'),'muted'));const session=actionSession;session.waitingTypes={root:n,redraw:rerender};
+   if(!session.loading){session.loading=true;request('devices/runtime').then(r=>r.json()).then(snapshot=>{
+    if(actionSession!==session||config!==session.owner)return;session.runtime=Array.isArray(snapshot.devices)?snapshot.devices:[];session.runtimeError=!Array.isArray(snapshot.devices);if(session.waitingTypes?.root.isConnected)session.waitingTypes.redraw();
+   }).catch(()=>{if(actionSession!==session||config!==session.owner)return;session.runtime=[];session.runtimeError=true;if(session.waitingTypes?.root.isConnected)session.waitingTypes.redraw();});}
+  }else if(view.device){
    const d=config.devices.find(d=>d.id===view.device);body.append(el('h3',actionDeviceName(d)),el('p',m('Wybierz polecenie'),'muted'));
+   const trv=actionTrv(d),old=item.actions[view.editIndex];let temperature;
+   if(trv){const saved=old?.device===d.id&&old.command==='target'?old.value/2:trv.blu.trv.target_c;temperature=field(body,m('Temperatura zadana'),Number.isFinite(saved)&&saved>=4&&saved<=30?saved:21,()=>{},'number');temperature.min='4';temperature.max='30';temperature.step='0.5';}
    for(const [command,label]of actionCommands(d)){const pick=button(m(label),()=>{
-    if(!actionSupported(d,false))return;const entry={device:d.id,command};if(view.editIndex!==undefined)item.actions[view.editIndex]=entry;else if(item.actions.length<8)item.actions.push(entry);else return;changed();editAction(kind,item,1);
-   },'action-command-choice');pick.disabled=!actionSupported(d,false);body.append(pick);}
+    if(!actionSupported(d,false))return;const half=temperature?.valueAsNumber*2;if(command==='target'&&(!Number.isInteger(half)||half<8||half>60))return;
+    const entry={device:d.id,command,...(command==='target'?{value:half}:{})};if(view.editIndex!==undefined)item.actions[view.editIndex]=entry;else if(item.actions.length<8)item.actions.push(entry);else return;changed();editAction(kind,item,1);
+   },'action-command-choice');const enabled=()=>{const half=temperature?.valueAsNumber*2;pick.disabled=!actionSupported(d,false)||(command==='target'&&(!Number.isInteger(half)||half<8||half>60));};enabled();temperature?.addEventListener('input',enabled);body.append(pick);}
    body.append(button(m('Zmień urządzenie'),()=>editAction(kind,item,1,{selecting:true,editIndex:view.editIndex})));
   }else{
    const searchLabel=el('label',m('Szukaj')),search=el('input');search.type='search';searchLabel.append(search);body.append(searchLabel);const rooms=el('div',undefined,'action-rooms');body.append(rooms);
@@ -296,7 +312,7 @@ function editAction(kind,item,step,view={}){
   if(!item.actions.length)body.append(el('h3',m('Co ma zrobić scena?')),el('p',m('Dodaj urządzenie i wybierz dla niego polecenie.'),'muted'));
   for(const [index,a]of item.actions.entries()){
    const row=el('section',undefined,'action-edit-row'),d=config.devices.find(d=>d.id===a.device);row.append(el('h3',`${index+1}. ${actionDeviceName(d)}`));const controls=el('div',undefined,'action-row-controls');
-   controls.append(button(m(actionCommands(d).find(c=>c[0]===a.command)?.[1]||a.command),()=>editAction(kind,item,1,{selecting:true,device:a.device,editIndex:index}),'action-command-choice'));
+   controls.append(button(actionStepLabel(d,a),()=>editAction(kind,item,1,{selecting:true,device:a.device,editIndex:index}),'action-command-choice'));
    for(const delta of [-1,1]){const move=button(delta<0?'↑':'↓',()=>{const to=index+delta;if(to<0||to>=item.actions.length)return;item.actions.splice(to,0,item.actions.splice(index,1)[0]);changed();rerender();});move.disabled=index+delta<0||index+delta>=item.actions.length;controls.append(move);}
    controls.append(button('×',()=>{item.actions.splice(index,1);changed();rerender();},'danger'));row.append(controls);body.append(row);
   }

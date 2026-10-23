@@ -4,6 +4,7 @@
 #include "dsr_ui_mobile.h"
 #include "dsr_ui_style.h"
 #include "dsr_workspace.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,11 +62,12 @@ bool dsr_mobile_configure(dsr_mobile_model_t *m,const char *json)
 
 #ifndef DSR_UI_REVIEW_DEMO
 static EXT_RAM_BSS_ATTR struct {
- bool active,fresh,deleted,selecting;uint8_t kind,step,gallery_page,return_step,edit_index,family;uint32_t pending_device;
+ bool active,fresh,deleted,selecting,legacy;uint8_t kind,step,gallery_page,return_step,edit_index,family,target_half;uint32_t pending_device;
  char query[48];lv_obj_t *count,*next,*back;lv_image_dsc_t photos[12];
 } action_editor;
 _Static_assert(sizeof(action_editor)<=1024,"bounded contextual editor PSRAM metadata");
 static void action_form(void);
+static void action_target_begin(uint32_t id,const cJSON *step);
 static void action_leave(lv_event_t *event);
 static bool action_group_tile(void);
 static cJSON *draft;
@@ -454,12 +456,16 @@ static void show_device_form(void)
 static void scene_action_cycle(lv_event_t *event)
 {
  cJSON *a=lv_event_get_user_data(event);const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));bool cover=!strcmp(string(d,"kind"),"cover");const char *commands[]={"on","off","open","close","stop"};unsigned first=cover?2:0,count=cover?3:2,at=0;
+ if(!strcmp(string(a,"command"),"target")){
+  const cJSON *step;unsigned index=0;cJSON_ArrayForEach(step,item(editing,"actions")){if(step==a)break;index++;}
+  action_editor.active=action_editor.legacy=action_editor.selecting=true;action_editor.kind=1;action_editor.step=1;action_editor.pending_device=(uint32_t)integer(a,"device");action_editor.edit_index=(uint8_t)(index+1);action_target_begin(action_editor.pending_device,a);action_form();return;
+ }
  while(at<count&&strcmp(string(a,"command"),commands[first+at]))at++;
- cJSON *next=cJSON_CreateString(commands[first+(at+1)%count]);if(next)cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);show_entity(editing);
+ cJSON *next=cJSON_CreateString(commands[first+(at+1)%count]);if(next){cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);cJSON_DeleteItemFromObjectCaseSensitive(a,"value");}show_entity(editing);
 }
 static void scene_device_cycle(lv_event_t *event)
 {
- cJSON *a=lv_event_get_user_data(event);const cJSON *devices=item(draft,"devices");int count=cJSON_GetArraySize(devices);if(!count)return;unsigned at=object_index(devices,integer(a,"device"));const cJSON *d=cJSON_GetArrayItem(devices,(int)((at+1)%(unsigned)count));cJSON *next=cJSON_CreateString(!strcmp(string(d,"kind"),"cover")?"open":"on");if(!next)return;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(a,"device"),integer(d,"id"));cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);show_entity(editing);
+ cJSON *a=lv_event_get_user_data(event);const cJSON *devices=item(draft,"devices");int count=cJSON_GetArraySize(devices);if(!count)return;unsigned at=object_index(devices,integer(a,"device"));const cJSON *d=cJSON_GetArrayItem(devices,(int)((at+1)%(unsigned)count));cJSON *next=cJSON_CreateString(!strcmp(string(d,"kind"),"cover")?"open":"on");if(!next)return;cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(a,"device"),integer(d,"id"));cJSON_ReplaceItemInObjectCaseSensitive(a,"command",next);cJSON_DeleteItemFromObjectCaseSensitive(a,"value");show_entity(editing);
 }
 static void scene_action_remove(lv_event_t *event){cJSON_DeleteItemFromArray(cJSON_GetObjectItemCaseSensitive(editing,"actions"),(int)(uintptr_t)lv_event_get_user_data(event));show_entity(editing);}
 static void scene_action_add(lv_event_t *event)
@@ -643,7 +649,7 @@ static void show_entity(cJSON *entity)
  if(!strcmp(collection_name,"devices")){add_choice("Typ",&kind_choice,80);add_field("Adres IPv4 Shelly","host",160,false);add_field("Kanał (0–15)","channel",240,true);object_choice("Pomieszczenie","room",320);}
  if(!strcmp(collection_name,"scenes")){
   const cJSON *actions_list=item(editing,"actions"),*a;int i=0;
-  cJSON_ArrayForEach(a,actions_list){int y=80+i*112;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));dsr_ui_button(body,display_name(d),0,y,284,scene_device_cycle,(void *)a);dsr_ui_button(body,string(a,"command"),0,y+52,180,scene_action_cycle,(void *)a);dsr_ui_button(body,"Usuń",190,y+52,94,scene_action_remove,(void *)(uintptr_t)i);i++;}dsr_ui_button(body,"+ Działanie",0,88+i*112,284,scene_action_add,NULL);
+  cJSON_ArrayForEach(a,actions_list){int y=80+i*112;const cJSON *d=cJSON_GetArrayItem(item(draft,"devices"),(int)object_index(item(draft,"devices"),integer(a,"device")));dsr_ui_button(body,display_name(d),0,y,284,scene_device_cycle,(void *)a);char command[64];dsr_ui_button(body,action_step_label(a,command,false),0,y+52,180,scene_action_cycle,(void *)a);dsr_ui_button(body,"Usuń",190,y+52,94,scene_action_remove,(void *)(uintptr_t)i);i++;}dsr_ui_button(body,"+ Działanie",0,88+i*112,284,scene_action_add,NULL);
  }
  if(!strcmp(collection_name,"groups")){
   dsr_sc_text(body,"Do 16 kanałów Switch. Grupa ma jawne Włącz/Wyłącz.",0,78,284,&dsr_roboto_12,DSR_SC_MUTED);unsigned i=0;const cJSON *d,*member;

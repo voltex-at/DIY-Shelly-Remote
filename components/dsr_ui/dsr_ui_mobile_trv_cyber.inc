@@ -27,13 +27,13 @@ static void trv_percent_card(lv_obj_t *root,int x,const char *title,dsr_ui_icon_
  lv_obj_t *track=dsr_sc_panel(card,8,48,132,10,DSR_SC_PANEL,2);edge(track,DSR_SC_EDGE,1);
  if(known&&value){int width=130*(int)(value>100?100:value)/100;if(width<1)width=1;dsr_sc_panel(track,0,0,width,8,warning?0xffbf24:DSR_SC_GLOW,1);}
 }
-static void cyber_trv_details(lv_obj_t *root)
+static void cyber_trv_details(lv_obj_t *root,const dsr_mobile_device_t *d,bool group)
 {
- const dsr_mobile_device_t *d=&model.devices[selected];bool live=d->online&&d->error==DSR_OK;
- bool known=trv_known(d),can=trv_can(d);uint8_t half=trv_shown(d);char text[48];
+ bool live=d->online&&d->error==DSR_OK;
+ bool known=group||trv_known(d),can=group?group_ready(group_state(selected)):trv_can(d);uint8_t half=group?group_draft.value:trv_shown(d);char text[48];
  lv_obj_t *panel=dsr_sc_panel(root,8,94,304,236,DSR_SC_CARD,10);edge(panel,0x00cfff,1);lv_obj_add_event_cb(panel,trv_ring_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)live);
- dsr_sc_icon(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,12,94,24,live?DSR_SC_GLOW:0xffc65b);
- dsr_sc_text(root,live?"Online":"Offline",42,98,88,&dsr_roboto_12,live?DSR_SC_GLOW:0xffc65b);
+ dsr_sc_icon(root,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,22,104,24,live?DSR_SC_GLOW:0xffc65b);
+ dsr_sc_text(root,live?"Online":"Offline",52,108,88,&dsr_roboto_12,live?DSR_SC_GLOW:0xffc65b);
  trv_dial.arc=lv_arc_create(root);lv_obj_remove_style_all(trv_dial.arc);lv_obj_set_pos(trv_dial.arc,54,110);lv_obj_set_size(trv_dial.arc,216,216);
  lv_arc_set_range(trv_dial.arc,DSR_TRV_MIN_HALF,DSR_TRV_MAX_HALF);lv_arc_set_bg_angles(trv_dial.arc,135,45);lv_arc_set_value(trv_dial.arc,half);lv_arc_set_change_rate(trv_dial.arc,720);
  lv_obj_set_style_arc_width(trv_dial.arc,32,LV_PART_MAIN);lv_obj_set_style_arc_width(trv_dial.arc,32,LV_PART_INDICATOR);lv_obj_set_style_arc_opa(trv_dial.arc,LV_OPA_TRANSP,LV_PART_MAIN);lv_obj_set_style_arc_opa(trv_dial.arc,LV_OPA_TRANSP,LV_PART_INDICATOR);
@@ -47,9 +47,10 @@ static void cyber_trv_details(lv_obj_t *root)
  dsr_sc_panel(root,104,210,116,1,DSR_SC_EDGE,0);
  trv_dial.label=dsr_sc_text(root,"",82,217,160,&dsr_roboto_28,DSR_SC_TEXT);center(trv_dial.label);
  trv_dial.caption=dsr_sc_text(root,"Nastawa temperatury",62,252,200,&dsr_roboto_12,DSR_SC_MUTED);center(trv_dial.caption);trv_knob(half);if(!known)lv_label_set_text(trv_dial.label,"— °C");
- trv_round(root,selected,98,276,48,false,can);trv_round(root,selected,174,276,48,true,can);
- half_text(text,sizeof(text),DSR_TRV_MIN_HALF);dsr_sc_text(root,dsr_sc_user(text),32,297,56,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"Min.",42,313,44,&dsr_roboto_11,DSR_SC_MUTED);
- half_text(text,sizeof(text),DSR_TRV_MAX_HALF);dsr_sc_text(root,dsr_sc_user(text),252,297,60,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"Max.",264,313,44,&dsr_roboto_11,DSR_SC_MUTED);
+ trv_round_action(root,selected,98,276,48,false,can,group?group_trv_step:trv_step);trv_round_action(root,selected,174,276,48,true,can,group?group_trv_step:trv_step);
+ half_text(text,sizeof(text),DSR_TRV_MIN_HALF);dsr_sc_text(root,dsr_sc_user(text),32,292,56,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"Min.",42,305,44,&dsr_roboto_11,DSR_SC_MUTED);
+ half_text(text,sizeof(text),DSR_TRV_MAX_HALF);dsr_sc_text(root,dsr_sc_user(text),252,292,60,&dsr_roboto_12,DSR_SC_MUTED);dsr_sc_text(root,"Max.",264,305,44,&dsr_roboto_11,DSR_SC_MUTED);
+ if(group){group_trv_members(root);group_trv_note(root);return;}
  trv_percent_card(root,8,"Zawór",DSR_ICON_TRV_VALVE,known&&d->blu.trv_pos<=100,d->blu.trv_pos,false);
  trv_percent_card(root,164,"Bateria",DSR_ICON_BATTERY,live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100,(unsigned)(live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100?d->battery_pct:0),d->battery_pct<=20);
  const char *warning=!live?"Bramka nie odpowiada":(d->blu.errors&DSR_BLU_TRV_FAULT)?"Termostat zgłasza błąd (np. brak kalibracji)":(trv_slot(d->id)>=0||d->command_pending)?"Wysyłanie do termostatu przez bramkę…":NULL;

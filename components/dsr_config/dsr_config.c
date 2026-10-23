@@ -127,7 +127,13 @@ static bool validate_v2(const cJSON *r,char error[96],bool stored)
  }
  cJSON_ArrayForEach(v,get(r,"scenes")){
   const cJSON *actions=get(v,"actions"),*a;if(!keys(v,"|id||name||actions||room||photo|")||!action_appearance(r,v)||!cJSON_IsArray(actions)||cJSON_GetArraySize(actions)>8)return fail(error,"Scene limit: 8 explicit actions");
-  cJSON_ArrayForEach(a,actions)if(!keys(a,"|device||command|")||!reference(r,"devices",get(a,"device"),false)||!choice(a,"command","|on||off||open||close||stop|"))return fail(error,"Invalid scene action");
+  /* Target values share the actor's half-degree representation (8..60).
+   * Stored display kind cannot grant TRV capability; the executor checks the
+   * actual private binding again before any write. Schema1 remains frozen. */
+  cJSON_ArrayForEach(a,actions){
+   if(!keys(a,"|device||command||value|")||!reference(r,"devices",get(a,"device"),false)||!choice(a,"command","|on||off||open||close||stop||target|"))return fail(error,"Invalid scene action");
+   if(!strcmp(get(a,"command")->valuestring,"target")?!number(a,"value",DSR_TRV_MIN_HALF,DSR_TRV_MAX_HALF):get(a,"value")!=NULL)return fail(error,"Invalid scene value");
+  }
  }
  /* Display kinds do not identify actuators (a BLU TRV is visually a sensor).
   * Member identity, homogeneous control and capability are checked against

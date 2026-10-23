@@ -47,7 +47,8 @@ dsr_result_t dsr_actions_plan_build(const char *json,const dsr_actions_request_t
   else{
    plan.layout_ids[plan.count]=(uint32_t)cJSON_GetObjectItemCaseSensitive(v,"device")->valueint;
    const char *command=cJSON_GetObjectItemCaseSensitive(v,"command")->valuestring;
-   plan.commands[plan.count]=!strcmp(command,"on")?DSR_ACTION_ON:!strcmp(command,"off")?DSR_ACTION_OFF:!strcmp(command,"open")?DSR_ACTION_OPEN:!strcmp(command,"close")?DSR_ACTION_CLOSE:DSR_ACTION_STOP;
+   plan.commands[plan.count]=!strcmp(command,"on")?DSR_ACTION_ON:!strcmp(command,"off")?DSR_ACTION_OFF:!strcmp(command,"open")?DSR_ACTION_OPEN:!strcmp(command,"close")?DSR_ACTION_CLOSE:!strcmp(command,"stop")?DSR_ACTION_STOP:DSR_ACTION_TARGET;
+   if(plan.commands[plan.count]==DSR_ACTION_TARGET)plan.values[plan.count][0]=(uint8_t)cJSON_GetObjectItemCaseSensitive(v,"value")->valueint;
   }
   plan.count++;
  }

@@ -7,8 +7,30 @@ static unsigned checks,attempts,fail_at,live;static void *pointers[4096];
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 static void *allocate(size_t n){attempts++;if(attempts==fail_at)return NULL;void *p=malloc(n);if(p){unsigned i=0;while(i<4096&&pointers[i])i++;CHECK(i<4096);pointers[i]=p;live++;}return p;}
 static void release(void *p){if(!p)return;unsigned i=0;while(i<4096&&pointers[i]!=p)i++;CHECK(i<4096&&live);pointers[i]=NULL;live--;free(p);}
+static void scene_target_plan(void)
+{
+ char *base=dsr_config_default();cJSON *r=cJSON_Parse(base);free(base);char error[96];
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"devices"),cJSON_Parse("{\"id\":41,\"name\":\"TRV\",\"host\":\"\",\"channel\":0,\"kind\":\"sensor\",\"room\":0}"));
+ cJSON *scene=cJSON_Parse("{\"id\":1,\"name\":\"Heat\",\"actions\":[{\"device\":41,\"command\":\"target\",\"value\":43}]}");
+ cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"scenes"),scene);cJSON *a=cJSON_GetObjectItemCaseSensitive(scene,"actions")->child;
+ dsr_actions_request_t request={.kind=1,.object_id=1,.revision=1};dsr_actions_plan_t plan;
+ CHECK(dsr_config_validate(r,error));
+ const unsigned valid[]={8,43,60};
+ for(unsigned i=0;i<3;i++){
+  cJSON_SetNumberValue(cJSON_GetObjectItemCaseSensitive(a,"value"),valid[i]);char *json=cJSON_PrintUnformatted(r);
+  CHECK(dsr_actions_plan_build(json,&request,&plan)==DSR_OK&&plan.count==1&&plan.layout_ids[0]==41&&plan.commands[0]==DSR_ACTION_TARGET&&plan.values[0][0]==valid[i]);
+  bool legacy=false;char *round=dsr_config_upgrade(json,&legacy,error);CHECK(round&&!legacy);free(round);free(json);
+ }
+ const char *bad[]={"{\"device\":41,\"command\":\"target\"}","{\"device\":41,\"command\":\"target\",\"value\":7}","{\"device\":41,\"command\":\"target\",\"value\":61}","{\"device\":41,\"command\":\"target\",\"value\":43.5}","{\"device\":41,\"command\":\"target\",\"value\":null}","{\"device\":41,\"command\":\"on\",\"value\":43}","{\"device\":41,\"command\":\"target\",\"value\":43,\"value\":44}","{\"device\":41,\"command\":\"target\",\"value\":43,\"host\":\"192.0.2.1\"}"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){
+  cJSON_ReplaceItemInArray(cJSON_GetObjectItemCaseSensitive(scene,"actions"),0,cJSON_Parse(bad[i]));char *json=cJSON_PrintUnformatted(r);
+  CHECK(!dsr_config_validate(r,error));CHECK(dsr_actions_plan_build(json,&request,&plan)==DSR_INVALID&&!plan.count);free(json);
+ }
+ cJSON_Delete(r);
+}
 int main(void)
 {
+ scene_target_plan();
  const char *group="{\"id\":1,\"revision\":1,\"boot_id\":17,\"admission_generation\":0,\"nonce\":\"0123456789abcdef\",\"on\":false}";
  const char *scene="{\"id\":1,\"revision\":1,\"boot_id\":17,\"admission_generation\":0,\"nonce\":\"0123456789abcdef\"}";
  dsr_actions_request_t request;CHECK(dsr_actions_request_parse(group,0,&request)&&!request.on&&request.boot_id==17);CHECK(!dsr_actions_request_parse(group,1,&request)&&!request.object_id);CHECK(!dsr_actions_request_parse(scene,0,&request));CHECK(dsr_actions_request_parse(scene,1,&request));

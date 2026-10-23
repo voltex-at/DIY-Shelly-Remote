@@ -313,7 +313,7 @@ static void cover_draw(lv_event_t *e)
   shutter_rect(layer,glass,0x101f2c,0x38536a,0);
   for(int y=top+8;y<bottom;y+=18)shutter_line(layer,glass.x1+4,y,glass.x2-4,y,0x243b4c);
  }
- if(s->known&&edge>top){
+ if((s->known||s->preview)&&edge>top){
   lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_COVER;d.bg_grad.dir=LV_GRAD_DIR_VER;d.bg_grad.stops_count=2;
   d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x098aca)),.opa=LV_OPA_COVER,.frac=0};
   d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x035491)),.opa=LV_OPA_COVER,.frac=255};
@@ -325,11 +325,11 @@ static void cover_draw(lv_event_t *e)
   shutter_rect(layer,(lv_area_t){x,top-2,x+5,bottom+4},0x17374d,0x4a819e,1);
   shutter_line(layer,x+2,top,x+2,bottom+2,0x9bb9c8);shutter_line(layer,i?x+5:x,top,i?x+5:x,bottom+3,DSR_CYBER_CYAN);
  }
- if(s->known){
+ if(s->known||s->preview){
   int rail=edge;if(rail>bottom)rail=bottom;if(rail<top+1)rail=top+1;
   shutter_rect(layer,(lv_area_t){glass.x1,rail-1,glass.x2,rail+2},0x72bdd7,s->preview?0xffc65b:DSR_CYBER_CYAN,1);
   shutter_line(layer,glass.x1+5,rail,glass.x2-5,rail,0xc0f5ff);
-  if(s->preview){int actual=top+height*(10000-s->confirmed)/10000;if(actual>bottom)actual=bottom;shutter_line(layer,glass.x2+2,actual,glass.x2+8,actual,0xffffff);}
+  if(s->preview&&s->known){int actual=top+height*(10000-s->confirmed)/10000;if(actual>bottom)actual=bottom;shutter_line(layer,glass.x2+2,actual,glass.x2+8,actual,0xffffff);}
  }
  shutter_rect(layer,(lv_area_t){a.x1+3,a.y1+3,a.x2-3,top-2},0x15314b,0x83bad0,4);
  shutter_line(layer,a.x1+8,a.y1+5,a.x2-8,a.y1+5,0xb8d9e6);shutter_line(layer,a.x1+7,top-4,a.x2-7,top-4,0x006a9d);

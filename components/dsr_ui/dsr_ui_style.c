@@ -95,6 +95,8 @@ const char *dsr_sc_tr(const char *text)
  if(text&&text==user_text){user_text=NULL;return text;}
  static const char *const words[][3]={
  {"Temperatura zadana","Target temperature","Soll"},
+ {"Nastawa","Target","Soll"},
+ {"Ustaw temperaturę","Set temperature","Temperatur einstellen"},
  {"Kolejność urządzeń","Device order","Reihenfolge der Geräte"},
  {"Edytuj dashboard","Edit dashboard","Dashboard bearbeiten"},
  {"Następny obiekt","Next object","Nächstes Objekt"},
