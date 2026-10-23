@@ -384,6 +384,7 @@ const char *dsr_sc_tr(const char *text)
  {"Sprawdź dane ogniwa i progi. Wartości wstępne są przybliżone.","Check the cell data and thresholds. Prefilled values are approximate.","Zelldaten und Schwellen prüfen. Vorgaben sind Näherungswerte."},
  {"Sprawdź liczby i progi: 0% < 50% < 100%. Odstęp min. 100 mV.","Check numbers and thresholds: 0% < 50% < 100%. Gap at least 100 mV.","Zahlen und Schwellen prüfen: 0% < 50% < 100%. Abstand mind. 100 mV."},
  {"Odczyt profilu baterii…","Reading battery profile…","Akkuprofil wird gelesen…"},
+ {"Wczytaj ponownie","Reload","Neu laden"},
  {"Zapis lub odczyt niepotwierdzony. Wczytaj profil ponownie.","Save or readback unconfirmed. Reload the profile.","Speichern oder Rücklesen unbestätigt. Profil neu laden."},
  {"Wpisz równoczesny odczyt multimetru w mV.","Enter the simultaneous multimeter reading in mV.","Zeitgleiche Multimeter-Messung in mV eingeben."},
  {"Zmierz ponownie. Wpisz 2500–4350 mV; korekta maks. ±10%.","Measure again. Enter 2500–4350 mV; maximum correction ±10%.","Erneut messen. 2500–4350 mV eingeben; Korrektur maximal ±10%."},

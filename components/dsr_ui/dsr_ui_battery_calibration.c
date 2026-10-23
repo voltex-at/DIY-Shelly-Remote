@@ -1,5 +1,6 @@
 /* A bounded local draft. No charger control, GPIO inference or Flash on LVGL. */
 #include "dsr_ui_internal.h"
+#include "dsr_ui_cyber.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -14,7 +15,7 @@ enum {NOMINAL,CAPACITY,EMPTY,MID,FULL,FIELD_COUNT};
  * Keep it beside the LVGL pool in PSRAM, preserving the internal-RAM budget. */
 
 static EXT_RAM_BSS_ATTR lv_obj_t *body,*keyboard,*type,*fields[FIELD_COUNT],*reference_field;
-static EXT_RAM_BSS_ATTR lv_obj_t *status,*save,*read_button,*apply_button,*unity_button,*reload,*gain_label,*reading,*dialog,*error_panel,*new_profile,*trend_switch;
+static EXT_RAM_BSS_ATTR lv_obj_t *status,*status_panel,*save,*read_button,*apply_button,*unity_button,*reload,*gain_label,*reading,*dialog,*error_panel,*new_profile,*trend_switch;
 static EXT_RAM_BSS_ATTR dsr_battery_profile_t baseline,draft,submitted;
 static EXT_RAM_BSS_ATTR dsr_battery_sample_t reference;
 static EXT_RAM_BSS_ATTR uint32_t reference_at;
@@ -22,10 +23,19 @@ static EXT_RAM_BSS_ATTR bool active,pending,loading,known,reference_valid,waitin
 static void back(lv_event_t *event);
 bool dsr_ui_battery_calibration_active(void){return active;}
 static void text(lv_obj_t *o,const char *s)
-{if(o&&strcmp(lv_label_get_text(o),dsr_sc_tr(s)))dsr_sc_label_set_text(o,s);}
+{
+ if(!o)return;
+ if(strcmp(lv_label_get_text(o),dsr_sc_tr(s)))dsr_sc_label_set_text(o,s);
+ if(o==status&&status_panel){
+  bool information=!strcmp(s,"Zmiany obowiązują po zapisaniu.")||!strcmp(s,"Zapisywanie ustawień…")||!strcmp(s,"Odczyt profilu baterii…")||!strcmp(s,"Ustawienia zapisane.")||!strcmp(s,"Odczyt napięcia…");
+  uint32_t gold=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;
+  lv_obj_set_style_text_color(o,information?dsr_sc_text_color(DSR_SC_TEXT):lv_color_hex(gold),0);
+  dsr_sc_border_color(status_panel,information?dsr_sc_color(DSR_SC_EDGE):lv_color_hex(gold),0);
+ }
+}
 void dsr_ui_battery_calibration_hide(void)
 {
- active=false;body=keyboard=type=reference_field=status=save=read_button=apply_button=unity_button=reload=gain_label=reading=dialog=error_panel=new_profile=trend_switch=NULL;
+ active=false;body=keyboard=type=reference_field=status=status_panel=save=read_button=apply_button=unity_button=reload=gain_label=reading=dialog=error_panel=new_profile=trend_switch=NULL;
  memset(fields,0,sizeof(fields));reference_valid=waiting_read=false;
  /* An accepted save/load outlives this screen. Reopening cannot resubmit it. */
 }
@@ -33,12 +43,14 @@ static void close_keyboard(lv_event_t *event)
 {
  (void)event;if(!keyboard)return;
  lv_obj_t *field=lv_keyboard_get_textarea(keyboard);if(field)lv_obj_remove_state(field,LV_STATE_FOCUSED);
- lv_keyboard_set_textarea(keyboard,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);lv_obj_set_height(body,260);
+ lv_keyboard_set_textarea(keyboard,NULL);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);lv_obj_set_height(body,256);
+ if(status_panel&&(known||pending))lv_obj_remove_flag(status_panel,LV_OBJ_FLAG_HIDDEN);
 }
 static void focus(lv_event_t *event)
 {
  if(pending||!known||!keyboard)return;
  dsr_ui_keyboard_focus(keyboard,lv_event_get_target(event));
+ lv_obj_add_flag(status_panel,LV_OBJ_FLAG_HIDDEN);
  /* Both classic and Cyber leave the 420px action bar accessible. */
  lv_obj_set_size(keyboard,320,224);lv_obj_set_align(keyboard,LV_ALIGN_TOP_LEFT);lv_obj_set_pos(keyboard,0,192);lv_obj_set_height(body,100);
  lv_obj_update_layout(body);lv_obj_scroll_to_view_recursive(lv_event_get_target(event),LV_ANIM_OFF);
@@ -53,6 +65,10 @@ static void controls(void)
  if(pending){lv_obj_add_state(reload,LV_STATE_DISABLED);lv_obj_add_state(new_profile,LV_STATE_DISABLED);}else{lv_obj_remove_state(reload,LV_STATE_DISABLED);lv_obj_remove_state(new_profile,LV_STATE_DISABLED);}
  if(known){lv_obj_remove_flag(body,LV_OBJ_FLAG_HIDDEN);lv_obj_add_flag(error_panel,LV_OBJ_FLAG_HIDDEN);}
  else{lv_obj_add_flag(body,LV_OBJ_FLAG_HIDDEN);lv_obj_remove_flag(error_panel,LV_OBJ_FLAG_HIDDEN);}
+ /* The full recovery panel already explains a failed read/save. Never show
+  * its warning twice, or paint a status panel behind the numeric keyboard. */
+ if((!known&&!pending)||(keyboard&&!lv_obj_has_flag(keyboard,LV_OBJ_FLAG_HIDDEN)))lv_obj_add_flag(status_panel,LV_OBJ_FLAG_HIDDEN);
+ else lv_obj_remove_flag(status_panel,LV_OBJ_FLAG_HIDDEN);
  if(waiting_read)lv_obj_add_state(read_button,LV_STATE_DISABLED);
 }
 static bool capture(dsr_battery_profile_t *p)
@@ -191,7 +207,7 @@ void dsr_ui_battery_calibration_open(lv_event_t *event)
  known=dsr_ui_battery_profile_current(&baseline);draft=baseline;
  if(!dsr_battery_profile_valid(&draft))dsr_battery_profile_defaults(&draft);
  lv_obj_t *root=dsr_ui_screen("Kalibracja baterii",false);active=true;pending=was_pending;
- body=dsr_sc_panel(root,12,86,296,260,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
+ body=dsr_sc_panel(root,12,86,296,256,DSR_SC_BG,0);lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
  lv_obj_t *intro=dsr_sc_panel(body,0,0,296,110,DSR_SC_CARD,10);
  dsr_sc_text(intro,"Tylko ogniwo 1S Li-Po / Li-ion 3,6–3,7 V, ładowane do 4,2 V. Profil nie zmienia ładowarki.",12,10,272,&dsr_roboto_14,DSR_SC_TEXT);
  lv_obj_t *form=dsr_sc_panel(body,0,118,296,548,DSR_SC_CARD,10);
@@ -215,10 +231,15 @@ void dsr_ui_battery_calibration_open(lv_event_t *event)
  lv_obj_t *note=dsr_sc_panel(body,0,1200,296,175,DSR_SC_PANEL,10);
  dsr_sc_text(note,"~% to szacunek z trzech punktów napięcia. Obciążenie, temperatura i USB wpływają na wynik. Pojemność nie mierzy prądu ani czasu pracy. Animacja z trendu nie potwierdza ładowania.",12,10,272,&dsr_roboto_14,DSR_SC_MUTED);
  error_panel=dsr_sc_panel(root,12,86,296,260,DSR_SC_CARD,10);
- dsr_sc_text(error_panel,"Zapis lub odczyt niepotwierdzony. Wczytaj profil ponownie.",12,12,272,&dsr_roboto_18,0xffc107);
+ uint32_t gold=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_warning(error_panel,false);
+ else{dsr_sc_border_color(error_panel,lv_color_hex(gold),0);dsr_sc_border_width(error_panel,1,0);}
+ dsr_sc_text(error_panel,"Zapis lub odczyt niepotwierdzony. Wczytaj profil ponownie.",12,12,272,&dsr_roboto_18,gold);
  new_profile=dsr_ui_button(error_panel,"Nowy profil",12,136,272,replace,NULL);
  reload=dsr_ui_button(error_panel,"Wczytaj ponownie",12,196,272,load,NULL);
- status=dsr_sc_text(root,pending?(loading?"Odczyt profilu baterii…":"Zapisywanie ustawień…"):known?"Sprawdź dane ogniwa i progi. Wartości wstępne są przybliżone.":"Zapis lub odczyt niepotwierdzony. Wczytaj profil ponownie.",14,350,292,&dsr_roboto_12,known?DSR_SC_MUTED:0xffc107);lv_obj_set_height(status,60);
+ status_panel=dsr_sc_panel(root,12,350,296,60,DSR_SC_PANEL,10);dsr_sc_border_width(status_panel,1,0);
+ status=dsr_sc_text(status_panel,"",12,8,272,&dsr_roboto_12,DSR_SC_TEXT);
+ lv_obj_align(status,LV_ALIGN_LEFT_MID,12,0);
  dsr_ui_button(root,"Wstecz",12,420,108,back,NULL);save=dsr_ui_button(root,"Zapisz",128,420,180,commit,NULL);
  keyboard=lv_keyboard_create(root);dsr_ui_keyboard(keyboard);lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_READY,NULL);lv_obj_add_event_cb(keyboard,close_keyboard,LV_EVENT_CANCEL,NULL);
  populate();controls();

@@ -182,6 +182,43 @@ bramki jest zakończony. Rzeczywiste RF i końcowy zapis karty na urządzeniu na
 wymagają odbioru przed nowym DEV. Do zapisania akceptacji wykorzystano istniejące
 rendery `c2627bc`, bez ponawiania testów firmware.
 
+### SYS-01 — bateria i zasilanie: pierwsza runda podglądów
+
+Właściciel wybrał ekran baterii, kalibrację i ustawienia. Przegląd obejmuje
+napięcie i szacunkowy procent, przewijaną diagnostykę pamięci/radia, typ ogniwa,
+progi, opcję animacji z trendu, korektę względem multimetru, klawiaturę oraz
+błędy i ponowny odczyt profilu. Pomiar ADC, profil, estymator, trend i zapis
+z odczytem kontrolnym zachowują dotychczasowe działanie.
+
+Wykryto niespójności UI: komunikaty kalibracji nie miały złotych ramek,
+panel błędu używał turkusowej ramki, a błąd zapisu był powtarzany pod panelem.
+Brakowało też EN/DE dla „Wczytaj ponownie”. Komunikaty mają teraz osobny panel
+z wewnętrznymi marginesami, pionowym wyśrodkowaniem tekstu i złotym tekstem/
+konturem dla ostrzeżeń. Odstęp od treści i dolnych akcji wynosi co najmniej 8 px.
+Panel jest ukrywany podczas edycji z klawiaturą; po błędzie pozostaje tylko
+jeden widoczny komunikat, razem z opcjami odzyskania profilu. Dodano Reload /
+Neu laden. Nie zmieniano reguł korekty, progów, pojemności ani ładowarki.
+
+Istniejący test przełączał paletę bez zastosowania natywnego motywu LVGL.
+Poprawiono go, aby przełączał motyw tak jak firmware. Wcześniejszy ciemny
+selektor w podglądzie Jasny był skutkiem tego błędu testu; zbędną próbę zmiany
+kolorów selektora w produkcji wycofano. Końcowe podglądy używają właściwych
+motywów, w tym natywnej listy typu ogniwa.
+
+Walidacja: `DSR_UI_FOCUS_BATTERY_REVIEW=1 python3 tools/dev/run_host.py
+test_ui.py --jobs 4 --case test_battery_calibration_ui` — PASS, LVGL 9.3:
+57 reprezentatywnych klatek (Grafit/Jasny DE, Cyber Blue PL/EN/DE).
+Regresja najpierw wykazała brak złotych ramek; końcowa kontrola obejmuje ich
+granice i marginesy, brak duplikatu błędu, odstęp od akcji, tłumaczenie,
+klawiaturę i ponowne wczytanie po niepewnym zapisie. Po 40 otwarciach i
+zamknięciach formularza wolna pamięć pozostaje 90 832 B; pełny Dashboard
+24 kafli po powrocie ma 4 888 B wolne, największy blok 4 664 B w puli 128 KiB.
+To pomiary hosta; ADC, worker i NVS mają dostawców modelowych. Nie wykonywano
+pełnego atlasu, całego zestawu testów, nowego builda docelowego ani operacji
+na pilocie. **Wygląd tej rundy czeka na ocenę właściciela.** Rzeczywisty pomiar
+vs multimetr, trwałość profilu, wybudzanie/reconnect/restart i końcowa walidacja
+nowego DEV pozostają osobnymi punktami.
+
 
 ## Baza dalszej pracy
 
@@ -271,7 +308,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. **Turkusowe obramowania i odstępy czterech pokazanych ekranów Wi-Fi/BLU Cyber Blue zaakceptowane na podglądzie** (`638b56c`); **Wybór bramki, logowanie, instrukcja TRV i trzy pokazane wyniki rejestracji zaakceptowane na podglądzie** (`c2627bc`). **Pozostałe pokazane stany wyszukiwania/rejestracji, oba błędy i formularz karty również zaakceptowane na podglądzie**; odbiór wyglądu pokazanego przepływu bramki zakończony. Końcowy zapis karty oraz rzeczywiste RF nadal do odbioru |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
-| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | Oczekuje na ocenę |
+| SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **W trakcie ankiety:** przygotowano podglądy baterii i kalibracji w trzech skórkach, poprawiono ramki komunikatów, duplikat błędu i EN/DE ponownego odczytu. Wygląd czeka na ocenę. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Oczekuje na ocenę |

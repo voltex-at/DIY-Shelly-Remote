@@ -3,6 +3,8 @@
 #include "test_ui.c"
 #undef main
 #include "../../components/dsr_ui/dsr_ui_cyber.h"
+static unsigned review_failures;
+static bool review_mode(void){return getenv("DSR_UI_FOCUS_BATTERY_REVIEW")!=NULL;}
 static lv_area_t box(lv_obj_t *o)
 {CHECK(o);lv_obj_update_layout(lv_screen_active());lv_area_t a;lv_obj_get_coords(o,&a);return a;}
 static void press(const char *caption)
@@ -12,8 +14,33 @@ static void press(const char *caption)
 static lv_obj_t *field(unsigned index)
 {lv_obj_t *o=nth_type(lv_screen_active(),&lv_textarea_class,&index);CHECK(o);return o;}
 static void set(unsigned i,const char *value){lv_textarea_set_text(field(i),value);}
+static unsigned visible_labels(lv_obj_t *o,const char *value)
+{
+ if(lv_obj_has_flag(o,LV_OBJ_FLAG_HIDDEN))return 0;
+ unsigned count=lv_obj_check_type(o,&lv_label_class)&&!strcmp(lv_label_get_text(o),dsr_sc_tr(value));
+ for(unsigned i=0;i<lv_obj_get_child_count(o);i++)count+=visible_labels(lv_obj_get_child(o,(int)i),value);
+ return count;
+}
 static void snap(const char *stage,unsigned lang)
-{char name[120];snprintf(name,sizeof(name),"battery-calibration-%s-%s",stage,lang==0?"pl":lang==1?"en":"de");screenshot(name);}
+{
+ const char *warning=!strcmp(stage,"invalid")?"Sprawdź liczby i progi: 0% < 50% < 100%. Odstęp min. 100 mV.":!strcmp(stage,"write-error")||!strcmp(stage,"boot-read-error")?"Zapis lub odczyt niepotwierdzony. Wczytaj profil ponownie.":!strcmp(stage,"stale-reference")?"Zmierz ponownie. Wpisz 2500–4350 mV; korekta maks. ±10%.":NULL;
+ if(warning){
+  lv_obj_t *l=find_label(lv_screen_active(),warning);CHECK(l);lv_obj_t *panel=lv_obj_get_parent(l);lv_area_t a=box(panel),t=box(l);uint32_t gold=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc107;
+  bool framed=(lv_color_to_u32(lv_obj_get_style_border_color(panel,0))&0xffffff)==gold&&(lv_color_to_u32(lv_obj_get_style_text_color(l,0))&0xffffff)==gold;
+  bool padded=t.x1>=a.x1+8&&t.x2<=a.x2-8&&t.y1>=a.y1+8&&t.y2<=a.y2-8;
+  lv_area_t action=box(lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz")));CHECK(a.y2+8<action.y1);checks+=2;if(!framed||!padded){fprintf(stderr,"power review: %s needs gold frame and internal padding (skin%u lang%u)\n",stage,dsr_sc_style(),lang);review_failures++;}
+ }
+ if(!strcmp(stage,"write-error")||!strcmp(stage,"boot-read-error")){
+  CHECK(visible_labels(lv_screen_active(),warning)==1);
+  CHECK(find_label(lv_screen_active(),lang==1?"Reload":lang==2?"Neu laden":"Wczytaj ponownie"));
+ }
+ if(review_mode()){
+  const char *keep[]={"overview","initial","cell-type-options","trend-option","voltage-anchors","invalid","keyboard","write-error","estimated","memory","reference","correction-actions","boot-read-error","likely-charging","trend-read-error"};bool include=false;
+  for(unsigned i=0;i<sizeof(keep)/sizeof(*keep);i++)if(!strcmp(stage,keep[i]))include=true;
+  if(!include||((!strcmp(stage,"memory")||!strcmp(stage,"correction-actions"))&&lang!=2))return;
+ }
+ char name[120];if(review_mode())snprintf(name,sizeof(name),"power-%u-%s-%u",dsr_sc_style(),stage,lang);else snprintf(name,sizeof(name),"battery-calibration-%s-%s",stage,lang==0?"pl":lang==1?"en":"de");screenshot(name);
+}
 static void audit(lv_obj_t *o)
 {
  if(lv_obj_has_flag(o,LV_OBJ_FLAG_HIDDEN))return;
@@ -39,17 +66,17 @@ static void reset_profile(void)
 }
 static void form(unsigned lang,unsigned theme)
 {
- reset_profile();dsr_sc_appearance(DSR_SC_BLUE,theme,lang);dsr_ui_battery_open(NULL);press("Kalibracja baterii");
+ reset_profile();dsr_sc_appearance(DSR_SC_BLUE,theme,lang);dsr_ui_apply_theme();dsr_ui_battery_open(NULL);if(review_mode())snap("overview",lang);press("Kalibracja baterii");
  CHECK(dsr_ui_battery_calibration_active());CHECK(!in_flight);CHECK(!strcmp(lv_textarea_get_text(field(0)),"3700"));
  snap("initial",lang);audit(lv_screen_active());
- lv_obj_t *t=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(t&&lv_dropdown_get_selected(t)==0);lv_dropdown_set_selected(t,DSR_BATTERY_LIPO_1S);
+ lv_obj_t *t=find_type(lv_screen_active(),&lv_dropdown_class);CHECK(t&&lv_dropdown_get_selected(t)==0);if(review_mode()&&lang==2){lv_dropdown_open(t);snap("cell-type-options",lang);lv_dropdown_close(t);}lv_dropdown_set_selected(t,DSR_BATTERY_LIPO_1S);
  lv_obj_t *trend_toggle=find_type(lv_screen_active(),&lv_switch_class);CHECK(trend_toggle&&lv_obj_has_state(trend_toggle,LV_STATE_CHECKED));
  lv_obj_scroll_to_view_recursive(lv_obj_get_parent(trend_toggle),LV_ANIM_OFF);snap("trend-option",lang);audit(lv_screen_active());lv_obj_remove_state(trend_toggle,LV_STATE_CHECKED);
  set(1,"1450");lv_obj_scroll_to_view_recursive(field(2),LV_ANIM_OFF);snap("voltage-anchors",lang);unsigned before=requests;set(2,"3800");press("Zapisz");CHECK(requests==before&&!in_flight&&find_label(lv_screen_active(),"Sprawdź liczby i progi: 0% < 50% < 100%. Odstęp min. 100 mV."));snap("invalid",lang);
  set(2,"3300");
  /* Real tap focuses a field and scrolls it above the actual numeric keyboard. */
  lv_obj_t *f=field(4);lv_obj_scroll_to_view_recursive(f,LV_ANIM_OFF);lv_area_t a=box(f);tap(a.x1+36,(a.y1+a.y2)/2);
- lv_obj_t *kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(kb&&!lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));CHECK(lv_keyboard_get_mode(kb)==LV_KEYBOARD_MODE_NUMBER);a=box(f);CHECK(a.y2<192);CHECK(box(lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"))).y1==420);snap("keyboard",lang);audit(lv_screen_active());lv_obj_send_event(kb,LV_EVENT_READY,NULL);
+ lv_obj_t *kb=find_type(lv_screen_active(),&lv_keyboard_class);CHECK(kb&&!lv_obj_has_flag(kb,LV_OBJ_FLAG_HIDDEN));CHECK(lv_keyboard_get_mode(kb)==LV_KEYBOARD_MODE_NUMBER);a=box(f);CHECK(a.y2<192);CHECK(box(lv_obj_get_parent(find_label(lv_screen_active(),"Zapisz"))).y1==420);snap("keyboard",lang);audit(lv_screen_active());CHECK(visible_labels(lv_screen_active(),"Zmiany obowiązują po zapisaniu.")==0);lv_obj_send_event(kb,LV_EVENT_READY,NULL);CHECK(visible_labels(lv_screen_active(),"Zmiany obowiązują po zapisaniu.")==1);
  /* Header and battery-icon navigation use the same unsaved-draft guard. */
  tap(26,22);CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));snap("unsaved",lang);press("Zostań");CHECK(!strcmp(lv_textarea_get_text(field(1)),"1450"));tap(298,22);CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));press("Zostań");
  next_submit_result=DSR_BUSY;press("Zapisz");CHECK(requests==before&&!in_flight&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
@@ -62,9 +89,9 @@ static void form(unsigned lang,unsigned theme)
  /* Restart reads the stored profile. Background reads are single-slot and
   * pause during display sleep, busy control and the calibration form. */
  dsr_ui_battery_init();display_sleeping=true;lv_tick_inc(22000);dsr_ui_battery_tick();CHECK(!in_flight);display_sleeping=false;dsr_ui_battery_tick();CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);
- response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=6}};dsr_battery_apply_profile(&battery_stored,&response.battery);deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"~75%"));snap("estimated",lang);CHECK(!response.battery.has_charge_state&&!response.battery.charging);
+ response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=6}};dsr_battery_apply_profile(&battery_stored,&response.battery);deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"~75%"));snap("estimated",lang);CHECK(!response.battery.has_charge_state&&!response.battery.charging);if(review_mode()){lv_obj_t *memory=find_label(lv_screen_active(),"Pamięć i radio");CHECK(memory);lv_obj_scroll_to_view_recursive(lv_obj_get_parent(memory),LV_ANIM_OFF);snap("memory",lang);}
  press("Kalibracja baterii");before=requests;lv_tick_inc(22000);dsr_ui_battery_tick();CHECK(requests==before&&!in_flight);press("Zmierz napięcie");CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);
- response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=4}};deliver(DSR_OK,DSR_WIFI_IDLE);set(5,"4200");press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"1050 / 1000"));snap("reference",lang);
+ response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=4}};deliver(DSR_OK,DSR_WIFI_IDLE);set(5,"4200");press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"1050 / 1000"));snap("reference",lang);if(review_mode()){lv_obj_scroll_to_view_recursive(lv_obj_get_parent(find_label(lv_screen_active(),"Korekta 1:1")),LV_ANIM_OFF);snap("correction-actions",lang);}
  set(5,"2500");press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"Zmierz ponownie. Wpisz 2500–4350 mV; korekta maks. ±10%."));CHECK(find_label(lv_screen_active(),"1050 / 1000"));
  set(5,"4200");lv_tick_inc(30001);press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"Zmierz ponownie. Wpisz 2500–4350 mV; korekta maks. ±10%."));snap("stale-reference",lang);
  press("Korekta 1:1");CHECK(find_label(lv_screen_active(),"1000 / 1000"));press("Wstecz");CHECK(!dsr_ui_battery_calibration_active());
@@ -75,13 +102,13 @@ static void form(unsigned lang,unsigned theme)
 }
 static void broken_profile(void)
 {
- reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);battery_load_failure=true;dsr_ui_battery_init();dsr_ui_battery_calibration_open(NULL);snap("boot-read-error",0);unsigned before=requests;press("Zapisz");CHECK(requests==before&&!in_flight);
+ reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();battery_load_failure=true;dsr_ui_battery_init();dsr_ui_battery_calibration_open(NULL);snap("boot-read-error",0);unsigned before=requests;press("Zapisz");CHECK(requests==before&&!in_flight);
  press("Wczytaj ponownie");profile_reply(DSR_IO);press("Nowy profil");CHECK(find_label(lv_screen_active(),"Utworzyć nowy profil?"));press("Anuluj");CHECK(!in_flight&&battery_stored.kind==DSR_BATTERY_NONE);
  press("Nowy profil");press("Utwórz");CHECK(find_label(lv_screen_active(),"Nowy profil jest wyłączony. Sprawdź dane i zapisz."));CHECK(!in_flight);snap("new-profile",0);battery_load_failure=false;press("Zapisz");profile_reply(DSR_OK);press("Wstecz");reset_profile();
 }
 static void cycles(void)
 {
- reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_battery_open(NULL);press("Kalibracja baterii");press("Wstecz");dsr_ui_open_settings();lv_refr_now(display);
+ reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();dsr_ui_battery_open(NULL);press("Kalibracja baterii");press("Wstecz");dsr_ui_open_settings();lv_refr_now(display);
  lv_mem_monitor_t before,after;lv_mem_monitor(&before);
  for(unsigned i=0;i<40;i++){dsr_ui_battery_open(NULL);press("Kalibracja baterii");press("Wstecz");dsr_ui_open_settings();lv_refr_now(display);}
  lv_mem_monitor(&after);CHECK(before.free_size==after.free_size);CHECK(after.free_biggest_size>32000);
@@ -105,7 +132,7 @@ static uint32_t header_pixels(void)
 }
 static void trend_animation(void)
 {
- reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);
+ reset_profile();dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_CYBER_BLUE,0);dsr_ui_apply_theme();
  battery_stored.kind=DSR_BATTERY_LIPO_1S;battery_stored.trend_enabled=1;dsr_ui_battery_init();dsr_ui_battery_open(NULL);
  for(unsigned i=0;i<=10;i++){
   if(!in_flight){lv_tick_inc(1000);dsr_ui_battery_tick();}
@@ -134,8 +161,8 @@ int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);pointer=lv_indev_create();lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);lv_indev_set_display(pointer,display);lv_indev_set_read_cb(pointer,read_pointer);
  strcpy(stored.ssid,"Home Wi-Fi");wifi.connected=false;test_workspace_disable();dsr_ui_init();tick();
- for(unsigned lang=0;lang<3;lang++)form(lang,DSR_SC_STYLE_CYBER_BLUE);
- for(unsigned theme=0;theme<3;theme++)form(theme,theme);
- broken_profile();trend_animation();cycles();
+ if(review_mode()){form(2,DSR_SC_STYLE_GRAPHITE);form(2,DSR_SC_STYLE_LIGHT);for(unsigned lang=0;lang<3;lang++)form(lang,DSR_SC_STYLE_CYBER_BLUE);}
+ else{for(unsigned lang=0;lang<3;lang++)form(lang,DSR_SC_STYLE_CYBER_BLUE);for(unsigned theme=0;theme<3;theme++)form(theme,theme);}
+ broken_profile();trend_animation();cycles();CHECK(!review_failures);
  printf("PASS: %u battery calibration UI checks, %u real LVGL frames; hardware providers are models\n",checks,screenshots);lv_deinit();return 0;
 }
