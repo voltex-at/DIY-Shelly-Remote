@@ -128,6 +128,7 @@ void dsr_network_reset_view(void)
     dsr_ui_battery_hide();dsr_ui_battery_calibration_hide();dsr_ui_display_hide();
     dsr_ui_usage_hide();
     dsr_ui_actions_hide();
+    dsr_ui_automation_hide();
     dsr_wifi_ui_reset();
     dsr_ui_lan_reset();
     dsr_ui_ap_reset();
@@ -939,7 +940,7 @@ static void poll(lv_timer_t *timer)
  if(dsr_wifi_connected())(void)dsr_clock_start(); /* idempotent; background SNTP for the status bar clock */
 #endif
  dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_usage_tick();dsr_ui_actions_tick();
- dsr_ui_device_settings_tick();dsr_ui_blu_tick();
+ dsr_ui_device_settings_tick();dsr_ui_blu_tick();dsr_ui_automation_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
  bool ap_available=!dsr_ui_blu_active()&&!dsr_ui_device_settings_active()&&view==VIEW_HOME&&!dsr_ui_ble_rpc_active()&&!dsr_ui_ap_active()&&dsr_network_ap_home(NULL);
  dsr_workspace_ap_publish(ap_available,dsr_ui_ap_active(),handoff_now);

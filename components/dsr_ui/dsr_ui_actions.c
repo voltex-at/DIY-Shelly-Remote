@@ -46,6 +46,7 @@ static uint32_t status_hash(const dsr_actions_snapshot_t *s)
 static lv_obj_t *button(lv_obj_t *parent,const char *text,int x,int y,int width,lv_event_cb_t cb,uintptr_t data)
 {lv_obj_t *b=dsr_sc_button(parent,x,y,width,44,DSR_SC_CARD,8,cb,(void *)data);lv_obj_t *l=dsr_sc_text(b,text,3,0,width-6,width<=136?&dsr_roboto_12:&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(l,LV_TEXT_ALIGN_CENTER,0);lv_obj_center(l);return b;}
 static void back(lv_event_t *event){(void)event;dsr_network_rooms();}
+static void automation(lv_event_t *event){(void)event;dsr_ui_actions_hide();dsr_ui_automation_open();}
 static void choose(lv_event_t *event){page=(uint8_t)(uintptr_t)lv_event_get_user_data(event);browse.query[0]=0;browse.room=0;admission=DSR_OK;draw();}
 void dsr_ui_actions_execute(uint8_t kind,uint32_t id,bool on)
 {
@@ -140,7 +141,9 @@ static __attribute__((noinline)) void objects(lv_obj_t *root,const dsr_actions_s
  }
  if(!i){dsr_sc_icon(list,page?DSR_ICON_SCENES:DSR_ICON_GRID,116,24,48,DSR_SC_MUTED);dsr_sc_text(list,"Dodaj pierwszy wpis przyciskiem + u góry.",12,92,260,&dsr_roboto_16,DSR_SC_TEXT);}
  browse.revision=(uint32_t)number(r,"revision");cJSON_Delete(r);
- if(s->active)button(root,"Pokaż bieżące wykonanie",12,372,296,choose,3);else dsr_sc_text(root,page?"Sceny uruchamiane ręcznie":"Cały dom • każde urządzenie ma własny wynik.",12,410,296,&dsr_roboto_11,DSR_SC_MUTED);
+ if(s->active)button(root,"Pokaż bieżące wykonanie",12,372,296,choose,3);
+ else if(page){lv_obj_set_height(list,156);button(root,"Automatyzacje",12,372,296,automation,0);}
+ else dsr_sc_text(root,"Cały dom • każde urządzenie ma własny wynik.",12,410,296,&dsr_roboto_11,DSR_SC_MUTED);
  browse.keyboard=lv_keyboard_create(root);dsr_ui_keyboard(browse.keyboard);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_READY,NULL);lv_obj_add_event_cb(browse.keyboard,search_done,LV_EVENT_CANCEL,NULL);lv_obj_add_flag(browse.keyboard,LV_OBJ_FLAG_HIDDEN);
 }
 static void draw(void)

@@ -188,6 +188,8 @@ const char *dsr_sc_tr(const char *text)
  {"Zmiana stanu","State change","Statusänderung"},
  {"Odczyt stanu","State observation","Statusablesung"},
  {"Potwierdzono","Confirmed","Bestätigt"},
+ {"Automatyzacje","Automations","Automatisierungen"},
+ {"Dalej","Next","Weiter"},
  {"Błąd kroku","Step failed","Schritt fehlgeschlagen"},
  {"Wynik niepewny • sprawdź stan","Uncertain result • check state","Ergebnis unsicher • Status prüfen"},
  {"Anulowano pozostałe kroki","Remaining steps cancelled","Übrige Schritte abgebrochen"},
