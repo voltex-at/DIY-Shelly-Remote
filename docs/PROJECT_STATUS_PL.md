@@ -5,6 +5,8 @@ Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebra�
 
 ## Aktualizacja: okno/drzwi → ogrzewanie — 2026-10-23
 
+[Wynik etapu w ankiecie #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74#issuecomment-6370925230).
+
 Właściciel zatwierdził projekt oraz ośmioetapowy plan do wykonania tutaj. Model,
 dziennik NVS, źródłowa świeżość kontaktów, bezpośredni odczyt TRV, schemat 3,
 wykonawca i edytory LCD/WWW są wdrożone w lokalnych commitach. Nowa reguła jest
@@ -22,19 +24,44 @@ aktor/worker, odczyty i wznowienie, API, wybrane nowe ekrany LVGL 9.3 oraz panel
 Chromium. Sprawdzono też dotknięte wcześniejsze przypadki aktora/workspace i
 spójność tłumaczeń. Pełnego atlasu ani całego historycznego zestawu UI nie generowano.
 
-Build ES3C35P na ESP-IDF 5.5.4 przeszedł. Plik aplikacji ma 0x4233d0 bajtów
-i 31% wolnej partycji aplikacji. Audyt ELF potwierdził pulę LVGL w PSRAM i 8 KB
-stosu UI w pamięci wewnętrznej. Docelowy raport stosu wykrył dużą ramkę
-konfiguracji; przebudowano remapowanie w miejscu, zachowując cykle, nastawy i
-intencje. Po poprawce konfiguracja używa 320 B, cykl wykonawcy 336 B, a nowy
-renderer formularza 784 B. Regresje powiązanych modułów i kontrola budżetów przeszły.
+Niezależny przegląd ośmiu etapów zakończono. Pięć istotnych uwag zostało
+poprawionych w lokalnym commicie `c1dd336`, z regresjami odtwarzającymi błędy:
 
-Niezależny przegląd pozostaje ostatnią bramką tej implementacji. Host używa
-modeli radia/Flash/RTOS i nie ma lokalnego UBSan; nowe obowiązkowe testy ASan/UBSan
-są zarejestrowane w CI, którego tutaj nie uruchamiano zdalnie. Bezpośredni odczyt
-TRV ogranicza się do udokumentowanej bramki Gateway Gen3. Potwierdzenie realnego
-RPC, przerw zasilania i high-water mark stosu wymaga fizycznego sprzętu. Nie jest
-to nowe wydanie ani odbiór na pilocie. Bez push, flashowania i publikacji.
+| Niespójność z przeglądu | Wynik poprawki |
+|---|---|
+| Bariera świeżości była przypisana do indeksu reguły | Wstawienie/usunięcie wcześniejszej reguły zachowuje właściwą barierę i cykl; stary raport nie zezwala na przywrócenie temperatury |
+| Niedostępny TRV zatrzymywał kolejkę pozostałych reguł | Niewysłany odczyt ustępuje innym celom; usunięcie/wyłączenie reguły może wycofać taki odczyt |
+| Pusta pozycja tabeli 429 zasłaniała dalszy wpis | Wyszukiwanie obejmuje całą tabelę; drugi limit zachowuje dłuższe oczekiwanie, a stare ID nie zajmują jej bez końca |
+| Nieudane usunięcie na LCD modyfikowało szkic | Usuwany jest osobny kandydat do zapisu; Wstecz i Zapisz po błędzie nie usuwają reguły |
+| Błąd bezpośredniego odczytu był pokazywany jako zwykłe oczekiwanie | LCD/WWW/API podają przyczynę dla celu; udany odczyt ją kasuje, a ważniejszy błąd dziennika pozostaje widoczny |
+
+Po tej serii poprawek wykonano jeden wspólny przebieg
+`python3 tools/test_automation.py --case all` — PASS, w tym 18 scenariuszy
+wykonawcy z rzeczywistym config-task/aktorem/workerem i modelami radia/Flash.
+Nowy przypadek `test_automation_ui` — PASS na LVGL 9.3 w trzech skórkach i
+PL/EN/DE; `node tests/test_panel_automation.cjs` — PASS w Chromium, w tym
+mobilny formularz bez kolizji stopki. Spójność słownika PL/EN/DE również przeszła.
+Po drobnych poprawkach odtwarzano tylko odpowiadające im przypadki; bez pełnego
+atlasu i ponawiania całego historycznego zestawu testów.
+
+Build ES3C35P na ESP-IDF 5.5.4 przeszedł po końcowych poprawkach. Plik aplikacji
+ma 0x4242e0 bajtów i 31% wolnej partycji aplikacji. Audyt ELF potwierdził pulę
+LVGL w PSRAM i 8 KB stosu UI w pamięci wewnętrznej. Ramki funkcji: konfiguracja
+352 B, cykl wykonawcy 336 B, kopia statusu/API 528 B, renderer formularza 832 B;
+wszystkie mieszczą się w zarejestrowanych budżetach. To statyczne ramki kompilatora,
+bez pomiaru rzeczywistego high-water mark. Wersje zależności i ABI job/event są
+zachowane.
+
+Rzeczywiste podglądy nowych LCD i WWW przedstawiono do ankiety. **Akceptacja ich
+wyglądu przez właściciela pozostaje otwarta**; wcześniejsze zaakceptowane karty
+urządzeń/grup zachowują swój odbiór. Host używa modeli radia/Flash/RTOS i nie ma
+lokalnego UBSan; nowe obowiązkowe testy ASan/UBSan są zarejestrowane w CI,
+którego tutaj nie uruchamiano zdalnie. Bezpośredni odczyt TRV ogranicza się do
+udokumentowanej bramki Gateway Gen3. Potwierdzenie rzeczywistego RPC, przerw
+zasilania i high-water mark stosu wymaga sprzętu. Przed kolejnym DEV pozostają
+końcowy odbiór UI, walidacja sprzętowa, CI dokładnego commita oraz kontrola OTA
+i integralności wydania. Bieżący etap zachowuje `0.7.70-dev` na gałęzi roboczej,
+bez push, flashowania, merge i publikacji.
 
 ## Baza dalszej pracy
 
@@ -123,7 +150,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Zaakceptowane na podglądzie:** Dalej, znacznik metody, górny powrót Cyber Blue; pokazane ekrany wyszukiwania, pustej listy i błędu logowania LAN z pełnym IP/MAC; wyszukiwanie, komunikat bez Wi-Fi, pusta lista i niedostępność Bluetooth; pokazane ekrany AP ze wskaźnikiem jak LAN, większymi ikonami i złotym komunikatem w ramce; **wspólny formularz nazwy/pomieszczenia/kanału i przebieg zapisu, złote błędy, nieaktywne „Zapisz”, widoczne pole hasła, zachowanie wpisów i powrót do Dashboardu**. Pozostałe kroki konfiguracji AP/BLE i odbiór na sprzęcie pozostają otwarte |
 | NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | Oczekuje na ocenę |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
-| CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt wykonawcy został zatwierdzony, a plan wdrożenia jest do przeglądu. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
+| CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | Oczekuje na ocenę |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |

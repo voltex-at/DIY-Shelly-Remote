@@ -66,7 +66,7 @@ Beacon mode is not enabled automatically. An external same-value write cannot
 be detected; physical Gateway/TRV readback and power-cut recovery remain release
 acceptance work.
 
-Focused checks: `python3 tools/test_automation.py --case model|store|http|config|runtime|api`,
+Focused checks: `python3 tools/test_automation.py --case model|store|http|config|runtime|api|rate`,
 `python3 tools/test_ui.py --case test_automation_ui`, and
 `node tests/test_panel_automation.cjs`. Run `--case all` once at an integration
 boundary. New API `GET /api/v1/automations/status` requires the existing local

@@ -158,9 +158,10 @@ Każdy task: mała regresja RED → implementacja → podany zestaw GREEN → se
 
 - [x] Run `python3 tools/test_automation.py --case all` once for final integrated source, required affected actor/config/BLU regressions, focused automation LCD/WWW, and documentation/whitespace checks.
 - [x] Build ES3C35P at the end of this major stage; inspect stack/memory auditors, confirm exact pins and job/event/record budgets. Missing sanitizer environment remains a release blocker, not a passing result.
-- [ ] Perform one independent whole-change review with plan/spec and the recorded Review Focus; resolve important findings with focused RED→GREEN evidence. Preserve unrelated accepted WIP and root branch.
-- [ ] Present actual new LCD/WWW previews and a short list of host/target/hardware limits for the ongoing survey; record owner acceptance in #74 using short task-only comments.
-- [ ] Do not publish DEV/Stable, merge to main, push, dispatch Actions or flash a device here. Final release CI and physical-device acceptance remain the separate gates already agreed with the owner.
+- [x] Perform one independent whole-change review with plan/spec and the recorded Review Focus; resolve important findings with focused RED→GREEN evidence. Preserve unrelated accepted WIP and root branch.
+- [x] Present actual new LCD/WWW previews and a short list of host/target/hardware limits for the ongoing survey.
+- [ ] Record owner acceptance of the new automation editor/status in #74 using a short task-only comment; preview shown, owner answer pending.
+- [x] Do not publish DEV/Stable, merge to main, push, dispatch Actions or flash a device here. Final release CI and physical-device acceptance remain the separate gates already agreed with the owner.
 
 ## Plan self-review
 
@@ -168,6 +169,8 @@ Spec coverage: model/cycles task1, durable recovery task2, source evidence task3
 schema/migration task4, actor/manual admission task5, LCD task6, WWW task7,
 validation/release boundaries task8. The five Review Focus cases are pinned to
 named tests above. Signatures and shared types originate in the indicated task;
-later tasks consume them rather than defining competing variants. Owner approved inline execution here. Tasks 1–7 are implemented and locally
-committed. Task 8 is the final integration/target build and independent review;
-physical acceptance and release validation remain separate gates.
+later tasks consume them rather than defining competing variants. Owner approved inline execution here. Tasks 1–7 and the task 8 integration,
+target build and independent review/fix pass are complete locally. All five
+Important findings have focused RED→GREEN evidence and a final relevant suite.
+New automation previews await owner acceptance; physical acceptance and release
+validation remain separate gates. Branch/version retained; no push or release.
