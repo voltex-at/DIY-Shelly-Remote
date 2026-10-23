@@ -1,7 +1,7 @@
-# Okno/drzwi → ogrzewanie — projekt do odbioru
+# Okno/drzwi → ogrzewanie — projekt zatwierdzony
 
-Data: 2026-10-23. Status: zachowanie uzgodnione w ankiecie #74; dokument do
-zatwierdzenia przed implementacją wykonawcy automatyzacji. Ręczne sceny TRV są
+Data: 2026-10-23. Status: projekt zatwierdzony przez właściciela w rozmowie
+(„Tak, projekt zatwierdzony”); podstawa planu i wdrożenia wykonawcy automatyzacji. Ręczne sceny TRV są
 osobną, już zaimplementowaną i zaakceptowaną na podglądzie funkcją.
 
 ## Cel i decyzje właściciela
