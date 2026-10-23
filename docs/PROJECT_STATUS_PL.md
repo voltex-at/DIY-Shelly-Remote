@@ -172,10 +172,15 @@ wybór bramki z przewijaną nazwą i osobnym IP, pełne pola loginu/hasła,
 instrukcję parowania TRV oraz komunikaty braku potwierdzonego odbioru,
 częściowego błędu konfiguracji i potwierdzonego odbioru pomiarów.
 Odpowiedzi: „Tak, te ekrany zaakceptowane na podglądzie” i
-„Tak, te komunikaty zaakceptowane na podglądzie”. Pozostałe stany tego przepływu
-(wyszukiwanie, pusta lista, trwająca rejestracja, błędy i formularz karty)
-pozostają do oceny wyglądu. Rzeczywiste RF i końcowy zapis karty na urządzeniu
-nadal wymagają odbioru przed nowym DEV.
+„Tak, te komunikaty zaakceptowane na podglądzie”. **W kolejnej odpowiedzi
+właściciel zaakceptował także pozostałe sześć pokazanych stanów:** wyszukiwanie
+bramki, pustą listę, trwającą rejestrację, złoty komunikat błędu
+parowania/logowania, złoty komunikat braku obsługi oraz formularz
+nazwy/pomieszczenia/kanału po „Zapisz kartę”. Dla obu rzędów odpowiedział:
+„Tak, te widoki zaakceptowane na podglądzie”. Odbiór wyglądu pokazanego przepływu
+bramki jest zakończony. Rzeczywiste RF i końcowy zapis karty na urządzeniu nadal
+wymagają odbioru przed nowym DEV. Do zapisania akceptacji wykorzystano istniejące
+rendery `c2627bc`, bez ponawiania testów firmware.
 
 
 ## Baza dalszej pracy
@@ -263,7 +268,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | UI-11 | Równy zakres funkcjonalny skórek oraz ekrany dimmera/RGB | **Dimmer i RGB zaakceptowane na podglądzie we wszystkich trzech skórkach:** wspólny układ, pomiary, szybkie akcje, ramki, kontrast, edytor R/G/B, offline i odstęp 16 px od nawigacji. Odbiór na pilocie po nowym DEV pozostaje otwarty |
 | CFG-01 | Dodaj/edytuj/usuń pomieszczenia, dashboardy, trwałe nazwy i zdjęcia | **Zaakceptowane na podglądzie:** edycja i usuwanie pomieszczeń, Góra/Dół dla Dashboardu i Urządzeń, opisy wartości i przygaszenie niedostępnych kontrolek oraz złote ważne komunikaty konfiguracji. Tworzenie pomieszczeń, pozostałe niespójności dashboardów i odbiór na sprzęcie pozostają otwarte |
 | NET-01 | LAN, Wi-Fi AP i BLE: skan, wybór, zgody, błędy, retry i powrót do LAN | **Zaakceptowane na podglądzie:** Dalej, znacznik metody, górny powrót Cyber Blue; pokazane ekrany wyszukiwania, pustej listy i błędu logowania LAN z pełnym IP/MAC; wyszukiwanie, komunikat bez Wi-Fi, pusta lista i niedostępność Bluetooth; pokazane ekrany AP ze wskaźnikiem jak LAN, większymi ikonami i złotym komunikatem w ramce; **wspólny formularz nazwy/pomieszczenia/kanału i przebieg zapisu, złote błędy, nieaktywne „Zapisz”, widoczne pole hasła, zachowanie wpisów i powrót do Dashboardu**. Pozostałe kroki konfiguracji AP/BLE i odbiór na sprzęcie pozostają otwarte |
-| NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. **Turkusowe obramowania i odstępy czterech pokazanych ekranów Wi-Fi/BLU Cyber Blue zaakceptowane na podglądzie** (`638b56c`); **Wybór bramki, logowanie, instrukcja TRV i trzy pokazane wyniki rejestracji zaakceptowane na podglądzie** (`c2627bc`). Pozostałe stany wyszukiwania/rejestracji, błędy i formularz karty czekają na ocenę; końcowy zapis karty oraz rzeczywiste RF nadal do odbioru |
+| NET-02 | BLU: bonding/PIN, konfiguracja i odczyt przez bramkę | **W trakcie ankiety:** pokazano konfigurację sieci Shelly, PIN, ustawienia BLU, potwierdzenia i zapominanie parowania. Poprawiono ramki ważnych komunikatów, tytuł podsumowania sieci i tłumaczenie Zapomnij. **Turkusowe obramowania i odstępy czterech pokazanych ekranów Wi-Fi/BLU Cyber Blue zaakceptowane na podglądzie** (`638b56c`); **Wybór bramki, logowanie, instrukcja TRV i trzy pokazane wyniki rejestracji zaakceptowane na podglądzie** (`c2627bc`). **Pozostałe pokazane stany wyszukiwania/rejestracji, oba błędy i formularz karty również zaakceptowane na podglądzie**; odbiór wyglądu pokazanego przepływu bramki zakończony. Końcowy zapis karty oraz rzeczywiste RF nadal do odbioru |
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | Oczekuje na ocenę |
