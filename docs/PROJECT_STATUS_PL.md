@@ -338,8 +338,12 @@ Podstawą integracji są istniejące odczyty oraz wersjonowane dokumenty
 i [OTA ESP-IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/en/v5.5.4/esp32s3/api-reference/system/ota.html).
 Obejrzano rzeczywiste piksele. Modele hosta i build nie potwierdzają fizycznej
 instalacji, zachowania danych, działania progu na ogniwie ani rollback.
-Bez pełnego atlasu, całej regresji, CI, flashowania i publikacji. **Korekty
-przycisku, progu, ikony i odliczania czekają na ocenę podglądu.** Lokalne OTA
+Bez pełnego atlasu, całej regresji, CI, flashowania i publikacji. **Właściciel
+zaakceptował na podglądzie** krótkie „Instaluj / Install / Installieren”, złoty
+komunikat blokady poniżej 20%, informację przy nieznanym procencie, ikonę
+„Kanal ändern” w Cyber Blue oraz odliczanie 10…0 na GIF-ie (`b9870ae`).
+To akceptacja wyglądu; działanie progu na ogniwie/USB, rzeczywista instalacja,
+zachowanie danych i rollback pozostają do odbioru na sprzęcie. Lokalne OTA
 przez WWW pozostaje osobnym punktem. Numer 0.7.71 w renderach jest przykładowy.
 
 ## Baza dalszej pracy
@@ -433,7 +437,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
 | SYS-02 | Brakujące funkcje: widok Aktywność, eksport/backup i reset fabryczny | Zakres do uzgodnienia; braki opisane powyżej |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | Oczekuje na ocenę |
-| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | Korekty natywnych ekranów: Instaluj, ikona kanału, odliczanie 10…0 i próg 20% w UI/workerze; host i build ESP32-S3 PASS, podgląd do oceny. Nieznany procent wymaga potwierdzenia stabilnego USB. Osobno pozostają lokalne OTA przez WWW, odbiór progu na sprzęcie, instalacja, zachowanie danych i rollback |
+| OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): krótkie Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. Host i build ESP32-S3 PASS; próg sprawdzany w UI i workerze. Nieznany procent wymaga potwierdzenia stabilnego USB. Osobno pozostają lokalne OTA przez WWW, odbiór progu na sprzęcie, instalacja, zachowanie danych i rollback |
 
 Problemy z ankiety dopisujemy tutaj wraz z wersją, ekranem, skórką i oczekiwanym zachowaniem. Naprawiamy je kolejno; po drobnej zmianie sprawdzamy tylko dotknięty moduł i ekrany. Kolejny DEV powstanie po zakończeniu uzgodnionego zakresu, końcowym przeglądzie UI i pełnej walidacji commita wydania. Nie oznacza to automatycznego wdrażania wycofanych funkcji ani scalania do main.
 
