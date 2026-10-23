@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "hardware": "lcdwiki-es3c35p-n16r8",
+  "device": "0100000000000000000000000000000000000000000000000000000000000000",
+  "firmware": "0.7.70-dev",
+  "created": null,
+  "config": {
+    "schema": 3, "revision": 1, "language": "en", "theme": "graphite",
+    "accent": 5020661, "active_dashboard": 1,
+    "rooms": [], "devices": [], "scenes": [], "groups": [], "automations": [],
+    "dashboards": [{"id": 1, "name": "Mój pulpit", "tiles": []}]
+  },
+  "settings": {"ssid": "", "password": "", "brightness": 70, "wifi_security": 0, "idle_seconds": 60},
+  "battery": {"kind": 0, "nominal_mv": 3700, "capacity_mah": 1000, "empty_mv": 3300, "mid_mv": 3800, "full_mv": 4200, "gain_permille": 1000, "trend_enabled": true},
+  "style": 0,
+  "connections": [],
+  "bonds": {"version": 1, "records": []},
+  "enrollment": {"version": 1, "keys": [], "rules": []},
+  "photos": []
+}
