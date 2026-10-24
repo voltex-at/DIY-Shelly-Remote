@@ -12,13 +12,14 @@
 #include <string.h>
 static unsigned checks,files,handles,random_serial,peak_fs,max_chunk,allocated;
 static bool short_write,bond_supported=true,quiet=true,remove_fail,preempt_on_barrier;
-static int fail_allocation=-1;
+static int fail_allocation=-1,remove_fail_at=-1;
 static dsr_maint_limits_t limits={.total=0x3e0000,.used=65536,.nvs_available=1800,.psram_free=1024*1024,.psram_largest=1024*1024,.internal_free=65536,.internal_largest=32768};
 static struct {char name[32];uint8_t *bytes;size_t size;} disk[17];
 static struct {void *ptr;size_t size;} memory[16];
 struct dsr_maint_file {unsigned at;size_t position;bool writing;};
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"stage:%d %s\n",__LINE__,#x);exit(1);}}while(0)
-bool dsr_boot_ready(void){return true;}
+static bool test_boot_ready=true;
+bool dsr_boot_ready(void){return test_boot_ready;}
 bool dsr_workspace_maintenance_quiet(void){return true;}
 bool dsr_backup_sources_quiet(void){return quiet;}
 bool dsr_ble_maintenance_quiet(void){return true;}
@@ -33,6 +34,7 @@ dsr_result_t dsr_maint_io_limits(dsr_maint_limits_t *out)
 {*out=limits;for(unsigned i=0;i<17;i++)out->used+=disk[i].size;return DSR_OK;}
 dsr_result_t dsr_maint_io_random(uint8_t *out,size_t n)
 {CHECK(n<=64);for(size_t i=0;i<n;i++)out[i]=(uint8_t)++random_serial;return DSR_OK;}
+dsr_result_t dsr_maint_io_next_revision(uint32_t imported,uint32_t *out){*out=imported+1000;return DSR_OK;}
 void *dsr_maint_io_alloc(size_t n)
 {
  if(fail_allocation==0){fail_allocation=-1;return NULL;}if(fail_allocation>0)fail_allocation--;
@@ -61,7 +63,7 @@ dsr_result_t dsr_maint_io_read(dsr_maint_file_t *f,uint8_t *p,size_t n,size_t *g
 {CHECK(f&&!f->writing&&n>0&&n<=4096);if(n>max_chunk)max_chunk=(unsigned)n;size_t left=disk[f->at].size-f->position;if(n>left)n=left;if(n>3071)n=3071;memcpy(p,disk[f->at].bytes+f->position,n);f->position+=n;*got=n;return DSR_OK;}
 dsr_result_t dsr_maint_io_close(dsr_maint_file_t *f){CHECK(f&&handles);handles--;free(f);return DSR_OK;}
 dsr_result_t dsr_maint_io_remove(const char *name)
-{if(remove_fail){remove_fail=false;return DSR_IO;}int i=find(name);if(i>=0){free(disk[i].bytes);memset(disk+i,0,sizeof(disk[i]));CHECK(files);files--;}return DSR_OK;}
+{if(remove_fail||(remove_fail_at>=0&&remove_fail_at--==0)){remove_fail=false;remove_fail_at=-1;return DSR_IO;}int i=find(name);if(i>=0){free(disk[i].bytes);memset(disk+i,0,sizeof(disk[i]));CHECK(files);files--;}return DSR_OK;}
 int main(int argc,char **argv)
 {
  CHECK(argc==2||argc==3);dsr_backup_image_t *small=test_backup_image(argv[1],0,16),*full=NULL;CHECK(small);dsr_maint_stage_t *stage=NULL;dsr_maint_record_t record,loaded;bool found,pending;

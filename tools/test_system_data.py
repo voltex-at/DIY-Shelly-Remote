@@ -10,11 +10,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 case_names = ['format','sources','bonds','admission','stage','recovery','api']
-p.add_argument('--case', choices=[*case_names,'control','grant_model','source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
+p.add_argument('--case', choices=[*case_names,'startup','restore_config','control','grant_model','source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
 p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'startup': ['main/app_main.c','components/dsr_platform/dsr_boot.c','components/dsr_platform/dsr_config_health.c','components/dsr_platform/dsr_activity.c','tests/test_startup.c'],
+ 'restore_config': ['components/dsr_config/dsr_config_store.c','components/dsr_config/dsr_config.c','components/dsr_config/dsr_photo_name.c',
+                    'components/dsr_core/dsr_core.c','tests/test_config_restore.c'],
  'control': ['components/dsr_platform/dsr_maintenance_control.c','components/dsr_platform/dsr_maintenance_grant.c',
              'components/dsr_platform/dsr_maintenance.c','components/dsr_platform/dsr_activity.c','tests/test_system_data_control.c'],
  'grant_model': ['components/dsr_platform/dsr_maintenance_grant.c','tests/test_system_data_grants.c'],
@@ -60,6 +63,8 @@ cases = {
            'components/dsr_config/dsr_config.c','components/dsr_core/dsr_core.c','tests/system_data/crypto.c','tests/test_system_data_bonds.c'],
 }
 selected = case_names if a.case == 'all' else [a.case]
+cases['recovery'] = [s for s in cases['stage'] if s != 'tests/test_system_data_stage.c'] + [
+    'components/dsr_platform/dsr_maintenance_recovery.c','tests/test_system_data_recovery.c']
 flags = ['-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra','-Werror','-Wpedantic','-g','-ffunction-sections','-fdata-sections']
 if a.sanitize:
     flags += ['-fsanitize=address,undefined','-fno-omit-frame-pointer']
@@ -85,8 +90,9 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
             sdk_includes = [v for folder in ['include','host/include','host/src'] for v in ['-I',str(nimble / folder)]]
         subprocess.run([os.environ.get('CC','cc'), *flags,
                         *(['-DDSR_BOARD_ES3C35P=1','-DDSR_TEST_SYSTEM_DATA=1'] if case == 'sources' else []),
-                        *(['-DDSR_TEST_REAL_ACTIVITY=1'] if case == 'stage' else []),
+                        *(['-DDSR_TEST_REAL_ACTIVITY=1'] if case in ('stage','recovery') else []),
                         *(['-DDSR_BOARD_ES3C35P=1'] if case == 'style_gate' else []),
+                        *(['-DDSR_BOARD_ES3C35P=1',*[v for folder in ['tests/startup','tests/boot','tests/ble','tests/ui'] for v in ['-I',str(ROOT/folder)]]] if case=='startup' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/ble')] if case == 'ble_owner' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/restart')] if case == 'workspace_owner' else []),
                         *[v for folder in includes for v in ['-I',str(ROOT / folder) if not folder.startswith('/') else folder]],
@@ -94,6 +100,13 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
                         *[str(ROOT / source) for source in cases[case]],
                         *(['-Wl,--wrap=cJSON_ParseWithLengthOpts'] if case=='format' else []),
                         '-Wl,--gc-sections','-L',str(ROOT / '.test-deps'),'-l:libcjson.so.1','-lcrypto','-lm','-o',str(target)], check=True)
+        if case == 'recovery':
+            for scenario in range(61):
+                result = subprocess.run([str(target),str(ROOT / 'tests/system_data/manifest-v1.json'),str(scenario)],text=True,capture_output=True)
+                if result.returncode or not result.stdout.startswith('PASS:'):
+                    raise SystemExit(result.stderr.strip() or f'recovery{scenario}: no success marker')
+            print('PASS: 61 focused recovery scenarios; import/reset persisted-step interruptions, missing/corrupt final files, receipt cleanup, physical recovery reset; modeled destination IO')
+            continue
         result = subprocess.run([str(target),'--maintenance-owner' if case in ('ble_owner','workspace_owner','style_gate') else str(ROOT / 'tests/system_data/manifest-v1.json')], text=True, capture_output=True)
         if result.returncode:
             print(result.stderr.strip())

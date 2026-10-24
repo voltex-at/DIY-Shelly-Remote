@@ -13,6 +13,7 @@
 #include "dsr_boot.h"
 #include "dsr_restart.h"
 #include "dsr_config_health.h"
+#include "dsr_maintenance_recovery.h"
 #include "esp_heap_caps.h"
 static void boot_memory(const char *stage)
 {
@@ -59,6 +60,7 @@ void app_main(void)
 #ifdef DSR_BOARD_ES3C35P
     boot_memory("board_ready");
     dsr_ui_splash_begin(); /* owner logo instead of a dark LCD during startup */
+    if(dsr_maintenance_recover(NULL)!=DSR_OK){dsr_boot_diagnostic("maintenance",ESP_FAIL);return;}
     dsr_settings_t settings;
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));

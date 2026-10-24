@@ -121,6 +121,7 @@ dsr_result_t dsr_maint_stage_prepare(const dsr_backup_image_t *image,dsr_maint_s
  s->manifest=cJSON_Duplicate(manifest,true);if(!s->manifest){result=DSR_FULL;goto done;}
  s->record.sequence=1;s->record.generation=lease.generation;s->record.op=DSR_MAINT_IMPORT_COMMIT;s->record.phase=DSR_MAINT_PREPARING;s->record.photos=(uint8_t)photos;s->record.bonds=(uint8_t)bonds;
  s->record.connections=(uint8_t)data->count;s->record.rules=data->enrollment.rules.count;s->record.metadata_bytes=metadata;s->record.candidate_bytes=(uint32_t)bytes;
+ result=dsr_maint_io_next_revision((uint32_t)cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(manifest,"config"),"revision")->valuedouble,&s->record.config_revision);if(result!=DSR_OK)goto done;
  if(mbedtls_sha256(raw,bytes,s->record.candidate_sha256,0)||mbedtls_sha256(raw+24,metadata,s->record.manifest_sha256,0)){result=DSR_IO;goto done;}
  result=fresh(&s->record);if(result!=DSR_OK)goto done;if(!dsr_maintenance_lease_valid(&lease)){result=DSR_CONFLICT;goto done;}
  result=dsr_maint_store_begin(&s->record);if(result!=DSR_OK)goto done;begun=true;

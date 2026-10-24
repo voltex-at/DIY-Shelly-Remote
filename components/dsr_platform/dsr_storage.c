@@ -125,6 +125,11 @@ static scan_result_t scan_partition(const esp_partition_t *partition,esp_err_t *
 
 esp_err_t dsr_storage_mount(void)
 {
+#ifdef ESP_PLATFORM
+    /* Committed boot recovery may already have mounted this exact partition;
+     * cache/GC are still uninitialized and start only after it returns OK. */
+    if(esp_spiffs_mounted("dsrdata")){dsr_config_health_storage(DSR_STORAGE_READY,ESP_OK);return ESP_OK;}
+#endif
     dsr_config_health_storage(DSR_STORAGE_MOUNTING,ESP_OK);
     esp_vfs_spiffs_conf_t conf = {.base_path = "/dsr",
         .partition_label = "dsrdata", .max_files = 8,

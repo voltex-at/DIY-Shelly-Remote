@@ -1,5 +1,6 @@
 #include "dsr_config.h"
 #include "dsr_photo_name.h"
+#include "dsr_config_restore.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +17,8 @@ static char *read_slot(const char *dir,unsigned slot,bool *exists,bool *future)
  uint32_t header[4];char *json=NULL;
  if(fread(header,sizeof(header),1,f)!=1||header[0]!=0x44535231||header[1]>DSR_CONFIG_MAX_JSON||!header[1])goto done;
  json=malloc((size_t)header[1]+1);if(!json)goto done;
- if(fread(json,1,header[1],f)!=header[1]||fgetc(f)!=EOF||dsr_config_crc32(json,header[1])!=header[2]){free(json);json=NULL;goto done;}
+ bool complete=true;for(size_t at=0;complete&&at<header[1];){size_t n=header[1]-at;if(n>4096)n=4096;complete=fread(json+at,1,n,f)==n;at+=n;}
+ if(!complete||fgetc(f)!=EOF||dsr_config_crc32(json,header[1])!=header[2]){free(json);json=NULL;goto done;}
  json[header[1]]=0;if(!dsr_config_json_depth(json)){free(json);json=NULL;goto done;}char error[96];cJSON *r=cJSON_Parse(json);
  const cJSON *schema=cJSON_GetObjectItemCaseSensitive(r,"schema");if(cJSON_IsNumber(schema)&&schema->valuedouble>DSR_CONFIG_SCHEMA)*future=true;
  if(!r||!dsr_config_validate_stored(r,error)||dsr_config_revision(json)!=header[3]){free(json);json=NULL;}cJSON_Delete(r);
@@ -44,6 +46,29 @@ bool dsr_config_store_save(const char *dir,const char *json,char error[96])
  char *verify=read_slot(dir,slot,&exists,&future);ok=ok&&verify&&!strcmp(json,verify);free(verify);
  if(!ok)snprintf(error,96,"Checkpoint write/readback failed; previous configuration retained");
  return ok;
+}
+bool dsr_config_store_restore_revision(const char *dir,uint32_t imported,uint32_t *out)
+{
+ if(!dir||!out||!imported||imported>=UINT32_MAX-1)return false;
+ *out=0;bool exists=false,future=false;uint32_t newest=imported;
+ for(unsigned i=0;i<2;i++){
+  char *json=read_slot(dir,i,&exists,&future);uint32_t revision=json?dsr_config_revision(json):0;free(json);if(revision>newest)newest=revision;
+ }
+ if(future||newest>=UINT32_MAX-1)return false;
+ *out=newest+1;return true;
+}
+bool dsr_config_store_restore_slot(const char *dir,unsigned slot,const char *json)
+{
+ if(!dir||slot>1||!json||strlen(json)>DSR_CONFIG_MAX_JSON)return false;
+ cJSON *root=cJSON_Parse(json);char error[96];bool valid=root&&dsr_config_validate(root,error);cJSON_Delete(root);if(!valid)return false;
+ char name[192];path(name,dir,slot);FILE *f=fopen(name,"wb");if(!f)return false;
+ uint32_t length=(uint32_t)strlen(json),header[]={0x44535231,length,dsr_config_crc32(json,length),dsr_config_revision(json)};
+ bool ok=fwrite(header,sizeof(header),1,f)==1;
+ /* Bounded flash IO even for the largest allowed configuration. */
+ for(size_t at=0;ok&&at<length;){size_t n=length-at;if(n>4096)n=4096;ok=fwrite(json+at,1,n,f)==n;at+=n;}
+ if(ok)ok=fflush(f)==0&&fsync(fileno(f))==0;
+ if(fclose(f))ok=false;
+ bool exists=false,future=false;char *verify=read_slot(dir,slot,&exists,&future);ok=ok&&!future&&verify&&!strcmp(json,verify);free(verify);return ok;
 }
 bool dsr_config_store_collect_photos(const char *dir,unsigned *removed,char error[96])
 {

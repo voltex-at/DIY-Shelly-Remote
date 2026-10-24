@@ -7,7 +7,7 @@ static unsigned checks;
 int main(void)
 {
  dsr_maint_record_t r={.sequence=2,.generation=7,.candidate_bytes=24+500+16*(56+115200),.metadata_bytes=500,.op=DSR_MAINT_IMPORT_COMMIT,.phase=DSR_MAINT_PREPARING,.photos=16,.connections=16,.rules=8,.bonds=16};
- r.operation_id[0]=1;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;
+ r.config_revision=901;r.operation_id[0]=1;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;
  uint8_t *plain=malloc(115200),*result=malloc(115200),*zeros=calloc(1,115200),*sealed=malloc(115200+144),*other=malloc(115200+144);CHECK(plain&&result&&zeros&&sealed&&other);
  for(unsigned i=0;i<115200;i++)plain[i]=(uint8_t)i;
  size_t written=99;CHECK(dsr_maint_crypto_seal(&r,1,plain,115200,sealed,115200+144)==DSR_OK);CHECK(memcmp(sealed+144,plain,115200));

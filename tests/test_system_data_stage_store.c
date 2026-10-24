@@ -9,7 +9,7 @@ static unsigned checks;
 static dsr_maint_record_t fresh(unsigned id)
 {
  dsr_maint_record_t r={.sequence=1,.generation=7,.candidate_bytes=24+500+16*(56+115200),.metadata_bytes=500,.op=DSR_MAINT_IMPORT_COMMIT,.phase=DSR_MAINT_PREPARING,.photos=16,.connections=16,.rules=8,.bonds=16};
- r.operation_id[0]=(uint8_t)id;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;return r;
+ r.config_revision=901;r.operation_id[0]=(uint8_t)id;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;return r;
 }
 int main(void)
 {

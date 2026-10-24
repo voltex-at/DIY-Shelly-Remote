@@ -15,7 +15,7 @@ int main(void)
  l.internal_largest=4096;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.internal_largest=32768;
  CHECK(dsr_maint_preflight(&l,65537,16,16)==DSR_INVALID&&dsr_maint_preflight(&l,1,17,16)==DSR_INVALID);
  dsr_maint_record_t r={.sequence=UINT64_C(0xfedcba9876543210),.generation=UINT64_C(0x1020304050607080),.candidate_bytes=24+500+16*(56+115200),.metadata_bytes=500,.op=DSR_MAINT_IMPORT_COMMIT,.phase=DSR_MAINT_PREPARING,.photos=16,.connections=16,.rules=8,.bonds=104};
- r.operation_id[0]=1;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;
+ r.config_revision=901;r.operation_id[0]=1;r.device[1]=2;r.candidate_sha256[2]=3;r.manifest_sha256[3]=4;r.key[4]=5;r.nonce_prefix[5]=6;
  uint8_t wire[DSR_MAINT_JOURNAL_BYTES];CHECK(dsr_maint_record_encode(&r,wire));CHECK(!memcmp(wire,"DSRMNT1",8));
  dsr_maint_record_t decoded;CHECK(dsr_maint_record_decode(wire,sizeof(wire),&decoded)==DSR_OK&&decoded.sequence==r.sequence&&decoded.generation==r.generation&&!memcmp(decoded.key,r.key,32));
  const unsigned positions[]={0,8,12,20,28,76,140,172,180,192,252};

@@ -6,7 +6,7 @@ typedef struct {dsr_maint_record_t record[2];bool present[2],pending;unsigned cu
 static void wipe(void *p,size_t n){volatile uint8_t *b=p;while(n--)*b++=0;}
 static bool same(const dsr_maint_record_t *a,const dsr_maint_record_t *b)
 {
- return a->generation==b->generation&&a->op==b->op&&a->candidate_bytes==b->candidate_bytes&&a->metadata_bytes==b->metadata_bytes&&a->photos==b->photos&&a->connections==b->connections&&a->rules==b->rules&&a->bonds==b->bonds&&
+ return a->generation==b->generation&&a->op==b->op&&a->config_revision==b->config_revision&&a->candidate_bytes==b->candidate_bytes&&a->metadata_bytes==b->metadata_bytes&&a->photos==b->photos&&a->connections==b->connections&&a->rules==b->rules&&a->bonds==b->bonds&&
   !memcmp(a->operation_id,b->operation_id,16)&&!memcmp(a->device,b->device,32)&&!memcmp(a->candidate_sha256,b->candidate_sha256,32)&&!memcmp(a->manifest_sha256,b->manifest_sha256,32);
 }
 static bool transition(const dsr_maint_record_t *a,const dsr_maint_record_t *b)
@@ -20,7 +20,7 @@ static bool transition(const dsr_maint_record_t *a,const dsr_maint_record_t *b)
  if(memcmp(a->key,b->key,32)||memcmp(a->nonce_prefix,b->nonce_prefix,8)||a->cancelled||b->cancelled)return false;
  if((a->applied_photos&~b->applied_photos)||(a->applied_parts&~b->applied_parts))return false;
  if(a->phase==DSR_MAINT_PREPARING)return b->phase==DSR_MAINT_PREPARING||b->phase==DSR_MAINT_COMMIT;
- if(a->phase==DSR_MAINT_COMMIT)return b->phase==DSR_MAINT_APPLY&&!b->applied_photos&&!b->applied_parts;
+ if(a->phase==DSR_MAINT_COMMIT)return (b->phase==DSR_MAINT_APPLY||(a->op==DSR_MAINT_RESET&&b->phase==DSR_MAINT_COMMIT))&&!b->applied_photos&&!b->applied_parts;
  if(a->phase==DSR_MAINT_APPLY)return b->phase==DSR_MAINT_APPLY||b->phase==DSR_MAINT_JOURNAL_FAULT;
  return a->phase==DSR_MAINT_JOURNAL_FAULT&&(b->phase==DSR_MAINT_JOURNAL_FAULT||b->phase==DSR_MAINT_APPLY)&&a->applied_photos==b->applied_photos&&a->applied_parts==b->applied_parts;
 }
@@ -91,7 +91,7 @@ dsr_result_t dsr_maint_store_write(dsr_maint_record_t *record)
  nvs_handle_t h;esp_err_t e=nvs_open("dsr_maint",NVS_READWRITE,&h);if(e!=ESP_OK){wipe(&next,sizeof(next));return DSR_IO;}
  r=put_slot(h,destination,&next);nvs_close(h);if(r==DSR_OK)*record=next;wipe(&next,sizeof(next));return r;
 }
-dsr_result_t dsr_maint_store_finish(dsr_maint_record_t *record,bool cancelled)
+dsr_result_t dsr_maint_store_receipt(dsr_maint_record_t *record,bool cancelled)
 {
  if(!record)return DSR_INVALID;
  dsr_maint_record_t next;bool found,pending;dsr_result_t r=dsr_maint_store_load(&next,&found,&pending);
@@ -103,8 +103,22 @@ dsr_result_t dsr_maint_store_finish(dsr_maint_record_t *record,bool cancelled)
  if(!dsr_maint_record_valid(&next)){r=DSR_INVALID;goto done;}
  /* Two receipts replace both key-bearing copies before pending is cleared. */
  r=dsr_maint_store_write(&next);if(r==DSR_OK)r=dsr_maint_store_write(&next);if(r!=DSR_OK)goto done;
- nvs_handle_t h;esp_err_t e=nvs_open("dsr_maint",NVS_READWRITE,&h);if(e!=ESP_OK){r=DSR_IO;goto done;}
- r=latch(h,0);nvs_close(h);if(r==DSR_OK)*record=next;
+ *record=next;
 done:
+ wipe(&next,sizeof(next));return r;
+}
+dsr_result_t dsr_maint_store_finish(dsr_maint_record_t *record,bool cancelled)
+{
+ dsr_result_t r=dsr_maint_store_receipt(record,cancelled);if(r!=DSR_OK)return r;
+ nvs_handle_t h;if(nvs_open("dsr_maint",NVS_READWRITE,&h)!=ESP_OK)return DSR_IO;
+ r=latch(h,0);nvs_close(h);return r;
+}
+dsr_result_t dsr_maint_store_recovery_reset(dsr_maint_record_t *record)
+{
+ if(!record||record->op!=DSR_MAINT_RESET||record->phase!=DSR_MAINT_COMMIT||record->applied_parts||record->applied_photos)return DSR_INVALID;
+ dsr_maint_record_t next=*record;next.sequence=1;if(!dsr_maint_record_valid(&next)){wipe(&next,sizeof(next));return DSR_INVALID;}
+ nvs_handle_t h;if(nvs_open("dsr_maint",NVS_READWRITE,&h)!=ESP_OK){wipe(&next,sizeof(next));return DSR_IO;}
+ dsr_result_t r=latch(h,1);if(r==DSR_OK)r=put_slot(h,0,&next);if(r==DSR_OK){next.sequence=2;r=put_slot(h,1,&next);}nvs_close(h);
+ if(r==DSR_OK)*record=next;
  wipe(&next,sizeof(next));return r;
 }

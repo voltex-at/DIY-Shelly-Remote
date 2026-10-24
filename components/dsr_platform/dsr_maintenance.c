@@ -4,6 +4,7 @@
 #include "dsr_backup_sources.h"
 #include "dsr_boot.h"
 #include <string.h>
+#include <stdatomic.h>
 bool dsr_maintenance_acquire(dsr_maint_lease_t *lease)
 {
  if(!lease)return false;
@@ -24,9 +25,9 @@ bool dsr_maintenance_bonds_snapshot_allowed(void)
 {return dsr_activity_maintenance_reserved()&&dsr_ble_backup_store_owner();}
 dsr_result_t dsr_maintenance_bonds_capture(const dsr_maint_lease_t *lease,cJSON *root)
 {return dsr_maintenance_lease_valid(lease)?dsr_ble_backup_capture(lease,root):DSR_BUSY;}
-/* Task6 connects a validated committed boot intent. No ordinary caller is
- * authorized while that recovery controller is not installed. */
-bool dsr_maintenance_boot_writes_allowed(void){return false;}
+static atomic_bool boot_authority;
+void dsr_maintenance_boot_authority(bool enabled){atomic_store(&boot_authority,enabled&&!dsr_boot_ready());}
+bool dsr_maintenance_boot_writes_allowed(void){return atomic_load(&boot_authority)&&!dsr_boot_ready();}
 void dsr_maintenance_snapshot(dsr_maint_status_t *out)
 {
  if(!out)return;

@@ -6,6 +6,8 @@
 bool dsr_maintenance_lease_valid(const dsr_maint_lease_t *);
 bool dsr_maintenance_bonds_snapshot_allowed(void);
 bool dsr_maintenance_boot_writes_allowed(void);
+/* Validated committed startup owner only, before normal services. */
+void dsr_maintenance_boot_authority(bool enabled);
 dsr_result_t dsr_maintenance_bonds_capture(const dsr_maint_lease_t *,cJSON *manifest);
 bool dsr_workspace_maintenance_quiet(void);
 bool dsr_ble_maintenance_quiet(void);

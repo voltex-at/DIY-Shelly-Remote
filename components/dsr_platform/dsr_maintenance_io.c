@@ -1,6 +1,7 @@
 #include "dsr_maintenance_io.h"
 #include "dsr_platform.h"
 #include "dsr_ble.h"
+#include "dsr_config_restore.h"
 #include "esp_heap_caps.h"
 #include "esp_spiffs.h"
 #include "esp_random.h"
@@ -39,6 +40,8 @@ dsr_result_t dsr_maint_io_random(uint8_t *out,size_t size)
 }
 dsr_result_t dsr_maint_io_identifier(uint8_t out[16])
 {if(!out)return DSR_INVALID;esp_fill_random(out,16);uint8_t v=0;for(unsigned i=0;i<16;i++)v|=out[i];return v?DSR_OK:DSR_IO;}
+dsr_result_t dsr_maint_io_next_revision(uint32_t imported,uint32_t *out)
+{return dsr_config_store_restore_revision("/dsr",imported,out)?DSR_OK:DSR_CONFLICT;}
 void *dsr_maint_io_alloc(size_t size)
 {return size&&size<=2097152?heap_caps_calloc(1,size,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT):NULL;}
 void dsr_maint_io_free(void *owned,size_t size)

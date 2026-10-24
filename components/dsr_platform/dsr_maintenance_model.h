@@ -8,7 +8,7 @@ enum {DSR_MAINT_JOURNAL_BYTES=256,DSR_MAINT_RECORD_HEADER=144,DSR_MAINT_IO_CHUNK
  DSR_MAINT_IMPORT_PARTS=31,DSR_MAINT_RESET_PARTS=1023};
 typedef struct {
  uint64_t sequence,generation;uint8_t operation_id[16],device[32],candidate_sha256[32],manifest_sha256[32],key[32],nonce_prefix[8];
- uint32_t candidate_bytes,metadata_bytes;uint16_t applied_photos,applied_parts;
+ uint32_t candidate_bytes,metadata_bytes,config_revision;uint16_t applied_photos,applied_parts;
  uint8_t op,phase,photos,connections,rules,bonds,cancelled;
 } dsr_maint_record_t;
 typedef struct {size_t total,used,nvs_available,psram_free,psram_largest,internal_free,internal_largest;} dsr_maint_limits_t;
