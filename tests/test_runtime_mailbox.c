@@ -80,6 +80,23 @@ static void cover_mailboxes(void)
  endpoints[1].error=DSR_OK;endpoints[1].can_stop=false;publish(endpoints,2);CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&stop)==DSR_OFFLINE);
  endpoints[1].device.online=true;endpoints[1].sample_age_ms=0;endpoints[1].pending=false;publish(endpoints,2);CHECK(dsr_workspace_cover_request(&endpoints[1].device,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67},&move)==DSR_UNSUPPORTED);admission_open();
 }
+static void maintenance_stop_ingress(void)
+{
+ dsr_runtime_device_t cover=device("maintenance-cover",0);cover.device.endpoint_kind=DSR_ENDPOINT_COVER;
+ cover.can_stop=true;cover.telemetry.cover=(dsr_cover_status_t){.state=DSR_COVER_STATE_OPENING,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,.current_pos=38};publish(&cover,1);
+ uint64_t reservation,generation;uint32_t operation=0;dsr_output_request_t request;
+ CHECK(dsr_activity_maintenance_reserve(&reservation,&generation));
+ CHECK(dsr_workspace_cover_request(&cover.device,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67},&operation)==DSR_BUSY);
+ CHECK(dsr_workspace_cover_request(&cover.device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&operation)==DSR_OK);
+ CHECK(!dsr_activity_maintenance_valid(reservation,generation));
+ CHECK(dsr_workspace_take_output(&request)&&request.cover.command==DSR_COVER_STOP&&request.operation_id==operation);
+ CHECK(!dsr_workspace_take_output(&request));
+ dsr_activity_maintenance_release(reservation);admission_open();
+ publish(&cover,1);CHECK(dsr_activity_maintenance_reserve(&reservation,&generation));
+ CHECK(dsr_activity_maintenance_commit_begin(reservation,generation));
+ CHECK(dsr_workspace_cover_request(&cover.device,(dsr_cover_intent_t){.command=DSR_COVER_STOP},&operation)==DSR_BUSY);
+ CHECK(dsr_activity_maintenance_commit_abort(reservation,generation));dsr_activity_maintenance_release(reservation);admission_open();
+}
 static void test_ap_handoff(void)
 {
  _Static_assert(DSR_AP_HANDOFF_UNAVAILABLE==0&&DSR_AP_HANDOFF_READY==1&&DSR_AP_HANDOFF_REQUESTED==2&&DSR_AP_HANDOFF_ACTIVE==3&&DSR_AP_HANDOFF_EXPIRED==4,"stable handoff states");
@@ -238,6 +255,7 @@ int main(void)
  CHECK(dsr_workspace_output_request(&devices[0].device,true,NULL)==DSR_INVALID);admission_open();
  CHECK(dsr_activity_restart_reserve());CHECK(dsr_workspace_output_request(&devices[0].device,true,&operation)==DSR_BUSY);dsr_activity_restart_cancel();admission_open();
  cover_mailboxes();
+ maintenance_stop_ingress();
  /* Same physical ID/channel is still two independent transport families. */
  dsr_runtime_device_t light[2]={device("shared-light",0),device("shared-light",0)};light[1].device.endpoint_kind=DSR_ENDPOINT_LIGHT;light[1].device.has_switch=false;light[1].telemetry.light=(dsr_light_status_t){.brightness=0,.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS};publish(light,2);
  CHECK(dsr_workspace_output_request(&light[1].device,true,&operation)==DSR_UNSUPPORTED);CHECK(dsr_workspace_light_request(&light[0].device,(dsr_light_intent_t){.command=DSR_LIGHT_ON},&operation)==DSR_UNSUPPORTED);

@@ -15,6 +15,7 @@ dsr_result_t dsr_maint_stage_cancel(dsr_maint_stage_t *);
 void dsr_maint_stage_free(dsr_maint_stage_t *);
 /* Private copy, includes key material: only the controller/recovery may call. */
 bool dsr_maint_stage_record(const dsr_maint_stage_t *,dsr_maint_record_t *out);
+bool dsr_maint_stage_archive_info(const dsr_maint_stage_t *,dsr_maint_archive_info_t *out);
 /* Recovery reads one authenticated record. No plaintext is returned on error. */
 dsr_result_t dsr_maint_stage_read(const dsr_maint_record_t *,unsigned index,uint8_t *out,size_t capacity,size_t *written);
 dsr_result_t dsr_maint_stage_cleanup_preparing(const dsr_maint_record_t *);

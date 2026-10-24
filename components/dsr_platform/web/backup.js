@@ -59,7 +59,7 @@
   const cancelOwned=id=>{if(id)request('maintenance/cancel',{method:'POST',headers:headers(id)}).catch(()=>{});};
   async function statusRead(s){const result=await request('maintenance/status',{signal:controller?.signal});const value=await result.json();if(!alive(s))throw Error('aborted');return value;}
   async function waitGrant(s,id){
-   const began=performance.now();while(alive(s)&&performance.now()-began<120000){const value=await statusRead(s);if(value.request_id===id&&value.owned===true){if(value.phase===11)return value;if(value.phase===8||value.phase===9)throw Error('expired');}await new Promise(resolve=>setTimeout(resolve,500));}throw Error('expired');
+   const began=performance.now();while(alive(s)&&performance.now()-began<120000){const value=await statusRead(s);if(value.request_id===id&&value.owned===true){if(value.phase===10)return value;if(value.phase===8||value.phase===9)throw Error('expired');}await new Promise(resolve=>setTimeout(resolve,500));}throw Error('expired');
   }
   async function begin(op,s){show('waiting');const response=await post(op==='reset'?'reset/request':'backup/request',op==='reset'?undefined:{op});const value=await response.json();if(!alive(s)){cancelOwned(value.request_id);throw Error('aborted');}if(!/^[0-9a-f]{32}$/.test(value.request_id))throw Error('unavailable');owned=value.request_id;return owned;}
   async function perform(kind){
@@ -75,7 +75,7 @@
      const blob=new Blob([encrypted],{type:'application/octet-stream'}),url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='DIY-Shelly-Remote.dsrbak';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),0);owned=null;show('done');
     }else{
      const selected=file.files[0];if(!selected||selected.size<104||selected.size>MAX+80)throw Error('file');const encrypted=await selected.arrayBuffer();ownBuffers.push(encrypted);if(!alive(s))return;show('crypto');const raw=await decryptBackup(encrypted,password);ownBuffers.push(raw);if(!alive(s))return;const id=await begin('upload',s);await waitGrant(s,id);show('working');
-     const response=await request('backup/import',{method:'POST',headers:headers(id),body:raw,signal:controller.signal});const value=await response.json();if(!alive(s))return;if(!value.candidate||!/^[0-9a-f]{32}$/.test(value.request_id))throw Error('unavailable');owned=value.request_id;show('candidate');
+     const response=await request('backup/import',{method:'POST',headers:headers(id),body:raw,signal:controller.signal});const value=await response.json();if(!alive(s)){if(value.candidate&&/^[0-9a-f]{32}$/.test(value.request_id))cancelOwned(value.request_id);return;}if(!value.candidate||!/^[0-9a-f]{32}$/.test(value.request_id))throw Error('unavailable');owned=value.request_id;show('candidate');
     }
    }catch(e){if(alive(s)){show(({secure:'secure',password:'passwordError',file:'fileError',decrypt:'decrypt',expired:'expired'})[e.message]||'unavailable');cancelOwned(owned);owned=null;}}
    finally{for(const buffer of ownBuffers)bytes(buffer).fill(0);if(s===serial){clearBuffers();busy=false;update();}}

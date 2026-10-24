@@ -13,6 +13,8 @@ bool dsr_workspace_maintenance_quiet(void);
 bool dsr_ble_maintenance_quiet(void);
 bool dsr_ota_maintenance_quiet(void);
 bool dsr_ble_backup_store_owner(void);
+/* Acknowledged stop/deinit only; reset must not deserialize obsolete bonds. */
+dsr_result_t dsr_ble_maintenance_stop(const dsr_maint_lease_t *);
 dsr_result_t dsr_ble_backup_capture(const dsr_maint_lease_t *,cJSON *manifest);
 /* Existing config owner, no new network/worker task. Argument ownership moves
  * only on success; callback executes once after queued admission ends. */

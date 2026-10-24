@@ -24,7 +24,8 @@ static void unlock(void){atomic_flag_clear_explicit(&control_lock,memory_order_r
 #endif
 static struct {
  dsr_maint_grant_t grant;dsr_maint_stage_t *candidate;
- dsr_maint_lease_t committed_lease;uint32_t revision;uint8_t photos,connections,rules;bool job_busy,committed;
+ dsr_maint_archive_info_t archive;
+ dsr_maint_lease_t committed_lease;uint32_t revision;uint8_t photos,connections,rules,upload_nonce[16];bool job_busy,committed;
 } control;
 typedef struct {dsr_maint_request_t request;bool usb;} confirm_job_t;
 static uint32_t clock_ms(void){return (uint32_t)((uint64_t)esp_timer_get_time()/1000);}
@@ -38,7 +39,7 @@ dsr_result_t dsr_maintenance_request(const dsr_maint_request_t *r)
  if(!dsr_boot_ready()||dsr_activity_restart_pending())return DSR_BUSY;
  lock();dsr_result_t result=control.job_busy||control.candidate||control.committed?DSR_BUSY:
   dsr_maint_grant_begin(&control.grant,r,dsr_maintenance_generation(),clock_ms());
- if(result==DSR_OK){control.photos=control.connections=control.rules=0;control.revision++;}unlock();return result;
+ if(result==DSR_OK){control.photos=control.connections=control.rules=0;memset(&control.archive,0,sizeof(control.archive));memset(control.upload_nonce,0,16);control.revision++;}unlock();return result;
 }
 bool dsr_maintenance_take(const dsr_maint_request_t *r)
 {
@@ -59,8 +60,9 @@ bool dsr_maintenance_session_matches(const uint8_t session[32])
 bool dsr_maintenance_cancel(const uint8_t id[16])
 {
  if(!id)return false;
- lock();bool ok=false;if(!control.committed&&!memcmp(id,control.grant.request.nonce,16)){
-  ok=dsr_maint_grant_cancel(&control.grant,id);if(control.grant.state==DSR_GRANT_RUNNING&&!control.job_busy){dsr_maint_grant_finish(&control.grant,DSR_CONFLICT);ok=true;}if(ok)control.revision++;
+ lock();bool ok=false;bool parent=control.candidate&&control.grant.request.op==DSR_MAINT_IMPORT_COMMIT&&!memcmp(id,control.upload_nonce,16);
+ if(!control.committed&&(parent||!memcmp(id,control.grant.request.nonce,16))){
+  ok=dsr_maint_grant_cancel(&control.grant,control.grant.request.nonce);if(control.grant.state==DSR_GRANT_RUNNING&&!control.job_busy){dsr_maint_grant_finish(&control.grant,DSR_CONFLICT);ok=true;}if(ok)control.revision++;
  }unlock();return ok;
 }
 void dsr_maintenance_status(dsr_maint_status_t *out)
@@ -68,6 +70,7 @@ void dsr_maintenance_status(dsr_maint_status_t *out)
  if(!out)return;
  memset(out,0,sizeof(*out));lock();(void)live();dsr_maint_grant_t *g=&control.grant;
  out->revision=control.revision;out->op=(uint8_t)g->request.op;out->result=g->result;out->photos=control.photos;out->connections=control.connections;out->rules=control.rules;
+ out->archive=control.archive;
  memcpy(out->request_id,g->request.nonce,16);if(control.candidate)memcpy(out->candidate_id,g->request.nonce,16);
  out->phase=control.committed?DSR_MAINT_COMMITTED:control.job_busy?DSR_MAINT_WAITING:
   g->state==DSR_GRANT_WAIT?DSR_MAINT_CONFIRM:g->state==DSR_GRANT_READY?DSR_MAINT_GRANTED:
@@ -77,23 +80,21 @@ void dsr_maintenance_status(dsr_maint_status_t *out)
 }
 bool dsr_maintenance_sensitive(void)
 {lock();(void)live();bool result=control.job_busy||control.candidate||control.committed||control.grant.state==DSR_GRANT_WAIT||control.grant.state==DSR_GRANT_READY||control.grant.state==DSR_GRANT_RUNNING;unlock();return result;}
-dsr_result_t dsr_maintenance_candidate(dsr_maint_stage_t *stage,const uint8_t session[32])
+dsr_result_t dsr_maintenance_candidate(dsr_maint_stage_t *stage,const dsr_maint_request_t *upload)
 {
- if(!stage||!session)return DSR_INVALID;
- dsr_maint_record_t record;dsr_maint_request_t request={.op=DSR_MAINT_IMPORT_COMMIT};
- if(!dsr_maint_stage_record(stage,&record))return DSR_INVALID;
+ if(!stage||!upload||upload->op!=DSR_MAINT_IMPORT_UPLOAD)return DSR_INVALID;
+ dsr_maint_record_t record;dsr_maint_archive_info_t archive;dsr_maint_request_t request={.op=DSR_MAINT_IMPORT_COMMIT};
+ if(!dsr_maint_stage_record(stage,&record)||!dsr_maint_stage_archive_info(stage,&archive))return DSR_INVALID;
  dsr_result_t result=dsr_maint_io_random(request.nonce,16);if(result!=DSR_OK)goto done;
- memcpy(request.session,session,32);memcpy(request.candidate_sha256,record.candidate_sha256,32);
- lock();if(control.job_busy||control.candidate||control.committed||control.grant.state!=DSR_GRANT_RUNNING||control.grant.request.op!=DSR_MAINT_IMPORT_UPLOAD||memcmp(session,control.grant.request.session,32)||record.generation!=control.grant.generation||record.generation!=dsr_maintenance_generation())result=DSR_CONFLICT;
+ memcpy(request.session,upload->session,32);memcpy(request.candidate_sha256,record.candidate_sha256,32);
+ lock();if(control.job_busy||control.candidate||control.committed||control.grant.state!=DSR_GRANT_RUNNING||!matching(upload)||(uint32_t)(clock_ms()-control.grant.started)>=DSR_MAINT_CONSENT_MS||record.generation!=control.grant.generation||record.generation!=dsr_maintenance_generation())result=DSR_CONFLICT;
  else{
   dsr_maint_grant_finish(&control.grant,DSR_OK);result=dsr_maint_grant_begin(&control.grant,&request,record.generation,clock_ms());
-  if(result==DSR_OK){control.candidate=stage;control.photos=record.photos;control.connections=record.connections;control.rules=record.rules;control.revision++;}
+  if(result==DSR_OK){control.candidate=stage;control.archive=archive;memcpy(control.upload_nonce,upload->nonce,16);control.photos=record.photos;control.connections=record.connections;control.rules=record.rules;control.revision++;}
  }unlock();
 done:
  wipe(&record,sizeof(record));wipe(&request,sizeof(request));return result;
 }
-static dsr_result_t stop_bonds(const dsr_maint_lease_t *lease)
-{cJSON *root=cJSON_CreateObject();if(!root)return DSR_FULL;dsr_result_t r=dsr_maintenance_bonds_capture(lease,root);dsr_backup_json_discard(root);return r;}
 static dsr_result_t reset_commit(const dsr_maint_lease_t *lease)
 {
  dsr_maint_record_t record={.sequence=1,.generation=lease->generation,.op=DSR_MAINT_RESET,.phase=DSR_MAINT_PREPARING};
@@ -120,7 +121,7 @@ static void confirm_run(void *owned)
   * admission before asking the sole ADC worker, then reacquire and recheck the
   * original dataset. No stale power sample spans file IO or the BLE timeout. */
  if(!dsr_maintenance_acquire(&lease)){result=DSR_BUSY;goto done;}
- result=stage?dsr_maint_stage_barrier(stage,&lease):stop_bonds(&lease);dsr_maintenance_release(&lease);memset(&lease,0,sizeof(lease));if(result!=DSR_OK)goto done;
+ result=stage?dsr_maint_stage_barrier(stage,&lease):dsr_ble_maintenance_stop(&lease);dsr_maintenance_release(&lease);memset(&lease,0,sizeof(lease));if(result!=DSR_OK)goto done;
  dsr_ota_power_result_t power=DSR_OTA_POWER_BUSY;uint32_t sampled=clock_ms();result=dsr_ota_power_acquire(&power);
  if(result==DSR_OK)dsr_ota_power_release();else goto done;
  if(!dsr_maintenance_acquire(&lease)){result=DSR_BUSY;goto done;}

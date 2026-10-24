@@ -191,4 +191,8 @@ Pokrycie spec: Aktywność w osobnym planie; snapshot/limits1; wszystkie prywatn
 import/reset/power-loss6; hasło/Web Crypto/HTTPS7; trzy skórki/zgody/recovery8;
 walidacja docelowa i granice publikacji9. Nazwy i własność image/stage/grantów
 są wspólne dla tasków; pięć klas Review Focus ma testy przy właścicielu.
-Nie rozpoczęto implementacji ani nie uruchomiono opisanych przyszłych testów.
+Aktualizacja 2026-10-24: etapy 1–8 wdrożone, host/renderowanie i build docelowy
+przeszły. Jeden końcowy niezależny przegląd i poprawki zakończone. Etap 9 jest
+w końcowej bramce CI/publikacji DEV 0.7.71 na wyraźne polecenie właściciela.
+Odbiór graficzny nowych ekranów SYS-02 odłożono na ankietę po DEV; fizyczny
+reset/restore i przerwania zasilania wymagają odrębnej zgody i nie były wykonywane.

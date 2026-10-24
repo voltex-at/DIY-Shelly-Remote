@@ -2,10 +2,12 @@
 #include "dsr_maintenance_api.h"
 #include "lvgl.h"
 #include <string.h>
+#include <stdio.h>
 static dsr_maint_status_t state;static unsigned confirmations,resets,cancels;static bool usb;
 void test_maintenance_set(unsigned op,unsigned phase,dsr_result_t result,unsigned id)
 {state=(dsr_maint_status_t){.op=(uint8_t)op,.phase=(uint8_t)phase,.result=result,.revision=id,.can_confirm=phase==DSR_MAINT_CONFIRM,.photos=16,.connections=16,.rules=8};state.request_id[0]=(uint8_t)id;}
 void test_maintenance_usb(void){state.usb_required=true;}
+void test_maintenance_archive(uint32_t created,const char *firmware){state.archive.created=created;snprintf(state.archive.firmware,sizeof(state.archive.firmware),"%s",firmware);state.revision++;}
 unsigned test_maintenance_confirms(void){return confirmations;}
 unsigned test_maintenance_resets(void){return resets;}
 bool test_maintenance_last_usb(void){return usb;}

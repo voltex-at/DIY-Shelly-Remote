@@ -16,7 +16,7 @@ let checks=0,browser,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x
   if(!u.pathname.startsWith('/api/')){const file=u.pathname==='/'?'panel.html':path.basename(u.pathname);if(['panel.html','panel.js','panel.css','runtime.js','actions.js','backup.js'].includes(file))return route.fulfill({path:path.join(root,'components/dsr_platform/web',file),contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'});return route.fulfill({status:404,body:''});}
   if(req.method()!=='GET'){eq(req.headers()['x-dsr-request'],'1');ok(!req.postDataBuffer()?.includes(Buffer.from(password)));ok(!u.pathname.includes('confirm'));}
   if(u.pathname.endsWith('/backup/request')||u.pathname.endsWith('/reset/request')){requests++;if(pending&&pending.phase!==9)return send(409,{error:'Busy'});const op=u.pathname.endsWith('/reset/request')?4:req.postDataJSON().op==='export'?1:2;pending={owned:true,request_id:(++seq).toString(16).padStart(32,'0'),op,phase:5,result:0};return send(202,{request_id:pending.request_id});}
-  if(u.pathname.endsWith('/maintenance/status')){const value=pending?{...pending,phase:pending.op<3?11:pending.phase}:{owned:false,phase:0};if(hold)await new Promise(resolve=>release=resolve);return send(200,value).catch(()=>{});}
+  if(u.pathname.endsWith('/maintenance/status')){const value=pending?{...pending,phase:pending.op<3?10:pending.phase}:{owned:false,phase:0};if(hold)await new Promise(resolve=>release=resolve);return send(200,value).catch(()=>{});}
   if(u.pathname.endsWith('/maintenance/cancel')){cancelled++;if(pending&&req.headers()['x-dsr-maintenance']===pending.request_id)pending.phase=9;return send(200,{cancelled:true});}
   if(u.pathname.endsWith('/backup/export')){eq(req.headers()['x-dsr-maintenance'],pending.request_id);exported++;if(holdExport)await new Promise(resolve=>releaseExport=resolve);if(pending)pending.phase=9;return route.fulfill({status:200,contentType:'application/octet-stream',headers:{'X-DSR-Backup-Bytes':String(raw.length)},body:raw}).catch(()=>{});}
   if(u.pathname.endsWith('/backup/import')){imports++;eq(req.headers()['x-dsr-maintenance'],pending.request_id);eq(req.postDataBuffer(),raw);pending={...pending,op:3,phase:5,request_id:(++seq).toString(16).padStart(32,'0')};return send(202,{candidate:true,request_id:pending.request_id});}
@@ -36,8 +36,24 @@ let checks=0,browser,page;const eq=(a,b)=>{assert.deepEqual(a,b);checks++;},ok=x
  const exportBefore=exported;await page.locator('nav [data-page=rooms]').click();release();hold=false;await page.waitForTimeout(100);eq(exported,exportBefore);eq(await page.locator('.backup-panel').count(),0);
  await page.locator('nav [data-page=system]').click();await page.evaluate(()=>updateWebLocale('en'));let current=page.locator('.backup-panel');await current.locator('input[type=password]').nth(0).fill(password);await current.locator('input[type=password]').nth(1).fill(password);holdExport=true;releaseExport=undefined;await current.getByRole('button',{name:'Create encrypted backup',exact:true}).click();while(!releaseExport)await page.waitForTimeout(20);await page.locator('nav [data-page=rooms]').click();releaseExport();holdExport=false;await page.waitForTimeout(100);eq(downloads,1);
  await page.locator('nav [data-page=system]').click();current=page.locator('.backup-panel');await current.screenshot({path:path.join(out,'backup-mobile-en.png')});eq(await page.evaluate(()=>({name:config.dashboards[0].name,dirty})),{name:'Unsaved draft',dirty:true});
- await page.evaluate(()=>{const original=crypto.subtle.decrypt.bind(crypto.subtle);window.__latePlain=null;crypto.subtle.decrypt=async(...args)=>{const plain=await original(...args);window.__latePlain=plain;await new Promise(resolve=>window.__releaseDecrypt=resolve);return plain;};});
+ await page.evaluate(()=>{const original=crypto.subtle.decrypt.bind(crypto.subtle);window.__latePlain=null;window.__originalDecrypt=original;crypto.subtle.decrypt=async(...args)=>{const plain=await original(...args);window.__latePlain=plain;await new Promise(resolve=>window.__releaseDecrypt=resolve);return plain;};});
  await current.locator('input[type=password]').nth(0).fill(password);await current.locator('input[type=file]').setInputFiles(target);const beforeLate=requests;await current.getByRole('button',{name:'Restore backup',exact:true}).click();await page.waitForFunction(()=>!!window.__releaseDecrypt);await page.locator('nav [data-page=rooms]').click();await page.evaluate(()=>window.__releaseDecrypt());await page.waitForTimeout(50);ok(await page.evaluate(()=>new Uint8Array(window.__latePlain).every(x=>x===0)));eq(requests,beforeLate);
+ await page.evaluate(async()=>{
+  crypto.subtle.decrypt=window.__originalDecrypt;
+  const ids=['a'.repeat(32),'b'.repeat(32)],cancelled=[];let releaseUpload,entered;
+  const entering=new Promise(r=>entered=r);const password='test backup password';
+  const encrypted=await encryptBackup(new Uint8Array(24),password);
+  const p=createBackupPanel({request:async(path,options={})=>{
+   if(path==='backup/request')return {json:async()=>({request_id:ids[0]})};
+   if(path==='maintenance/status')return {json:async()=>({owned:true,request_id:ids[0],phase:10})};
+   if(path==='maintenance/cancel'){cancelled.push(options.headers['X-DSR-Maintenance']);return {};}
+   if(path==='backup/import'){entered();await new Promise(r=>releaseUpload=r);return {json:async()=>({candidate:true,request_id:ids[1]})};}
+   throw Error(path);
+  },translate:a=>a[1]});document.body.append(p.root);p.root.querySelector('input[type=password]').value=password;
+  const dt=new DataTransfer();dt.items.add(new File([encrypted],'synthetic.dsrbak'));p.root.querySelector('input[type=file]').files=dt.files;
+  [...p.root.querySelectorAll('button')].find(b=>b.textContent==='Restore backup').click();await entering;p.dispose();releaseUpload();await new Promise(r=>setTimeout(r,20));
+  if(!ids.every(id=>cancelled.includes(id)))throw Error('Late candidate was not cancelled');p.root.remove();
+ });checks++;
  await page.locator('nav [data-page=system]').click();current=page.locator('.backup-panel');
  await page.evaluate(()=>Object.defineProperty(globalThis,'isSecureContext',{value:false}));const requestBefore=requests;await current.locator('input[type=password]').nth(0).fill(password);await current.locator('input[type=password]').nth(1).fill(password);await current.getByRole('button',{name:'Create encrypted backup',exact:true}).click();await current.getByText('HTTPS and Web Crypto are required in this browser.',{exact:true}).waitFor();eq(requests,requestBefore);eq(await current.locator('input[type=password]').nth(0).inputValue(),'');eq(errors,[]);
  await browser.close();fs.rmSync(target,{force:true});console.log(`PASS: ${checks} Chromium backup flow checks; actual Web Crypto/assets, HTTP and LCD consent MODEL, no device actions`);

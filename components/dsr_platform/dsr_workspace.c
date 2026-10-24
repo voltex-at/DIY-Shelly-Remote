@@ -338,7 +338,7 @@ static dsr_result_t intent_request(const dsr_device_t *device,bool on,dsr_cover_
   else if(sensor?!r->can_refresh:stop?!r->can_stop:(!r->device.online||!r->has_sample_time||r->sample_age_ms>15000))result=DSR_OFFLINE;
   else if(sensor?false:cover?!dsr_cover_can_move(&r->telemetry.cover,intent):is_light?!dsr_light_can_set(&r->telemetry.light,light):is_rgb?!dsr_rgb_can_set(&r->telemetry.rgb,rgb):!r->device.has_switch)result=DSR_UNSUPPORTED;
   else if(!sensor&&(r->error==DSR_AUTH_REQUIRED||r->error==DSR_IDENTITY_MISMATCH||r->error==DSR_RATE_LIMITED))result=r->error;
-  else if(!replace&&!dsr_activity_begin())result=DSR_BUSY;
+  else if(!replace&&!(stop?dsr_activity_stop_begin():dsr_activity_begin()))result=DSR_BUSY;
   else {if(!++output_serial)++output_serial;outputs[free_slot]=(dsr_output_request_t){.device=r->device,.on=on,.operation_id=output_serial};if(cover)outputs[free_slot].cover=intent;if(is_light)outputs[free_slot].light=light;if(is_rgb)outputs[free_slot].rgb=rgb;output_waiting[free_slot]=true;r->pending=true;if(stop)r->stop_pending=true;r->operation_id=outputs[free_slot].operation_id;*operation_id=r->operation_id;result=DSR_OK;if(stop)dsr_actions_mode_block();}
   break;
  }

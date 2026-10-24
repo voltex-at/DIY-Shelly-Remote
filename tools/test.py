@@ -74,6 +74,7 @@ RUNNERS = [
     ('test_ota_upload.py', 'all'), ('test_ota_power.py', 'all'), ('test_ota_fetch.py', 'all'), ('test_ota_download.py', 'all'), ('test_ota_install.py', 'all'),
     ('test_ota_release.py', 'all'), ('test_ota_discovery.py', 'all'), ('test_ota_release_fetch.py', 'all'),
     ('test_ota_release_chain.py', 'all'), ('test_restart.py', 'all'), ('test_photo_names.py', 'all'),
+    ('test_system_data.py', 'all'),
 ]
 
 with tempfile.TemporaryDirectory(prefix='dsr-test-') as tmp:

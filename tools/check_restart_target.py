@@ -27,6 +27,7 @@ required = {
     "dsr_restart": {
         "dsr_boot_ready", "dsr_activity_restart_reserve", "dsr_activity_restart_cancel",
         "dsr_activity_restart_dispatch", "dsr_activity_restart_confirmed_reserve", "esp_restart", "xTaskCreatePinnedToCore",
+        "dsr_activity_maintenance_restart_reserve",
         "xTaskGenericNotify", "ulTaskGenericNotifyTake", "vTaskDelay",
         "rtc_clk_slow_freq_get_hz", "wdt_hal_init", "wdt_hal_write_protect_disable",
         "wdt_hal_config_stage", "wdt_hal_set_flashboot_en", "wdt_hal_enable",
@@ -57,6 +58,9 @@ for unit in ("dsr_restart", "dsr_activity"):
     allowed |= {"__atomic_compare_exchange_4", "__atomic_load_4", "__atomic_store_4"}
     if unit == "dsr_restart":
         allowed |= {"vTaskDelete"}  # SDK noreturn can remove the host-only fallback.
+    if unit == "dsr_activity":
+        # Dataset generation/reservation needs a short ESP32-S3 portMUX. No IO.
+        allowed |= {"xPortEnterCriticalTimeout", "vPortExitCritical"}
     require(not set(undefined) - allowed,
             f"Unexpected {unit} dependencies (no storage/erase/network/new shutdown hook/timer callback): {sorted(set(undefined) - allowed)}")
     require(required[unit] <= set(undefined),

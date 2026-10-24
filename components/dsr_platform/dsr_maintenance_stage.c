@@ -104,6 +104,14 @@ void dsr_maint_stage_free(dsr_maint_stage_t *s)
 {if(s){dsr_backup_json_discard(s->manifest);dsr_maint_io_free(s,sizeof(*s));}}
 bool dsr_maint_stage_record(const dsr_maint_stage_t *s,dsr_maint_record_t *out)
 {if(!out)return false;memset(out,0,sizeof(*out));if(!s)return false;*out=s->record;return true;}
+bool dsr_maint_stage_archive_info(const dsr_maint_stage_t *s,dsr_maint_archive_info_t *out)
+{
+ if(!out)return false;
+ memset(out,0,sizeof(*out));if(!s||!s->manifest)return false;
+ const cJSON *fw=cJSON_GetObjectItemCaseSensitive(s->manifest,"firmware"),*created=cJSON_GetObjectItemCaseSensitive(s->manifest,"created");
+ if(!cJSON_IsString(fw)||!fw->valuestring[0]||strlen(fw->valuestring)>=sizeof(out->firmware))return false;
+ memcpy(out->firmware,fw->valuestring,strlen(fw->valuestring)+1);if(cJSON_IsNumber(created))out->created=(uint32_t)created->valuedouble;return true;
+}
 dsr_result_t dsr_maint_stage_prepare(const dsr_backup_image_t *image,dsr_maint_stage_t **out)
 {
  if(!out)return DSR_INVALID;

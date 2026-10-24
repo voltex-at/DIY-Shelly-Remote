@@ -138,7 +138,7 @@ static void scanner_task(void *arg)
   if(backup){
    activity_owned=false;backup->result=DSR_BUSY;
    if(dsr_maintenance_lease_valid(&backup->lease)&&release_host(true)){
-    atomic_store(&backup_owner,true);backup->result=dsr_backup_bonds_capture(backup->root);atomic_store(&backup_owner,false);
+    atomic_store(&backup_owner,true);backup->result=backup->root?dsr_backup_bonds_capture(backup->root):DSR_OK;atomic_store(&backup_owner,false);
     if(!dsr_maintenance_lease_valid(&backup->lease))backup->result=DSR_BUSY;
    }
   }else
@@ -194,11 +194,11 @@ bool dsr_ble_maintenance_quiet(void)
 }
 bool dsr_ble_backup_store_owner(void)
 {return xTaskGetCurrentTaskHandle()==manager_handle&&atomic_load(&backup_owner)&&!atomic_load(&host_on)&&!initialized;}
-dsr_result_t dsr_ble_backup_capture(const dsr_maint_lease_t *lease,cJSON *manifest)
+static dsr_result_t maintenance_barrier(const dsr_maint_lease_t *lease,cJSON *manifest)
 {
- if(!cJSON_IsObject(manifest)||!mutex||!queue||!dsr_maintenance_lease_valid(lease))return DSR_BUSY;
+ if((manifest&&!cJSON_IsObject(manifest))||!mutex||!queue||!dsr_maintenance_lease_valid(lease))return DSR_BUSY;
  backup_request_t *r=calloc(1,sizeof(*r));if(!r)return DSR_FULL;
- r->root=cJSON_CreateObject();if(!r->root){free(r);return DSR_FULL;}
+ if(manifest){r->root=cJSON_CreateObject();if(!r->root){free(r);return DSR_FULL;}}
  r->lease=*lease;r->result=DSR_BUSY;atomic_init(&r->refs,2);atomic_init(&r->done,false);
  xSemaphoreTake(mutex,portMAX_DELAY);
  bool accepted=!busy&&!atomic_load(&quarantined)&&dsr_maintenance_lease_valid(lease);
@@ -209,12 +209,16 @@ dsr_result_t dsr_ble_backup_capture(const dsr_maint_lease_t *lease,cJSON *manife
  dsr_result_t result=DSR_BUSY;
  if(atomic_load(&r->done)&&dsr_maintenance_lease_valid(lease)){
   result=r->result;
-  if(result==DSR_OK){cJSON *bonds=cJSON_DetachItemFromObjectCaseSensitive(r->root,"bonds");if(!bonds||!dsr_backup_json_replace(manifest,"bonds",bonds))result=DSR_FULL;}
+  if(result==DSR_OK&&manifest){cJSON *bonds=cJSON_DetachItemFromObjectCaseSensitive(r->root,"bonds");if(!bonds||!dsr_backup_json_replace(manifest,"bonds",bonds))result=DSR_FULL;}
  }
  /* On timeout the manager retains its own reference. It can finish or reject
   * the stale lease later without accessing the caller's manifest or stack. */
  backup_release(r);return result;
 }
+dsr_result_t dsr_ble_maintenance_stop(const dsr_maint_lease_t *lease)
+{return maintenance_barrier(lease,NULL);}
+dsr_result_t dsr_ble_backup_capture(const dsr_maint_lease_t *lease,cJSON *manifest)
+{return manifest?maintenance_barrier(lease,manifest):DSR_INVALID;}
 #endif
 void dsr_ble_snapshot(dsr_ble_snapshot_t *out)
 {

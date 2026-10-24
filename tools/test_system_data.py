@@ -9,8 +9,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
-case_names = ['format','sources','bonds','admission','stage','recovery','api']
-p.add_argument('--case', choices=[*case_names,'startup','restore_config','control','grant_model','source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
+case_names = ['format','source_model','sources','bonds_model','bonds','grant_model','admission','control',
+              'stage_model','stage_store','stage_crypto','stage','restore_config','recovery','api',
+              'ble_owner','workspace_owner','style_gate']
+p.add_argument('--case', choices=[*case_names,'startup','all'], default='all')
 p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()

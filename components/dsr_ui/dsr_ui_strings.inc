@@ -5,6 +5,7 @@
 {"Zezwól na eksport","Allow export","Export erlauben"},
 {"Zezwól na przesłanie","Allow upload","Übertragung erlauben"},
 {"Przywróć tę kopię","Restore this backup","Diese Sicherung wiederherstellen"},
+{"Czas kopii nieustawiony","Backup time not set","Sicherungszeit nicht gesetzt"},
 {"Usuń wszystkie dane pilota","Remove all remote user data","Alle Benutzerdaten löschen"},
 {"Pełna kopia obejmuje hasła, zdjęcia, połączenia i Bluetooth. Panel zaszyfruje plik Twoim hasłem.","The full backup includes passwords, photos, connections and Bluetooth. The panel encrypts the file with your password.","Die vollständige Sicherung enthält Passwörter, Fotos, Verbindungen und Bluetooth. Das Panel verschlüsselt die Datei mit deinem Passwort."},
 {"Zezwalasz tylko na przesłanie i sprawdzenie kopii. Odtworzenie wymaga osobnej zgody na LCD.","You allow only uploading and checking the backup. Restore requires separate LCD consent.","Erlaubt werden nur Übertragung und Prüfung der Sicherung. Die Wiederherstellung erfordert eine separate Zustimmung am LCD."},

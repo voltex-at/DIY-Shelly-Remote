@@ -3,6 +3,34 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
+## Bieżący etap: DEV 0.7.71 i SYS-02 — 2026-10-24
+
+Właściciel polecił zakończyć bieżące wdrożenie i opublikować DEV, a następnie
+kontynuować ankietę graficzną i ustalenie priorytetów. Gałąź pozostaje
+`work/dev-0.7.70`; wersja źródeł to `0.7.71-dev`. Starsze wpisy poniżej opisują
+wyniki poprzednich etapów, nie cofają aktualnego stanu.
+
+Aktywność LCD jest wdrożona i zaakceptowana na podglądzie. Pełny szyfrowany
+backup, przywracanie na tym samym pilocie i reset po fizycznej zgodzie LCD są
+wdrożone. Jeden niezależny przegląd SYS-02 wskazał pięć istotnych poprawek:
+STOP na wejściu kolejki WWW, nieblokujący transfer HTTPS, anulowanie także po
+utworzeniu kandydata importu, reset bez eksportowania starych bonds oraz
+datę/wersję kopii w potwierdzeniu. Wszystkie poprawiono z regresjami.
+Dodatkowo wykryto i poprawiono rozbieżny numer stanu zgody panelu JS i firmware.
+
+Zbiorczy zestaw SYS-02 przeszedł przed końcowym przeglądem; po poprawkach
+uruchamiano tylko dotknięte przypadki. API: PASS370, kontroler: PASS91,
+kolejka runtime/STOP: PASS850, właściciel BLE: PASS52, Chromium: PASS60,
+LCD LVGL 9.3: PASS488. Staging i scenariusz niepewnego commita również PASS.
+To liczby asercji w pojedynczych zestawach, nie tysiące oddzielnych uruchomień.
+Build ESP32-S3 przeszedł; audyt 19 nowych modułów: ramki własne ≤1024 B,
+663 B stałego stanu; stos UI 8192 B i pula LVGL 131072 B bez zwiększenia.
+
+Pełne CI dokładnego commita i podpisane wydanie są wymaganymi końcowymi bramkami.
+Odbiór nowych widoków backupu/resetu w ankiecie nastąpi po DEV. Sprzętowe
+przerwania zasilania, trwałość Flash, ponowne połączenie Bluetooth, ADC i dotyk
+pozostają niepotwierdzone; pilota nie resetowano ani nie flashowano.
+
 ## Aktualizacja: okno/drzwi → ogrzewanie — 2026-10-23
 
 [Wynik etapu w ankiecie #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74#issuecomment-6370925230).
@@ -594,7 +622,7 @@ Walidacja: `python3 tools/dev/run_host.py test_ui.py --case test_activity_ui --j
 — PASS, 650 sprawdzeń produkcyjnego LVGL i rzeczywistego logu RAM; modele radia,
 storage i czasu. Obejrzano wybrane kadry; poprawiono brakujące tłumaczenia wyników
 PL/EN/DE po wykryciu ich w renderze. Bez pełnego atlasu i builda targetu.
-Backup/odtwarzanie/reset są wdrażane; odbiór sprzętowy pozostaje otwarty.
+Backup/odtwarzanie/reset są wdrożone; końcowe bramki wydania i odbiór sprzętowy opisuje bieżący etap na początku dokumentu.
 Na etapie ustalania zakresu nie uruchamiano testów firmware, nie zmieniano
 kodu, nie wykonywano resetu ani operacji na urządzeniu.
 
@@ -636,7 +664,7 @@ kodu, nie wykonywano resetu ani operacji na urządzeniu.
 | Światło/dimmer/RGB/H&T/TRV | Prawdziwe akcje oraz capability; H&T tylko odczyt, TRV przez bramkę. 0.7.70 przebudowuje Cyber dimmer/RGB, pozostałe skórki zachowują swoje widoki. | `components/dsr_ui/dsr_ui_mobile.c; components/dsr_ui/dsr_ui_mobile_lighting_cyber.inc` |
 | Ustawienia urządzenia i Ogólne | Trwała edycja karty oddzielona od świadomych zmian konfiguracji Shelly Gen2/3/4; formularze zależne od rzeczywistych możliwości. | `components/dsr_platform/dsr_device_settings.c; components/dsr_ui/dsr_ui_device_settings.c` |
 | Grupy i sceny | Ręczne sceny Switch/Cover oraz grupy Switch, wyniki częściowe, edytory LCD/WWW. Lokalna reguła kontakt BLU → ogrzewanie jest wdrożona w bieżącej gałęzi; ruch, harmonogramy i chmura pozostają poza tym zakresem. | `components/dsr_platform/dsr_actions.c; components/dsr_ui/dsr_ui_actions.c` |
-| Aktywność | Backend 128 rekordów RAM, paginacja i API log/clear są obecne. Osobny widok LCD dla pierwotnego #21 nie jest potwierdzony i wymaga dokończenia/decyzji zakresu. | `components/dsr_platform/include/dsr_actions.h; components/dsr_ui/dsr_ui_actions.c` |
+| Aktywność | Backend 128 rekordów RAM, API i widok LCD są wdrożone. Pokazany widok LCD zaakceptowany; historia obejmuje bieżące uruchomienie. | `components/dsr_platform/include/dsr_actions.h; components/dsr_ui/dsr_ui_activity.c` |
 | Historia energii i wykresy | Były wdrożone, następnie usunięte decyzją właściciela 0.7.51. Nie przywracać automatycznie na podstawie starych #22/#29. Bieżące pomiary i kontrolki pozostają. | `docs/FEATURE_MATRIX.md; docs/RELEASE_NOTES.md` |
 | Panel WWW i języki | Wspólna konfiguracja, pairing/zgody i osobne PL/EN/DE przeglądarki; lokalny podgląd LCD. | `components/dsr_platform/dsr_panel.c; components/dsr_platform/web` |
 | Bateria | Kalibracja ogniwa/pojemności/progów/multimetru; ~SOC i trend ≥10 s / 20 mV jako przypuszczalne ładowanie. To nie sygnał fizycznej ładowarki. | `components/dsr_platform/dsr_battery.c; components/dsr_ui/dsr_ui_battery_calibration.c` |
@@ -644,7 +672,7 @@ kodu, nie wykonywano resetu ani operacji na urządzeniu.
 | Wi-Fi/BLE cleanup i restart | Reconnect/backoff oraz bounded BLE cleanup. 0.7.69 dodaje potwierdzony lokalny restart niezależny od aktywnych lease, z RTC watchdog; normalne WWW/OTA zachowują wyłączność. | `components/dsr_platform/dsr_restart.c; components/dsr_platform/dsr_activity.c` |
 | OTA z LCD i WWW | Natywny updater, manifest Ed25519, TLS/model/wersja/kanał/hash, dwa sloty i rollback. Instalacja 0.7.53 potwierdzona historycznie; pełny aktualny rollback wymaga sprzętu. | `components/dsr_platform/dsr_native_ota.c; components/dsr_ota; components/dsr_crypto` |
 | Bezpieczne wydania DEV | 0.7.68/69/70 opublikowane; tag==commit z CI 5/5, klucz w chronionym środowisku, jeden build/publikacja, bez Stable i bez merge main. | `tools/release_tool.py; .github/workflows/release.yml` |
-| Eksport/backup i reset fabryczny | Nadal niewdrożone; system_info jawnie to komunikuje. To zaległość zakresu System z #24/#25, nie gotowa funkcja. | `components/dsr_ui/dsr_ui.c` |
+| Eksport/backup i reset fabryczny | SYS-02 wdrożone: szyfrowana kopia WWW, odtwarzanie na tym samym pilocie i reset po zgodzie LCD; odbiór sprzętowy osobno. | `components/dsr_platform/dsr_maintenance_recovery.c; components/dsr_ui/dsr_ui_maintenance.c` |
 | Odbiór urządzenia | Starsze potwierdzenia dotyczą konkretnych wersji. Zielone host/CI nie akceptuje najnowszego UI, RF/AP, ADC, STOP, reboot ani rollback. | `README.md; dotychczasowe #6/#12/#18/#24/#25` |
 
 ## Niespójności i rzeczy do dalszej poprawy
@@ -656,7 +684,7 @@ kodu, nie wykonywano resetu ani operacji na urządzeniu.
 - [x] **Dokumentacja bieżąca — poprawiona podczas porządków**: matryca funkcji, przewodnik rozwoju i indeks opisują 0.7.70, aktualny restart i wykonany zakres BLU. Wcześniej mieszały 0.7.67/69 oraz nieaktualne „planned”.
 - [ ] **Historyczne wymagania UI są sprzeczne**: cztery vs trzy skórki; grid/dom; osobny wiersz akcji 0.7.69 vs wspólny 0.7.70; dwa wiersze metadanych vs bieżące „Pokój•Stan”. Obowiązują ostatnie zdjęcia/zlecenia, starszych żądań nie realizować ponownie.
 - [ ] **Instrukcje lokalne**: AGENTS i skills nadal używają nazw „Shelly HUD — Cyber Blue/Grafitowy”, choć UI używa skróconych nazw. Lokalne `.agents/`, `tools/dev/` i raport setup nie są wersjonowane; ustalić świadomie ich dalsze utrzymanie.
-- [ ] **Aktywność**: zachować istniejący backend 128 wpisów i API, ustalić/dokończyć widok LCD pierwotnego #21. Nie pisać drugiego silnika.
+- [x] **Aktywność**: istniejący backend 128 wpisów i API wykorzystany w zaakceptowanym widoku LCD.
 - [ ] **Eksport/reset**: pierwotne pełne System #24/#25 nie jest w całości dostarczone; zaplanować osobny przepływ z potwierdzeniem i analizą trwałości danych.
 - [ ] **Czas i zabezpieczenie danych**: SNTP istnieje, brak potwierdzonego ekranu wyboru strefy; NVS prototypu nie jest szyfrowane. Decyzje/migracje wymagają oddzielnego etapu, bez zmiany klucza OTA i eFuse przy porządkowaniu.
 - [ ] **Stare tłumaczenia**: słowniki zawierają historyczne napisy o „niewdrożonym” AP/BLE/OTA/restart. To kandydaci do audytu użycia, nie dowód, że aktualny ekran pokazuje te komunikaty. Usuń dopiero po sprawdzeniu odwołań.
@@ -687,7 +715,7 @@ Na prośbę właściciela z 2026-10-22 lista staje się ankietą i kolejką bie�
 | CTRL-01 | Wiele Shelly, readback, usunięcie jednego kanału i trwałość po restarcie | Oczekuje na ocenę |
 | CTRL-02 | Switch/Cover/Light/RGB/H&T/TRV oraz ręczne sceny i grupy | **Zaakceptowane na podglądzie:** kreator grup, edytor scen, karty grup zgodne z Dashboardem/Urządzeniami, wskazane poprawki widoku termostatu/grupy oraz widoki grup dimmerów i RGB w trzech skórkach. **Szczegóły grup przekaźników i rolet również zaakceptowane na podglądzie**; nastawa TRV w ręcznych scenach również zaakceptowana na pokazanym podglądzie, a zachowanie pierwszej automatyzacji kontakt → ogrzewanie jest uzgodnione; projekt i plan wdrożenia są zatwierdzone, implementacja i niezależny przegląd zakończone lokalnie; odbiór nowych formularzy/statusów pozostaje otwarty. Rzeczywiste sterowanie, readback i trwałość na sprzęcie pozostają otwarte |
 | SYS-01 | Bateria, kalibracja, wybudzanie, Wi-Fi reconnect i restart | **Zaakceptowane na podglądzie** (`6a47dcc`, `77c65d4`): główny ekran baterii, pokazane elementy kalibracji, złote błędy, ponowny odczyt, klawiatura oraz paski pamięci i stan BLE; korekta DE: Ein / Aus. Rzeczywisty ADC/profil oraz wybudzanie/reconnect/restart pozostają do odbioru |
-| SYS-02 | Aktywność, eksport/backup i reset fabryczny | **Projekt/plany zatwierdzone, wdrożenie trwa.** Aktywność LCD wdrożona w `f44c5b8` i zaakceptowana na podglądzie, PASS650. [Backup/reset](superpowers/plans/2026-10-24-system-backup-reset.md) w toku; pełna kopia szyfrowana hasłem, ten sam pilot także po resecie, potwierdzenia LCD. Resetu na sprzęcie nie wykonywano; hardware i końcowa integracja otwarte |
+| SYS-02 | Aktywność, eksport/backup i reset fabryczny | **Wdrożone; końcowa integracja DEV 0.7.71.** Aktywność LCD zaakceptowana. Pięć uwag końcowego przeglądu poprawionych z regresjami; host/LVGL/Chromium i build ESP32-S3 PASS. Nowe widoki backup/reset do dalszej ankiety po DEV; resetu ani odtwarzania na sprzęcie nie wykonywano |
 | WEB-01 | Panel WWW: konfiguracja, zgody, język i podgląd LCD | **Pokazane widoki konfiguracji WWW, parowania/podglądu oraz LCD bezpieczeństwa/kodu/unieważnienia zaakceptowane na podglądzie** (`3cdd2f7`), w tym układ komputer/telefon, osobne języki, złoty konflikt z nieaktywnym Zapisz, komunikaty podglądu i stałe akcje LCD. Powiązane Chromium/LVGL i słownik PASS. Pozostałe podstrony i rzeczywiste HTTPS/NVS/synchronizacja/podgląd na sprzęcie pozostają otwarte |
 | OTA-01 | Aktualizacja bez utraty danych, przerwany transfer i rollback | **Zaakceptowane na podglądzie** (`b9870ae`): natywne Instaluj, złoty komunikat progu 20%, informacja przy nieznanym procencie, ikona kanału i odliczanie 10…0. **Lokalne OTA przez WWW również zaakceptowane na podglądzie** (`2fd1427`): dotychczasowe LCD i panel. Próg 20% uploadu WWW jest wdrożony, z nowym odczytem pracownika przed Flash i jawną zgodą USB; powiązane testy i build ESP32-S3 PASS. **Nowy krok USB oraz złote komunikaty niskiej baterii i niedostępnego pomiaru zaakceptowane na podglądzie** (`a415e17`). Odbiór progu na sprzęcie, instalacja, dane i rollback otwarte |
 

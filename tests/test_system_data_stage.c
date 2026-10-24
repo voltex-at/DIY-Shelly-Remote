@@ -74,6 +74,7 @@ int main(int argc,char **argv)
   dsr_backup_image_free(small);for(unsigned i=0;i<17;i++)free(disk[i].bytes);test_nvs_reset();printf("PASS: %u ambiguous commit checks; failed ACK preserves durable intent and closed admission, NVS/IO MODEL\n",checks);return 0;
  }
  full=test_backup_image(argv[1],16,16);CHECK(full);
+ CHECK(dsr_maint_stage_prepare(small,&stage)==DSR_OK);dsr_maint_archive_info_t archive;CHECK(dsr_maint_stage_archive_info(stage,&archive)&&!archive.created&&!strcmp(archive.firmware,"0.7.70-dev"));CHECK(dsr_maint_stage_cancel(stage)==DSR_OK);dsr_maint_stage_free(stage);stage=NULL;
  unsigned writes=test_nvs_writes;limits.used+=16*115200;CHECK(dsr_maint_stage_prepare(full,&stage)==DSR_FULL&&!stage&&!files&&test_nvs_writes==writes);limits.used=65536;
  limits.nvs_available=1;CHECK(dsr_maint_stage_prepare(small,&stage)==DSR_FULL&&!stage&&test_nvs_writes==writes);limits.nvs_available=1800;
  limits.psram_largest=98304;CHECK(dsr_maint_stage_prepare(small,&stage)==DSR_FULL&&!stage&&test_nvs_writes==writes);limits.psram_largest=1024*1024;

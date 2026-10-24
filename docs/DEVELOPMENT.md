@@ -1,4 +1,4 @@
-# Development — 0.7.70-dev
+# Development — 0.7.71-dev
 
 Current code is on `work/dev-0.7.70`; `main` is an older baseline. Read
 [PROJECT_STATUS_PL.md](PROJECT_STATUS_PL.md) and [issue #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74)
@@ -72,6 +72,30 @@ Focused checks: `python3 tools/test_automation.py --case model|store|http|config
 boundary. New API `GET /api/v1/automations/status` requires the existing local
 same-origin/pairing gates and exports public status/roles for one config revision,
 without enrollment keys or journal contents. There is no automation execute POST.
+
+## System data maintenance
+
+System → Backup and reset uses native LCD consent and the paired HTTPS panel.
+Activity retains 128 entries in RAM. Password-encrypted `.dsrbak` files contain
+configuration, photos, connections and local Bluetooth bonds; restoration is
+restricted to the same physical remote. Password processing stays in Web Crypto.
+Import has separate upload and candidate confirmation, with date/version/counts.
+Reset requires a physical 3 s hold. Both destructive operations require a fresh
+battery estimate ≥20%, or physical stable-USB consent when the estimate is unknown.
+
+Snapshot/staging run on the existing config owner, with an acknowledged BLE
+barrier. One temporary 16 KiB HTTPS transport task keeps browser STOP/status/cancel
+serviceable during socket or owner waits; it never performs RPC or source writes.
+The upload ID remains a cancellation alias until candidate commit. Boot recovery
+precedes ordinary services; ambiguous journals fail closed with local recovery UI.
+Full reset erases only the explicit user namespaces and data filesystem, preserving
+firmware and OTA trust. Never exercise reset/restore on hardware without approval.
+
+Focused checks: `python3 tools/test_system_data.py --case all`,
+`python3 tools/test_ui.py --case test_system_data_ui`,
+`node tests/test_panel_backup.cjs`, and `node tests/test_panel_backup_browser.cjs`.
+Host providers model Flash, radio, ADC and physical consent. Device durability,
+reconnection and stack high-water marks remain separate acceptance work.
 
 ## Windows and firmware builds
 

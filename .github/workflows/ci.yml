@@ -50,6 +50,8 @@ jobs:
           node tests/test_web_locale_dictionary.cjs
           node tests/test_panel_locale.cjs
           node tests/test_panel_ota.cjs
+          node tests/test_panel_backup.cjs
+          node tests/test_panel_backup_browser.cjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -73,16 +75,20 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install real JSON parser for protocol fixtures
         run: sudo apt-get update && sudo apt-get install -y libcjson-dev python3-cryptography libssl-dev
+      - name: Fetch exact IDF headers and storage sources for host integration
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse --branch v5.5.4 https://github.com/espressif/esp-idf.git .test-deps/esp-idf
+          git -C .test-deps/esp-idf sparse-checkout set components/spiffs components/http_parser components/json components/bt/host/nimble components/esp_common/include
+          git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs components/json/cJSON components/bt/host/nimble/nimble
       - name: Portable C tests with address and undefined behavior sanitizers
+        env:
+          IDF_PATH: ${{ github.workspace }}/.test-deps/esp-idf
         run: |
           python3 tools/test.py --sanitize
           python3 tools/test_config.py --sanitize
           python3 tools/test_automation.py --case all --sanitize
       - name: Verify blank provisioning with original pinned IDF SPIFFS
         run: |
-          git clone --depth 1 --filter=blob:none --sparse --branch v5.5.4 https://github.com/espressif/esp-idf.git .test-deps/esp-idf
-          git -C .test-deps/esp-idf sparse-checkout set components/spiffs components/http_parser components/json
-          git -C .test-deps/esp-idf submodule update --init --depth 1 components/spiffs/spiffs components/json/cJSON
           python3 tools/test_idf_spiffs.py --sanitize
       - name: Verify raw HTTP fragmentation with original pinned IDF parser
         run: python3 tools/test_ota_fetch_parser.py --idf .test-deps/esp-idf --sanitize
@@ -133,6 +139,7 @@ jobs:
           idf.py -B build-board size
           python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
           python3 tools/check_automation_target.py --build build-board
+          python3 tools/check_system_data_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/SYSTEM_DATA.json
           python3 tools/verify_crypto_vendor.py
           python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
           python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json

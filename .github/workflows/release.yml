@@ -60,6 +60,7 @@ jobs:
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} set-target esp32s3
           idf.py -B build-board -D DSR_BOARD=lcdwiki-es3c35p -D DSR_VERSION=${{ steps.tag.outputs.projver }} build
           python3 tools/check_boot_memory.py --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/BOOT_MEMORY.json
+          python3 tools/check_system_data_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --sdkconfig sdkconfig --out build-board/SYSTEM_DATA.json
           python3 tools/check_ota_binary.py --elf build-board/diy_shelly_remote.elf --bin build-board/diy_shelly_remote.bin --out build-board/OTA_VERIFIER.json
           python3 tools/check_ota_image_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --upload --out build-board/OTA_IMAGE.json
           python3 tools/check_native_ota_target.py --build-dir build-board --elf build-board/diy_shelly_remote.elf --out build-board/NATIVE_OTA.json

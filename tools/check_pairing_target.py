@@ -72,7 +72,7 @@ nvs = {"nvs_open", "nvs_erase_key", "nvs_commit", "nvs_get_blob", "nvs_close"}
 required = {
     "dsr_panel_pairing_snapshot": {"dsr_boot_ready", "xQueueSemaphoreTake", "xQueueGenericSend"},
     "dsr_panel_pairing_revoke": {"dsr_boot_ready", "xQueueSemaphoreTake", "xQueueGenericSend",
-                               "dsr_activity_begin", "dsr_activity_end"} | nvs,
+                               "dsr_activity_begin", "dsr_activity_end", "dsr_activity_data_changed"} | nvs,
 }
 records = {}
 for api in sorted(apis):
@@ -82,7 +82,7 @@ for api in sorted(apis):
     deps = set().union(*(sections[name] for name in names))
     allowed = common | state | {".bss." + item for item in state} | set(names)
     if api.endswith("revoke"):
-        allowed |= nvs | {"dsr_activity_begin", "dsr_activity_end"}
+        allowed |= nvs | {"dsr_activity_begin", "dsr_activity_end", "dsr_activity_data_changed"}
     # Literal strings are compiler-local data, not additional callable SDK APIs.
     unexpected = {dep for dep in deps if dep not in allowed and
                   not dep.startswith((".rodata.", ".LC"))}

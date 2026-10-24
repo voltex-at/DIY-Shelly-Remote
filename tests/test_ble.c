@@ -132,6 +132,9 @@ static void parser_tests(void)
 static void owner_tests(void)
 {
  CHECK(dsr_ble_init()==ESP_OK&&dsr_ble_maintenance_quiet());cJSON *root=cJSON_CreateObject();CHECK(root);dsr_maint_lease_t l;
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));capture_result=DSR_UNSUPPORTED;
+ CHECK(dsr_ble_maintenance_stop(&l)==DSR_OK&&!captures&&!init_calls);
+ CHECK(dsr_ble_backup_capture(&l,root)==DSR_UNSUPPORTED&&captures==1);capture_result=DSR_OK;captures=0;dsr_activity_maintenance_release(l.reservation);
  CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));CHECK(!dsr_ble_scan()&&!dsr_ble_manager_rpc(rpc_operation));
  CHECK(dsr_ble_backup_capture(&l,root)==DSR_OK&&captures==1&&init_calls==0&&host_calls==0);dsr_activity_maintenance_release(l.reservation);
  CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(dsr_ble_host_active());unsigned started=init_calls;

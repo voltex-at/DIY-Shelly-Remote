@@ -5,6 +5,7 @@
 #include "dsr_maintenance_recovery.h"
 void test_maintenance_set(unsigned,unsigned,dsr_result_t,unsigned);
 void test_maintenance_usb(void);
+void test_maintenance_archive(uint32_t,const char *);
 unsigned test_maintenance_confirms(void);
 unsigned test_maintenance_resets(void);
 bool test_maintenance_last_usb(void);
@@ -23,7 +24,8 @@ int main(int argc,char **argv)
   dsr_sc_appearance(DSR_SC_BLUE,skins[s],lang);dsr_ui_apply_theme();test_maintenance_set(0,DSR_MAINT_IDLE,DSR_OK,id++);dsr_ui_maintenance_open(NULL);CHECK(find_label(lv_screen_active(),"Kopia i reset"));
   test_maintenance_set(DSR_MAINT_EXPORT,DSR_MAINT_CONFIRM,DSR_OK,id++);dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Zezwól na eksport"));button_bounds("Potwierdź");no_private(lv_screen_active());if(lang==0)shot(skins[s],lang,"export");unsigned before=test_maintenance_confirms();click("Potwierdź");CHECK(test_maintenance_confirms()==before+1);
   test_maintenance_set(DSR_MAINT_IMPORT_UPLOAD,DSR_MAINT_CONFIRM,DSR_OK,id++);dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Zezwól na przesłanie"));click("Anuluj");
-  test_maintenance_set(DSR_MAINT_IMPORT_COMMIT,DSR_MAINT_CONFIRM,DSR_OK,id++);dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Przywróć tę kopię"));button_bounds("Potwierdź");no_private(lv_screen_active());if(lang==1)shot(skins[s],lang,"candidate");
+  test_maintenance_set(DSR_MAINT_IMPORT_COMMIT,DSR_MAINT_CONFIRM,DSR_OK,id++);test_maintenance_archive(0,"0.7.70-dev");dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Przywróć tę kopię"));char identity[128];snprintf(identity,sizeof(identity),"Firmware: 0.7.70-dev\n%s",dsr_sc_tr("Czas kopii nieustawiony"));CHECK(find_label(lv_screen_active(),identity));
+  test_maintenance_archive(1792800000,"0.7.71-dev");dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Firmware: 0.7.71-dev\nUTC: 2026-10-24 00:00:00"));button_bounds("Potwierdź");no_private(lv_screen_active());if(lang==1)shot(skins[s],lang,"candidate");
   test_maintenance_set(DSR_MAINT_RESET,DSR_MAINT_CONFIRM,DSR_OK,id++);dsr_ui_maintenance_tick();unsigned reset_before=test_maintenance_resets();lv_obj_t *b=hold_button();press_hold(b,2999);CHECK(test_maintenance_resets()==reset_before);release_hold(b);dsr_ui_maintenance_tick();CHECK(test_maintenance_resets()==reset_before);
   b=hold_button();press_hold(b,2999);lv_tick_inc(1);dsr_ui_maintenance_tick();CHECK(test_maintenance_resets()==reset_before+1);dsr_ui_maintenance_tick();CHECK(test_maintenance_resets()==reset_before+1);
   test_maintenance_set(DSR_MAINT_RESET,DSR_MAINT_CONFIRM,DSR_INVALID,id++);test_maintenance_usb();dsr_ui_maintenance_tick();CHECK(find_label(lv_screen_active(),"Potwierdzam stabilne USB"));click("Potwierdzam stabilne USB");b=hold_button();if(lang==2)shot(skins[s],lang,"reset-usb");press_hold(b,3000);CHECK(test_maintenance_last_usb());

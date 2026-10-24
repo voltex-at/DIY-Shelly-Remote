@@ -5,6 +5,7 @@
 #include "dsr_device_settings.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
 static portMUX_TYPE mailbox_lock=portMUX_INITIALIZER_UNLOCKED;
@@ -23,7 +24,7 @@ static bool holding,holding_boot;static uint32_t pressed_at;static uint8_t press
 static void draw(const dsr_maint_status_t *s);
 static void boot_draw(void);
 static bool same(const dsr_maint_status_t *a,const dsr_maint_status_t *b)
-{return a->op==b->op&&a->phase==b->phase&&a->result==b->result&&a->progress==b->progress&&a->can_confirm==b->can_confirm&&a->usb_required==b->usb_required&&a->photos==b->photos&&a->connections==b->connections&&a->rules==b->rules&&!memcmp(a->request_id,b->request_id,16);}
+{return a->op==b->op&&a->phase==b->phase&&a->result==b->result&&a->progress==b->progress&&a->can_confirm==b->can_confirm&&a->usb_required==b->usb_required&&a->photos==b->photos&&a->connections==b->connections&&a->rules==b->rules&&a->archive.created==b->archive.created&&!strcmp(a->archive.firmware,b->archive.firmware)&&!memcmp(a->request_id,b->request_id,16);}
 static int frame(lv_obj_t *body,const char *text,int y,bool warning)
 {lv_obj_t *label=warning?dsr_sc_warning(body,text,0,y,288,&dsr_roboto_14):dsr_sc_text_panel(body,text,0,y,288,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_t *panel=lv_obj_get_parent(label);lv_obj_update_layout(panel);return y+lv_obj_get_height(panel)+12;}
 static lv_obj_t *body(lv_obj_t *root,int y,int height)
@@ -88,7 +89,12 @@ static void draw(const dsr_maint_status_t *input)
   const char *title=s.op==DSR_MAINT_EXPORT?"Zezwól na eksport":s.op==DSR_MAINT_IMPORT_UPLOAD?"Zezwól na przesłanie":s.op==DSR_MAINT_IMPORT_COMMIT?"Przywróć tę kopię":"Usuń wszystkie dane pilota";
   if(s.op<DSR_MAINT_IMPORT_COMMIT)y=frame(b,title,y,false);
   const char *detail=s.op==DSR_MAINT_EXPORT?"Pełna kopia obejmuje hasła, zdjęcia, połączenia i Bluetooth. Panel zaszyfruje plik Twoim hasłem.":s.op==DSR_MAINT_IMPORT_UPLOAD?"Zezwalasz tylko na przesłanie i sprawdzenie kopii. Odtworzenie wymaga osobnej zgody na LCD.":s.op==DSR_MAINT_IMPORT_COMMIT?"Ta kopia zastąpi dane pilota. Po restarcie sparuj panel WWW ponownie.":"Znikną Wi-Fi, konfiguracja, zdjęcia, połączenia, Bluetooth i dostęp WWW. Firmware pozostanie.";
-  if(s.op==DSR_MAINT_IMPORT_COMMIT){char counts[128];snprintf(counts,sizeof(counts),dsr_sc_tr("Zdjęcia: %u • Połączenia: %u\nReguły: %u"),(unsigned)s.photos,(unsigned)s.connections,(unsigned)s.rules);y=frame(b,dsr_sc_user(counts),y,false);y=frame(b,"Kopia zastąpi dane i odtworzy włączone reguły dla zapisanych, zweryfikowanych tożsamości. Sparuj WWW ponownie. Shelly zachowają stan.",y,true);}
+  if(s.op==DSR_MAINT_IMPORT_COMMIT){
+   char counts[128],date[40],identity[128];struct tm tm;time_t stamp=(time_t)s.archive.created;
+   if(s.archive.created&&gmtime_r(&stamp,&tm))strftime(date,sizeof(date),"UTC: %Y-%m-%d %H:%M:%S",&tm);else snprintf(date,sizeof(date),"%s",dsr_sc_tr("Czas kopii nieustawiony"));
+   snprintf(identity,sizeof(identity),"Firmware: %s\n%s",s.archive.firmware,date);y=frame(b,dsr_sc_user(identity),y,false);
+   snprintf(counts,sizeof(counts),dsr_sc_tr("Zdjęcia: %u • Połączenia: %u\nReguły: %u"),(unsigned)s.photos,(unsigned)s.connections,(unsigned)s.rules);y=frame(b,dsr_sc_user(counts),y,false);y=frame(b,"Kopia zastąpi dane i odtworzy włączone reguły dla zapisanych, zweryfikowanych tożsamości. Sparuj WWW ponownie. Shelly zachowają stan.",y,true);
+  }
   else y=frame(b,detail,y,s.op==DSR_MAINT_RESET);
   if(s.result!=DSR_OK||s.usb_required)y=frame(b,reason(&s),y,true);
   if(s.op==DSR_MAINT_RESET&&!s.usb_required)y=frame(b,"Urządzenia Shelly zachowają swój obecny stan.",y,false);

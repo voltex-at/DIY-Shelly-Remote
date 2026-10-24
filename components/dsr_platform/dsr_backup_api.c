@@ -7,6 +7,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +50,7 @@ static void transfer_run(void *owned)
   result=dsr_backup_image_open(t->upload,t->size,device,&t->image);t->upload=NULL;dsr_backup_wipe(device,sizeof(device));if(result!=DSR_OK)goto done;
   if(!active(t)){result=DSR_CONFLICT;goto done;}
   result=dsr_maint_stage_prepare(t->image,&stage);if(result!=DSR_OK)goto done;
-  if(active(t))result=dsr_maintenance_candidate(stage,t->request.session);else result=DSR_CONFLICT;
+  if(active(t))result=dsr_maintenance_candidate(stage,&t->request);else result=DSR_CONFLICT;
   if(result==DSR_OK)stage=NULL;
  }
 done:
@@ -70,9 +71,14 @@ static dsr_result_t transfer_wait(transfer_t *t)
 }
 static esp_err_t status_response(httpd_req_t *r,const uint8_t session[32])
 {
- dsr_maint_status_t s;dsr_maintenance_status(&s);bool owned=dsr_maintenance_session_matches(session);char id[33],body[320];hex(s.request_id,16,id);
+ dsr_maint_status_t s;dsr_maintenance_status(&s);bool owned=dsr_maintenance_session_matches(session);char id[33];hex(s.request_id,16,id);
  if(!owned)return response(r,"200 OK","{\"owned\":false,\"phase\":0}");
- snprintf(body,sizeof(body),"{\"owned\":true,\"request_id\":\"%s\",\"op\":%u,\"phase\":%u,\"result\":%u,\"progress\":%u,\"photos\":%u,\"connections\":%u,\"rules\":%u,\"usb_required\":%s}",id,(unsigned)s.op,(unsigned)s.phase,(unsigned)s.result,(unsigned)s.progress,(unsigned)s.photos,(unsigned)s.connections,(unsigned)s.rules,s.usb_required?"true":"false");return response(r,"200 OK",body);
+ cJSON *o=cJSON_CreateObject();char *body=NULL;
+ if(o&&cJSON_AddBoolToObject(o,"owned",true)&&cJSON_AddStringToObject(o,"request_id",id)&&
+    cJSON_AddNumberToObject(o,"op",s.op)&&cJSON_AddNumberToObject(o,"phase",s.phase)&&cJSON_AddNumberToObject(o,"result",s.result)&&cJSON_AddNumberToObject(o,"progress",s.progress)&&
+    cJSON_AddNumberToObject(o,"photos",s.photos)&&cJSON_AddNumberToObject(o,"connections",s.connections)&&cJSON_AddNumberToObject(o,"rules",s.rules)&&cJSON_AddBoolToObject(o,"usb_required",s.usb_required)&&
+    cJSON_AddStringToObject(o,"firmware",s.archive.firmware)&&(s.archive.created?cJSON_AddNumberToObject(o,"created",s.archive.created):cJSON_AddNullToObject(o,"created")))body=cJSON_PrintUnformatted(o);
+ esp_err_t result=body?response(r,"200 OK",body):failure(r,DSR_FULL);free(body);cJSON_Delete(o);return result;
 }
 static esp_err_t request_operation(httpd_req_t *r,const uint8_t session[32],bool reset)
 {
@@ -133,6 +139,36 @@ done:
  }
  transfer_free(t);return response_result;
 }
+/* IDF 5.5.4 dispatches URI handlers on one HTTPS task. Only this bounded,
+ * short-lived transport task may wait on the config owner or a slow socket;
+ * STOP/status/cancel remain serviceable on the server task. It is not an RPC
+ * worker and never accesses persistent sources itself. */
+typedef struct {httpd_req_t *request;uint8_t session[32];bool upload;} async_transfer_t;
+static atomic_bool transport_busy;
+static void transfer_task(void *owned)
+{
+ async_transfer_t *a=owned;httpd_req_t *r=a->request;
+ httpd_handle_t server=r->handle;int fd=httpd_req_to_sockfd(r);
+ httpd_resp_set_hdr(r,"Connection","close");
+ (void)transfer_response(r,a->session,a->upload);
+ (void)httpd_req_async_handler_complete(r);
+ (void)httpd_sess_trigger_close(server,fd);
+ dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);vTaskDelete(NULL);
+}
+static esp_err_t transfer_async(httpd_req_t *r,const uint8_t session[32],bool upload)
+{
+ bool expected=false;if(!atomic_compare_exchange_strong(&transport_busy,&expected,true))return failure(r,DSR_BUSY);
+ async_transfer_t *a=calloc(1,sizeof(*a));
+ if(!a){atomic_store(&transport_busy,false);return failure(r,DSR_FULL);}
+ memcpy(a->session,session,32);a->upload=upload;
+ if(httpd_req_async_handler_begin(r,&a->request)!=ESP_OK){free(a);atomic_store(&transport_busy,false);return failure(r,DSR_BUSY);}
+ if(xTaskCreate(transfer_task,"dsr_backup_http",16384,a,3,NULL)==pdPASS)return ESP_OK;
+ /* The original body was detached: respond using its owned async copy. */
+ httpd_handle_t server=a->request->handle;int fd=httpd_req_to_sockfd(a->request);
+ httpd_resp_set_hdr(a->request,"Connection","close");esp_err_t result=failure(a->request,DSR_BUSY);
+ (void)httpd_req_async_handler_complete(a->request);(void)httpd_sess_trigger_close(server,fd);
+ dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);return result;
+}
 esp_err_t dsr_backup_api(httpd_req_t *r,const uint8_t session[32])
 {
  httpd_resp_set_hdr(r,"Cache-Control","no-store");httpd_resp_set_hdr(r,"Pragma","no-cache");httpd_resp_set_hdr(r,"X-Content-Type-Options","nosniff");
@@ -142,8 +178,8 @@ esp_err_t dsr_backup_api(httpd_req_t *r,const uint8_t session[32])
  if(httpd_req_get_hdr_value_len(r,"Transfer-Encoding"))return response(r,"400 Bad Request","{\"error\":\"Content-Length required\"}");
  if(!strcmp(r->uri,"/api/v1/backup/request"))return request_operation(r,session,false);
  if(!strcmp(r->uri,"/api/v1/reset/request"))return request_operation(r,session,true);
- if(!strcmp(r->uri,"/api/v1/backup/export"))return transfer_response(r,session,false);
- if(!strcmp(r->uri,"/api/v1/backup/import"))return transfer_response(r,session,true);
+ if(!strcmp(r->uri,"/api/v1/backup/export"))return transfer_async(r,session,false);
+ if(!strcmp(r->uri,"/api/v1/backup/import"))return transfer_async(r,session,true);
  if(!strcmp(r->uri,"/api/v1/maintenance/cancel")){
   uint8_t id[16];if(r->content_len||!id_read(r,id)||!dsr_maintenance_session_matches(session)||!dsr_maintenance_cancel(id))return failure(r,DSR_CONFLICT);
   return response(r,"200 OK","{\"cancelled\":true}");

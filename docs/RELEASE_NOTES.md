@@ -1,3 +1,13 @@
+0.7.71-dev: poprawki ankiety UI, wspólne sterowanie grupami, automatyzacje ogrzewania oraz Aktywność, szyfrowany backup i reset danych.
+
+- Trzy skórki Cyber Blue, Grafit i Jasny: zaakceptowane poprawki kart termostatu, okna/drzwi, rolety i pomiarów; przewijana nazwa Dashboardu, ustawienia bez przewijania głównej listy, status bar i nawigacja. Dimmer i RGB mają wspólne sterowanie we wszystkich skórkach. Uporządkowano kreatory AP/LAN/BLE, ramki i ważne komunikaty.
+- Grupy według rodzaju sterowania korzystają z układu pojedynczych urządzeń: przekaźnik, roleta, dimmer, RGB i wspólna temperatura TRV. Dostępna jest zmiana kolejności Dashboardu i listy Urządzeń. Sceny obsługują konkretną temperaturę TRV. Reguły okno/drzwi → ogrzewanie działają natychmiast, zachowują ręczne zmiany i czekają na świeże odczyty przed wznowieniem.
+- System → Aktywność pokazuje 128 wpisów od uruchomienia. Sparowany panel HTTPS tworzy pełną kopię `.dsrbak`, szyfrowaną w przeglądarce hasłem PBKDF2/AES-GCM. Odtwarzanie tylko na tym samym pilocie wymaga osobnych zgód przesłania i konkretnej kopii na LCD; podsumowanie obejmuje datę, wersję i liczbę danych.
+- Pełny reset danych wymaga przytrzymania przycisku LCD przez 3 s. Reset i odtwarzanie korzystają z trwałej intencji i odzyskiwania przed startem usług. Nie zmieniają firmware, partycji ani klucza OTA. Nieznane rekordy Bluetooth blokują eksport, ale nie blokują świadomego resetu.
+- OTA natywne i przez WWW odmawia startu przy świeżym oszacowaniu baterii poniżej 20%; brak wiarygodnego procentu wymaga fizycznego potwierdzenia stabilnego USB. Poprawiono komunikaty, ikony i odliczanie restartu.
+- Przegląd końcowy SYS-02 objął granice zgód, anulowanie importu, STOP i odtwarzanie po przerwach. Transfer backupu nie blokuje głównego zadania HTTPS. Host/renderowanie i kompilacja nie zastępują odbioru trwałości Flash, połączeń Bluetooth, ADC i dotyku na urządzeniu. Ankieta graficzna nowych ekranów SYS-02 będzie kontynuowana po wydaniu DEV zgodnie z decyzją właściciela.
+- Wydanie wyłącznie DEV, z wymaganym CI dokładnego commita i podpisem chronionego środowiska. Brak scalenia do main i wydania Stable.
+
 0.7.70-dev: ekran główny, pomieszczenia, ściemniacz i RGB według zdjęć referencyjnych właściciela.
 
 - Pulpit: jeden wiersz z wyborem pulpitu i trzema kwadratowymi akcjami (+, edycja, informacje), dzięki czemu mieszczą się trzy karty. Karta ma nazwę, kwadratowe pole ikony, wiersz „Pomieszczenie • Stan”, pigułkę pomiarów i jedną akcję po prawej: duży okrągły włącznik, ramkę ze strzałkami góra/dół dla rolety (STOP w całej ramce podczas ruchu), kafel stanu dla czujnika otwarcia oraz pasek nastawy −/+ pod odczytami termostatu. Długi stan (oczekiwanie, wysyłanie) zajmuje cały wiersz zamiast nazwy pomieszczenia.
