@@ -4,8 +4,10 @@
 #include <string.h>
 esp_err_t dsr_automation_init(void){return ESP_OK;}
 void dsr_automation_tick(dsr_fleet_t *f,uint32_t n,uint32_t utc,bool online){(void)f;(void)n;(void)utc;(void)online;}
-bool dsr_automation_manual_ready(uint32_t id,uint32_t intent){(void)id;return intent!=0;}
-dsr_result_t dsr_automation_manual_result(uint32_t id,uint32_t intent){(void)id;return intent?DSR_OK:DSR_INVALID;}
+static bool manual_ready=true;
+void test_automation_manual_ready(bool ready){manual_ready=ready;}
+bool dsr_automation_manual_ready(uint32_t id,uint32_t intent){(void)id;return manual_ready&&intent!=0;}
+dsr_result_t dsr_automation_manual_result(uint32_t id,uint32_t intent){(void)id;return !intent?DSR_INVALID:manual_ready?DSR_OK:DSR_BUSY;}
 static bool guard_error;
 static dsr_auto_snapshot_t sample;
 void test_automation_guard_error(bool enabled){guard_error=enabled;}

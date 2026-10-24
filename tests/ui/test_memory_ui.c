@@ -56,7 +56,7 @@ int main(int argc,char **argv)
   lv_obj_t *card=lv_obj_get_parent(heading);CHECK(bars(card)==5);
   lv_obj_scroll_to_view_recursive(card,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());audit_card(card);
   caption("Wolne %lu/%lu KiB",136,320);caption("Wolne %lu/%lu KiB",7812,8192);caption("Min. %lu/%lu B",2304,8192);
-  CHECK(lv_bar_get_value(bar_at(card,0))==42&&lv_bar_get_value(bar_at(card,1))==95&&lv_bar_get_value(bar_at(card,3))==28);
+  CHECK(lv_bar_get_value(bar_at(card,0))==57&&lv_bar_get_value(bar_at(card,1))==4&&lv_bar_get_value(bar_at(card,3))==71);
   CHECK(lv_bar_get_value(bar_at(card,2))>0&&lv_bar_get_value(bar_at(card,2))<=100);
   CHECK(lv_bar_get_value(bar_at(card,4))==0&&find_label(card,"wyłączone"));
   if(lang==2||skins[i]==DSR_SC_STYLE_CYBER_BLUE){char name[64];snprintf(name,sizeof(name),"memory-%u-%u",skins[i],lang);screenshot(name);}
@@ -65,20 +65,22 @@ int main(int argc,char **argv)
  /* Live 0/100% endpoints and binary BLE, using the same existing objects. */
  system_info_model.internal_free=system_info_model.internal_total;system_info_model.psram_free=0;
  test_system_runtime((dsr_system_runtime_t){.internal_min_free=61440,.ui_stack_free=8192,.ble_active=true});refresh();
- CHECK(lv_bar_get_value(bar_at(card,0))==100&&lv_bar_get_value(bar_at(card,1))==0&&lv_bar_get_value(bar_at(card,3))==100);
+ CHECK(lv_bar_get_value(bar_at(card,0))==0&&lv_bar_get_value(bar_at(card,1))==100&&lv_bar_get_value(bar_at(card,3))==0);
  CHECK(!lv_obj_has_state(bar_at(card,1),LV_STATE_DISABLED));CHECK(lv_bar_get_max_value(bar_at(card,4))==1&&lv_bar_get_value(bar_at(card,4))==1&&find_label(card,"włączone"));
  caption("Wolne %lu/%lu KiB",320,320);caption("Wolne %lu/%lu KiB",0,8192);audit_card(card);screenshot("memory-endpoints");
  system_info_model.internal_free=0;system_info_model.psram_total=0;
  test_system_runtime((dsr_system_runtime_t){.ui_stack_free=0});refresh();
- CHECK(lv_bar_get_value(bar_at(card,0))==0&&!lv_obj_has_state(bar_at(card,0),LV_STATE_DISABLED));
+ CHECK(lv_bar_get_value(bar_at(card,0))==100&&!lv_obj_has_state(bar_at(card,0),LV_STATE_DISABLED));
  CHECK(lv_bar_get_value(bar_at(card,1))==0&&lv_obj_has_state(bar_at(card,1),LV_STATE_DISABLED));
  char unknown[64];snprintf(unknown,sizeof(unknown),dsr_sc_tr("Wolne %lu/— KiB"),0ul);CHECK(find_label(card,unknown));
- CHECK(lv_bar_get_value(bar_at(card,3))==0&&!lv_obj_has_state(bar_at(card,3),LV_STATE_DISABLED));screenshot("memory-unknown");
+ CHECK(lv_bar_get_value(bar_at(card,3))==100&&!lv_obj_has_state(bar_at(card,3),LV_STATE_DISABLED));screenshot("memory-unknown");
  /* Inconsistent reads and oversized counts do not fabricate a percentage. */
  system_info_model.internal_free=UINT32_MAX;system_info_model.internal_total=1;refresh();
  CHECK(lv_obj_has_state(bar_at(card,0),LV_STATE_DISABLED)&&lv_bar_get_value(bar_at(card,0))==0);
  system_info_model.internal_free=UINT32_MAX/2;system_info_model.internal_total=UINT32_MAX;refresh();
- CHECK(!lv_obj_has_state(bar_at(card,0),LV_STATE_DISABLED)&&lv_bar_get_value(bar_at(card,0))==49);
+ CHECK(!lv_obj_has_state(bar_at(card,0),LV_STATE_DISABLED)&&lv_bar_get_value(bar_at(card,0))==50);
+ system_info_model.internal_free=80*1024;system_info_model.internal_total=294*1024;refresh();
+ caption("Wolne %lu/%lu KiB",80,294);CHECK(lv_bar_get_value(bar_at(card,0))==72);
  system_info_model.internal_free=140000;system_info_model.internal_total=327680;system_info_model.psram_free=8000000;system_info_model.psram_total=8388608;
  test_system_runtime((dsr_system_runtime_t){.internal_min_free=61440,.ui_stack_free=2304});refresh();
  /* Stable refresh and repeated close/open must not grow the LVGL allocation. */

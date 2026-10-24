@@ -39,11 +39,12 @@ bool dsr_wifi_temporary_active(void){return false;}
 bool dsr_connection_valid(const dsr_connection_t *c,bool bound){return c&&dsr_ipv4_valid(c->device.host)&&(!bound||c->device.device_id[0]);}
 bool dsr_workspace_mapping_matches(const dsr_connection_t *c){return mapping&&c->layout_id>0;}
 static char *saved_configuration(void){return strdup("{\"schema\":3,\"automations\":[],\"revision\":7,\"language\":\"pl\",\"theme\":\"graphite\",\"accent\":5020661,\"active_dashboard\":1,\"rooms\":[],\"devices\":[{\"id\":42,\"name\":\"Switch\",\"host\":\"192.0.2.42\",\"channel\":0,\"room\":0,\"kind\":\"relay\"},{\"id\":43,\"name\":\"Cover\",\"host\":\"192.0.2.43\",\"channel\":0,\"room\":0,\"kind\":\"cover\"}],\"groups\":[],\"scenes\":[{\"id\":1,\"name\":\"Switch\",\"actions\":[{\"device\":42,\"command\":\"on\"},{\"device\":42,\"command\":\"off\"}]},{\"id\":2,\"name\":\"Cover\",\"actions\":[{\"device\":43,\"command\":\"open\"}]},{\"id\":3,\"name\":\"Stop\",\"actions\":[{\"device\":43,\"command\":\"stop\"}]}],\"dashboards\":[{\"id\":1,\"name\":\"Home\",\"tiles\":[]}]}");}
-static bool typed_config;
+static bool typed_config,probe_close;
 char *dsr_workspace_snapshot(void)
 {
- char *json=saved_configuration();if(!typed_config)return json;
+ char *json=saved_configuration();if(!typed_config&&!probe_close)return json;
  cJSON *r=cJSON_Parse(json);free(json);CHECK(r);cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"groups"),cJSON_Parse("{\"id\":1,\"name\":\"Typed group\",\"members\":[42]}"));
+ if(probe_close){cJSON *scene=cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(r,"scenes"),1);cJSON *action=cJSON_GetObjectItemCaseSensitive(scene,"actions")->child;cJSON_ReplaceItemInObjectCaseSensitive(action,"command",cJSON_CreateString("close"));}
  cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(r,"scenes"),cJSON_Parse("{\"id\":4,\"name\":\"TRV target\",\"actions\":[{\"device\":42,\"command\":\"target\",\"value\":43}]}"));json=cJSON_PrintUnformatted(r);cJSON_Delete(r);return json;
 }
 void dsr_http_urgent_hook(bool(*f)(void)){urgent=f;}
@@ -73,7 +74,9 @@ static dsr_result_t typed_transaction(dsr_connection_t *c)
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent){CHECK(intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==65);return typed_transaction(c);}
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent){CHECK(intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);return typed_transaction(c);}
 dsr_result_t dsr_http_trv_read(dsr_connection_t *c){(void)c;return DSR_UNSUPPORTED;}
-dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){http_gets++;c->device.online=true;}return result;}
+static bool native_probe,expect_telemetry_only;
+static unsigned metadata_reads;
+dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard||native_probe);dsr_result_t result=guard?guard():DSR_OK;if(result==DSR_OK){http_gets++;c->device.online=true;}return result;}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
 void dsr_ap_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
 void dsr_ap_prepare(void){}
@@ -131,6 +134,24 @@ int main(void)
  mode=0;begin(2,200);j=prepare(1300,&b);CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(1300);
  CHECK(e.result==DSR_OK&&e.command_phase==DSR_COMMAND_ACK&&!e.device.online);idle_admission();
  CHECK(stopped.command_phase==DSR_COMMAND_ACK);
+ /* The real worker must not append optional name/config I/O to the first
+  * Cover status after a command. Normal metadata polls remain available. */
+ native_probe=expect_telemetry_only=true;unsigned names_before=metadata_reads;
+ j=(dsr_job_t){.id=1400,.kind=DSR_JOB_PROBE,.connection=b,.on=true};
+ CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
+ CHECK(e.result==DSR_OK&&e.device.online&&metadata_reads==names_before);idle_admission();
+ expect_telemetry_only=false;j.id++;j.on=false;
+ CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
+ CHECK(e.result==DSR_OK&&metadata_reads==names_before+1);native_probe=false;idle_admission();
+ /* A stale scene/group CLOSE first needs a normal probe. Its command byte
+  * (2) must not survive as the PROBE boolean payload. Inspect raw bytes,
+  * rather than itself loading an invalid _Bool representation. */
+ probe_close=true;begin(2,300);j=(dsr_job_t){.id=1500,.connection=b};
+ CHECK(dsr_actions_prepare_job(&j,DSR_OK,false)&&j.kind==DSR_JOB_PROBE);
+ const unsigned char *probe_bytes=(const unsigned char *)&j.cover;
+ CHECK(probe_bytes[0]==0&&probe_bytes[1]==0);names_before=metadata_reads;
+ CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
+ CHECK(e.result==DSR_OK&&metadata_reads==names_before+1);CHECK(dsr_actions_cancel(12345,run_id));CHECK(!dsr_actions_target());probe_close=false;idle_admission();
  printf("PASS: %u actual actor/worker checks; typed Light/RGB/TRV guards, cancel before POST, rebind, uncertain no-retry, nested STOP and exact ACK/leases; HTTP transaction models, no radio\n",checks);return 0;
 }
 
@@ -140,6 +161,6 @@ esp_err_t dsr_panel_pairing_revoke(void){return ESP_OK;}
 
 dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent){CHECK(intent.command==DSR_RGB_SET_COLOR&&intent.rgb[0]==10&&intent.rgb[1]==120&&intent.rgb[2]==250);return typed_transaction(c);}
 
-dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_refresh(c);}
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *i){CHECK(!expect_telemetry_only);metadata_reads++;if(i)memset(i,0,sizeof(*i));return dsr_http_refresh(c);}
 dsr_result_t dsr_http_probe_info(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t,dsr_device_info_t *i){if(i)memset(i,0,sizeof(*i));return dsr_http_probe_telemetry(c,d,t);}
 esp_err_t dsr_connection_update_name(const dsr_connection_t *c){(void)c;return ESP_OK;}

@@ -24,7 +24,7 @@ static void test_cover_ack_handoff(void)
  CHECK(f.slots[0].command_result==DSR_OK&&f.slots[0].command_phase==DSR_COMMAND_ACK);
  CHECK(f.slots[0].result==DSR_OK&&!f.slots[0].command_error&&f.slots[0].connection.device.online&&f.slots[0].sample_ms==100);
  CHECK(f.slots[0].connection.telemetry.cover.current_pos==38&&f.slots[0].connection.telemetry.cover.state==DSR_COVER_STATE_STOPPED);
- CHECK(dsr_fleet_next(&f,102,true,&job,&index)&&job.kind==DSR_JOB_PROBE);job.id=902;dsr_fleet_started(&f,0,&job);
+ CHECK(dsr_fleet_next(&f,102,true,&job,&index)&&job.kind==DSR_JOB_PROBE&&job.telemetry_only);job.id=902;dsr_fleet_started(&f,0,&job);
  e=(dsr_event_t){.id=902,.result=DSR_OFFLINE,.device=c.device};CHECK(dsr_fleet_complete(&f,0,&e,3102));
  CHECK(f.slots[0].result==DSR_OK&&!f.slots[0].command_error&&f.slots[0].connection.device.online&&f.slots[0].sample_ms==100);
  CHECK(f.slots[0].connection.telemetry.cover.current_pos==38&&!f.slots[0].queued);
@@ -154,12 +154,13 @@ static void test_cover_scheduler(void)
   * Even when another device is overdue, its routine poll waits for the cover. */
  CHECK(dsr_fleet_cover_request(&f,1,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=61},true,2)==DSR_OK);
  CHECK(dsr_fleet_next(&f,2,false,&job,&index)&&job.kind==DSR_JOB_COVER);job.id=78;dsr_fleet_started(&f,index,&job);
- e=(dsr_event_t){.id=78,.device=c.device,.result=DSR_OFFLINE};CHECK(dsr_fleet_complete(&f,index,&e,3)&&f.slots[1].next_poll==1003&&!f.slots[1].connection.device.online&&!f.slots[1].queued);
- f.slots[0].next_poll=0;CHECK(dsr_fleet_next(&f,1003,true,&job,&index)&&index==1&&job.kind==DSR_JOB_PROBE);job.id=79;dsr_fleet_started(&f,index,&job);
+ e=(dsr_event_t){.id=78,.device=c.device,.result=DSR_OFFLINE,.command_phase=DSR_COMMAND_WRITE};CHECK(dsr_fleet_complete(&f,index,&e,3)&&f.slots[1].next_poll==3&&!f.slots[1].connection.device.online&&!f.slots[1].queued);
+ f.slots[0].next_poll=0;CHECK(dsr_fleet_next(&f,3,true,&job,&index)&&index==1&&job.kind==DSR_JOB_PROBE&&job.telemetry_only);job.id=79;dsr_fleet_started(&f,index,&job);
  e=(dsr_event_t){.id=79,.device=c.device,.result=DSR_OK,.telemetry=c.telemetry};e.telemetry.cover.state=DSR_COVER_STATE_OPENING;e.telemetry.cover.flags|=DSR_COVER_TARGET;e.telemetry.cover.target_pos=61;e.telemetry.cover.current_pos=45;
  CHECK(dsr_fleet_complete(&f,index,&e,1004)&&f.slots[1].next_poll==2004&&f.slots[1].connection.telemetry.cover.current_pos==45&&f.slots[1].result==DSR_OK&&!f.slots[1].command_error);
  CHECK(dsr_fleet_next(&f,2004,true,&job,&index)&&index==1&&job.kind==DSR_JOB_PROBE);job.id=80;dsr_fleet_started(&f,index,&job);e.id=80;e.telemetry.cover.current_pos=61;e.telemetry.cover.state=DSR_COVER_STATE_STOPPED;
  CHECK(dsr_fleet_complete(&f,index,&e,2005)&&f.slots[1].next_poll==7005);
+ CHECK(dsr_fleet_next_poll(&f,7005,2,&job,&index)&&index==1&&!job.telemetry_only);
  job.id=81;dsr_fleet_started(&f,1,&job);e.id=81;e.result=DSR_AUTH_REQUIRED;CHECK(dsr_fleet_complete(&f,1,&e,7005)&&f.slots[1].blocked);f.slots[0].next_poll=9000;CHECK(!dsr_fleet_next(&f,8005,true,&job,&index));
  /* A new queue has not sent anything. Cancellation must not reuse the
   * preceding command's phase, while a genuinely attempted write keeps it. */

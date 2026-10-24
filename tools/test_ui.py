@@ -14,7 +14,7 @@ p.add_argument("--sanitize", action="store_true")
 p.add_argument("--ubsan-only", action="store_true")
 p.add_argument("--keep-going", action="store_true", help="Collect failing UI cases in one final run; rerun only those cases after fixes")
 p.add_argument("--jobs", type=int, default=6, help="Parallel compiler processes (use 1 on constrained hosts)")
-case_argument = p.add_argument("--case", choices=["test_ui","test_priority_ui","test_group_stop_ui","test_cover_refresh_ui","test_cover_ack_ui","test_cover_ui","test_blu_ui","test_ht_ui","test_light_ui","test_rgb_ui","test_shelly_settings_ui","test_blu_gateway_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_memory_ui","test_native_ota_ui","test_web_ota_ui","test_web_panel_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui","test_automation_ui","test_activity_ui","test_system_data_ui"], help="Run one focused regression after compiling production UI")
+case_argument = p.add_argument("--case", choices=["test_ui","test_priority_ui","test_screen_work_ui","test_group_stop_ui","test_cover_refresh_ui","test_cover_ack_ui","test_cover_readback_priority_ui","test_cover_ui","test_blu_ui","test_ht_ui","test_light_ui","test_rgb_ui","test_shelly_settings_ui","test_blu_gateway_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_room_refresh_ui","test_ota_restart_admission_ui","test_memory_ui","test_native_ota_ui","test_web_ota_ui","test_web_panel_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui","test_automation_ui","test_activity_ui","test_system_data_ui"], help="Run one focused regression after compiling production UI")
 p.add_argument("--cases", nargs="+", choices=case_argument.choices, help="Run only these affected regressions in one compiler pass")
 p.add_argument("--review", action="store_true", help="Render the design-review fixture, explicitly labelled DEMO")
 p.add_argument("--lvgl-source", type=Path, default=ROOT / ".test-deps/lvgl")
@@ -88,6 +88,15 @@ with ThreadPoolExecutor(max_workers=args.jobs) as pool:
     objects = list(pool.map(compile_source, sources))
 failures = []
 def execute(binary, *extra):
+    if binary.name == 'test_screen_work_ui' and not extra:
+        for mode in ('usage','settings','blu','rooms','actions','usage-stable','ota'):
+            execute(binary, mode)
+        return
+    if binary.name == 'test_ota_restart_admission_ui' and not extra:
+        execute(binary, 'auto')
+        execute(binary, 'manual')
+        execute(binary, 'trv')
+        return
     result = subprocess.run([str(binary), str(screens), *extra], check=not args.keep_going, cwd=build,
                             env=dict(os.environ, TMPDIR=str(build)))
     if result.returncode:
@@ -102,6 +111,7 @@ if args.case or args.cases:
         binary=build/name
         counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
         if name=="test_priority_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_update")
+        if name=="test_screen_work_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_show")
         subprocess.run([cc,*flags,*counter_flags,*map(str,selected),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True)
         execute(binary)
     if failures:
@@ -147,11 +157,12 @@ if not args.review:
 
 if not args.review:
     # Each of these includes test_ui.c and replaces only its main().
-    for name in ["test_priority_ui","test_group_stop_ui","test_cover_refresh_ui","test_cover_ack_ui","test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_blu_gateway_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_memory_ui","test_native_ota_ui","test_web_ota_ui","test_web_panel_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui","test_automation_ui","test_activity_ui","test_system_data_ui"]:
+    for name in ["test_priority_ui","test_screen_work_ui","test_group_stop_ui","test_cover_refresh_ui","test_cover_ack_ui","test_cover_readback_priority_ui","test_ht_ui","test_blu_ui","test_provision_ui","test_style_ui","test_editor_layout_ui","test_shelly_settings_ui","test_blu_gateway_ui","test_actions_editor_ui","test_owner_ux_ui","test_cyber_ui","test_cyber_editors_ui","test_cyber_network_ui","test_cyber_blu_ui","test_touch_ui","test_cyber_recovered_ui","test_cyber_blu_actor_ui","test_ble_cleanup_ui","test_cyber_atlas_ui","test_cyber_quality_ui","test_cyber_reference_ui","test_cyber_final_ui","test_delete_cleanup_ui","test_battery_calibration_ui","test_room_refresh_ui","test_ota_restart_admission_ui","test_memory_ui","test_native_ota_ui","test_web_ota_ui","test_web_panel_ui","test_skin_atlas_ui","test_layout_cache_ui","test_dev_069_ui","test_automation_ui","test_activity_ui","test_system_data_ui"]:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
         if name=="test_priority_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_update")
+        if name=="test_screen_work_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_show")
         subprocess.run([cc,*flags,*counter_flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
         execute(binary)
 

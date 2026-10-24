@@ -3,6 +3,59 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
+## Przygotowanie 0.7.77-dev do odbioru — 2026-10-25
+
+Właściciel zlecił publikację po poprawie pozostałych ekranów i zapowiedział
+własny test na płytce. Usunięto pośrednie budowy Dashboardu, zbędne przebudowy
+szczegółów BLU i pomiarów grup, okresowe odtwarzanie niezmienionego Zużycia
+i wyników grup/scen oraz ponowne przypisywanie tych samych wartości OTA.
+Dotknięte regresje przeszły; zachowano zaakceptowane ramki i odstęp 8 px.
+[Raport i zakres odbioru](RESPONSIVENESS_AUDIT_0_7_77_PL.md).
+
+Publikacja jest kandydatem do testu właściciela, z wymaganym pełnym CI
+dokładnego commita, podpisem i publicznymi pobraniami. Fizyczna aktualizacja,
+restart, płynność oraz rzeczywisty timeout Cover pozostają do odbioru.
+Bez Stable, main, flashowania i zmian klucza OTA.
+
+## Lokalne poprawki restartu OTA, Pomieszczeń i pamięci — 2026-10-25
+
+Odtworzono trzy zgłoszenia po 0.7.76-dev. Restart OTA nie próbuje już wejść
+we własną blokadę poll i nie ponawia odliczania 5 s. Ręczny restart korzysta
+z tego samego oczekiwania na zakończenie operacji, także przyjętej intencji TRV
+czekającej na zapis. Pomieszczenia i kafelki pomieszczeń aktualizują wartości
+bez przebudowy kart/zdjęć. Paski RAM/PSRAM/grafiki pokazują zajętość, stos —
+szczyt użycia; podpisy nadal podają wolną/minimalną wolną pamięć.
+
+Powiązane regresje LVGL, moduł restartu, kompilacja ESP32-S3 i audyty pamięci
+przeszły; końcowy niezależny przegląd nie wskazał dalszych usterek. [Szczegóły
+i ograniczenia](RESPONSIVENESS_AUDIT_0_7_76_PL.md). Zmiany pozostają lokalne,
+bez publikacji i prób resetu na płytce. Odbiór fizycznego restartu i płynności
+pozostaje otwarty, podobnie jak przyczyna timeoutu Cover.
+
+Doprecyzowanie właściciela: przycinanie dotyczy wielu ekranów, nie tylko
+Pomieszczeń. Wspólna ścieżka kart BLU odtwarzała je także przy zmianie samego
+wieku odczytu, niewidocznego na karcie. Nowa regresja odtworzyła to na
+Dashboardzie, Urządzeniach i liście urządzeń pomieszczenia; poprawka zachowuje
+karty, nadal reagując na rzeczywiste zmiany stanu. Zgodnie z doprecyzowaniem
+właściciela Pomieszczenia zachowują rozmiar zdjęcia z wariantu 186 px;
+zmniejszono wyłącznie pustą część dolnej ramki, dopasowując jej koniec
+do rzeczywistej wysokości nazwy i paska pomiarów. Zachowano dwie kolumny,
+a następny rząd zaczyna się 8 px pod wyższą ramką poprzedniej pary.
+Właściciel zaakceptował na podglądzie ramki oraz odstęp 8 px między rzędami
+(2026-10-25). Ten odbiór dotyczy wyglądu Pomieszczeń, nie płynności całego UI.
+Trzy powiązane przypadki LVGL oraz przyrostowa kompilacja ESP32-S3 przeszły.
+Nie oznacza to zamknięcia problemu płynności całego UI ani publikacji DEV.
+
+## Odbiór 0.7.76-dev i dalsza diagnostyka Cover — 2026-10-25
+
+Właściciel potwierdził na płytce nawrót niepotwierdzonej komendy i opóźnionego
+odczytu. Ten odbiór jest niezaliczony. Log rozróżnia utratę odpowiedzi na
+komendę od poprawnego ACK; nie wskazuje jeszcze przyczyny transportowej.
+Lokalne poprawki usuwają sekundę zwłoki przed GET i opcjonalne I/O nazwy
+podczas odczytu ruchu oraz dodają dokładniejsze logi SDK. [Dowody, zakres
+i ograniczenia](RESPONSIVENESS_AUDIT_0_7_76_PL.md). To nie jest nowe wydanie
+ani potwierdzenie naprawy na sprzęcie.
+
 ## Przygotowanie 0.7.76-dev do próby na płytce — 2026-10-24
 
 Właściciel zlecił publikację nowego DEV z poprawkami `83f9fb7` i układem rolety

@@ -11,7 +11,7 @@
 #include "esp_heap_caps.h"
 #endif
 static lv_obj_t *body;
-static bool active;static uint8_t page;static uint32_t next_draw,last_status;static dsr_result_t admission;
+static bool active;static uint8_t page;static uint32_t last_status;static dsr_result_t admission;
 typedef struct {
  char query[48];uint32_t room,revision;bool typing;
  lv_obj_t *search,*keyboard;
@@ -152,9 +152,9 @@ static void draw(void)
  int scroll=body?lv_obj_get_scroll_y(body):0;body=NULL;lv_obj_t *root=lv_screen_active();
  if(page<2)dsr_mobile_actions_shell(root,page);
  else{lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_header(root,"Wykonanie",false,dsr_wifi_connected(),back,NULL);}
- dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=page==3?status_hash(&s):(uint32_t)s.available*2u+s.active;if(page==3)progress(root,&s);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);next_draw=lv_tick_get()+1000;
+ dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);last_status=page==3?status_hash(&s):(uint32_t)s.available*2u+s.active;if(page==3)progress(root,&s);else objects(root,&s);if(body)lv_obj_scroll_to_y(body,scroll,LV_ANIM_OFF);lv_obj_update_layout(root);
 }
 void dsr_ui_actions_open(uint8_t kind)
 {dsr_network_prepare_home();if(!browse_prepare()){lv_obj_t *root=dsr_ui_screen("Konfiguracja niedostępna",false);dsr_sc_text(root,"Brak pamięci do otwarcia edytora. Ustawienia pozostają zachowane.",12,96,296,&dsr_roboto_16,DSR_SC_TEXT);dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);return;}dsr_mobile_hide();page=kind<2?kind:0;browse.query[0]=0;browse.room=0;admission=DSR_OK;active=true;draw();}
 void dsr_ui_actions_tick(void){if(!active)return;dsr_actions_snapshot_t status;dsr_actions_snapshot(&status);bool held=false;for(lv_indev_t *i=lv_indev_get_next(NULL);i;i=lv_indev_get_next(i))if(lv_indev_get_type(i)==LV_INDEV_TYPE_POINTER&&(lv_indev_get_state(i)==LV_INDEV_STATE_PRESSED||lv_indev_get_scroll_obj(i)))held=true;
- if(!held&&!browse.typing&&((page==3?status_hash(&status):(uint32_t)status.available*2u+status.active)!=last_status||(page==3&&(int32_t)(lv_tick_get()-next_draw)>=0)||(page<2&&browse.revision!=dsr_workspace_revision())))draw();}
+ if(!held&&!browse.typing&&((page==3?status_hash(&status):(uint32_t)status.available*2u+status.active)!=last_status||(page<2&&browse.revision!=dsr_workspace_revision())))draw();}

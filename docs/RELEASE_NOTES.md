@@ -1,3 +1,13 @@
+0.7.77-dev: kandydat do próby na płytce — responsywność ekranów i restart OTA.
+
+- Otwieranie Zużycia, ustawień Shelly i konfiguracji BLU pomija pośrednią budowę całego Dashboardu. Nawigacja do Pomieszczeń otwiera od razu właściwą stronę.
+- Wiek sygnału BLU, pomiary grup przekaźników/dimmerów/RGB i niezmieniony ekran Zużycia zachowują istniejące elementy. Wyniki grup/scen oraz etykiety OTA nie są odrysowywane wyłącznie z powodu upływu timera. Rzeczywiste zmiany stanu, błędy i tożsamość nadal odświeżają interfejs.
+- Restart po OTA odbywa się po zwolnieniu blokady aktywności UI, bez pętli 5 s. Ręczny restart czeka na zakończenie przyjętych operacji, także oczekującej komendy TRV; zabezpieczenia zapisu pozostają aktywne.
+- Pomieszczenia zachowują zaakceptowane zdjęcia, krótsze ramki i odstęp 8 px między rzędami. Paski pamięci pokazują zajętość, a podpisy wolną pamięć; stos pokazuje szczyt wykorzystania.
+- Niepewna komenda rolety otrzymuje jedną natychmiastową okazję odczytu przed rutynowym tłem. Odczyty ruchu pomijają dodatkowe pobieranie nazwy. Dodano ograniczoną diagnostykę HTTP bez danych prywatnych. Przyczyna timeoutu z 0.7.76 pozostaje do potwierdzenia; niepewna komenda nie jest ponawiana ani oznaczana jako sukces.
+- Kandydat DEV do odbioru właściciela: aktualizacja 0.7.76→0.7.77, restart, zachowanie danych, płynność/dotyk i sterowanie urządzeniami. Testy hosta, CI, podpis i publiczne pobrania nie potwierdzają działania na płytce. [Raport](RESPONSIVENESS_AUDIT_0_7_77_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.76-dev: kandydat do próby na płytce — roleta, ACK i odczyt w tle.
 
 - Komenda rolety kończy się na prawidłowym potwierdzeniu Shelly. UI otrzymuje „Polecenie przyjęte”, a stan pobiera osobne zlecenie w tle. Wynik odczytu pozostaje oddzielony od wyniku komendy, także dla grup, scen i STOP.

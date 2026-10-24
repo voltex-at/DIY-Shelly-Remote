@@ -1,4 +1,4 @@
-# Development — 0.7.76-dev
+# Development — 0.7.77-dev
 
 Current code is on `work/dev-0.7.70`; `main` is an older baseline. Read
 [PROJECT_STATUS_PL.md](PROJECT_STATUS_PL.md) and [issue #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74)
@@ -45,6 +45,21 @@ Host rendering and target compilation are not physical-device acceptance.
 
 Background refresh updates cached values in place. Automatic battery reads must
 not imitate a tap, disable the Measure button, or show manual-reading feedback.
+Rooms and room tiles on Dashboard update their existing aggregate labels without
+recreating photos on telemetry changes. Structural changes still rebuild them.
+Rooms retains the photo geometry of the original 186 px cards. Its footer frame
+fits the wrapped name plus metric badge; rows follow the taller frame of each
+pair plus the standard 8 px gap. Dashboard tile dimensions remain configured.
+BLU age-only changes update the model without recreating list cards on Dashboard,
+Devices or a room's device list. Details still display the signal age; real
+contact/capability/identity changes and Cover position remain repaint triggers.
+BLU details retain their signal-age label; electrical group details retain
+numeric fields. Usage retains the gauge while only sample age changes and
+defers genuine rebuilds during a press. Setup-only transitions use
+`dsr_network_prepare_home()` without first building an invisible Dashboard.
+Action results and OTA labels redraw only when their presented values change.
+Memory bars show occupied capacity; labels retain free/minimum-free values.
+The stack bar therefore shows peak usage, while BLE is a binary module state.
 Drawing a screen/header must never enqueue background I/O. Schedule it in the
 owner poll and yield to queued device controls, STOP and active group/scene work.
 A real Measure tap may adopt the existing read without queuing a second one.
@@ -81,6 +96,22 @@ normal cadence/backoff resumes. Pending targets remain separate from reported da
 The existing serial worker finishes in-flight I/O: queue priority cannot shorten
 an exchange already waiting on Shelly/BLE. Measure touch-to-feedback, queue wait
 and device response separately on hardware; host tests do not prove latency.
+
+Cover recovery after an uncertain WRITE schedules one immediate GET opportunity
+before routine unrelated reads; manual commands and urgent STOP retain priority.
+Movement/recovery PROBE jobs omit advisory name/config I/O so verified telemetry
+can be delivered promptly. Ordinary polls still refresh metadata. When the actor
+converts a typed intent to a normal PROBE, clear both reused intent bytes.
+`dsr_http` logs failed/slow Cover legs and command responses without hosts,
+credentials or bodies. The 0.7.76 hardware timeout itself remains under diagnosis:
+[evidence and focused changes](RESPONSIVENESS_AUDIT_0_7_76_PL.md).
+
+After native OTA, UI snapshot/battery updates run after consuming worker results.
+Only restart admission runs after the network poll releases its own activity
+lease. Automatic countdown stays at zero while accepted work drains; a manual
+Restart tap latches the same request. Pending manual TRV intents must drain even
+before they take a worker lease. Defer new ordinary background reads/automation
+work while waiting; never use forced restart to bypass write/boot/OTA gates.
 
 ## Local contact/heating rules
 

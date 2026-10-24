@@ -148,7 +148,7 @@ static bool target_matches(const dsr_ble_device_t *d)
 void dsr_ui_blu_open(const dsr_ble_device_t *candidate)
 {
  dsr_ble_device_t copy={0};if(candidate)copy=*candidate;if(candidate&&!dsr_blu_supported(candidate))return;if(dsr_network_ota_busy())return;
- dsr_network_home(NULL);dsr_mobile_hide();
+ dsr_network_prepare_home();
 #ifdef ESP_PLATFORM
  ui=heap_caps_calloc(1,sizeof(*ui),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else

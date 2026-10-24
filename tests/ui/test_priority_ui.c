@@ -37,6 +37,58 @@ static void active_navigation(void)
 }
 static void target_sent(unsigned index,uint8_t half)
 {CHECK(index==0);sent++;target_half=half;dsr_mobile_trv_request_state(41,half,1,true);}
+static void sensor_card_age(void)
+{
+ const unsigned skins[]={0,2,3};const dsr_mobile_page_t pages[]={DSR_MOBILE_HOME,DSR_MOBILE_DEVICES,DSR_MOBILE_ROOM};
+ for(unsigned skin=0;skin<3;skin++)for(unsigned lang=0;lang<3;lang++)for(unsigned p=0;p<3;p++){
+  dsr_sc_appearance(DSR_SC_BLUE,skins[skin],lang);
+  priority_view=(dsr_mobile_model_t){.wifi=true,.device_count=1,.room_count=1};strcpy(priority_view.rooms[0].name,"Living room");
+  dsr_mobile_device_t *d=&priority_view.devices[0];
+  *d=(dsr_mobile_device_t){.id=41,.name="Window age",.identity="blu-age-fixture",.host="192.0.2.41",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_BLU,.kind=DSR_DEVICE_CONTACT,.room=0,.online=true,.has_contact=true,.has_battery=true,.battery_pct=90,.blu_age_s=10,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}};
+  dsr_mobile_update(&priority_view);dsr_mobile_show(pages[p],0);lv_obj_update_layout(lv_screen_active());
+  lv_obj_t *name=find_label(lv_screen_active(),"Window age");CHECK(name);deleted=0;lv_obj_add_event_cb(lv_obj_get_parent(name),view_deleted,LV_EVENT_DELETE,NULL);
+  d->blu_age_s=11;dsr_mobile_update(&priority_view);CHECK(!deleted);
+  /* A changed contact state remains visible immediately, not swallowed with age. */
+  d->contact_open=true;d->blu.flags|=DSR_BLU_OPEN;dsr_mobile_update(&priority_view);CHECK(deleted);
+  dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+ }
+}
+static void sensor_detail_age(void)
+{
+ const unsigned skins[]={0,2,3};
+ for(unsigned skin=0;skin<3;skin++)for(unsigned lang=0;lang<3;lang++){
+  dsr_sc_appearance(DSR_SC_BLUE,skins[skin],lang);priority_view=(dsr_mobile_model_t){.wifi=true,.device_count=1};
+  dsr_mobile_device_t *d=&priority_view.devices[0];
+  *d=(dsr_mobile_device_t){.id=41,.name="Window details",.identity="detail-age-fixture",.host="192.0.2.41",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_BLU,.kind=DSR_DEVICE_CONTACT,.online=true,.has_contact=true,.has_battery=true,.battery_pct=90,.blu_age_s=10,.blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_OPEN}};
+  dsr_mobile_update(&priority_view);dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_update_layout(lv_screen_active());
+  lv_obj_t *name=find_label(lv_screen_active(),"Window details");CHECK(name);deleted=0;lv_obj_add_event_cb(name,view_deleted,LV_EVENT_DELETE,NULL);
+  d->blu_age_s=11;dsr_mobile_update(&priority_view);char text[96];snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),11u);CHECK(!deleted&&find_label(lv_screen_active(),text));
+  if(!lang){char file[64];snprintf(file,sizeof(file),"priority-signal-age-skin%u",skins[skin]);screenshot(file);}
+  priority_view.wifi=false;d->blu_age_s=12;dsr_mobile_update(&priority_view);CHECK(deleted);
+  priority_view.wifi=true;dsr_mobile_update(&priority_view);name=find_label(lv_screen_active(),"Window details");CHECK(name);deleted=0;lv_obj_add_event_cb(name,view_deleted,LV_EVENT_DELETE,NULL);
+  d->contact_open=true;d->blu.flags|=DSR_BLU_OPEN;dsr_mobile_update(&priority_view);CHECK(deleted);
+  dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+ }
+}
+static void group_electrical_refresh(void)
+{
+ const unsigned skins[]={0,2,3},families[]={DSR_ENDPOINT_SWITCH,DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB};
+ for(unsigned skin=0;skin<3;skin++)for(unsigned lang=0;lang<3;lang++)for(unsigned kind=0;kind<3;kind++){
+  dsr_sc_appearance(DSR_SC_BLUE,skins[skin],lang);priority_view=(dsr_mobile_model_t){.wifi=true,.device_count=2,.group_count=1};
+  priority_view.groups[0]=(dsr_mobile_group_t){.id=80,.name="Electrical group",.members=2,.member_mask=3,.room=DSR_UI_NO_ROOM};
+  for(unsigned i=0;i<2;i++){
+   dsr_mobile_device_t *d=&priority_view.devices[i];*d=(dsr_mobile_device_t){.id=i+1,.identity="group-fixture",.host="192.0.2.1",.generation=DSR_GEN2_PLUS,.endpoint_kind=families[kind],.online=true,.can_switch=true,.can_light=true,.output=true,.has_power=true,.power_w=10,.room=DSR_UI_NO_ROOM};
+   if(kind==1)d->light=(dsr_light_status_t){.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.brightness=50};
+   if(kind==2)d->rgb=(dsr_rgb_status_t){.flags=DSR_RGB_VALID,.brightness=50,.r=255,.g=64,.b=32};
+  }
+  dsr_mobile_update(&priority_view);dsr_mobile_show(DSR_MOBILE_GROUP_CONTROL,0);lv_obj_update_layout(lv_screen_active());
+  lv_obj_t *power=find_label(lv_screen_active(),"20.0 W");CHECK(power);deleted=0;lv_obj_add_event_cb(power,view_deleted,LV_EVENT_DELETE,NULL);
+  priority_view.devices[0].power_w=12;dsr_mobile_update(&priority_view);CHECK(!deleted&&find_label(lv_screen_active(),"22.0 W"));
+  if(!lang&&!kind){char file[64];snprintf(file,sizeof(file),"priority-group-values-skin%u",skins[skin]);screenshot(file);}
+  priority_view.devices[0].online=false;dsr_mobile_update(&priority_view);CHECK(deleted);
+  dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+ }
+}
 static lv_obj_t *input_dial(lv_obj_t *o)
 {if(lv_obj_check_type(o,&lv_arc_class)&&lv_obj_has_flag(o,LV_OBJ_FLAG_ADV_HITTEST))return o;for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *a=input_dial(lv_obj_get_child(o,(int)i));if(a)return a;}return NULL;}
 static void electrical_refresh(void)
@@ -152,6 +204,6 @@ static void network_priority(void)
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
- dsr_mobile_actions_t a={.set_trv=target_sent};dsr_mobile_bind(&a);electrical_refresh();thermostat();unrelated_group_refresh();active_navigation();scheduling();network_priority();
+ dsr_mobile_actions_t a={.set_trv=target_sent};dsr_mobile_bind(&a);sensor_detail_age();group_electrical_refresh();sensor_card_age();electrical_refresh();thermostat();unrelated_group_refresh();active_navigation();scheduling();network_priority();
  printf("PASS: %u focused priority/TRV UI checks, 3 skins x PL/EN/DE; radio and motor are not exercised\n",checks);lv_deinit();return 0;
 }

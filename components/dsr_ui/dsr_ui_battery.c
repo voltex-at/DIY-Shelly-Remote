@@ -103,7 +103,7 @@ static void memory_free(unsigned index,size_t available,size_t total,bool stack)
  label(memory_values[index],text);
  /* Unknown capacity is distinct from a measured empty heap. No fake ratio,
   * no overflow on 32-bit size_t, and no new widgets or bar animation. */
- lv_bar_set_value(memory_bars[index],known?(int32_t)((uint64_t)available*100/total):0,LV_ANIM_OFF);
+ lv_bar_set_value(memory_bars[index],known?(int32_t)((uint64_t)(total-available)*100/total):0,LV_ANIM_OFF);
  if(known)lv_obj_remove_state(memory_bars[index],LV_STATE_DISABLED);else lv_obj_add_state(memory_bars[index],LV_STATE_DISABLED);
 }
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
@@ -211,7 +211,7 @@ static void memory_card(lv_obj_t *body,int y)
   lv_obj_set_style_bg_color(bar,dsr_sc_color(DSR_SC_EDGE),0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);lv_obj_set_style_border_width(bar,0,0);lv_obj_set_style_radius(bar,3,0);
   lv_obj_set_style_bg_color(bar,dsr_sc_color(DSR_SC_GLOW),LV_PART_INDICATOR);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,LV_PART_INDICATOR);lv_obj_set_style_border_width(bar,0,LV_PART_INDICATOR);lv_obj_set_style_radius(bar,3,LV_PART_INDICATOR);
  }
- dsr_sc_text(card,"Paski: wolne. Stos: min. od startu.\nBLE: stan modułu, nie zużycie.",12,208,272,&dsr_roboto_11,DSR_SC_MUTED);
+ dsr_sc_text(card,"Paski: zajęte. Stos: szczyt użycia.\nBLE: stan modułu, nie zużycie.",12,208,272,&dsr_roboto_11,DSR_SC_MUTED);
  memory_detail=dsr_sc_text(card,"",12,238,272,&dsr_roboto_11,DSR_SC_MUTED);
 }
 static void show(void)

@@ -63,6 +63,7 @@ static lv_obj_t *light_slider;
 static lv_obj_t *light_knob,*light_value,*wheel_knob,*rgb_text;
 /* Existing electrical labels on the visible detail page: W, V and A. */
 static lv_obj_t *detail_electrical[3];
+static lv_obj_t *signal_age_label;
 static bool lighting_page(void);
 static dsr_mobile_device_t *lighting_device(void);
 static bool lighting_selected(void);
@@ -98,14 +99,14 @@ static bool pointer_busy(void)
 }
 /* Cards on the list pages, so a poll that changes values rebuilds only the
  * affected cards (0.7.50) instead of the whole screen. */
-typedef struct{lv_obj_t *obj;uint8_t type,index,fields;int16_t x,y,w,h;} placed_card_t;
+typedef struct{lv_obj_t *obj;uint8_t type,index,fields;int16_t x,y,w,h;lv_obj_t *metric;} placed_card_t;
 #ifdef ESP_PLATFORM
 EXT_RAM_BSS_ATTR
 #endif
 static placed_card_t placed[24+DSR_UI_MAX_DEVICES];
 static unsigned placed_count;
-static void place(lv_obj_t *obj,uint8_t type,unsigned index,unsigned fields,int x,int y,int w,int h)
-{if(obj&&placed_count<sizeof(placed)/sizeof(placed[0]))placed[placed_count++]=(placed_card_t){obj,type,(uint8_t)index,(uint8_t)fields,(int16_t)x,(int16_t)y,(int16_t)w,(int16_t)h};}
+static placed_card_t *place(lv_obj_t *obj,uint8_t type,unsigned index,unsigned fields,int x,int y,int w,int h)
+{if(!obj||placed_count>=sizeof(placed)/sizeof(placed[0]))return NULL;placed_card_t *p=&placed[placed_count++];*p=(placed_card_t){.obj=obj,.type=type,.index=(uint8_t)index,.fields=(uint8_t)fields,.x=(int16_t)x,.y=(int16_t)y,.w=(int16_t)w,.h=(int16_t)h};return p;}
 static bool unbound(const dsr_mobile_device_t *d);
 static bool trv_device(const dsr_mobile_device_t *d);static bool trv_known(const dsr_mobile_device_t *d);static bool trv_can(const dsr_mobile_device_t *d);
 static uint8_t trv_shown(const dsr_mobile_device_t *d);static int trv_slot(uint32_t id);static void trv_round(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid);
@@ -155,7 +156,7 @@ uint16_t dsr_mobile_visible_devices(void)
  return mask;
 }
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;memset(detail_electrical,0,sizeof(detail_electrical));end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;memset(detail_electrical,0,sizeof(detail_electrical));signal_age_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
@@ -711,7 +712,13 @@ static dsr_ui_icon_t room_icon(unsigned i)
     const dsr_ui_icon_t kinds[]={DSR_ICON_SOFA,DSR_ICON_KITCHEN,DSR_ICON_BED,DSR_ICON_BATH};
     return kinds[model.rooms[i].icon%4];
 }
-static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
+static void room_metric_text(unsigned i,char text[32])
+{
+ double power=0;unsigned count=0;bool complete=true;
+ for(unsigned d=0;d<model.device_count;d++)if(model.devices[d].room==i){count++;complete&=model.devices[d].online&&model.devices[d].has_power;power+=model.devices[d].power_w;}
+ if(count&&complete)snprintf(text,32,"%.1f W",power);else snprintf(text,32,"%u %s",count,dsr_sc_tr("urz."));
+}
+static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int height,lv_obj_t **metric)
 {
     /* Cyber: one slim chamfered contour; the photo has no frame of its own
      * (owner 2026-10: the nested double borders were too heavy). */
@@ -728,12 +735,18 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
     lv_obj_t *tag=dsr_sc_panel(card,inset+6,inset+6,hud?66:76,hud?20:22,0x25292b,hud?5:7);lv_obj_set_style_bg_opa(tag,220,0);dsr_sc_icon(tag,room_icon(i),hud?5:6,hud?2:3,16,dsr_sc_icon_accent());dsr_sc_text(tag,"Pokój",hud?25:30,hud?3:4,40,&dsr_roboto_12,DSR_SC_TEXT);
     const char *room=dsr_sc_name(model.rooms[i].name);const lv_font_t *font=&dsr_roboto_14;lv_point_t size;
     lv_text_get_size(&size,dsr_sc_tr(room),dsr_sc_font(font),0,0,width-16,LV_TEXT_FLAG_NONE);if(size.y>46)font=&dsr_roboto_12;
-    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(model.rooms[i].name),8,height-82,width-16,font,DSR_SC_TEXT);center(name);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_height(name,46);
-    double power=0;unsigned count=0;bool complete=true;
-    for(unsigned d=0;d<model.device_count;d++)if(model.devices[d].room==i){count++;complete&=model.devices[d].online&&model.devices[d].has_power;power+=model.devices[d].power_w;}
-    lv_obj_t *badge=dsr_sc_panel(card,(width-82)/2,height-32,82,26,0x262a2d,10);
-    char text[32];if(count&&complete)snprintf(text,sizeof(text),"%.1f W",power);else snprintf(text,sizeof(text),"%u %s",count,dsr_sc_tr("urz."));
-    dsr_sc_icon(badge,DSR_ICON_ENERGY,5,5,16,dsr_sc_icon_accent());center(dsr_sc_text(badge,text,23,6,55,&dsr_roboto_12,DSR_SC_TEXT));
+    int name_height=46,badge_y=height-32;
+    if(page==DSR_MOBILE_ROOMS){
+        /* Keep the original photo geometry from the 186 px card. Only the footer
+         * contour follows the actual wrapped name instead of a blank 46 px box. */
+        lv_text_get_size(&size,dsr_sc_tr(room),dsr_sc_font(font),0,0,width-16,LV_TEXT_FLAG_NONE);
+        name_height=size.y<46?size.y:46;badge_y=height-82+name_height+4;
+        lv_obj_set_height(card,badge_y+26+6);
+    }
+    lv_obj_t *name=dsr_sc_text(card,dsr_sc_name(model.rooms[i].name),8,height-82,width-16,font,DSR_SC_TEXT);center(name);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_WRAP);lv_obj_set_height(name,name_height);
+    lv_obj_t *badge=dsr_sc_panel(card,(width-82)/2,badge_y,82,26,0x262a2d,10);
+    char text[32];room_metric_text(i,text);
+    dsr_sc_icon(badge,DSR_ICON_ENERGY,5,5,16,dsr_sc_icon_accent());*metric=dsr_sc_text(badge,text,23,6,55,&dsr_roboto_12,DSR_SC_TEXT);center(*metric);
     if(page==DSR_MOBILE_ROOMS){
         /* A 34 px pencil keeps its 44 px touch area (extended click margin). */
         lv_obj_t *edit=hud?dsr_sc_button(card,width-inset-40,inset+6,34,34,0x25292b,8,edit_room,(void *)(uintptr_t)model.rooms[i].id):icon_button(card,DSR_ICON_EDIT,width-52,6,44,0x25292b,edit_room,(void *)(uintptr_t)model.rooms[i].id);
@@ -741,6 +754,14 @@ static lv_obj_t *room_card(lv_obj_t *parent,unsigned i,int x,int y,int width,int
         if(model.demo||!model.rooms[i].id||!actions.edit_room)lv_obj_add_state(edit,LV_STATE_DISABLED);
     }
     return card;
+}
+static int place_room(lv_obj_t *parent,unsigned i,int x,int y,int width,int height)
+{
+ lv_obj_t *metric=NULL,*card=room_card(parent,i,x,y,width,height,&metric);
+ /* Explicit pixel height is already known; do not force a layout pass per room. */
+ int frame_height=lv_obj_get_style_height(card,LV_PART_MAIN);
+ placed_card_t *p=place(card,1,i,0,x,y,width,frame_height);if(p)p->metric=metric;
+ return frame_height;
 }
 static void scene_run(lv_event_t *event)
 {unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(!model.demo&&i<model.scene_count&&actions.run_scene)actions.run_scene(model.scenes[i].id);}
@@ -1134,6 +1155,15 @@ static void blu_info(lv_event_t *event)
  dsr_sc_text(p,"Dane czujnika są odczytywane przez bramkę Shelly. Odświeżanie sprawdza bramkę; nie wymusza nowego sygnału czujnika.",12,96,272,&dsr_roboto_14,DSR_SC_MUTED);
  lv_obj_t *close=dsr_sc_button(p,12,192,272,44,DSR_SC_PANEL,8,close_info,NULL);center(dsr_sc_text(close,"Zamknij",4,12,264,&dsr_roboto_16,DSR_SC_TEXT));
 }
+static void blu_signal_age(const dsr_mobile_device_t *d,bool live)
+{
+ if(!signal_age_label)return;
+ char text[96];
+ if(live&&d->blu_age_s>=0){unsigned age=(unsigned)d->blu_age_s;
+  if(age<120)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),age);else if(age<7200)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u min temu"),age/60);else snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u h temu"),age/3600);}
+ else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Czas ostatniego sygnału nieznany"));
+ if(strcmp(lv_label_get_text(signal_age_label),text))lv_label_set_text(signal_age_label,text);
+}
 static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
  const dsr_blu_status_t *b=&d->blu;bool live=cyber_blu_live(d),contact=cyber_contact(d);char text[96];
@@ -1159,10 +1189,7 @@ static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  if(live&&(b->flags&DSR_BLU_HAS_RSSI))snprintf(text,sizeof(text),"%d dBm",(int)b->rssi);else snprintf(text,sizeof(text),"— dBm");
  dsr_sc_text(panel,text,184,157,110,&dsr_roboto_14,DSR_SC_TEXT);
  dsr_sc_panel(panel,12,177,280,1,DSR_SC_EDGE,0);dsr_sc_icon(panel,DSR_ICON_CLOCK,12,182,16,DSR_SC_MUTED);
- if(live&&d->blu_age_s>=0){unsigned age=(unsigned)d->blu_age_s;
-  if(age<120)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),age);else if(age<7200)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u min temu"),age/60);else snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u h temu"),age/3600);}
- else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Czas ostatniego sygnału nieznany"));
- label=dsr_sc_text(panel,dsr_sc_user(text),34,182,256,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_update_layout(label);
+ signal_age_label=label=dsr_sc_text(panel,"",34,182,256,&dsr_roboto_12,DSR_SC_MUTED);blu_signal_age(d,live);lv_obj_update_layout(label);
  int panel_height=182+lv_obj_get_height(label)+5;
  /* Non-contact BLU models retain their additional measurements, on demand in
   * the same bounded scroll area, instead of losing them in a clipped block. */
@@ -1219,10 +1246,7 @@ static void blu_details(lv_obj_t *root)
  if(live&&(b->flags&DSR_BLU_HAS_RSSI))snprintf(text+strlen(text),sizeof(text)-strlen(text)," • %d dBm",(int)b->rssi);
  if(hud)dsr_sc_panel(panel,12,139,272,1,DSR_SC_EDGE,0);
  center(dsr_sc_text(panel,text,8,hud?148:144,280,hud?&dsr_roboto_16:&dsr_roboto_14,DSR_SC_TEXT));
- if(live&&d->blu_age_s>=0){unsigned age=(unsigned)d->blu_age_s;
-  if(age<120)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u s temu"),age);else if(age<7200)snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u min temu"),age/60);else snprintf(text,sizeof(text),dsr_sc_tr("Ostatni sygnał czujnika %u h temu"),age/3600);}
- else snprintf(text,sizeof(text),"%s",dsr_sc_tr("Czas ostatniego sygnału nieznany"));
- center(dsr_sc_text(panel,dsr_sc_user(text),8,hud?177:172,280,&dsr_roboto_12,DSR_SC_MUTED));
+ signal_age_label=dsr_sc_text(panel,"",8,hud?177:172,280,&dsr_roboto_12,DSR_SC_MUTED);center(signal_age_label);blu_signal_age(d,live);
  if(live&&(b->errors&DSR_BLU_ERROR_MASK))center(dsr_sc_text(hud?gateway:panel,(b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome",8,hud?66:194,280,&dsr_roboto_12,0xffc18c));
  sample_age=dsr_sc_text(hud?gateway:panel,"",8,hud?46:229,280,&dsr_roboto_12,DSR_SC_MUTED);center(sample_age);update_sample_age();
  lv_obj_t *button=dsr_sc_button(root,12,hud?380:344,296,hud?44:48,DSR_SC_CARD,10,refresh,NULL);center(dsr_sc_text(button,"Odśwież status",8,hud?12:15,280,hud?&dsr_roboto_16:&dsr_roboto_14,DSR_SC_TEXT));if(d->busy||!d->can_refresh||!actions.refresh)lv_obj_add_state(button,LV_STATE_DISABLED);
@@ -1313,6 +1337,7 @@ static void render(void)
 #endif
     wake_repaint=false;
     memset(detail_electrical,0,sizeof(detail_electrical));
+    signal_age_label=NULL;
     cover_view_reset();
     memset(&trv_view,0,sizeof(trv_view));
     trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
@@ -1335,7 +1360,12 @@ static void render(void)
         lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
         lv_obj_set_scrollbar_mode(content,LV_SCROLLBAR_MODE_AUTO);
         if(page==DSR_MOBILE_ROOMS){
-            for(unsigned i=0;i<model.room_count;i++)room_card(content,i,(int)(i%2)*152,(int)(i/2)*194,144,186);/* rooms page: not partial */
+            const int height=186;int y=0;
+            for(unsigned i=0;i<model.room_count;i+=2){
+                int left=place_room(content,i,0,y,144,height),right=0;
+                if(i+1<model.room_count)right=place_room(content,i+1,152,y,144,height);
+                y+=(left>right?left:right)+DSR_SC_GAP;
+            }
             if(!model.room_count){
                 empty("Brak pomieszczeń","Utwórz pierwszy pokój, aby uporządkować urządzenia.");
                 lv_obj_t *add=dsr_sc_button(content,12,210,272,48,DSR_SC_PANEL,10,add_room,NULL);
@@ -1349,7 +1379,7 @@ static void render(void)
                 for(unsigned t=0;t<model.tile_count;t++){
                     dsr_mobile_tile_t *tile=&model.tiles[t];
                     if(tile->type==0&&tile->index<model.device_count){if(x){x=0;y+=row_height+8;row_height=0;}int h=device_card_height(&model.devices[tile->index],tile->height==2);place(device_card(content,tile->index,0,y,296,h,tile->fields),0,tile->index,tile->fields,0,y,296,h);y+=h+8;at++;}
-                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?240:186;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place(room_card(content,tile->index,x,y,tile->span==2?296:144,height),1,tile->index,0,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
+                    else if(tile->type==1&&tile->index<model.room_count){int height=tile->height==2?240:186;if(tile->span==2&&x){x=0;y+=row_height+8;row_height=0;}place_room(content,tile->index,x,y,tile->span==2?296:144,height);if(height>row_height)row_height=height;if(x||tile->span==2){x=0;y+=row_height+8;row_height=0;}else x=152;at++;}
                     else if(tile->type==2&&tile->index<model.scene_count){if(x){x=0;y+=row_height+8;row_height=0;}scene_card(tile->index,y,tile->height==2?120:90);y+=tile->height==2?128:98;at++;}
                     else if(tile->type==3&&tile->index<model.group_count){if(x){x=0;y+=row_height+8;row_height=0;}place(group_card(tile->index,y,group_card_height(tile->index)),2,tile->index,0,0,y,296,group_card_height(tile->index));y+=group_card_height(tile->index)+8;at++;}
                 }
@@ -1415,9 +1445,20 @@ static bool electrical_only(const dsr_mobile_device_t *a,const dsr_mobile_device
 }
 static bool refresh_electrical_details(const dsr_mobile_model_t *m)
 {
- if(page!=DSR_MOBILE_DETAILS||selected>=model.device_count||rgb_color_view||!detail_electrical[0])return false;
- const dsr_mobile_device_t *old=&model.devices[selected],*next=&m->devices[selected];
- if(!next->online||next->error!=DSR_OK||next->busy||!electrical_only(old,next))return false;
+ if(rgb_color_view||!detail_electrical[0]||m->wifi!=model.wifi||m->demo!=model.demo)return false;
+ const dsr_mobile_device_t *next;
+ if(page==DSR_MOBILE_GROUP_CONTROL&&selected<model.group_count){
+  const dsr_mobile_device_t *old=group_model(selected);
+  if(old->endpoint_kind!=DSR_ENDPOINT_SWITCH&&old->endpoint_kind!=DSR_ENDPOINT_LIGHT&&old->endpoint_kind!=DSR_ENDPOINT_RGB)return false;
+  if(!old->online||old->error!=DSR_OK||old->busy)return false;
+  uint16_t members=model.groups[selected].member_mask;
+  for(unsigned i=0;i<model.device_count;i++)if((members&(1u<<i))&&memcmp(&model.devices[i],&m->devices[i],sizeof(model.devices[i]))&&!electrical_only(&model.devices[i],&m->devices[i]))return false;
+  model=*m;next=group_model(selected);
+ }else{
+  if(page!=DSR_MOBILE_DETAILS||selected>=model.device_count)return false;
+  const dsr_mobile_device_t *old=&model.devices[selected];next=&m->devices[selected];
+  if(!next->online||next->error!=DSR_OK||next->busy||!electrical_only(old,next))return false;
+ }
  bool present[]={next->has_power,next->has_voltage,next->has_current};
  double values[]={next->power_w,next->voltage_v,next->current_a};
  const char *units[]={"W","V","A"};
@@ -1442,9 +1483,22 @@ static bool update_electrical(placed_card_t *c,const dsr_mobile_device_t *d)
  if(!count)return false;
  card_layout_t layout=card_layout(d,c->w);lv_obj_set_pos(pill,layout.metric_x,layout.metric_y);dsr_sc_segments_update(pill,values,count,layout.metric_w);if(card_switch_rows(d))card_switch_metric_center(pill);return true;
 }
+/* BLU report age is shown in details, not on these cards. The same storage is
+ * Cover position, which must still update its artwork and controls. */
+static bool card_age_only(const dsr_mobile_device_t *a,const dsr_mobile_device_t *b)
+{
+ if(a->endpoint_kind!=DSR_ENDPOINT_BLU||b->endpoint_kind!=DSR_ENDPOINT_BLU)return false;
+ const size_t first=offsetof(dsr_mobile_device_t,blu_age_s),after=first+sizeof(a->blu_age_s);
+ return !memcmp(a,b,first)&&!memcmp((const char *)a+after,(const char *)b+after,sizeof(*a)-after);
+}
+static bool refresh_signal_age(const dsr_mobile_model_t *m)
+{
+ if(page!=DSR_MOBILE_DETAILS||selected>=model.device_count||!signal_age_label||m->wifi!=model.wifi||m->demo!=model.demo||!card_age_only(&model.devices[selected],&m->devices[selected]))return false;
+ model=*m;const dsr_mobile_device_t *d=&model.devices[selected];blu_signal_age(d,cyber_blu(d)?cyber_blu_live(d):d->online);update_sample_age();return true;
+}
 static bool refresh_cards(const dsr_mobile_model_t *m)
 {
-    if(rendered_language!=dsr_sc_language()||rendered_style!=dsr_sc_style()||!content||!placed_count||info_open||(page!=DSR_MOBILE_HOME&&page!=DSR_MOBILE_DEVICES&&page!=DSR_MOBILE_ROOM))return false;
+    if(rendered_language!=dsr_sc_language()||rendered_style!=dsr_sc_style()||!content||!placed_count||info_open||(page!=DSR_MOBILE_HOME&&page!=DSR_MOBILE_DEVICES&&page!=DSR_MOBILE_ROOM&&page!=DSR_MOBILE_ROOMS))return false;
     bool demo=m->demo;
 #ifndef DSR_UI_REVIEW_DEMO
     demo=false;
@@ -1455,19 +1509,20 @@ static bool refresh_cards(const dsr_mobile_model_t *m)
     bool changed[DSR_UI_MAX_DEVICES]={0},numbers[DSR_UI_MAX_DEVICES]={0},any=false;
     for(unsigned i=0;i<model.device_count;i++){
      const dsr_mobile_device_t *a=&model.devices[i],*b=&m->devices[i];
-     if(memcmp(a,b,sizeof(*a))){if(a->id!=b->id||device_card_height(a,false)!=device_card_height(b,false)||(page==DSR_MOBILE_ROOM&&a->room!=b->room))return false;changed[i]=any=true;numbers[i]=electrical_only(a,b);}
+     if(memcmp(a,b,sizeof(*a))){if(a->id!=b->id||(page!=DSR_MOBILE_ROOMS&&device_card_height(a,false)!=device_card_height(b,false))||(page==DSR_MOBILE_ROOM&&a->room!=b->room))return false;any=true;changed[i]=!card_age_only(a,b);numbers[i]=electrical_only(a,b);}
     }
     if(!any)return false;
     /* Cards are only ever deleted by render(), which also empties placed[]. */
     if(!lv_obj_is_valid(content))return false;
-    for(unsigned k=0;k<placed_count;k++)if(lv_obj_get_parent(placed[k].obj)!=content)return false;
+    for(unsigned k=0;k<placed_count;k++)if(lv_obj_get_parent(placed[k].obj)!=content||(placed[k].type==1&&(!placed[k].metric||!lv_obj_is_valid(placed[k].metric))))return false;
     int scroll=lv_obj_get_scroll_y(content);
     memcpy(model.devices,m->devices,sizeof(model.devices));
     for(unsigned k=0;k<placed_count;k++){
+     if(placed[k].type==1){char text[32];room_metric_text(placed[k].index,text);if(strcmp(lv_label_get_text(placed[k].metric),text))lv_label_set_text(placed[k].metric,text);continue;}
      placed_card_t *c=&placed[k];if(c->type==2){bool member_changed=false;for(unsigned i=0;i<model.device_count;i++)if((model.groups[c->index].member_mask&(1u<<i))&&changed[i])member_changed=true;if(!member_changed)continue;if(group_card_height(c->index)!=c->h)return false;}else if(c->type==0?!changed[c->index]:c->type!=1)continue;
      if(c->type==0&&numbers[c->index]&&update_electrical(c,&model.devices[c->index]))continue;
      int32_t at=lv_obj_get_index(c->obj);lv_obj_delete(c->obj);
-     c->obj=c->type==0?device_card(content,c->index,c->x,c->y,c->w,c->h,c->fields):c->type==2?group_card(c->index,c->y,c->h):room_card(content,c->index,c->x,c->y,c->w,c->h);
+     c->obj=c->type==0?device_card(content,c->index,c->x,c->y,c->w,c->h,c->fields):group_card(c->index,c->y,c->h);
      lv_obj_move_to_index(c->obj,at);
     }
     lv_obj_update_layout(content);if(lv_obj_get_scroll_y(content)!=scroll)lv_obj_scroll_to_y(content,scroll,LV_ANIM_OFF);
@@ -1577,6 +1632,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
     repaint_pending=false;
     if(active&&!wake_repaint&&stable&&refresh_cover_details(m))return;
     if(active&&!wake_repaint&&stable&&refresh_trv_details(m))return;
+    if(active&&!wake_repaint&&stable&&refresh_signal_age(m))return;
     if(active&&!wake_repaint&&stable&&refresh_electrical_details(m))return;
     if(active&&!wake_repaint&&refresh_cards(m))return;
     model=*m;

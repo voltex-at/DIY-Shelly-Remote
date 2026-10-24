@@ -6,6 +6,9 @@
 #include "dsr_device_settings.h"
 #include "esp_http_client.h"
 #include "esp_timer.h"
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#endif
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -30,11 +33,13 @@ static bool urgent(void){return urgent_hook&&urgent_hook();}
 static void wipe(void *memory,size_t size)
 {volatile unsigned char *p=memory;while(size--)*p++=0;}
 
-typedef struct { char *text; size_t used; bool overflow; int64_t deadline; } response_t;
+typedef struct { char *text; size_t used,received; unsigned sends,chunks; bool overflow,late; int64_t deadline; } response_t;
 static esp_err_t on_http_event(esp_http_client_event_t *event)
 {
     response_t *response = event->user_data;
-    if(esp_timer_get_time()>response->deadline)return ESP_FAIL;
+    if(event->event_id==HTTP_EVENT_HEADERS_SENT)response->sends++;
+    if(event->event_id==HTTP_EVENT_ON_DATA&&event->data_len>0){response->chunks++;response->received+=(size_t)event->data_len;}
+    if(esp_timer_get_time()>response->deadline){response->late=true;return ESP_FAIL;}
     /* A Digest challenge can have a body. Discard it before the retry. */
     if (event->event_id == HTTP_EVENT_HEADERS_SENT) {
         response->used = 0; response->overflow = false; response->text[0] = '\0';
@@ -104,6 +109,15 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
             cJSON_Delete(*out); *out = NULL; result = DSR_BAD_RESPONSE;
         }
     }
+#ifdef ESP_PLATFORM
+    if(connection->device.endpoint_kind==DSR_ENDPOINT_COVER){
+        int64_t elapsed=esp_timer_get_time()-(response.deadline-(int64_t)timeout_ms*1000);
+        if(control_write||result!=DSR_OK||elapsed>=500000){
+            const char *leg=identity_request?"identity":control_write?"command":!strcmp(request->path,"/rpc/Sys.GetConfig")?"name":"status";
+            ESP_LOGI("dsr_http","Cover HTTP leg=%s sdk=0x%x status=%d errno=%d complete=%u hdr_sends=%u chunks=%u bytes=%u kept=%u late=%u ms=%lu",leg,(unsigned)error,status,esp_http_client_get_errno(client),(unsigned)esp_http_client_is_complete_data_received(client),response.sends,response.chunks,(unsigned)response.received,(unsigned)response.used,(unsigned)response.late,(unsigned long)(elapsed/1000));
+        }
+    }
+#endif
     esp_http_client_cleanup(client);
     if(payload)wipe(response.text,RESPONSE_LIMIT+1);
     free(response.text);

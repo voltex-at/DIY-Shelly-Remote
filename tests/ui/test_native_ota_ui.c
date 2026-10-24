@@ -111,7 +111,7 @@ static void countdown_review(void)
  open_state(DSR_NATIVE_STAGED,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);
  for(unsigned second=10;;second--){
   if(second<10){lv_tick_inc(1000);}
-  dsr_ui_native_ota_tick();
+  dsr_ui_native_ota_tick();dsr_ui_native_ota_restart_tick();
   char text[80],path[80];snprintf(text,sizeof(text),dsr_sc_tr("Automatyczny restart za %u s"),second);CHECK(find_label(lv_screen_active(),text));
   CHECK(restart_requests==(second==0?1u:0u));snprintf(path,sizeof(path),"ota-countdown-%02u",second);screenshot(path);
   if(!second)break;

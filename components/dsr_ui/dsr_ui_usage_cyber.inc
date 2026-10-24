@@ -41,7 +41,5 @@ static void cyber_usage(lv_obj_t *root,const dsr_mobile_device_t *d,bool exists)
  cyber_usage_value(root,DSR_ICON_VOLTAGE,"Napięcie",value,12,386,144);
  if(fresh&&d->has_current&&isfinite(d->current_a))snprintf(value,sizeof(value),"%.3f A",d->current_a);else snprintf(value,sizeof(value),"— A");
  cyber_usage_value(root,DSR_ICON_CURRENT,"Natężenie",value,164,386,144);
- const char *why=!exists?"Brak aktywnego połączenia":!d->online?"Urządzenie offline • brak odczytu mocy":!d->has_power?"To urządzenie nie raportuje mocy":!fresh?"Brak świeżego odczytu mocy":"Ostatnia aktualizacja: teraz";
- char age[96];if(fresh&&lv_tick_get()-d->sample_ms>=3000){snprintf(age,sizeof(age),dsr_sc_tr("Ostatnia aktualizacja: %u s temu"),(unsigned)((lv_tick_get()-d->sample_ms)/1000));why=dsr_sc_user(age);}
- lv_obj_t *status=dsr_sc_text(root,why,12,446,296,&dsr_roboto_12,fresh?DSR_SC_MUTED:0xffc18c);lv_obj_set_style_text_align(status,LV_TEXT_ALIGN_CENTER,0);
+ usage_age=dsr_sc_text(root,"",12,446,296,&dsr_roboto_12,fresh?DSR_SC_MUTED:0xffc18c);lv_obj_set_style_text_align(usage_age,LV_TEXT_ALIGN_CENTER,0);usage_age_update(d,exists,fresh);
 }

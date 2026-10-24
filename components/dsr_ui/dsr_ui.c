@@ -149,7 +149,7 @@ void dsr_ui_textarea(lv_obj_t *obj)
 static void shell_navigation(lv_event_t *event)
 {
  unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);
- if(index<2){dsr_network_home(NULL);if(index==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);}
+ if(index==0)dsr_network_home(NULL);else if(index==1)dsr_network_rooms();
  else if(index==2)dsr_ui_battery_open(NULL);else if(index==3)dsr_ui_open_settings();else if(index==4)dsr_network_device(NULL);
 }
 

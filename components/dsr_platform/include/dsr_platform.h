@@ -110,8 +110,10 @@ typedef struct {
     dsr_job_kind_t kind;
     dsr_connection_t connection;
     dsr_settings_t settings;
-    /* Different job kinds reuse the two existing public-intent bytes. */
-    union {struct {bool on,ap_confirmed;};dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_trv_intent_t trv;};
+    /* Different job kinds reuse the two existing public-intent bytes.
+     * telemetry_only is valid for Cover PROBE; converting a typed command
+     * to a normal PROBE must clear both bytes (including invalid bool data). */
+    union {struct {bool on,ap_confirmed;};bool telemetry_only;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_trv_intent_t trv;};
     union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;dsr_rgb_intent_t rgb;dsr_battery_profile_t battery_profile;};
 } dsr_job_t;
 _Static_assert(sizeof(dsr_job_t)==560&&offsetof(dsr_job_t,on)==406&&offsetof(dsr_job_t,ap_confirmed)==407&&offsetof(dsr_job_t,ap)==408&&offsetof(dsr_job_t,rgb)==408,"Cover retains the existing job footprint and payload offsets");

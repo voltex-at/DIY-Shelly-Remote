@@ -188,7 +188,7 @@ static void draw(void)
 }
 void dsr_ui_device_settings_open(uint32_t id)
 {
- dsr_network_home(NULL);dsr_mobile_hide();
+ dsr_network_prepare_home();
 #ifdef ESP_PLATFORM
  editor=heap_caps_calloc(1,sizeof(*editor),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
 #else

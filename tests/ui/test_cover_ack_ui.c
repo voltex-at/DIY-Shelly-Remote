@@ -18,6 +18,15 @@ int main(int argc,char **argv)
  dsr_ui_init();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);actual_position(DSR_COVER_STATE_STOPPED,38);
  dsr_network_device_control(1);click("Cover ACK");CHECK(find_label(lv_screen_active(),"Pozycja 38%"));
  dsr_mobile_device_t before,after;CHECK(dsr_network_typed_device(1,&before));
+ /* A lost ACK is still uncertain, but its read-only recovery must start
+  * immediately rather than leaving a one-second gap for unrelated work. */
+ click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);
+ response=(dsr_event_t){.device=submitted.connection.device,.command_phase=DSR_COMMAND_WRITE};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);
+ CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.telemetry_only);
+ CHECK(find_label(lv_screen_active(),"Polecenie niepotwierdzone")&&!find_label(lv_screen_active(),"Polecenie przyjęte"));
+ actual_position(DSR_COVER_STATE_OPENING,40);CHECK(find_label(lv_screen_active(),"Pozycja 40%")&&!find_label(lv_screen_active(),"Polecenie niepotwierdzone"));
+ lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);actual_position(DSR_COVER_STATE_STOPPED,38);
+ CHECK(dsr_network_typed_device(1,&before));
  click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);
  response=(dsr_event_t){.device=submitted.connection.device,.command_phase=DSR_COMMAND_ACK};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&find_label(lv_screen_active(),"Polecenie przyjęte"));

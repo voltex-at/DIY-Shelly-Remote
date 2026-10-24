@@ -77,7 +77,8 @@ static unsigned ready_count;
  * admission/dispatcher races are covered by the separate native suite. */
 static unsigned restart_requests;
 static dsr_restart_result_t restart_response=DSR_RESTART_BUSY;
-dsr_restart_result_t dsr_restart_request(void){restart_requests++;return restart_response;}
+static bool restart_activity_gate;
+dsr_restart_result_t dsr_restart_request(void){restart_requests++;if(restart_activity_gate)return dsr_activity_restart_reserve()?DSR_RESTART_ACCEPTED:DSR_RESTART_BUSY;return restart_response;}
 dsr_restart_result_t dsr_restart_request_confirmed(void){restart_requests++;return restart_response;}
 static void read_pointer(lv_indev_t *input,lv_indev_data_t *data)
 {(void)input;data->point=touch;data->state=pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
@@ -410,17 +411,17 @@ static void native_ota_regression(void)
  tap_row("Instaluj");before=requests;tap(238,444);CHECK(requests==before+1&&in_flight&&submitted.kind==DSR_JOB_OTA_INSTALL&&!find_label(lv_screen_active(),"Instaluj"));screenshot("245-native-ota-installing");
  test_native_ota_set(DSR_NATIVE_STAGED,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
  CHECK(find_label(lv_screen_active(),"Instalacja zakończona. Uruchom pilot ponownie.")&&!find_label(lv_screen_active(),"Instaluj")&&!find_label(lv_screen_active(),"Sprawdź aktualizacje"));screenshot("246-native-ota-staged");
- /* Auto restart: 10 s countdown; busy retries every 5 s; "Później" stops it. */
+ /* Auto restart: 10 s countdown; busy waits at zero; "Później" stops it. */
  {unsigned left=0;char text[48];for(unsigned k=1;k<=10&&!left;k++){snprintf(text,sizeof(text),"Automatyczny restart za %u s",k);if(find_label(lv_screen_active(),text))left=k;}
   CHECK(left>=5&&find_label(lv_screen_active(),"Później"));unsigned auto_before=restart_requests;restart_response=DSR_RESTART_BUSY;
-  lv_tick_inc((left-2)*1000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before&&(find_label(lv_screen_active(),"Automatyczny restart za 2 s")||find_label(lv_screen_active(),"Automatyczny restart za 3 s")));
-  lv_tick_inc(3000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
+  lv_tick_inc((left-2)*1000);dsr_ui_native_ota_tick();dsr_ui_native_ota_restart_tick();CHECK(restart_requests==auto_before&&(find_label(lv_screen_active(),"Automatyczny restart za 2 s")||find_label(lv_screen_active(),"Automatyczny restart za 3 s")));
+  lv_tick_inc(3000);dsr_ui_native_ota_tick();dsr_ui_native_ota_restart_tick();CHECK(restart_requests==auto_before+1&&find_label(lv_screen_active(),"Kończenie operacji przed restartem…"));
   CHECK(find_label(lv_screen_active(),"Automatyczny restart za 0 s"));
-  lv_tick_inc(5000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);
-  click("Później");CHECK(!find_label(lv_screen_active(),"Później")&&find_label(lv_screen_active(),"Uruchom ponownie"));lv_tick_inc(60000);dsr_ui_native_ota_tick();CHECK(restart_requests==auto_before+2);screenshot("248-native-ota-postponed");}
+  lv_tick_inc(5000);dsr_ui_native_ota_tick();dsr_ui_native_ota_restart_tick();CHECK(restart_requests==auto_before+2);
+  click("Później");CHECK(!find_label(lv_screen_active(),"Później")&&find_label(lv_screen_active(),"Uruchom ponownie"));lv_tick_inc(60000);dsr_ui_native_ota_tick();dsr_ui_native_ota_restart_tick();CHECK(restart_requests==auto_before+2);screenshot("248-native-ota-postponed");}
  test_native_ota_uncertain();tick();CHECK(find_label(lv_screen_active(),"Nie potwierdzono wyboru startowego firmware. Dalsze zapisy zablokowane do restartu.")&&!find_label(lv_screen_active(),"Anulowano. Nie uruchomiono nowego firmware."));screenshot("247-native-ota-uncertain");
- restart_response=DSR_RESTART_BUSY;unsigned restarts=restart_requests;tap_row("Uruchom ponownie");CHECK(restart_requests==restarts+1&&find_label(lv_screen_active(),"Pilot jest zajęty. Spróbuj ponownie."));
- restart_response=DSR_RESTART_ACCEPTED;tap_row("Uruchom ponownie");CHECK(find_label(lv_screen_active(),"Przyjęto żądanie restartu."));tap_row("Uruchom ponownie");CHECK(restart_requests==restarts+2);
+ restart_response=DSR_RESTART_BUSY;unsigned restarts=restart_requests;click("Uruchom ponownie");CHECK(restart_requests==restarts);tick();CHECK(restart_requests==restarts+1&&find_label(lv_screen_active(),"Kończenie operacji przed restartem…"));
+ restart_response=DSR_RESTART_ACCEPTED;click("Uruchom ponownie");tick();CHECK(find_label(lv_screen_active(),"Przyjęto żądanie restartu."));click("Uruchom ponownie");tick();CHECK(restart_requests==restarts+2);
  test_native_ota_set(DSR_NATIVE_IDLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_INVALID);dsr_ui_native_ota_open(NULL);click("Wstecz");tick();lv_mem_monitor_t start,end;lv_mem_monitor(&start);
  for(unsigned i=0;i<40;i++){dsr_ui_native_ota_open(NULL);click("Wstecz");}
  tick();lv_mem_monitor(&end);CHECK(end.free_size+512>=start.free_size);

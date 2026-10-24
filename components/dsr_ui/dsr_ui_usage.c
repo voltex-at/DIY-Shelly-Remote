@@ -5,12 +5,40 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+#endif
 #define DSR_PI 3.14159265358979323846
 
 static bool active;
 static uint32_t selected,next_draw;
+static lv_obj_t *usage_age;
+static unsigned shown_style,shown_language;
+static bool shown_exists,shown_fresh,shown_wifi;
+#ifdef ESP_PLATFORM
+EXT_RAM_BSS_ATTR
+#endif
+static dsr_mobile_device_t shown;
 
-void dsr_ui_usage_hide(void){active=false;}
+void dsr_ui_usage_hide(void){active=false;usage_age=NULL;}
+static bool usage_fresh(const dsr_mobile_device_t *d,bool exists)
+{
+ bool fresh=exists&&d->online&&d->has_power&&d->has_sample_time&&lv_tick_get()-d->sample_ms<=15000;
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)fresh&=d->error==DSR_OK&&isfinite(d->power_w);
+ return fresh;
+}
+static void usage_age_update(const dsr_mobile_device_t *d,bool exists,bool fresh)
+{
+ if(!usage_age)return;
+ char text[96];
+ if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&(!exists||!d->online||!d->has_power||!fresh)){
+  const char *why=!exists?"Brak aktywnego połączenia":!d->online?"Urządzenie offline • brak odczytu mocy":!d->has_power?"To urządzenie nie raportuje mocy":"Brak świeżego odczytu mocy";
+  snprintf(text,sizeof(text),"%s",dsr_sc_tr(why));
+ }else if(!d->has_sample_time)snprintf(text,sizeof(text),"%s",dsr_sc_tr("Ostatnia aktualizacja: brak"));
+ else{unsigned age=(unsigned)((lv_tick_get()-d->sample_ms)/1000);if(age<3)snprintf(text,sizeof(text),"%s",dsr_sc_tr("Ostatnia aktualizacja: teraz"));else snprintf(text,sizeof(text),dsr_sc_tr("Ostatnia aktualizacja: %u s temu"),age);}
+ if(strcmp(lv_label_get_text(usage_age),text))lv_label_set_text(usage_age,text);
+}
 static void back(lv_event_t *event)
 {(void)event;dsr_network_device_control(selected);}
 static void settings(lv_event_t *event){(void)event;dsr_network_device_settings(selected);}
@@ -49,12 +77,13 @@ static void gauge_value(double watts,double scale,char *value,size_t vsize,char 
 static void detail(lv_obj_t *root)
 {
  dsr_mobile_device_t d={0};bool exists=dsr_network_typed_device(selected,&d);
+ shown=d;shown_exists=exists;shown_style=dsr_sc_style();shown_language=dsr_sc_language();shown_wifi=dsr_wifi_connected();shown_fresh=usage_fresh(&d,exists);
  usage_header(root,exists?d.name:"Zużycie");
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_usage(root,&d,exists);return;}
  button(root,"Sterowanie",0,44,159,back,0,false);button(root,"Ustawienia",161,44,159,settings,0,false);
  lv_obj_t *card=dsr_sc_panel(root,12,96,296,300,0x2b2f33,18);dsr_sc_border_width(card,1,0);dsr_sc_border_color(card,dsr_sc_color(0x3a3f44),0);
  lv_obj_t *chip=dsr_sc_panel(card,88,12,120,32,0x1d2124,16);dsr_sc_icon(chip,DSR_ICON_ENERGY,10,6,20,0xe5322d);dsr_sc_text(chip,"Zużycie",36,8,80,&dsr_roboto_14,DSR_SC_TEXT);
- bool fresh=exists&&d.online&&d.has_power&&d.has_sample_time&&lv_tick_get()-d.sample_ms<=15000;
+ bool fresh=shown_fresh;
  if(!exists||!d.online||!d.has_power){
   const char *why=!exists?"Brak aktywnego połączenia":DSR_ENDPOINT_IS_SENSOR(d.endpoint_kind)?"Czujnik nie mierzy mocy":!d.online?"Urządzenie offline • brak odczytu mocy":"To urządzenie nie raportuje mocy";
   dsr_sc_icon(card,DSR_ICON_ENERGY,128,104,40,0x5a6066);lv_obj_t *t=dsr_sc_text(card,why,12,160,272,&dsr_roboto_16,DSR_SC_MUTED);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);
@@ -77,19 +106,25 @@ static void detail(lv_obj_t *root)
  lv_obj_t *v=dsr_sc_text(root,fresh?value:"—",cx-80,cy+36,160,&dsr_roboto_28,DSR_SC_TEXT);lv_obj_set_style_text_align(v,LV_TEXT_ALIGN_CENTER,0);
  lv_obj_t *u=dsr_sc_text(root,unit,cx-40,cy+72,80,&dsr_roboto_16,DSR_SC_MUTED);lv_obj_set_style_text_align(u,LV_TEXT_ALIGN_CENTER,0);
  dsr_sc_text(root,"0",cx-r+6,cy+82,30,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_t *t=dsr_sc_text(root,top,cx+r-46,cy+82,40,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_RIGHT,0);
- char when[64];if(!d.has_sample_time)snprintf(when,sizeof(when),"%s",dsr_sc_tr("Ostatnia aktualizacja: brak"));
- else{unsigned age=(unsigned)((lv_tick_get()-d.sample_ms)/1000);if(age<3)snprintf(when,sizeof(when),"%s",dsr_sc_tr("Ostatnia aktualizacja: teraz"));else snprintf(when,sizeof(when),dsr_sc_tr("Ostatnia aktualizacja: %u s temu"),age);}
- lv_obj_t *w=dsr_sc_text(root,dsr_sc_user(when),12,366,296,&dsr_roboto_12,fresh?DSR_SC_TEXT:0xffc18c);lv_obj_set_style_text_align(w,LV_TEXT_ALIGN_CENTER,0);
+ usage_age=dsr_sc_text(root,"",12,366,296,&dsr_roboto_12,fresh?DSR_SC_TEXT:0xffc18c);lv_obj_set_style_text_align(usage_age,LV_TEXT_ALIGN_CENTER,0);usage_age_update(&d,exists,fresh);
  char counter[96];if(d.online&&d.has_energy)snprintf(counter,sizeof(counter),dsr_sc_tr("Licznik Shelly: %.3f kWh"),d.energy_wh/1000.0);else snprintf(counter,sizeof(counter),"%s",dsr_sc_tr(fresh?"Licznik energii niedostępny":"Brak świeżego odczytu mocy"));
  dsr_sc_text(root,dsr_sc_user(counter),12,402,296,&dsr_roboto_12,DSR_SC_MUTED);
 }
 static void draw(void)
 {
  if(!active)return;
- lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
+ usage_age=NULL;lv_obj_t *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_style_all(root);dsr_sc_background(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
  detail(root);lv_obj_update_layout(root);next_draw=lv_tick_get()+5000;
 }
 void dsr_ui_usage_open(uint32_t id)
-{dsr_network_home(NULL);dsr_mobile_hide();selected=id;active=true;draw();}
+{dsr_network_prepare_home();selected=id;active=true;draw();}
 void dsr_ui_usage_tick(void)
-{if(active&&(int32_t)(lv_tick_get()-next_draw)>=0)draw();}
+{
+ if(!active||(int32_t)(lv_tick_get()-next_draw)<0)return;
+ dsr_mobile_device_t d={0};bool exists=dsr_network_typed_device(selected,&d),fresh=usage_fresh(&d,exists);
+ const size_t first=offsetof(dsr_mobile_device_t,sample_ms),after=first+sizeof(d.sample_ms);
+ bool same=exists==shown_exists&&fresh==shown_fresh&&shown_style==dsr_sc_style()&&shown_language==dsr_sc_language()&&shown_wifi==dsr_wifi_connected()&&!memcmp(&shown,&d,first)&&!memcmp((const char *)&shown+after,(const char *)&d+after,sizeof(d)-after);
+ if(same){shown=d;usage_age_update(&d,exists,fresh);next_draw=lv_tick_get()+5000;return;}
+ for(lv_indev_t *i=lv_indev_get_next(NULL);i;i=lv_indev_get_next(i))if(lv_indev_get_type(i)==LV_INDEV_TYPE_POINTER&&(lv_indev_get_state(i)==LV_INDEV_STATE_PRESSED||lv_indev_get_scroll_obj(i)))return;
+ draw();
+}

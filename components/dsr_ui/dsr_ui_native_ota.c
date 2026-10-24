@@ -5,19 +5,18 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool active,building,confirming,restart_accepted,install_prompt,prompt_known,prompt_low,checking_battery;
+static bool active,building,confirming,restart_accepted,restart_requested,install_prompt,prompt_known,prompt_low,checking_battery;
 static dsr_ota_channel_t selected_channel=DSR_OTA_STABLE;
 static dsr_native_ota_snapshot_t snapshot,shown;
 static uint32_t consent_operation;
 static lv_obj_t *progress_label,*progress_bytes,*progress_bar,*local_notice,*back_button,*countdown_label;
 /* After a verified install: restart by itself unless the user postpones. */
 #define DSR_OTA_AUTO_RESTART_MS 10000u
-#define DSR_OTA_AUTO_RETRY_MS 5000u
 static bool auto_restart_armed;static uint32_t auto_restart_at,armed_operation;
 void dsr_ui_native_ota_hide(void)
 {
  if(active&&!building)dsr_native_ota_cancel();
- active=false;auto_restart_armed=false;install_prompt=checking_battery=false;progress_label=progress_bytes=progress_bar=local_notice=back_button=countdown_label=NULL;
+ active=false;auto_restart_armed=restart_requested=false;install_prompt=checking_battery=false;progress_label=progress_bytes=progress_bar=local_notice=back_button=countdown_label=NULL;
 }
 static lv_obj_t *screen(void)
 {
@@ -154,20 +153,27 @@ static void prompt(lv_event_t *event)
 }
 static void restart(lv_event_t *event)
 {
- (void)event;if(restart_accepted)return;
+ if(restart_accepted)return;
+ if(event){
+  auto_restart_armed=false;restart_requested=true;if(countdown_label)lv_label_set_text(countdown_label,"");
+  local_warning("Kończenie operacji przed restartem…");return; /* Owner drains accepted intents first. */
+ }
+ bool waiting=restart_requested;restart_requested=true;
  dsr_restart_result_t result=dsr_restart_request();
- if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;auto_restart_armed=false;if(countdown_label)dsr_sc_label_set_text_fmt(countdown_label,"Automatyczny restart za %u s",0u);if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
- else local_warning("Pilot jest zajęty. Spróbuj ponownie.");
+ if(result==DSR_RESTART_ACCEPTED){restart_accepted=true;auto_restart_armed=restart_requested=false;if(countdown_label)dsr_sc_label_set_text_fmt(countdown_label,"Automatyczny restart za %u s",0u);if(local_notice)dsr_sc_label_set_text(local_notice,"Przyjęto żądanie restartu.");}
+ else if(result==DSR_RESTART_BUSY){if(!waiting)local_warning("Kończenie operacji przed restartem…");}
+ else {auto_restart_armed=restart_requested=false;if(countdown_label)lv_label_set_text(countdown_label,"");local_warning("Restart jest niedostępny. Spróbuj później.");}
 }
 static void countdown(void)
 {
  if(!countdown_label)return;
  if(!auto_restart_armed||restart_accepted){lv_label_set_text(countdown_label,"");return;}
  uint32_t left=auto_restart_at-lv_tick_get();if(left>DSR_OTA_AUTO_RESTART_MS)left=0;
- dsr_sc_label_set_text_fmt(countdown_label,"Automatyczny restart za %u s",(unsigned)((left+999u)/1000u));
+ char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Automatyczny restart za %u s"),(unsigned)((left+999u)/1000u));
+ if(strcmp(lv_label_get_text(countdown_label),text))lv_label_set_text(countdown_label,text);
 }
 static void postpone(lv_event_t *event)
-{(void)event;auto_restart_armed=false;show();}
+{(void)event;auto_restart_armed=restart_requested=false;show();}
 static void channel_apply(lv_event_t *event)
 {selected_channel=(dsr_ota_channel_t)(uintptr_t)lv_event_get_user_data(event);dsr_native_ota_cancel();confirming=false;show();}
 static void channel_prompt(lv_event_t *event)
@@ -185,11 +191,11 @@ static void progress(void)
  if(!progress_label)return;
  char text[80];snprintf(text,sizeof(text),"%lu / %lu B",(unsigned long)snapshot.received,(unsigned long)snapshot.total);
  if(progress_bytes){
-  lv_label_set_text(progress_bytes,text);
+  if(strcmp(lv_label_get_text(progress_bytes),text))lv_label_set_text(progress_bytes,text);
   if(snapshot.total){uint64_t percent=(uint64_t)snapshot.received*100u/snapshot.total;if(percent>100)percent=100;snprintf(text,sizeof(text),"%u%%",(unsigned)percent);}else snprintf(text,sizeof(text),"— %%");
  }
- lv_label_set_text(progress_label,text);
- if(progress_bar){uint32_t value=snapshot.total?(uint32_t)(((uint64_t)snapshot.received*1000u)/snapshot.total):0;if(value>1000)value=1000;lv_bar_set_value(progress_bar,(int32_t)value,LV_ANIM_OFF);}
+ if(strcmp(lv_label_get_text(progress_label),text))lv_label_set_text(progress_label,text);
+ if(progress_bar){uint32_t value=snapshot.total?(uint32_t)(((uint64_t)snapshot.received*1000u)/snapshot.total):0;if(value>1000)value=1000;if(lv_bar_get_value(progress_bar)!=(int32_t)value)lv_bar_set_value(progress_bar,(int32_t)value,LV_ANIM_OFF);}
 }
 static void show(void)
 {
@@ -250,19 +256,21 @@ static void show(void)
 
 void dsr_ui_native_ota_open(lv_event_t *event)
 {(void)event;show();}
+bool dsr_ui_native_ota_restart_waiting(void)
+{return active&&!restart_accepted&&(auto_restart_armed||restart_requested);}
 void dsr_ui_native_ota_tick(void)
 {
  if(!active)return;
  dsr_native_ota_snapshot(&snapshot);
  if(snapshot.state!=shown.state||snapshot.error!=shown.error||snapshot.operation_id!=shown.operation_id){show();return;}
  if(install_prompt){bool known,low=battery_low(&known);if(known!=prompt_known||low!=prompt_low||(checking_battery&&!dsr_network_busy())){prompt(NULL);return;}}
- if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED){
-  countdown(); /* Paint zero too before dispatching the restart. */
-  if((int32_t)(lv_tick_get()-auto_restart_at)>=0){
-   restart(NULL);
-   if(!restart_accepted)auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RETRY_MS; /* busy: retry, still cancellable */
-   else auto_restart_armed=false;
-  }else countdown();
- }
+ if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED)countdown();
  if(!confirming)progress();
+}
+/* The network owner calls this only after releasing its own activity lease.
+ * Snapshot/UI updates above still consume worker results in the same poll. */
+void dsr_ui_native_ota_restart_tick(void)
+{
+ if(!active||restart_accepted)return;
+ if(restart_requested||(auto_restart_armed&&snapshot.state==DSR_NATIVE_STAGED&&(int32_t)(lv_tick_get()-auto_restart_at)>=0))restart(NULL);
 }

@@ -75,3 +75,33 @@ Host i build nie potwierdzają rzeczywistej latencji sieci, silnika ani dotyku.
 Na płytce trzeba sprawdzić czas ACK, ruch, zmianę pozycji i STOP podczas ruchu,
 chwilową i trwałą utratę odczytu oraz poprawny błąd logowania. Publikacja nowego
 DEV wymaga osobnego commita wydania i pełnych bramek z RELEASE_CHECKLIST_PL.md.
+
+## Odbiór właściciela 0.7.76-dev — 2026-10-25
+
+Właściciel zainstalował opublikowane 0.7.76-dev na płytce. Pierwsza próba
+zadania pozycji przebiegła poprawnie, lecz przy kolejnych powrócił komunikat
+„Polecenie niepotwierdzone”, mimo rozpoczęcia ruchu fizycznej rolety. Dopiero
+późniejszy odczyt odświeżył ekran i uruchomił animację. Odbiór tej poprawki
+pozostaje **niezaliczony**; zielone CI i testy hosta nie zmieniają tego wyniku.
+
+Kod wyświetla ten konkretny komunikat dla `DSR_OFFLINE` przy fazie
+`DSR_COMMAND_WRITE`, przed zaobserwowaniem ACK. Poprawne ACK i błąd osobnego
+GET są już inną ścieżką. Faza WRITE jest ustawiana przed wywołaniem
+`esp_http_client_perform()`, więc sama nie dowodzi nawet pełnego wysłania
+POST. Ruch silnika nie dowodzi odebrania odpowiedzi przez pilota.
+
+Przy utracie ACK fleet natychmiast pokazuje błąd i planuje GET po 1 s.
+Ten GET ponownie sprawdza tożsamość i status; worker publikuje wynik dopiero
+po zakończeniu całego odczytu, również opcjonalnej nazwy. Jest to potwierdzona
+ścieżka kodu zgodna z objawem, a nie ustalona przyczyna awarii transportu
+z konkretnej próby. Do jej rozróżnienia potrzebny jest log 0.7.76 zawierający
+`Control`, `Cover command`, `Cover readback`, identyfikatory job/layout,
+phase/result, timeouty i ewentualne `Slow LVGL`.
+
+Przed kolejną zmianą zachowania należy ustalić, czy zaginął ACK, czy wynik
+został błędnie sklasyfikowany lub opóźniony w pilocie. Trzeba rozpatrzyć
+obsługę uzgadniania stanu po niepewnym wysłaniu jako osobny etap przepływu,
+zamiast rozszerzać wyłącznie wyjątek dla GET po poprawnym ACK. Zasady
+pozostają: brak automatycznego ponawiania ruchu, brak udawanego potwierdzenia
+i pozycji, niezależny pilny STOP. W tej rundzie diagnostycznej nie zmieniono
+firmware ani nie przygotowano kolejnego wydania.

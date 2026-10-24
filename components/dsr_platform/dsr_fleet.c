@@ -131,7 +131,9 @@ bool dsr_fleet_next_poll(dsr_fleet_t *f,uint32_t now,uint16_t mask,dsr_job_t *jo
   if(!(mask&(1u<<i))||s->queued||!s->layout_enabled||s->urgent_stop||s->in_flight||s->blocked||(int32_t)(now-s->next_poll)<0)continue;
   if(motion&&s->failures&&!cover_motion(s))continue;
   if(!pass&&!cover_followup(s))continue;
-  *job=(dsr_job_t){.kind=DSR_JOB_PROBE,.connection=s->connection};*index=i;return true;
+  /* Movement/recovery needs the verified observation now. Advisory name
+   * refresh belongs to an ordinary poll, not the motor readback path. */
+  *job=(dsr_job_t){.kind=DSR_JOB_PROBE,.connection=s->connection,.telemetry_only=cover_followup(s)};*index=i;return true;
  }
  return false;
 }
@@ -236,7 +238,7 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(result==DSR_RATE_LIMITED){uint32_t limited=DSR_FLEET_RATE_LIMIT_MS<<(s->failures>2?2:s->failures-1);if(limited>DSR_FLEET_RATE_LIMIT_MAX_MS)limited=DSR_FLEET_RATE_LIMIT_MAX_MS;if(delay<limited)delay=limited;}
  /* One fresh observation after a possibly delivered write. The outcome is
   * still uncertain; a failed GET resumes ordinary endpoint backoff. */
- if(control_job(s->operation)&&result==DSR_OFFLINE&&s->command_phase>=DSR_COMMAND_WRITE)delay=1000u;
+ if(control_job(s->operation)&&result==DSR_OFFLINE&&s->command_phase>=DSR_COMMAND_WRITE)delay=cover?0u:1000u;
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}
  return true;

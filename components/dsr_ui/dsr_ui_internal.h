@@ -26,6 +26,8 @@ void dsr_ui_settings_tick(void);
 void dsr_ui_native_ota_open(lv_event_t *event);
 void dsr_ui_native_ota_hide(void);
 void dsr_ui_native_ota_tick(void);
+bool dsr_ui_native_ota_restart_waiting(void);
+void dsr_ui_native_ota_restart_tick(void);
 void dsr_ui_system_open(lv_event_t *event);
 void dsr_ui_activity_open(lv_event_t *event);
 void dsr_ui_activity_hide(void);

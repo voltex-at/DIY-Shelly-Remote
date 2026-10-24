@@ -222,7 +222,7 @@ bool dsr_actions_prepare_job(dsr_job_t *job,dsr_result_t gate,bool fresh)
   else if(c->device.endpoint_kind==DSR_ENDPOINT_RGB){job->kind=DSR_JOB_RGB;job->rgb=(dsr_rgb_intent_t){.command=command==DSR_ACTION_ON?DSR_RGB_ON:command==DSR_ACTION_OFF?DSR_RGB_OFF:command==DSR_ACTION_BRIGHTNESS?DSR_RGB_SET_BRIGHTNESS:command==DSR_ACTION_RGB?DSR_RGB_SET_COLOR:DSR_RGB_NONE};if(command==DSR_ACTION_RGB)memcpy(job->rgb.rgb,s->value,3);else job->rgb.brightness=s->value[0];capable=dsr_rgb_can_set(&c->telemetry.rgb,job->rgb);}
   else if(c->device.endpoint_kind==DSR_ENDPOINT_BLU){job->kind=DSR_JOB_TRV;job->trv=(dsr_trv_intent_t){.command=command==DSR_ACTION_TARGET?DSR_TRV_SET_TARGET:0,.half_c=s->value[0]};capable=(c->telemetry.blu.errors&DSR_BLU_TRV)&&dsr_trv_intent_valid(job->trv);}
   dsr_action_key_t actual=key(c);ok=dsr_actions_model_check(m,(unsigned)at,&actual,gate,fresh,capable,now_ms());
-  if(ok){if(s->phase==DSR_ACTION_PROBE_READY)job->kind=DSR_JOB_PROBE;ok=dsr_actions_model_queued(m,(unsigned)at,job->id,now_ms());}
+  if(ok){if(s->phase==DSR_ACTION_PROBE_READY){job->kind=DSR_JOB_PROBE;job->on=job->ap_confirmed=false;}ok=dsr_actions_model_queued(m,(unsigned)at,job->id,now_ms());}
  }
  finish_locked();give();return ok;
 }
