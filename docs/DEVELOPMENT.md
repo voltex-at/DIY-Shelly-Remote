@@ -43,6 +43,14 @@ Full CI for the exact release commit remains mandatory before publication.
 ASan/UBSan and negative safety cases must not be weakened to pass a change.
 Host rendering and target compilation are not physical-device acceptance.
 
+Background refresh updates cached values in place. Automatic battery reads must
+not imitate a tap, disable the Measure button, or show manual-reading feedback.
+Drawing a screen/header must never enqueue background I/O. Schedule it in the
+owner poll and yield to queued device controls, STOP and active group/scene work.
+A real Measure tap may adopt the existing read without queuing a second one.
+Actual failures remain visible; requested cover positions are never presented
+as confirmed movement.
+
 ## Local contact/heating rules
 
 The canonical workspace schema is 3. Stored schemas 1 and 2 are validated by

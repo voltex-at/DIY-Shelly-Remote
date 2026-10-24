@@ -89,7 +89,22 @@ static void form(unsigned lang,unsigned theme)
  /* Restart reads the stored profile. Background reads are single-slot and
   * pause during display sleep, busy control and the calibration form. */
  dsr_ui_battery_init();display_sleeping=true;lv_tick_inc(22000);dsr_ui_battery_tick();CHECK(!in_flight);display_sleeping=false;dsr_ui_battery_tick();CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);
+ /* An automatic ADC sample must not impersonate a tap on Measure. */
+ lv_obj_t *measure=lv_obj_get_parent(find_label(lv_screen_active(),"Zmierz napięcie"));
+ CHECK(!lv_obj_has_state(measure,LV_STATE_DISABLED|LV_STATE_PRESSED));
+ CHECK(!find_label(lv_screen_active(),"Odczyt napięcia…"));
  response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=6}};dsr_battery_apply_profile(&battery_stored,&response.battery);deliver(DSR_OK,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"~75%"));snap("estimated",lang);CHECK(!response.battery.has_charge_state&&!response.battery.charging);if(review_mode()){lv_obj_t *memory=find_label(lv_screen_active(),"Pamięć i radio");CHECK(memory);lv_obj_scroll_to_view_recursive(lv_obj_get_parent(memory),LV_ANIM_OFF);snap("memory",lang);}
+ lv_obj_t *voltage=find_label(lv_screen_active(),"4.000 V");CHECK(voltage);
+ before=requests;lv_tick_inc(22000);dsr_ui_battery_tick();CHECK(in_flight&&requests==before+1);
+ CHECK(lv_obj_get_parent(find_label(lv_screen_active(),"Zmierz napięcie"))==measure);
+ CHECK(find_label(lv_screen_active(),"4.000 V")==voltage&&!find_label(lv_screen_active(),"Odczyt napięcia…"));
+ CHECK(!lv_obj_has_state(measure,LV_STATE_DISABLED|LV_STATE_PRESSED));
+ if(lang==0&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)snap("background-reading",lang);
+ /* A real tap adopts the in-flight sample; no duplicate ADC job is queued. */
+ before=requests;press("Zmierz napięcie");CHECK(requests==before&&in_flight);
+ CHECK(lv_obj_has_state(measure,LV_STATE_DISABLED)&&find_label(lv_screen_active(),"Odczyt napięcia…"));
+ response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=6}};dsr_battery_apply_profile(&battery_stored,&response.battery);deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(!lv_obj_has_state(measure,LV_STATE_DISABLED)&&!find_label(lv_screen_active(),"Odczyt napięcia…"));
  press("Kalibracja baterii");before=requests;lv_tick_inc(22000);dsr_ui_battery_tick();CHECK(requests==before&&!in_flight);press("Zmierz napięcie");CHECK(in_flight&&submitted.kind==DSR_JOB_BATTERY_READ);
  response=(dsr_event_t){.battery={.has_raw=true,.has_voltage=true,.adc_mv=2000,.bat_mv=4000,.spread=4}};deliver(DSR_OK,DSR_WIFI_IDLE);set(5,"4200");press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"1050 / 1000"));snap("reference",lang);if(review_mode()){lv_obj_scroll_to_view_recursive(lv_obj_get_parent(find_label(lv_screen_active(),"Korekta 1:1")),LV_ANIM_OFF);snap("correction-actions",lang);}
  set(5,"2500");press("Oblicz korektę");CHECK(find_label(lv_screen_active(),"Zmierz ponownie. Wpisz 2500–4350 mV; korekta maks. ±10%."));CHECK(find_label(lv_screen_active(),"1050 / 1000"));

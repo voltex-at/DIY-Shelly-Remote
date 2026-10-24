@@ -404,7 +404,10 @@ dsr_result_t dsr_network_request_battery_auto(void)
 {
  /* Background measurement yields to every queued touch, actor and radio flow.
   * Never queue it for later or change the current scene/control mode. */
- if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_ble_rpc_active())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_actions_active()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_ble_rpc_active())return DSR_BUSY;
+ /* Native device controls enter the workspace mailbox, not touch_job. Let
+  * poll() consume and dispatch those intents before an automatic ADC read. */
+ for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].queued||fleet.slots[i].mailbox_pending||fleet.slots[i].urgent_stop)return DSR_BUSY;
  dsr_job_t job={.id=++serial,.kind=DSR_JOB_BATTERY_READ};if(!job.id)job.id=++serial;
  dsr_result_t r=dsr_worker_submit(&job);
  if(r==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}

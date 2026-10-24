@@ -50,6 +50,17 @@ pełny zestaw raz na końcowym commicie przed wydaniem.
 - [ ] Po restarcie potwierdzić docelową wersję, zdrowy start bez pętli
   restartów/nieoczekiwanego rollbacku oraz zachowanie Wi-Fi, powiązań BLE,
   urządzeń, pomieszczeń, dashboardów, ustawień i zdjęć.
+- [ ] Na szczegółach rolety i karcie Dashboardu sprawdzić Otwórz/Zamknij/Stop:
+  szybkie potwierdzenie przyjęcia dotyku, zachowanie ostatniego potwierdzonego
+  widoku podczas oczekiwania i płynne odczyty ruchu. Prawidłowe polecenie nie
+  może powodować chwilowego komunikatu o braku pomiarów ani resetu grafiki.
+  Animacja musi wynikać z potwierdzonego ruchu, nie z samej żądanej pozycji;
+  rzeczywistego błędu odczytu nie wolno ukrywać ani ponawiać polecenia ruchu.
+- [ ] Na stronie baterii sprawdzić automatyczny pomiar: zmienia wartości bez
+  przygaszania/naciskania „Zmierz napięcie” i bez komunikatu pomiaru ręcznego.
+  Dotknięcie przycisku podczas odczytu w tle wykorzystuje ten sam pomiar.
+  Zaległy odczyt baterii nie może zostać zlecony przez odrysowanie nagłówka
+  ani wyprzedzić oczekującego polecenia rolety, STOP lub grupy/sceny.
 - [ ] Sprawdzić na sprzęcie również lokalną aktualizację przez sparowany panel
   WWW: zgoda LCD, przesłanie tego samego BIN, weryfikacja, zakończenie i restart.
   Zapisać wersję początkową tej próby oddzielnie.

@@ -31,6 +31,15 @@ int main(int argc,char **argv)
  dsr_mobile_device_t typed;CHECK(dsr_network_typed_device(id,&typed)&&typed.endpoint_kind==DSR_ENDPOINT_COVER);
  dsr_ui_usage_open(id);CHECK(find_label(lv_screen_active(),"Zużycie"));screenshot("256-cover-history-explicitly-unsupported");dsr_network_device_control(id);
  click("Roleta testowa");CHECK(find_label(lv_screen_active(),"Pozycja 38%")&&!find_label(lv_screen_active(),"DEMO • dane przykładowe"));screenshot("250-cover-confirmed-readback");
+ /* A due background battery sample must not be submitted while repainting
+  * the header in a cover tap, nor win the next poll ahead of that intent. */
+ dsr_battery_profile_defaults(&battery_stored);battery_stored.kind=DSR_BATTERY_LIPO_1S;battery_stored.trend_enabled=false;dsr_ui_battery_init();
+ lv_tick_inc(6000);unsigned control_before=requests;click("Otwórz");
+ CHECK(requests==control_before&&!in_flight);tick();
+ CHECK(in_flight&&submitted.kind==DSR_JOB_COVER&&submitted.cover.command==DSR_COVER_OPEN);
+ CHECK(find_label(lv_screen_active(),"Pozycja 38%"));
+ battery_stored.kind=DSR_BATTERY_NONE;dsr_ui_battery_init();
+ cover_response(DSR_COVER_STATE_STOPPED,38,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);
  const char *locales[]={"en","de","pl"};unsigned locale_requests=requests;
  for(unsigned i=0;i<3;i++){r=room_document();cJSON_ReplaceItemInObjectCaseSensitive(r,"language",cJSON_CreateString(locales[i]));publish_document(r);tick();CHECK(requests==locale_requests);CHECK(find_label(lv_screen_active(),i==0?"Position 38%":i==1?"Position 38%":"Pozycja 38%"));if(i<2)screenshot(i==0?"254-cover-readback-en":"255-cover-readback-de");}
  /* 238 px now marks 67% of the resized aperture; intent remains release-only. */

@@ -15,7 +15,7 @@
 
 static EXT_RAM_BSS_ATTR dsr_battery_sample_t sample;
 static dsr_result_t result=DSR_IO;
-static EXT_RAM_BSS_ATTR bool attempted,pending,active,rejected,from_home;
+static EXT_RAM_BSS_ATTR bool attempted,pending,manual_pending,active,rejected,from_home;
 static EXT_RAM_BSS_ATTR uint32_t measured,monitor_at;
 static EXT_RAM_BSS_ATTR dsr_battery_profile_t profile;
 static EXT_RAM_BSS_ATTR dsr_battery_trend_t trend;
@@ -24,6 +24,7 @@ static EXT_RAM_BSS_ATTR bool profile_known;
  * shown (never while the display sleeps): smooth, with no allocation churn. */
 static EXT_RAM_BSS_ATTR lv_timer_t *charge_timer;
 static void charge_frame(lv_timer_t *timer);
+static void refresh_values(void);
 void dsr_ui_battery_init(void)
 {
  profile_known=dsr_battery_profile_load(&profile)==ESP_OK;monitor_at=lv_tick_get()-15000;dsr_battery_trend_reset(&trend);
@@ -57,7 +58,7 @@ void dsr_ui_battery_profile_result(const dsr_event_t *event,dsr_job_kind_t kind)
  sample.has_percent=false;sample.percent_estimated=false;attempted=false;
  dsr_battery_trend_reset(&trend);
  dsr_ui_battery_calibration_result(event,kind);
- dsr_ui_battery_tick();
+ refresh_values();
 }
 static EXT_RAM_BSS_ATTR lv_obj_t *header_value,*value,*status,*age,*measure,*percent_value,*note_value;
 static EXT_RAM_BSS_ATTR lv_obj_t *header_icon;
@@ -107,12 +108,14 @@ static void memory_free(unsigned index,size_t available,size_t total,bool stack)
 static void back(lv_event_t *event){(void)event;if(from_home)dsr_network_home(NULL);else dsr_ui_open_settings();}
 static void request(lv_event_t *event)
 {
- (void)event;if(pending)return;
- dsr_result_t accepted=dsr_network_request_battery();
+ (void)event;
+ /* A real tap may adopt an already-running background ADC read. Keep one
+  * worker job; only this explicit user intent changes the button/status. */
+ dsr_result_t accepted=pending?DSR_OK:dsr_network_request_battery();
  rejected=accepted!=DSR_OK;
- if(accepted==DSR_OK){pending=true;if(measure)lv_obj_add_state(measure,LV_STATE_DISABLED);}
- else{dsr_ui_battery_tick();return;}
- dsr_ui_battery_tick();
+ if(accepted==DSR_OK){pending=manual_pending=true;if(measure)lv_obj_add_state(measure,LV_STATE_DISABLED);}
+ else{refresh_values();return;}
+ refresh_values();
 }
 void dsr_ui_battery_tick(void)
 {
@@ -122,9 +125,16 @@ void dsr_ui_battery_tick(void)
  if(profile_known&&profile.kind!=DSR_BATTERY_NONE&&!pending&&!dsr_ui_battery_calibration_active()&&!dsr_board_display_sleeping()&&
     (uint32_t)(lv_tick_get()-monitor_at)>=interval){
   monitor_at=lv_tick_get();
-  if(dsr_network_request_battery_auto()==DSR_OK){pending=true;if(measure)lv_obj_add_state(measure,LV_STATE_DISABLED);}
+  /* Automatic reads update cached values in place, without imitating a tap. */
+  if(dsr_network_request_battery_auto()==DSR_OK)pending=true;
   else monitor_at-=interval-(interval<5000?interval:5000); /* Bounded retry, no backlog. */
  }
+ refresh_values();
+}
+/* Drawing a header or completing a request only paints cached values. It must
+ * never start background I/O inside another control's touch callback. */
+static void refresh_values(void)
+{
  uint32_t elapsed=lv_tick_get()-measured;
  bool valid=attempted&&result==DSR_OK&&sample.has_voltage;
  bool fresh=attempted&&result==DSR_OK&&elapsed<30000;
@@ -152,8 +162,8 @@ void dsr_ui_battery_tick(void)
  if(fresh&&sample.has_percent)snprintf(text,sizeof(text),sample.percent_estimated?"~%u%%":"%u%%",sample.percent);else snprintf(text,sizeof(text),"—%%");
  label(percent_value,text);
  label(note_value,dsr_battery_trend_likely(&trend,lv_tick_get())?"Prawdopodobne ładowanie • trend min. 10 s":profile_known&&profile.kind!=DSR_BATTERY_NONE?"~%: szacunek. Brak detekcji baterii i ładowania.":"Ładowanie, ogniwo i procent: brak wiarygodnych danych.");
- label(status,pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":sample.percent_estimated?"Szacunek z profilu • wpływ obciążenia i temperatury":"Napięcie BAT • dzielnik nominalny 2:1");
- if(status&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)lv_obj_set_style_text_color(status,dsr_sc_color(pending?DSR_SC_BLUE:rejected||(attempted&&(!valid||elapsed>=30000))?0xffc107:DSR_SC_TEXT),0);
+ label(status,manual_pending?"Odczyt napięcia…":rejected?"Pilot jest zajęty. Spróbuj ponownie.":!attempted?"Pomiar na żądanie":result!=DSR_OK?"Pomiar niedostępny. Spróbuj ponownie.":!sample.has_voltage?"Kalibracja ADC niedostępna. Napięcie nieznane.":elapsed>=30000?"Pomiar nieaktualny. Zmierz ponownie.":sample.percent_estimated?"Szacunek z profilu • wpływ obciążenia i temperatury":"Napięcie BAT • dzielnik nominalny 2:1");
+ if(status&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)lv_obj_set_style_text_color(status,dsr_sc_color(manual_pending?DSR_SC_BLUE:rejected||(attempted&&(!valid||elapsed>=30000))?0xffc107:DSR_SC_TEXT),0);
  if(attempted){snprintf(text,sizeof(text),dsr_sc_tr("Ostatni odczyt: %lu s temu"),(unsigned long)(elapsed/1000));label(age,text);}
  else label(age,"Brak pomiaru");
  /* Responsiveness counters (0.7.52), refreshed once per second. */
@@ -171,10 +181,10 @@ void dsr_ui_battery_tick(void)
 void dsr_ui_battery_result(const dsr_event_t *event)
 {
  dsr_ui_battery_calibration_sample(event);
- pending=false;attempted=true;measured=monitor_at=lv_tick_get();sample=event->battery;result=event->result;
+ pending=manual_pending=false;attempted=true;measured=monitor_at=lv_tick_get();sample=event->battery;result=event->result;
  dsr_battery_trend_update(&trend,result==DSR_OK?&sample:NULL,lv_tick_get(),profile_known&&profile.kind!=DSR_BATTERY_NONE&&profile.trend_enabled&&!dsr_board_display_sleeping()&&!dsr_ui_battery_calibration_active());
  if(active&&measure)lv_obj_remove_state(measure,LV_STATE_DISABLED);
- dsr_ui_battery_tick();
+ refresh_values();
 }
 static void show(void);
 void dsr_ui_battery_return(void){show();}
@@ -226,7 +236,7 @@ static void show(void)
   memory_card(body,236);
   dsr_ui_button(root,"Wstecz",12,420,108,back,NULL);
   measure=dsr_ui_button(root,"Zmierz napięcie",128,420,180,request,NULL);
-  diag_at=lv_tick_get()-1000;if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);dsr_ui_battery_tick();return;
+  diag_at=lv_tick_get()-1000;if(manual_pending)lv_obj_add_state(measure,LV_STATE_DISABLED);refresh_values();return;
  }
  lv_obj_t *body=dsr_sc_panel(root,12,86,296,260,DSR_SC_BG,0);
  lv_obj_add_flag(body,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(body,LV_DIR_VER);dsr_sc_scrollbar(body);
@@ -239,8 +249,8 @@ static void show(void)
  dsr_ui_button(body,"Kalibracja baterii",0,164,296,dsr_ui_battery_calibration_open,NULL);
  memory_card(body,220);diag_at=lv_tick_get()-1000;
  measure=dsr_ui_button(root,"Zmierz napięcie",12,359,296,request,NULL);
- if(pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
- dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);dsr_ui_battery_tick();
+ if(manual_pending)lv_obj_add_state(measure,LV_STATE_DISABLED);
+ dsr_ui_button(root,"Wstecz",12,420,296,back,NULL);refresh_values();
 }
 void dsr_ui_battery_header(lv_obj_t *root)
 {
@@ -250,5 +260,5 @@ void dsr_ui_battery_header(lv_obj_t *root)
  header_icon=button;lv_obj_add_event_cb(button,battery_draw,LV_EVENT_DRAW_MAIN_END,NULL);lv_obj_add_event_cb(button,icon_deleted,LV_EVENT_DELETE,NULL);
  header_fill=-2;header_value=dsr_sc_text(button,"—",5,15,38,&dsr_roboto_11,DSR_SC_TEXT);
  lv_obj_set_style_text_align(header_value,LV_TEXT_ALIGN_CENTER,0);
- lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);dsr_ui_battery_tick();
+ lv_obj_add_event_cb(header_value,header_deleted,LV_EVENT_DELETE,NULL);refresh_values();
 }
