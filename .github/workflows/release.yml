@@ -12,6 +12,8 @@ name: Signed release
 #          are read back before the release becomes visible.
 # The OTA signing key must be an ENVIRONMENT secret of release/stable-release,
 # never a repository secret visible to unprotected workflows.
+# Owner release acceptance must follow docs/RELEASE_CHECKLIST_PL.md.
+# CI/signing alone do not prove public downloads or a physical device upgrade.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+', 'dev-v[0-9]+.[0-9]+.[0-9]+']

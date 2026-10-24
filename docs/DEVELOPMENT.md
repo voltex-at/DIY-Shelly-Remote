@@ -118,6 +118,13 @@ These build commands do not authorize flashing or erasing Flash/NVS.
 
 ## CI and releases
 
+Before preparing or approving a release, complete the mandatory
+[download and device-update checklist](RELEASE_CHECKLIST_PL.md). It requires
+anonymous public catalogue/manifest/BIN downloads and an actual upgrade from
+the previous supported DEV, restart/data-retention checks, and local web OTA.
+CI success alone is not hardware acceptance. The checklist also defines the
+explicit candidate stage needed because draft assets are not publicly readable.
+
 `.github/workflows/ci.yml` checks native C/sanitizers, real LVGL and browser UI,
 the ES3C35P board build, and diagnostic ESP32/ESP32-S3 compile coverage. Diagnostic
 targets are not additional supported boards. Target auditors check memory,
