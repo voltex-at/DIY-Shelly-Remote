@@ -195,3 +195,22 @@ esp_err_t dsr_connection_update_name(const dsr_connection_t *c)
  }
  if(r){memset(r,0,sizeof(*r));free(r);}dsr_activity_end();return error;
 }
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_backup_storage.h"
+#include "dsr_maintenance_private.h"
+esp_err_t dsr_connections_restore(const dsr_connection_t *items,size_t count)
+{
+ if(!dsr_maintenance_boot_writes_allowed())return ESP_ERR_INVALID_STATE;
+ if(count>DSR_MAX_DEVICES||(!items&&count))return ESP_ERR_INVALID_ARG;
+ for(size_t i=0;i<count;i++){
+  if(!dsr_connection_valid(items+i,true)||!items[i].layout_id||items[i].layout_id>1000000||items[i].legacy_fallback)return ESP_ERR_INVALID_ARG;
+  for(size_t j=0;j<i;j++)if(items[i].layout_id==items[j].layout_id||same_endpoint(&items[i].device,&items[j].device))return ESP_ERR_INVALID_ARG;
+ }
+ connection_registry_v6_t *r=calloc(1,sizeof(*r));if(!r)return ESP_ERR_NO_MEM;r->count=(uint32_t)count;
+ for(size_t i=0;i<count;i++){
+  r->items[i].layout_id=items[i].layout_id;r->items[i].device=items[i].device;r->items[i].credentials=items[i].credentials;
+  dsr_device_t *d=&r->items[i].device;d->online=d->has_switch=d->has_power=d->output=false;d->power_w=0;
+ }
+ esp_err_t e=registry_write(r);memset(r,0,sizeof(*r));free(r);return e;
+}
+#endif

@@ -15,6 +15,7 @@ void dsr_backup_wipe(void *data,size_t size)
 static void scrub(cJSON *value)
 {for(cJSON *v=value;v;v=v->next){if(v->valuestring)dsr_backup_wipe(v->valuestring,strlen(v->valuestring));if(v->string)dsr_backup_wipe(v->string,strlen(v->string));if(v->child)scrub(v->child);}}
 static void discard(cJSON *value){scrub(value);cJSON_Delete(value);}
+void dsr_backup_json_discard(cJSON *value){discard(value);}
 static uint16_t u16(const uint8_t *p){return (uint16_t)(p[0]|(uint16_t)p[1]<<8);}
 static uint32_t u32(const uint8_t *p){return (uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static const cJSON *get(const cJSON *v,const char *key){return cJSON_GetObjectItemCaseSensitive(v,key);}

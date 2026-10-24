@@ -292,3 +292,19 @@ void dsr_automation_snapshot(dsr_auto_snapshot_t *out)
  }
  give();
 }
+#include "dsr_backup_storage.h"
+dsr_result_t dsr_automation_backup_record(dsr_auto_record_t *out)
+{
+ if(out)memset(out,0,sizeof(*out));
+ if(!take())return DSR_BUSY;
+ dsr_result_t r=DSR_OK;
+ if(ctx->config_invalid||ctx->model.fault!=DSR_OK)r=DSR_CONFLICT;
+ if(ctx->journal_submitted||ctx->run_id||ctx->read_job||ctx->effect.kind||ctx->model.pending.kind)r=DSR_BUSY;
+ for(unsigned i=0;i<DSR_AUTO_RULES;i++)if(ctx->model.record.cycles[i].active)r=DSR_BUSY;
+ for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++){
+  unsigned phase=ctx->model.record.targets[i].phase;
+  if(phase==DSR_AUTO_PREPARED||phase==DSR_AUTO_VERIFY||phase==DSR_AUTO_RESTORE_PREPARED||phase==DSR_AUTO_RESTORE_VERIFY||phase==DSR_AUTO_UNCERTAIN)r=DSR_BUSY;
+ }
+ if(r==DSR_OK&&out){*out=ctx->model.record;if(!out->generation)out->generation=1;}
+ give();return r;
+}

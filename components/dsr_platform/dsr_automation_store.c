@@ -121,3 +121,18 @@ esp_err_t dsr_auto_store_save(const dsr_auto_record_t *record)
  }
  free(bytes);return e;
 }
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_backup_storage.h"
+#include "dsr_maintenance_private.h"
+esp_err_t dsr_auto_store_restore(const dsr_auto_record_t *record)
+{
+ if(!dsr_maintenance_boot_writes_allowed())return ESP_ERR_INVALID_STATE;
+ if(!dsr_auto_record_valid(record)||record->generation!=1)return ESP_ERR_INVALID_ARG;
+ for(unsigned i=0;i<DSR_AUTO_RULES;i++)if(record->cycles[i].active||record->cycles[i].cycle)return ESP_ERR_INVALID_ARG;
+ const dsr_auto_target_t zero={0};for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++)if(memcmp(&record->targets[i],&zero,sizeof(zero)))return ESP_ERR_INVALID_ARG;
+ nvs_handle_t h;esp_err_t e=nvs_open("dsr_auto",NVS_READWRITE,&h);if(e!=ESP_OK)return e;
+ e=nvs_erase_all(h);if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);
+ /* Interrupted replacement is retried before any ordinary boot reader. */
+ return e==ESP_OK?dsr_auto_store_save(record):e;
+}
+#endif

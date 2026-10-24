@@ -19,4 +19,5 @@ const uint8_t *dsr_backup_image_bytes(const dsr_backup_image_t *image,size_t *si
 const cJSON *dsr_backup_image_manifest(const dsr_backup_image_t *image);
 const dsr_backup_photo_t *dsr_backup_image_photo(const dsr_backup_image_t *image,unsigned index);
 void dsr_backup_wipe(void *data,size_t size);
+void dsr_backup_json_discard(cJSON *owned);
 #endif

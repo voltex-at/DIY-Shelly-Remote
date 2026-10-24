@@ -35,17 +35,33 @@ esp_err_t dsr_settings_load(dsr_settings_t *out)
     return error;
 }
 
-esp_err_t dsr_settings_save(const dsr_settings_t *settings)
+static esp_err_t save(const dsr_settings_t *settings)
 {
     if (!valid(settings)) return ESP_ERR_INVALID_ARG;
-    if (!dsr_activity_begin()) return ESP_ERR_INVALID_STATE;
     nvs_handle_t handle;
     esp_err_t error = nvs_open("dsr_cfg", NVS_READWRITE, &handle);
-    if (error != ESP_OK) { dsr_activity_end(); return error; }
+    if (error != ESP_OK) return error;
     error = nvs_set_blob(handle, "settings", settings, sizeof(*settings));
     if (error == ESP_OK) error = nvs_set_u32(handle, "schema", 2);
     if (error == ESP_OK) error = nvs_commit(handle);
     nvs_close(handle);
-    dsr_activity_end();
     return error;
 }
+esp_err_t dsr_settings_save(const dsr_settings_t *settings)
+{
+ if(!valid(settings))return ESP_ERR_INVALID_ARG;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ esp_err_t e=save(settings);dsr_activity_end();return e;
+}
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_backup_storage.h"
+#include "dsr_maintenance_private.h"
+esp_err_t dsr_settings_restore(const dsr_settings_t *settings)
+{
+ if(!dsr_maintenance_boot_writes_allowed())return ESP_ERR_INVALID_STATE;
+ esp_err_t e=save(settings);dsr_settings_t check={0};
+ if(e==ESP_OK)e=dsr_settings_load(&check);
+ if(e==ESP_OK&&(strcmp(settings->ssid,check.ssid)||strcmp(settings->password,check.password)||settings->brightness!=check.brightness||settings->wifi_security!=check.wifi_security||settings->idle_seconds!=check.idle_seconds))e=ESP_FAIL;
+ memset(&check,0,sizeof(check));return e;
+}
+#endif

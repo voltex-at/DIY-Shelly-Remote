@@ -41,13 +41,24 @@ esp_err_t dsr_battery_profile_load(dsr_battery_profile_t *out)
  if(!dsr_battery_profile_valid(&p))return ESP_ERR_INVALID_ARG;
  *out=p;return ESP_OK;
 }
-esp_err_t dsr_battery_profile_save(const dsr_battery_profile_t *p)
+static esp_err_t save(const dsr_battery_profile_t *p)
 {
  if(!dsr_battery_profile_valid(p))return ESP_ERR_INVALID_ARG;
- if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
  uint8_t b[RECORD_SIZE];encode(p,b);nvs_handle_t h;
  esp_err_t e=nvs_open("dsr_battery",NVS_READWRITE,&h);
  if(e==ESP_OK){e=nvs_set_blob(h,"profile",b,sizeof(b));if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);}
  if(e==ESP_OK){dsr_battery_profile_t verify;e=dsr_battery_profile_load(&verify);if(e==ESP_OK&&!dsr_battery_profile_equal(p,&verify))e=ESP_FAIL;}
- dsr_activity_end();return e;
+ return e;
 }
+esp_err_t dsr_battery_profile_save(const dsr_battery_profile_t *p)
+{
+ if(!dsr_battery_profile_valid(p))return ESP_ERR_INVALID_ARG;
+ if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
+ esp_err_t e=save(p);dsr_activity_end();return e;
+}
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_backup_storage.h"
+#include "dsr_maintenance_private.h"
+esp_err_t dsr_battery_profile_restore(const dsr_battery_profile_t *p)
+{return dsr_maintenance_boot_writes_allowed()?save(p):ESP_ERR_INVALID_STATE;}
+#endif
