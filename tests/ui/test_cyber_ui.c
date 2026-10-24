@@ -130,7 +130,12 @@ static void gallery(void)
   gauge_pointer((well.x1+well.x2)/2,y,false);CHECK(position_hits==i+1&&last_position==targets[i]);
   CHECK(find_label(lv_screen_active(),"Pozycja 84%")); /* Target never replaces confirmed data. */
  }
- tap(80,390);tap(235,390);tap(272,275);CHECK(cover_hits==2&&stop_hits==1);
+ tap(80,390);tap(235,390);tap(272,275);CHECK(cover_hits==2&&stop_hits==0); /* Old side STOP is gone. */
+ CHECK(!find_label(lv_screen_active(),"Stop"));
+ m.devices[1].cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *stop=find_label(lv_screen_active(),"Stop");CHECK(stop);lv_area_t stop_area;lv_obj_get_coords(lv_obj_get_parent(stop),&stop_area);
+ CHECK(stop_area.y1==364&&stop_area.y2==411);tap((stop_area.x1+stop_area.x2)/2,(stop_area.y1+stop_area.y2)/2);
+ CHECK(cover_hits==2&&stop_hits==1&&find_label(lv_screen_active(),"Pozycja 84%"));
  dsr_mobile_show(DSR_MOBILE_DETAILS,2);CHECK(find_label(lv_screen_active(),"Zamknięte"));screenshot("603-cyber-blu-closed");
  tap(160,400);CHECK(refresh_hits==1);
  m.devices[2].contact_open=true;m.devices[2].blu.flags|=DSR_BLU_OPEN;dsr_mobile_update(&m);CHECK(find_label(lv_screen_active(),"Otwarte"));screenshot("604-cyber-blu-open");

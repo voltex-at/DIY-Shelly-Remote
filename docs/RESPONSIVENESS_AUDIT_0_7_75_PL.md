@@ -64,7 +64,10 @@ oczekiwanie STOP przy nieruchomej rolecie w podglądzie DEMO. Dostosowano dwa
 fixture podglądu do zaakceptowanego układu: brak STOP w spoczynku, dolny STOP
 podczas ruchu/nieznanej pozycji i zachowana kontrola braku komend z DEMO.
 Lokalnie oba dotknięte podglądy przeszły; firmware nie wymagał kolejnej zmiany.
-Publikację nadal blokuje brak pełnego CI 5/5 końcowego commita.
+Pełny przegląd wskazał także kliknięcie dawnej bocznej pozycji STOP w
+`test_cyber_ui`. Test sprawdza teraz brak bocznej akcji oraz prawidłowy dolny
+STOP podczas raportowanego ruchu; ten przypadek również przeszedł lokalnie.
+Publikacja wymaga pełnego CI 5/5 końcowego commita.
 
 ## Pozostaje sprzęt
 
