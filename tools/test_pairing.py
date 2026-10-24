@@ -33,6 +33,13 @@ auth_hashes={'local_request':'77af2b1f465d425091ef1097e93853d24a341a626624604dad
 for name,expected in auth_hashes.items():
     block=function(panel,name)
     if name=='api':
+        # Normalize only the reviewed fresh-capture scheduling. Authentication,
+        # route ordering and the privacy predicate retain their frozen hashes.
+        fresh='  char mode[8]={0};bool fresh=httpd_req_get_hdr_value_str(r,"X-DSR-Preview",mode,sizeof(mode))==ESP_OK&&!strcmp(mode,"fresh");\n'
+        scheduling='\n  if(fresh){preview_ready=false;need_preview=!pairing_active;if(!++preview_generation)++preview_generation;}if(pairing_active){preview_ready=false;need_preview=false;}\n  bool ready='
+        assert block.count(fresh)==1 and block.index(fresh)>block.index('if(!authorized(r))')
+        assert block.count(scheduling)==1,'Unexpected preview scheduling change'
+        block=block.replace(fresh,'').replace(scheduling,'need_preview=!pairing_active;bool ready=')
         maintenance=' if(!strncmp(r->uri,"/api/v1/backup/",15)||!strncmp(r->uri,"/api/v1/maintenance/",20)||!strcmp(r->uri,"/api/v1/reset/request"))return maintenance_api(r);\n'
         assert block.count(maintenance)==1 and block.index(maintenance)>block.index('if(!authorized(r))'),'Maintenance must stay behind unchanged authentication'
         block=block.replace(maintenance,'')
