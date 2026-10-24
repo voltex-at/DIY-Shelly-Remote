@@ -123,6 +123,12 @@ int main(int argc,char **argv)
  char url_limit[258];strcpy(url_limit,initial);size_t initial_length=strlen(url_limit);memset(url_limit+initial_length,'a',256-initial_length);url_limit[256]=0;
  reset();run(url_limit,DSR_FETCH_OK,DSR_MANIFEST_OK);url_limit[256]='a';url_limit[257]=0;reset();run(url_limit,DSR_FETCH_URL,DSR_MANIFEST_INVALID);CHECK(!initialized);
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn);run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==2&&!strcmp(hops[1].url,cdn));
+ /* GitHub's public release redirect carried a 9217-byte CSP on 2026-10-24.
+  * This browser-only field must fit the existing TOTAL 16 KiB header budget,
+  * rather than prevent the signed manifest (and then the app) being fetched. */
+ char github_csp[9218];memset(github_csp,'a',sizeof(github_csp)-1);github_csp[sizeof(github_csp)-1]=0;
+ reset();hops[0].status=302;hops[0].count=0;add(0,"Content-Security-Policy",github_csp);add(0,"Location",cdn);
+ run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==2&&hops[1].offset==fixture_length[0]);
  char cdn_limit[2050];strcpy(cdn_limit,cdn);size_t cdn_length=strlen(cdn_limit);memset(cdn_limit+cdn_length,'a',2048-cdn_length);cdn_limit[2048]=0;
  reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn_limit);run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);CHECK(initialized==2);
  cdn_limit[2048]='a';cdn_limit[2049]=0;reset();hops[0].status=302;hops[0].count=0;add(0,"Location",cdn_limit);run(initial,DSR_FETCH_HEADERS,DSR_MANIFEST_INVALID);CHECK(initialized==1);
@@ -164,11 +170,12 @@ int main(int argc,char **argv)
  reset();hops[0].headers[0].key="cOnTeNt-LeNgTh";run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
  char ows[40];reset();snprintf(ows,sizeof(ows)," \t%s \t",lengths[0]);hops[0].headers[0].value=ows;run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
  reset();hops[0].count=0;hops[0].chunked=true;add(0,"tRaNsFeR-EnCoDiNg"," \tChUnKeD \t");run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
- char long_key[130],long_value[8194];memset(long_key,'x',129);long_key[129]=0;memset(long_value,'a',8193);long_value[8193]=0;
+ char long_key[130],long_value[16386];memset(long_key,'x',129);long_key[129]=0;memset(long_value,'a',16385);long_value[16385]=0;
  reset();add(0,long_key,"x");run(initial,DSR_FETCH_HEADERS,DSR_MANIFEST_INVALID);
  reset();add(0,"X",long_value);run(initial,DSR_FETCH_HEADERS,DSR_MANIFEST_INVALID);
  reset();for(unsigned i=0;i<64;i++)add(0,"X","x");run(initial,DSR_FETCH_HEADERS,DSR_MANIFEST_INVALID);
  reset();for(unsigned i=0;i<63;i++)add(0,"X","x");run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
+ long_value[8193]=0;reset();add(0,"X",long_value);run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
  long_value[8192]=0;reset();add(0,"X",long_value);add(0,"Y",long_value);run(initial,DSR_FETCH_HEADERS,DSR_MANIFEST_INVALID);
  reset();add(0,"X",long_value);run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);
  long_key[128]=0;reset();add(0,long_key,"x");run(initial,DSR_FETCH_OK,DSR_MANIFEST_OK);

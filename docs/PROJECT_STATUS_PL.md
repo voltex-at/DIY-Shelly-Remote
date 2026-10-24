@@ -3,7 +3,18 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
-## Bieżący etap: DEV 0.7.71 i SYS-02 — 2026-10-24
+## Bieżący etap: poprawka OTA 0.7.72-dev — 2026-10-24
+
+Zdjęcie pilota 0.7.70-dev pokazało `16/6/200/1`: pobranie manifestu odmówione
+z powodu nagłówków przed weryfikacją podpisu. Publiczny redirect GitHub dla
+manifestu i BIN zawierał CSP 9217 B wobec dotychczasowych 8192 B na wartość.
+Poprawka dopuszcza go w niezmienionym łącznym budżecie 16 KiB, zachowując
+politykę TLS/podpisu/framingu. Wersja źródeł: `0.7.72-dev`, ta sama gałąź.
+Starszy pilot potrzebuje jednorazowej aktualizacji przez WWW lub USB app-only;
+instrukcja jest w `docs/INSTALL_UPDATE_PL.md`. Potwierdzenie sprzętowe pozostaje
+otwarte; publiczna integralność 0.7.71 nie była dowodem jego pobrania przez 0.7.70.
+
+## Etap SYS-02 w DEV 0.7.71 — 2026-10-24
 
 Właściciel polecił zakończyć bieżące wdrożenie i opublikować DEV, a następnie
 kontynuować ankietę graficzną i ustalenie priorytetów. Gałąź pozostaje

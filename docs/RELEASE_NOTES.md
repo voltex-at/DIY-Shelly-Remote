@@ -1,3 +1,10 @@
+0.7.72-dev: naprawa pobierania OTA przy długim nagłówku GitHub.
+
+- Zdjęcie z fizycznego pilota 0.7.70-dev ujawniło odmowę pobrania manifestu z kodem `16/6/200/1`. Nagłówek `Content-Security-Policy` przekierowania GitHub miał 9217 bajtów, przekraczając dotychczasowy limit pojedynczej wartości 8192 bajty. Odmowa następowała przed sprawdzeniem podpisu.
+- Wartości nagłówków mieszczą się teraz w pozostałym łącznym budżecie 16 KiB. Zachowano limity liczby i nazw nagłówków, ścisłe sprawdzanie długości, kodowania i przekierowań, TLS oraz produkcyjny podpis Ed25519. Nie zwiększono bufora manifestu ani kontekstu pobierania.
+- Starsze wersje, w tym 0.7.70 i 0.7.71, wymagają jednorazowego wgrania poprawionej aplikacji przez lokalny panel WWW albo USB UPDATE-APP-ONLY. W panelu wybiera się plik `diy_shelly_remote.bin` z tego wydania i zatwierdza operację na LCD. Instrukcja: [INSTALL_UPDATE_PL.md](INSTALL_UPDATE_PL.md). Naprawa dotyczy pobierania zarówno manifestu, jak i BIN; samo ponawianie sprawdzania nie naprawi starego firmware.
+- Regresja obejmuje długi nagłówek GitHub, fragmentację odpowiedzi i odmowę przekroczenia łącznego limitu na oryginalnym parserze ESP-IDF 5.5.4. Host i build nie zastępują potwierdzenia instalacji na pilocie.
+
 0.7.71-dev: poprawki ankiety UI, wspólne sterowanie grupami, automatyzacje ogrzewania oraz Aktywność, szyfrowany backup i reset danych.
 
 - Trzy skórki Cyber Blue, Grafit i Jasny: zaakceptowane poprawki kart termostatu, okna/drzwi, rolety i pomiarów; przewijana nazwa Dashboardu, ustawienia bez przewijania głównej listy, status bar i nawigacja. Dimmer i RGB mają wspólne sterowanie we wszystkich skórkach. Uporządkowano kreatory AP/LAN/BLE, ramki i ważne komunikaty.

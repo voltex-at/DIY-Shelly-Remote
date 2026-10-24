@@ -17,7 +17,7 @@ static unsigned char manifest[2049];static size_t manifest_length;
 typedef struct {
  http_parser parser;http_parser_settings settings;esp_http_client_config_t config;
  const char *wire;size_t length,offset,fragment;
- char key[256],value[9000];size_t keys,values;
+ char key[256],value[16385];size_t keys,values;
  unsigned char cache[4096];size_t cached,read;
  bool value_phase,headers,complete,error,closed,cleaned,eof,coalesced;
  int64_t declared;
@@ -112,7 +112,7 @@ static void run(const char *wire,size_t length,size_t fragment,bool accepted)
  if(result!=DSR_FETCH_OK){const unsigned char *bytes=(const unsigned char *)&out;for(size_t i=0;i<sizeof(out);i++)CHECK(!bytes[i]);}
  CHECK(client.closed&&client.cleaned);cases++;
 }
-static char wire[8192];
+static char wire[32768];
 static size_t cl(const char *extra,int adjustment,size_t body_length)
 {int n=snprintf(wire,sizeof(wire),"HTTP/1.1 200 OK\r\nContent-Length: %ld\r\n%s\r\n",(long)manifest_length+adjustment,extra);CHECK(n>0&&(size_t)n+body_length<sizeof(wire));memcpy(wire+n,manifest,body_length);return (size_t)n+body_length;}
 static size_t chunked(const char *extra,const char *trailer,bool ending)
@@ -128,6 +128,18 @@ int main(int argc,char **argv)
  size_t n=cl("",0,manifest_length);
  for(size_t fragment=1;fragment<=n;fragment++)run(wire,n,fragment,true);
  run(wire,n,n,true);CHECK(client.coalesced&&client.complete&&client.read==manifest_length);
+ /* Real GitHub release redirects carry a 9217-byte browser CSP (2026-10-24).
+  * Exercise assembly at transport boundaries without relaxing HTTP framing. */
+ static const char csp_key[]="Content-Security-Policy: ";
+ char github_csp[9250];strcpy(github_csp,csp_key);
+ memset(github_csp+sizeof(csp_key)-1,'a',9217);github_csp[sizeof(csp_key)-1+9217]=0;
+ strcat(github_csp,"\r\n");n=cl(github_csp,0,manifest_length);
+ const size_t csp_fragments[]={1,7,1024,4096,sizeof(wire)};
+ for(size_t i=0;i<sizeof(csp_fragments)/sizeof(csp_fragments[0]);i++)run(wire,n,csp_fragments[i],true);
+ char over_budget[18500];int combined=snprintf(over_budget,sizeof(over_budget),"%s%s",github_csp,github_csp);
+ CHECK(combined>0&&(size_t)combined<sizeof(over_budget));n=cl(over_budget,0,manifest_length);
+ run(wire,n,1024,false);run(wire,n,n,false);
+ n=cl("",0,manifest_length);
  for(size_t cut=0;cut<n;cut++)run(wire,cut,1,false);
  /* Alter exact received signed metadata, retaining syntactically valid JSON. */
  char *hash=strstr(wire,"\"sha256\":\"");CHECK(hash);hash+=10;char saved=*hash;

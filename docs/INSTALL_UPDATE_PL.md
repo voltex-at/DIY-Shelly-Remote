@@ -24,3 +24,23 @@ krótszego historycznego obrazu `local.bin` do zachowawczej aktualizacji.
 Po zatwierdzonym teście potwierdź start i zachowanie Wi-Fi, powiązań,
 pomieszczeń, zdjęć oraz sterowania i log pierwszego startu. Host/CI nie zastępuje
 tego odbioru. Bez automatycznego restartu, kasowania i publikacji Stable.
+
+## Błąd manifestu `16/6/200/1` w starszym firmware
+
+GitHub dodaje do przekierowań pobierania długi nagłówek przeglądarkowy CSP.
+Wersje do 0.7.71 włącznie mogą odrzucić go przed pobraniem i weryfikacją
+manifestu. Poprawka jest w 0.7.72-dev; podpis i zaufany klucz pozostają te same.
+Wyświetlone `200` pochodzi z wcześniejszego odczytu katalogu wydań i nie
+potwierdza pobrania manifestu.
+
+Jednorazowa aktualizacja przez sparowany panel WWW:
+
+1. Pobierz `diy_shelly_remote.bin` z publicznego wydania `dev-v0.7.72` oraz
+   `SHA256SUMS.txt`; sprawdź sumę SHA-256 pliku.
+2. Otwórz panel HTTPS swojego pilota. W aktualizacji lokalnej wybierz ten BIN.
+3. Potwierdź zgodę i stabilne zasilanie na LCD, następnie wyślij plik z panelu.
+4. Po poprawnej weryfikacji i instalacji wybierz restart. Sprawdź numer wersji
+   oraz zachowanie konfiguracji po uruchomieniu.
+
+Do tej operacji służy aplikacja, nie ZIP ani pełny obraz FACTORY. Alternatywą
+jest procedura USB app-only powyżej, po ustaleniu aktywnego slotu.

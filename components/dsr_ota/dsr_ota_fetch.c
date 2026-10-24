@@ -118,8 +118,14 @@ static esp_err_t on_event(esp_http_client_event_t *event)
  if(stopped(s))return ESP_FAIL;
  if(event->event_id==HTTP_EVENT_ERROR){s->result=DSR_FETCH_IO;return ESP_FAIL;}
  if(event->event_id!=HTTP_EVENT_ON_HEADER)return ESP_OK;
- size_t key=bounded_length(event->header_key,128),n=bounded_length(event->header_value,8192);
- if(!key||key>128||n>8192||++s->count>64||key+n>16384-s->headers)goto bad;
+ size_t key=bounded_length(event->header_key,128);
+ if(!key||key>128||++s->count>64||key>16384-s->headers)goto bad;
+ /* GitHub's browser CSP can exceed 8 KiB on a release redirect. It does not
+  * affect OTA trust/framing; bound every value by the REMAINING total 16 KiB
+  * budget instead. Sensitive fields retain their stricter checks below. */
+ size_t available=16384-s->headers-key;
+ size_t n=bounded_length(event->header_value,available);
+ if(n>available)goto bad;
  s->headers+=key+n;
  const char *value=event->header_value;
  while(n&&(*value==' '||*value=='\t')){value++;n--;}
