@@ -13,7 +13,9 @@ if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
     list(APPEND platform_source "dsr_maintenance_recovery.c" "dsr_maintenance_recovery_io.c")
     set_source_files_properties(dsr_maintenance_recovery.c dsr_maintenance_recovery_io.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
     set_source_files_properties(dsr_maintenance_control.c dsr_maintenance_grant.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
-    set(panel_assets "web/panel.html" "web/panel.js" "web/panel.css" "web/runtime.js" "web/actions.js")
+    list(APPEND platform_source "dsr_backup_api.c")
+    set_source_files_properties(dsr_backup_api.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
+    set(panel_assets "web/panel.html" "web/panel.js" "web/panel.css" "web/runtime.js" "web/actions.js" "web/backup.js")
 endif()
 idf_component_register(
     SRCS ${platform_source}

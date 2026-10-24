@@ -46,6 +46,12 @@ bool dsr_maintenance_take(const dsr_maint_request_t *r)
 }
 void dsr_maintenance_finished(const uint8_t id[16],dsr_result_t result)
 {if(!id)return;lock();if(!memcmp(id,control.grant.request.nonce,16)){dsr_maint_grant_finish(&control.grant,result);control.revision++;}unlock();}
+bool dsr_maintenance_running(const dsr_maint_request_t *r)
+{
+ lock();bool ok=matching(r)&&control.grant.state==DSR_GRANT_RUNNING&&control.grant.generation==dsr_maintenance_generation()&&(uint32_t)(clock_ms()-control.grant.started)<DSR_MAINT_CONSENT_MS;
+ if(!ok&&matching(r))dsr_maint_grant_finish(&control.grant,DSR_CONFLICT);
+ unlock();return ok;
+}
 void dsr_maintenance_session_changed(const uint8_t session[32])
 {if(!session)return;lock();if(!control.committed){dsr_maint_grant_invalidate_session(&control.grant,session);if(control.grant.state==DSR_GRANT_RUNNING&&!memcmp(session,control.grant.request.session,32))dsr_maint_grant_finish(&control.grant,DSR_CONFLICT);control.revision++;}unlock();}
 bool dsr_maintenance_session_matches(const uint8_t session[32])

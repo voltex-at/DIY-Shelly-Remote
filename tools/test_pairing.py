@@ -33,6 +33,12 @@ auth_hashes={'local_request':'77af2b1f465d425091ef1097e93853d24a341a626624604dad
 for name,expected in auth_hashes.items():
     block=function(panel,name)
     if name=='api':
+        maintenance=' if(!strncmp(r->uri,"/api/v1/backup/",15)||!strncmp(r->uri,"/api/v1/maintenance/",20)||!strcmp(r->uri,"/api/v1/reset/request"))return maintenance_api(r);\n'
+        assert block.count(maintenance)==1 and block.index(maintenance)>block.index('if(!authorized(r))'),'Maintenance must stay behind unchanged authentication'
+        block=block.replace(maintenance,'')
+        automation=' if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);\n'
+        assert block.count(automation)==1 and block.index(automation)>block.index('if(!authorized(r))'),'Read-only automation status must stay behind unchanged authentication'
+        block=block.replace(automation,'')
         privacy='(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
         assert block.count(privacy)==1 and block.index(privacy)>block.index('if(!authorized(r))'), 'Settings preview privacy must remain behind authorization'
         # New credential/PIN screens additionally suppress preview. Normalize
@@ -57,7 +63,7 @@ for name,expected in auth_hashes.items():
     digest=hashlib.sha256(block.encode()).hexdigest()
     assert digest==expected,f'Unexpected auth/route change: {name}'
     print(f'UNCHANGED AUTH SOURCE {name} SHA256 {digest}',flush=True)
-names=['dsr_panel_pairing_snapshot','dsr_panel_pairing_revoke','random_hex','equal','dsr_panel_pair_begin','local_request','authorized','body','pair']
+names=['dsr_panel_pairing_snapshot','dsr_panel_pairing_revoke','random_hex','equal','dsr_panel_pair_begin','local_request','authorized','body','pair','dsr_panel_backup_session_valid','maintenance_api']
 with tempfile.TemporaryDirectory(prefix='dsr-pairing-') as directory:
     tmp=Path(directory);(tmp/'actual_panel.inc').write_text('\n'.join(function(panel,n) for n in names))
     boot=re.search(r'^ nvs_handle_t n;if\(nvs_open\("dsr_panel",NVS_READONLY[^\n]+',panel,re.M)

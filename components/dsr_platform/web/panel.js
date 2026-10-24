@@ -230,7 +230,7 @@ function updateWebLocale(value,persist=true){
  document.documentElement.lang=value;
  const walker=document.createTreeWalker(document.documentElement,NodeFilter.SHOW_TEXT);for(let node=walker.nextNode();node;node=walker.nextNode()){const message=uiTextBindings.get(node);if(message)node.data=translate(message);}
  for(const node of document.querySelectorAll('*')){const bindings=uiAttributeBindings.get(node);if(bindings)for(const [name,message]of bindings)node.setAttribute(name,translate(message));}
- document.querySelector('#web-locale').value=value;if(window.dsrActionsLocale)window.dsrActionsLocale();
+ document.querySelector('#web-locale').value=value;if(window.dsrActionsLocale)window.dsrActionsLocale();backupPanel?.refreshLocale();
 }
 function failure(message){const error=Error(translate(message));if(message?.uiMessage)error.uiMessage=message;return error;}
 function serverMessage(message){return WEB_MESSAGES.has(message)?m(message):message;}
@@ -398,7 +398,7 @@ function editTile(d,t){
 function appearance(){const n=box(m('Wygląd i język')),f=el('div',undefined,'fields');n.append(f,el('p',m('Język pilota jest wspólnym ustawieniem i wymaga zapisu w pilocie.'),'muted'),el('p',m('Język Web Panelu: preferencja tej przeglądarki, wybierana w nagłówku. Nie wymaga zapisu w pilocie.'),'muted'));select(f,m('Język pilota'),config.language,[['pl','Polski'],['en','English'],['de','Deutsch']],v=>config.language=v);select(f,m('Motyw'),config.theme==='midnight'?'graphite':config.theme,[['graphite',m('Grafit')],['light',m('Jasny')],['cyber_blue','Cyber Blue']],v=>config.theme=v);field(f,m('Kolor akcentu'),'#'+config.accent.toString(16).padStart(6,'0'),v=>config.accent=parseInt(v.slice(1),16),'color');return n;}
 // A pending upload survives navigation; no view may submit it twice.
 const localOta={phase:'idle',message:null,restarting:false,filename:'',size:0};
-let localOtaUpdate=()=>{};
+let localOtaUpdate=()=>{},backupPanel=null;
 function system(){
  const n=box(m('Aktualizacja OTA'));n.classList.add('ota-flow');
  n.append(el('p',m('Wybierz plik aplikacji BIN dla LCDWiki ES3C35P. Obraz USB łączący bootloader i partycje zostanie odrzucony. Konfiguracja i zdjęcia pozostają w oddzielnej partycji.')));
@@ -443,7 +443,8 @@ function system(){
   status.classList.toggle('automation-warning',['error','uncertain','unconfirmed'].includes(localOta.phase));
   setText(status,localOta.message||m('Wybierz plik aplikacji BIN.'));
  };
- localOtaUpdate=()=>{if(n.isConnected)update();};f.addEventListener('change',update);update();return n;
+ localOtaUpdate=()=>{if(n.isConnected)update();};f.addEventListener('change',update);update();
+ if(window.createBackupPanel){backupPanel=window.createBackupPanel({request,translate:variants=>variants[webLocale==='de'?2:webLocale==='en'?1:0]});n.append(backupPanel.root);}return n;
 }
 /* Selection is local state. Only an explicit Next can enter a real method. */
 let onboardingChoice=null,onboardingStarting=false,onboardingNext=null,onboardingCards=[],remoteReachable=true;
@@ -640,7 +641,7 @@ function discoveryView(){
  const save=button(m('Sprawdź i zapisz połączenie'),()=>bindLan(name.value,room.value,channel.value,save),'primary');save.disabled=!channels.length;n.append(save);
  if(!channels.length)n.append(el('p',m(lanSelected.model==='S3GW-1DBT001'?'Bramka BLU • przekaźnik nieobsługiwany.':'Urządzenie rozpoznane. Sterowanie tym typem nie jest wdrożone.'),'muted'));return n;
 }
-function render(){if(!config)return;$('#workspace .savebar').hidden=page==='system'&&!dirty;document.body.classList.toggle('showing-automations',page==='automations');document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page==='automations'?'scenes':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}if(page==='automations'){target.replaceChildren(automationList());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
+function render(){if(!config)return;backupPanel?.dispose();backupPanel=null;$('#workspace .savebar').hidden=page==='system'&&!dirty;document.body.classList.toggle('showing-automations',page==='automations');document.body.classList.remove('editing-action');if(page!=='discovery'){invalidateOnboarding();lanCredentials=null;manualDraft.password='';onboardingCards=[];onboardingNext=null;}setText($('#title'),titles[page]);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===(page==='discovery'?'devices':page==='automations'?'scenes':page)?'page':'false'));const target=$('#editor');if(page==='discovery'){target.replaceChildren(discoveryView());return;}if(page==='automations'){target.replaceChildren(automationList());return;}const view=page==='activity'?box(m('Aktywność')):page==='appearance'?appearance():page==='system'?system():['groups','scenes'].includes(page)?actionList(page):list(page,({dashboards:editDashboard,rooms:editRoom,devices:editDevice,scenes:editScene,groups:editGroup})[page]);if(page==='devices')view.prepend(button(m('Wyszukaj Shelly w LAN'),openDiscovery,'primary'));target.replaceChildren(view);if(page==='devices'&&window.dsrRuntimeMount)window.dsrRuntimeMount(view);if(['groups','scenes','activity','dashboards'].includes(page)&&window.dsrActionsMount)window.dsrActionsMount(view,page);}
 let automationSession=null,autoView=null,autoCache=null,autoRead=0;
 const autoState=value=>m(['Wyłączona','Oczekiwanie na dane','Aktywna','Ręczna zmiana','Oczekiwanie na potwierdzenie','Błąd reguły'][value]||'Oczekiwanie na dane');
 function autoValid(item){return typeof item.name==='string'&&item.name.trim().length>0&&new TextEncoder().encode(item.name).length<=47&&item.sensors.length>0&&item.targets.length>0&&new Set(item.sensors).size===item.sensors.length&&new Set(item.targets).size===item.targets.length&&Number.isInteger(item.target_half)&&item.target_half>=8&&item.target_half<=60;}

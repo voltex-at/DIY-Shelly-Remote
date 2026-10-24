@@ -1,4 +1,5 @@
 #include "dsr_automation.h"
+#include "dsr_backup_api.h"
 #include "dsr_workspace.h"
 #include "dsr_runtime_api.h"
 #include "dsr_actions.h"
@@ -43,6 +44,8 @@ extern const unsigned char runtime_js_start[] asm("_binary_runtime_js_start");
 extern const unsigned char runtime_js_end[] asm("_binary_runtime_js_end");
 extern const unsigned char actions_js_start[] asm("_binary_actions_js_start");
 extern const unsigned char actions_js_end[] asm("_binary_actions_js_end");
+extern const unsigned char backup_js_start[] asm("_binary_backup_js_start");
+extern const unsigned char backup_js_end[] asm("_binary_backup_js_end");
 extern const unsigned char panel_css_start[] asm("_binary_panel_css_start");
 extern const unsigned char panel_css_end[] asm("_binary_panel_css_end");
 /* The marker is validated inside uploaded binaries, not from a client claim. */
@@ -57,6 +60,11 @@ static httpd_handle_t redirect_server;
 static bool panel_ready;
 static uint32_t boot_id;
 bool dsr_panel_ready(void){return panel_ready;}
+bool dsr_panel_backup_session_valid(const uint8_t session[32])
+{
+ if(!session||!panel_ready||!lock||!dsr_boot_ready())return false;
+ xSemaphoreTake(lock,portMAX_DELAY);unsigned diff=0;for(unsigned i=0;i<32;i++)diff|=session[i]^token_hash[i];bool valid=has_token&&!diff;xSemaphoreGive(lock);return valid;
+}
 
 bool dsr_panel_pairing_snapshot(dsr_panel_pairing_snapshot_t *out)
 {
@@ -306,12 +314,24 @@ static esp_err_t automation_api(httpd_req_t *r)
  char *out=dsr_automation_status_json();if(!out)return json(r,"503 Service Unavailable","{\"error\":\"Automation status unavailable\"}");
  esp_err_t result=json(r,"200 OK",out);free(out);return result;
 }
+static esp_err_t maintenance_api(httpd_req_t *r)
+{
+ /* Keep existing API authentication unchanged; these consent/secret routes
+  * additionally require an explicit Origin on every mutation. */
+ if(r->method!=HTTP_GET&&!httpd_req_get_hdr_value_len(r,"Origin"))return json(r,"403 Forbidden","{\"error\":\"Same-origin request required\"}");
+ if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ char cookie[160]={0};if(httpd_req_get_hdr_value_str(r,"Cookie",cookie,sizeof(cookie))!=ESP_OK)return json(r,"401 Unauthorized","{}");
+ const char *start=strstr(cookie,"dsr_session=");if(!start)return json(r,"401 Unauthorized","{}");start+=12;
+ uint8_t session[32];if(mbedtls_sha256((const unsigned char*)start,64,session,0)){memset(cookie,0,sizeof(cookie));return json(r,"503 Service Unavailable","{}");}
+ memset(cookie,0,sizeof(cookie));esp_err_t result=dsr_backup_api(r,session);memset(session,0,sizeof(session));return result;
+}
 static esp_err_t api(httpd_req_t *r)
 {
  if(!local_request(r))return json(r,"403 Forbidden","{\"error\":\"Local same-origin access only\"}");
  if(!dsr_boot_ready())return json(r,"503 Service Unavailable","{\"error\":\"Startup incomplete or diagnostic mode; collect USB boot log\"}");
  if(!strcmp(r->uri,"/api/v1/pair")&&r->method==HTTP_POST)return pair(r);
  if(!authorized(r))return json(r,"401 Unauthorized","{\"error\":\"Pair this browser on the remote\"}");
+ if(!strncmp(r->uri,"/api/v1/backup/",15)||!strncmp(r->uri,"/api/v1/maintenance/",20)||!strcmp(r->uri,"/api/v1/reset/request"))return maintenance_api(r);
  if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);
  if(!strcmp(r->uri,"/api/v1/ap")||!strcmp(r->uri,"/api/v1/ap/open"))return ap_handoff_api(r);
  if(!strcmp(r->uri,"/api/v1/devices/runtime")||!strcmp(r->uri,"/api/v1/devices/output")||!strcmp(r->uri,"/api/v1/devices/cover")||!strcmp(r->uri,"/api/v1/devices/light")||!strcmp(r->uri,"/api/v1/devices/rgb")||!strcmp(r->uri,"/api/v1/devices/refresh"))return runtime_api(r);
@@ -364,6 +384,7 @@ static esp_err_t asset(httpd_req_t *r)
  else if(!strcmp(r->uri,"/panel.js")){start=panel_js_start;end=panel_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/runtime.js")){start=runtime_js_start;end=runtime_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
  else if(!strcmp(r->uri,"/actions.js")){start=actions_js_start;end=actions_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
+ else if(!strcmp(r->uri,"/backup.js")){start=backup_js_start;end=backup_js_end;httpd_resp_set_type(r,"text/javascript; charset=utf-8");}
 
  else if(!strcmp(r->uri,"/panel.css")){start=panel_css_start;end=panel_css_end;httpd_resp_set_type(r,"text/css; charset=utf-8");}
  else return json(r,"404 Not Found","{}");

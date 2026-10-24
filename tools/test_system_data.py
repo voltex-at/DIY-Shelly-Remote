@@ -15,6 +15,8 @@ p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'api': ['components/dsr_platform/dsr_backup_api.c','components/dsr_platform/dsr_maintenance_control.c','components/dsr_platform/dsr_maintenance_grant.c',
+         'components/dsr_platform/dsr_maintenance.c','components/dsr_platform/dsr_activity.c','tests/test_system_data_api.c'],
  'startup': ['main/app_main.c','components/dsr_platform/dsr_boot.c','components/dsr_platform/dsr_config_health.c','components/dsr_platform/dsr_activity.c','tests/test_startup.c'],
  'restore_config': ['components/dsr_config/dsr_config_store.c','components/dsr_config/dsr_config.c','components/dsr_config/dsr_photo_name.c',
                     'components/dsr_core/dsr_core.c','tests/test_config_restore.c'],

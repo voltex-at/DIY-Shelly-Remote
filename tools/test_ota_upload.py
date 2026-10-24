@@ -27,6 +27,9 @@ for name,expected in auth_blocks.items():
     assert end,f'Missing end of authentication block: {name}'
     block=panel_bytes[start.start():start.end()+end.start()]
     if name=='api':
+        maintenance=b' if(!strncmp(r->uri,"/api/v1/backup/",15)||!strncmp(r->uri,"/api/v1/maintenance/",20)||!strcmp(r->uri,"/api/v1/reset/request"))return maintenance_api(r);\n'
+        assert block.count(maintenance)==1 and block.index(maintenance)>block.index(b'if(!authorized(r))'),'Maintenance must stay behind unchanged authentication'
+        block=block.replace(maintenance,b'')
         # Deliberately approved restart dispatch change ONLY. The complete API
         # block still hashes against the old baseline after this exact rewrite.
         new=b' if(!strcmp(r->uri,"/api/v1/restart")&&r->method==HTTP_POST)return restart(r);\n'

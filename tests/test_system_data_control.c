@@ -26,7 +26,7 @@ dsr_result_t dsr_ota_power_acquire(dsr_ota_power_result_t *out){power_reads++;if
 void dsr_ota_power_release(void){CHECK(held);held=false;dsr_activity_end();}
 dsr_result_t dsr_backup_device_id(uint8_t out[32]){memset(out,3,32);return DSR_OK;}
 dsr_result_t dsr_maint_io_identifier(uint8_t out[16]){memset(out,4,16);return DSR_OK;}
-dsr_result_t dsr_maint_io_random(uint8_t *out,size_t n){memset(out,5,n);return DSR_OK;}
+dsr_result_t dsr_maint_io_random(uint8_t *out,size_t n){static uint8_t serial=5;memset(out,++serial,n);return DSR_OK;}
 dsr_result_t dsr_maint_store_begin(dsr_maint_record_t *r){CHECK(!held);writes++;stored=*r;stored.sequence=r->sequence=2;pending=true;return DSR_OK;}
 dsr_result_t dsr_maint_store_write(dsr_maint_record_t *r){CHECK(!held);writes++;stored=*r;stored.sequence=++r->sequence;return DSR_OK;}
 dsr_result_t dsr_maint_store_load(dsr_maint_record_t *r,bool *found,bool *p){*r=stored;*found=pending;*p=pending;return DSR_OK;}
