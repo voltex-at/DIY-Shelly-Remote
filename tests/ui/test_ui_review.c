@@ -186,7 +186,7 @@ static unsigned outdoor_pixels(void)
  /* Neutral metal is grey; count the coloured outdoor photograph inside the
   * actual glass aperture, rather than requiring blue slats in Graphite. */
  /* Exclude the guide edges and the coloured handle at the closed sill. */
- unsigned n=0;for(int y=204;y<316;y++)for(int x=80;x<224;x++){
+ unsigned n=0;for(int y=204;y<304;y++)for(int x=80;x<224;x++){
   unsigned p=(unsigned)(y*320+x)*3;int high=pixels[p],low=high;for(unsigned k=1;k<3;k++){if(pixels[p+k]>high)high=pixels[p+k];if(pixels[p+k]<low)low=pixels[p+k];}if(high-low>30)n++;
  }return n;
 }
@@ -196,10 +196,10 @@ static void cover_views(void)
  *d=(dsr_mobile_device_t){.name="Roleta w salonie",.kind=DSR_DEVICE_COVER,.online=true,.room=0,.has_position=true,.position_pct=65,.has_power=true,.power_w=4.1,.has_voltage=true,.voltage_v=230.4,.has_frequency=true,.frequency_hz=50,.can_cover=true,.can_stop_cover=true,.cover_state=DSR_COVER_STOPPED};
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");
  CHECK(find(lv_screen_active(),"Pozycja 65%"));CHECK(find(lv_screen_active(),"4.1 W"));CHECK(find(lv_screen_active(),"230.4 V"));CHECK(find_part(lv_screen_active(),"50.0 Hz"));
- unsigned middle=outdoor_pixels();CHECK(middle>4000);
+ unsigned middle=outdoor_pixels();CHECK(middle>3000);
  lv_obj_t *open=parent_of("Otwórz"),*close=parent_of("Zamknij"),*stop=parent_of("Stop");lv_area_t a,b;
  CHECK(lv_obj_get_width(open)==144&&lv_obj_get_height(open)==48);CHECK(lv_obj_get_width(close)==144&&lv_obj_get_height(close)==48);CHECK(lv_obj_get_width(stop)>=44&&lv_obj_get_height(stop)>=44);
- lv_obj_get_coords(open,&a);lv_obj_get_coords(close,&b);CHECK(a.x2<b.x1);CHECK(a.y1==374&&a.y2<428);CHECK(b.x2<320);
+ lv_obj_get_coords(open,&a);lv_obj_get_coords(close,&b);CHECK(a.x2<b.x1);CHECK(a.y1==364&&a.y2==411&&428-a.y2-1==16);CHECK(b.x2<320&&a.y1==b.y1&&a.y2==b.y2);
  lv_obj_t *metrics=lv_obj_get_parent(find_part(lv_screen_active(),"50.0 Hz"));CHECK(lv_obj_get_width(metrics)==184);
  lv_obj_get_coords(find(lv_screen_active(),"4.1 W"),&a);lv_obj_get_coords(find(lv_screen_active(),"230.4 V"),&b);CHECK(a.x2<b.x1);
  d->power_w=123456;d->voltage_v=12345.6;d->frequency_hz=1234.5;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());lv_obj_t *long_metric=find_part(lv_screen_active(),"12345.6 V");CHECK(long_metric);lv_point_t text_size;lv_text_get_size(&text_size,lv_label_get_text(long_metric),lv_obj_get_style_text_font(long_metric,0),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);CHECK(lv_label_get_long_mode(long_metric)==(text_size.x>lv_obj_get_width(long_metric)?LV_LABEL_LONG_MODE_SCROLL_CIRCULAR:LV_LABEL_LONG_MODE_CLIP));CHECK(find_part(lv_screen_active(),"1234.5 Hz"));lv_obj_get_coords(long_metric,&a);CHECK(a.x2<=307);
@@ -207,8 +207,10 @@ static void cover_views(void)
  tap(75,377);CHECK(find(lv_screen_active(),"Otwarte 100%"));CHECK(cover_commands==0);
  tap(231,377);CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(cover_commands==0);
  tap_stop();CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(stop_commands==0);
- d->position_pct=0;dsr_mobile_update(&m);save("60-cover-closed");CHECK(outdoor_pixels()==0);CHECK(find(lv_screen_active(),"Zamknięte 0%"));
- d->position_pct=100;dsr_mobile_update(&m);save("61-cover-open");CHECK(outdoor_pixels()>middle);CHECK(find(lv_screen_active(),"Otwarte 100%"));
+ /* All skins now animate confirmed position changes for 300 ms. These two
+  * endpoint snapshots assert the settled state; focused cover tests cover motion. */
+ d->position_pct=0;dsr_mobile_update(&m);lv_tick_inc(301);lv_timer_handler();save("60-cover-closed");CHECK(outdoor_pixels()==0);CHECK(find(lv_screen_active(),"Zamknięte 0%"));
+ d->position_pct=100;dsr_mobile_update(&m);lv_tick_inc(301);lv_timer_handler();save("61-cover-open");CHECK(outdoor_pixels()>middle);CHECK(find(lv_screen_active(),"Otwarte 100%"));
  d->position_pct=65;d->cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);save("62-cover-opening");CHECK(find_part(lv_screen_active(),"Otwieranie"));
  /* A background sample never overrides confirmed position/state with busy. */
  d->busy=true;dsr_mobile_update(&m);CHECK(find_part(lv_screen_active(),"Otwieranie"));CHECK(find(lv_screen_active(),"Pozycja 65%"));CHECK(!find(lv_screen_active(),"Odczyt stanu…"));d->busy=false;

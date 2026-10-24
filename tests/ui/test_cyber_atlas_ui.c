@@ -62,7 +62,7 @@ static void global_routes(void)
 static void editing_routes(void)
 {
  dsr_ui_select_dashboard();route("dashboard-picker");dsr_ui_edit_dashboard();route("editor-menu");
- press("Pulpity");route("dashboard-list");press("Mój pulpit");route("dashboard-edit");press("Dane");route("tile-fields");
+ press("Pulpity");route("dashboard-list");press("Mój pulpit");route("dashboard-edit");press("Dane na karcie");route("tile-fields");
  dsr_network_home(NULL);dsr_ui_config_registry(NULL);route("registry");
  press("Urządzenia");route("device-list-editor");press("Lampa salon");route("device-registry-edit");
  dsr_network_home(NULL);dsr_ui_edit_local_device(1);route("device-card-edit");

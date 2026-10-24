@@ -18,7 +18,7 @@ jobs:
         run: |
           python3 tools/check_cyber_icons.py
           python3 tools/test_ui.py --review --sanitize
-          python3 tools/test_ui.py --sanitize
+          python3 tools/test_ui.py --sanitize --keep-going
           python3 tools/test_ui.py --review
           python3 tools/render_review.py --no-run
           python3 tools/render_cyber_atlas.py --screens build-ui/asan/screenshots --out build-ui/cyber-atlas --base-ref 5d33c2c9a755ba5b5c3692b97d766f6a6e21a04e
@@ -35,23 +35,16 @@ jobs:
           panel_pid=$!
           trap 'kill "$panel_pid"' EXIT
           python3 -c 'import socket,time; [(time.sleep(.2)) for _ in range(50) if socket.socket().connect_ex(("127.0.0.1",8765)) != 0]'
-          node tests/test_panel.cjs
-          node tests/test_panel_runtime.cjs
-          node tests/test_panel_runtime_model.cjs
-          node tests/test_panel_actions_model.cjs
-          node tests/test_panel_actions_async.cjs
-          node tests/test_panel_config_reads.cjs
-          node tests/test_panel_settings.cjs
-          node tests/test_panel_actions.cjs
-          node tests/test_panel_automation.cjs
-          node tests/test_panel_ap_model.cjs
-          node tests/test_panel_ble_model.cjs
-          node tests/test_panel_onboarding_model.cjs
-          node tests/test_web_locale_dictionary.cjs
-          node tests/test_panel_locale.cjs
-          node tests/test_panel_ota.cjs
-          node tests/test_panel_backup.cjs
-          node tests/test_panel_backup_browser.cjs
+          failed=0
+          for spec in tests/test_panel.cjs tests/test_panel_runtime.cjs tests/test_panel_runtime_model.cjs \
+            tests/test_panel_actions_model.cjs tests/test_panel_actions_async.cjs tests/test_panel_config_reads.cjs \
+            tests/test_panel_settings.cjs tests/test_panel_actions.cjs tests/test_panel_automation.cjs \
+            tests/test_panel_ap_model.cjs tests/test_panel_ble_model.cjs tests/test_panel_onboarding_model.cjs \
+            tests/test_web_locale_dictionary.cjs tests/test_panel_locale.cjs tests/test_panel_ota.cjs \
+            tests/test_panel_backup.cjs tests/test_panel_backup_browser.cjs; do
+            node "$spec" || failed=1
+          done
+          test "$failed" -eq 0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

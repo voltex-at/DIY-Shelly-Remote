@@ -194,7 +194,7 @@ static void inspect(lv_event_t *event)
 static void choose(lv_event_t *event)
 {
     unsigned index=(unsigned)(uintptr_t)lv_event_get_user_data(event);if(index>=snapshot.count)return;
-    selected=snapshot.devices[index];memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));
+    selected=snapshot.devices[index];memset(&capabilities,0,sizeof(capabilities));memset(&blu_labels,0,sizeof(blu_labels));memset(&credentials,0,sizeof(credentials));memset(&draft,0,sizeof(draft));
     if(selected.auth_required)show_credentials();else{username=password=NULL;inspect(NULL);}
 }
 static void start(lv_event_t *event)

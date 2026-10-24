@@ -39,7 +39,7 @@ static bool sleep_has_text(lv_obj_t *o,const char *text)
 }
 static lv_obj_t *cover_well(lv_obj_t *o)
 {
- if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==154&&!lv_obj_get_child_count(o))return o;
+ if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==142&&!lv_obj_get_child_count(o))return o;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *well=cover_well(lv_obj_get_child(o,(int)i));if(well)return well;}return NULL;
 }
 static void sleep_repaint_regression(void)
@@ -138,7 +138,7 @@ int main(int argc,char **argv)
  test_native_ota_set(DSR_NATIVE_FAILED,DSR_NATIVE_ERROR_NO_RELEASE,DSR_MANIFEST_INVALID);response=(dsr_event_t){0};deliver(DSR_OK,DSR_WIFI_IDLE);
  /* Progress is real bytes, starts at zero; full Cancel target stays above Back. */
  test_native_ota_set(DSR_NATIVE_INSTALLING,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_OK);test_native_ota_progress(0,1000);dsr_ui_native_ota_open(NULL);lv_obj_update_layout(lv_screen_active());
- lv_obj_t *bar=find_type(lv_screen_active(),&lv_bar_class);CHECK(bar&&lv_bar_get_value(bar)==0);lv_area_t cancel,back;lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj")),&cancel);lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Wstecz")),&back);CHECK(cancel.y1==360&&cancel.y2<back.y1&&cancel.y2<420);
+ lv_obj_t *bar=find_type(lv_screen_active(),&lv_bar_class);CHECK(bar&&lv_bar_get_value(bar)==0);lv_area_t cancel,back;lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj")),&cancel);lv_obj_get_coords(lv_obj_get_parent(find_label(lv_screen_active(),"Wstecz")),&back);CHECK(cancel.y1==420&&cancel.y2<=467&&cancel.y1==back.y1&&cancel.x1>back.x2);
  test_native_ota_progress(500,1000);dsr_ui_native_ota_tick();CHECK(lv_bar_get_value(bar)==500);screenshot("501-owner-ota-half");test_native_ota_progress(1000,1000);dsr_ui_native_ota_tick();CHECK(lv_bar_get_value(bar)==1000);
  test_native_ota_set(DSR_NATIVE_IDLE,DSR_NATIVE_ERROR_NONE,DSR_MANIFEST_INVALID);wifi.connected=false;tick();
  /* Graphite and Light share this compact layout; Cyber Blue has its own HUD
@@ -148,7 +148,7 @@ int main(int argc,char **argv)
   lv_obj_t *power=NULL;for(unsigned i=0;i<lv_obj_get_child_count(lv_screen_active());i++){lv_obj_t *o=lv_obj_get_child(lv_screen_active(),(int)i);for(unsigned j=0;j<lv_obj_get_child_count(o);j++){lv_obj_t *c=lv_obj_get_child(o,(int)j);for(unsigned k=0;k<lv_obj_get_child_count(c);k++){lv_obj_t *b=lv_obj_get_child(c,(int)k);if(lv_obj_get_width(b)==58&&lv_obj_get_height(b)==58&&lv_obj_has_flag(b,LV_OBJ_FLAG_CLICKABLE))power=b;}}}CHECK(power);lv_area_t p,c;lv_obj_get_coords(power,&p);lv_obj_get_coords(lv_obj_get_parent(power),&c);CHECK(p.y1>=c.y1+24&&p.y2<=c.y2-4&&p.x2<=c.x2-8);
   dsr_ui_edit_room(1);red_button("Usuń pomieszczenie");dsr_ui_open_settings();dsr_ui_config_registry(NULL);click("Urządzenia");click("Owner relay");red_button("Usuń urządzenie");
   dsr_ui_open_settings();lv_obj_update_layout(lv_screen_active());tap(160,452);CHECK(find_label(lv_screen_active(),"Napięcie wejścia BAT"));
-  dsr_onboarding_screen("Bluetooth LE",2);lv_obj_update_layout(lv_screen_active());char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *step=find_label(lv_screen_active(),caption);CHECK(step&&lv_obj_get_y(step)>=8&&lv_obj_get_y(step)+lv_obj_get_height(step)<=32);CHECK(!labels(lv_screen_active(),"Mój dom"));tap(52,20);CHECK(dsr_mobile_active());
+  dsr_onboarding_screen("Bluetooth LE",2);lv_obj_update_layout(lv_screen_active());char caption[40];snprintf(caption,sizeof(caption),dsr_sc_tr("Krok %u z 3"),2u);lv_obj_t *step=find_label(lv_screen_active(),caption);CHECK(step&&lv_obj_get_y(step)==72&&lv_obj_get_y(step)+lv_obj_get_height(step)<92);CHECK(!labels(lv_screen_active(),"Mój dom"));tap(52,20);CHECK(dsr_mobile_active());
  }
  dsr_sc_appearance(DSR_SC_BLUE,false,2);CHECK(!strcmp(dsr_sc_tr("Paruj BLU"),"BLU koppeln"));CHECK(!strstr(dsr_sc_tr("Sparuj czujnik, ustaw jego parametry i wybierz bramkę Shelly."),"Sparuj"));
  lv_obj_t *root=dsr_ui_screen("Scroll test",false),*list=dsr_sc_panel(root,12,86,296,318,DSR_SC_BG,0);lv_obj_add_flag(list,LV_OBJ_FLAG_SCROLLABLE);dsr_sc_scrollbar(list);dsr_sc_panel(list,0,0,296,900,DSR_SC_CARD,8);lv_obj_update_layout(root);lv_area_t h,v;lv_obj_get_scrollbar_area(list,&h,&v);CHECK(lv_area_get_width(&v)==2&&lv_area_get_height(&v)==36&&v.x1>307&&v.x2<320);lv_obj_invalidate(root);lv_refr_now(display);unsigned pixel=((unsigned)((v.y1+v.y2)/2)*320u+(unsigned)v.x1)*3u;CHECK(canvas[pixel]>60&&canvas[pixel+1]>60&&canvas[pixel+2]>60);screenshot("502-owner-scrollbar");

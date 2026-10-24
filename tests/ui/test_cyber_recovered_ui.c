@@ -68,7 +68,7 @@ static void cover_states(unsigned lang)
  for(unsigned frame=0;frame<3;frame++){
   if(frame){lv_tick_inc(frame==1?150:200);lv_timer_handler();snap(frame==1?"cover-closing-mid":"cover-closing-end",lang);}
   /* Locate the bright metal bottom rail, independently of the garden's blue sky. */
-  for(int y=194;y<322;y++){const unsigned char *p=&canvas[(y*320+150)*3];if(p[0]>80&&p[1]>140&&p[2]>160)fill[frame]=(unsigned)y;}
+  for(int y=202;y<308;y++){const unsigned char *p=&canvas[(y*320+150)*3];if(p[0]>80&&p[1]>140&&p[2]>160)fill[frame]=(unsigned)y;}
  }
  CHECK(fill[0]<fill[1]&&fill[1]<fill[2]); /* Curtain descends from the cassette. */
  unsigned before=stops;click("Stop");CHECK(stops==before+1);

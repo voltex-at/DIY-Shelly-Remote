@@ -31,7 +31,7 @@ static void onboarding_regression(void)
  CHECK(dsr_ui_onboarding_active()&&!dsr_mobile_active());first_method_fully_visible();
  unsigned ble=test_ble_scans(),lan=test_lan_scans(),ap=job_counts[DSR_JOB_AP_SCAN],rpc=test_rpc_starts();
  lv_obj_t *forward=method_button("Dalej"),*back=method_button("Anuluj");CHECK(lv_obj_has_state(forward,LV_STATE_DISABLED));
- lv_area_t first,after;lv_obj_update_layout(lv_screen_active());lv_obj_get_coords(forward,&first);CHECK(first.y1==420&&first.y2<480&&lv_obj_get_height(forward)>=44&&lv_obj_get_height(back)>=44);
+ lv_area_t first,after;lv_obj_update_layout(lv_screen_active());lv_obj_get_coords(forward,&first);CHECK(first.y1==416&&first.y2==463&&lv_obj_get_height(forward)>=44&&lv_obj_get_height(back)>=44);
  CHECK(lv_obj_has_state(method_button("Wi-Fi AP"),LV_STATE_DISABLED)&&lv_obj_has_state(method_button("Sieć lokalna"),LV_STATE_DISABLED));
  screenshot("300-onboarding-none-offline");tap(298,22);CHECK(dsr_ui_onboarding_active()); /* dim HOME cannot receive touch */
  tap(236,444);no_radio(ble,lan,ap,rpc); /* disabled Next is inert */

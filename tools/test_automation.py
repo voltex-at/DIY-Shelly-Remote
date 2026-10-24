@@ -15,9 +15,9 @@ p.add_argument('--runtime-module', choices=['actor', 'native'], help='Run one co
 p.add_argument('--scenario', nargs='+', choices=RUNTIME_SCENARIOS, help='Run selected runtime scenarios without repeating controller cases')
 a = parse_args(p)
 cases = {
- 'model': (['components/dsr_platform/dsr_automation_model.c', 'tests/test_automation_model.c'], [], []),
+ 'model': (['components/dsr_platform/dsr_automation_model.c', 'tests/test_automation_model.c'], [], ['-lm']),
  'store': (['components/dsr_platform/dsr_automation_store.c', 'components/dsr_platform/dsr_automation_model.c',
-            'tests/automation/nvs_fixture.c', 'tests/test_automation_store.c'], ['tests/support'], []),
+            'tests/automation/nvs_fixture.c', 'tests/test_automation_store.c'], ['tests/support'], ['-lm']),
  'store_queue': (['components/dsr_platform/dsr_workspace.c', 'components/dsr_platform/dsr_config_health.c',
                   'components/dsr_platform/dsr_activity.c', 'components/dsr_config/dsr_config.c',
                   'components/dsr_core/dsr_core.c', 'tests/test_automation_queue.c', 'tests/support/automation_runtime_stub.c'],

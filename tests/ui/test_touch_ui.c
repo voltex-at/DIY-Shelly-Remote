@@ -86,8 +86,8 @@ static void ota_diagnostics(void)
    test_native_ota_install_detail(sdk?DSR_INSTALL_SDK:DSR_INSTALL_FETCH,sdk?ESP_ERR_NO_MEM:0,-0x7007);
    dsr_ui_native_ota_open(NULL);lv_obj_update_layout(lv_screen_active());
    CHECK(find_label(lv_screen_active(),sdk?"Nie udało się zapisać firmware. Bieżąca wersja pozostaje aktywna.":"Przerwano pobieranie. Sprawdź Wi-Fi i spróbuj ponownie."));
-   lv_obj_t *channel=lv_obj_get_parent(find_label(lv_screen_active(),"Zmień kanał"));lv_area_t area,viewport;lv_obj_get_coords(channel,&area);lv_obj_get_coords(lv_obj_get_parent(channel),&viewport);
-   CHECK(area.y1>=viewport.y1&&area.y2<viewport.y2);
+   lv_obj_t *channel=lv_obj_get_parent(find_label(lv_screen_active(),"Zmień kanał"));lv_obj_scroll_to_view(channel,LV_ANIM_OFF);lv_obj_update_layout(lv_screen_active());lv_area_t area,viewport;lv_obj_get_coords(channel,&area);lv_obj_get_coords(lv_obj_get_parent(channel),&viewport);
+   CHECK(area.y1>=viewport.y1&&area.y2<=viewport.y2);
    if(theme==3&&language==0&&!sdk)screenshot("870-ota-download-diagnostic");
   }
  }

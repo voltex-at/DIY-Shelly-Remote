@@ -21,9 +21,10 @@ static void show(dsr_mobile_model_t *m)
 static unsigned char garden[sizeof(canvas)];
 static void scene_below(int percent)
 {
- int edge=202+120*(100-percent)/100;
+ lv_obj_update_layout(lv_screen_active());lv_obj_invalidate(lv_screen_active());lv_refr_now(display);
+ int edge=202+108*(100-percent)/100;
  /* The outdoor view stays fixed. Only the curtain and its bottom rail move. */
- for(int y=edge+5;y<320;y++)for(int x=88;x<220;x++)CHECK(!memcmp(&canvas[(y*320+x)*3],&garden[(y*320+x)*3],3));
+ for(int y=edge+5;y<308;y++)for(int x=88;x<220;x++)CHECK(!memcmp(&canvas[(y*320+x)*3],&garden[(y*320+x)*3],3));
  if(percent<90){int y=202+(edge-202)/2;CHECK(memcmp(&canvas[(y*320+150)*3],&garden[(y*320+150)*3],3));}
 }
 static void shutter(void)
@@ -34,13 +35,13 @@ static void shutter(void)
  m.devices[0].position_pct=50;show(&m);unsigned before=writes;
  move(150,262,true);CHECK(!writes);CHECK(find_label(lv_screen_active(),"Pozycja 50%"));
  for(int p=0;p<=100;p+=5){
-  move(150,322-120*p/100,true);CHECK(writes==before);CHECK(find_label(lv_screen_active(),"Pozycja 50%"));scene_below(p);
+  move(150,310-108*p/100,true);CHECK(writes==before);CHECK(find_label(lv_screen_active(),"Pozycja 50%"));scene_below(p);
   char s[50];snprintf(s,sizeof(s),"cover-drag-%03d",p);snap(s);
  }
  move(150,202,false);CHECK(writes==before+1&&last_target==100);CHECK(find_label(lv_screen_active(),"Pozycja 50%"));scene_below(50);
  /* Polling during a gesture retains the draft and updates the actual marker. */
- move(150,226,true);m.devices[0].position_pct=60;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());lv_refr_now(display);CHECK(find_label(lv_screen_active(),"Pozycja 60%"));CHECK(writes==before+1);snap("cover-drag-with-readback");
- move(150,226,false);CHECK(writes==before+2&&last_target==80);
+ move(150,224,true);m.devices[0].position_pct=60;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());lv_refr_now(display);CHECK(find_label(lv_screen_active(),"Pozycja 60%"));CHECK(writes==before+1);snap("cover-drag-with-readback");
+ move(150,224,false);CHECK(writes==before+2&&last_target==80);
  /* A drag outside, connection loss and device replacement never send a target. */
  move(150,260,true);move(20,260,true);move(20,260,false);CHECK(writes==before+2);
  move(150,260,true);m.devices[0].online=false;m.devices[0].error=DSR_OFFLINE;dsr_mobile_update(&m);move(150,220,false);CHECK(writes==before+2);snap("cover-offline");CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));

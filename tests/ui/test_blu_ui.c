@@ -19,6 +19,17 @@ static void trv_response(float target,uint8_t pos,dsr_result_t result)
   .blu={.flags=DSR_BLU_VALID|DSR_BLU_HAS_RSSI,.trv_pos=pos,.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET,.rssi=-51}}};
  strcpy(response.device.device_id,"shellyplus1pm-aabbccddeeff_3c2ef571d52a");response.device.online=result==DSR_OK;deliver(result,DSR_WIFI_IDLE);
 }
+/* The accepted compact setpoint is drawn directly inside its 104x24 frame.
+ * Check its actual pixels independently of the separately labelled ambient value. */
+static uint32_t card_target_hash(void)
+{
+ lv_obj_t *plus=find_label(lv_screen_active(),"+");CHECK(plus);
+ lv_obj_t *card=lv_obj_get_parent(lv_obj_get_parent(lv_obj_get_parent(plus))),*frame=NULL;
+ for(unsigned i=0;i<lv_obj_get_child_count(card);i++){lv_obj_t *o=lv_obj_get_child(card,(int)i);if(lv_obj_get_width(o)==104&&lv_obj_get_height(o)==24)frame=o;}
+ CHECK(frame);lv_area_t a;lv_obj_get_coords(frame,&a);lv_refr_now(display);uint32_t hash=2166136261u;
+ for(int y=a.y1+4;y<=a.y2-4;y++)for(int x=a.x1+4;x<=a.x2-4;x++)for(unsigned k=0;k<3;k++)hash=(hash^canvas[(y*320+x)*3+k])*16777619u;
+ return hash;
+}
 static void blu_response(bool motion,bool online)
 {
  response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.has_illuminance=true,.illuminance_lux=317,.has_blu_battery=true,.blu_battery_pct=92,
@@ -70,8 +81,8 @@ int main(int argc,char **argv)
  CHECK(!in_flight&&find_label(lv_screen_active(),cyber?"Temperatura zmierzona":"Temperatura"));
  /* Room list: TRV row has the Shelly pill (-, target, +) and sends the same way. Polls are automatic (no refresh button, as in the app). */
  lv_tick_inc(31000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.0f,40,DSR_OK);tick(); /* after a failed write the poll backs off to 30 s */
- dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.0 °C"));screenshot("368-trv-list-pill");
- trv_before=requests;click("+");CHECK(find_label(lv_screen_active(),"21.5 °C")&&!in_flight);lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==43);trv_response(21.5f,40,DSR_OK);tick();
+ dsr_network_home(NULL);tick();dsr_mobile_show(DSR_MOBILE_DEVICES,0);tick();CHECK(find_label(lv_screen_active(),"21.5 °C"));uint32_t target_before=card_target_hash();screenshot("368-trv-list-pill");
+ trv_before=requests;click("+");CHECK(card_target_hash()!=target_before&&!in_flight);lv_tick_inc(1300);lv_timer_handler();tick();CHECK(in_flight&&submitted.kind==DSR_JOB_TRV&&submitted.trv.half_c==43);trv_response(21.5f,40,DSR_OK);tick();
  /* Offline TRV: -/+ do nothing. */
  lv_tick_inc(16000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);trv_response(21.5f,40,DSR_OFFLINE);tick();
  CHECK(!find_label(lv_screen_active(),"21 lx")&&!find_label(lv_screen_active(),"22 lx")); /* offline TRV: target never shown as lux */

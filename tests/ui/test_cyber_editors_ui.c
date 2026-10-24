@@ -105,7 +105,7 @@ static void editor_checks(unsigned language)
  dsr_network_home(NULL);dsr_network_device(NULL);choose_method("Dodaj ręcznie (IP)");
  lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_obj_send_event(field,LV_EVENT_FOCUSED,NULL);kb=find_type(lv_screen_active(),&lv_keyboard_class);
  lv_area_t keys=box(kb),input=box(field);CHECK(keys.y1==192&&keys.y2==415&&input.y2<keys.y1);shot(638,"onboarding-keyboard",language);
- lv_obj_t *back=lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj"));lv_area_t a=box(back);CHECK(a.y1==420&&a.y2<480);visible_press("Anuluj");
+ lv_obj_t *back=lv_obj_get_parent(find_label(lv_screen_active(),"Anuluj"));lv_area_t a=box(back);CHECK(a.y1==416&&a.y2==463&&a.y1>keys.y2);visible_press("Anuluj");
  dsr_network_home(NULL);
 }
 static void diagnostics(unsigned language)

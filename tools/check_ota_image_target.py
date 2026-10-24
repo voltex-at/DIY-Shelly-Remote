@@ -105,6 +105,7 @@ if args.upload:
         "dsr_ota_image_update", "dsr_ota_image_header_ready",
         "dsr_ota_image_finish", "dsr_ota_image_destroy",
         "dsr_activity_begin", "dsr_activity_end",
+        "dsr_ota_power_acquire", "dsr_ota_power_release",
     }
     upload_allowed = upload_required | {
         "memcpy", "memset", "dsr_activity_begin", "dsr_activity_end",

@@ -451,7 +451,7 @@ void dsr_network_room_context(uint32_t id)
 }
 void dsr_network_device_settings(uint32_t id)
 {
-    dsr_network_home(NULL); /* Fresh shared layout; never reuse the old index. */
+    dsr_network_prepare_home(); /* Refresh IDs while preserving the originating room. */
     dsr_mobile_show_device_settings(id);
 }
 void dsr_network_device_control(uint32_t id)
