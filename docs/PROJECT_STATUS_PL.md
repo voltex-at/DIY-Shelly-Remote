@@ -3,6 +3,14 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
+## Przygotowanie 0.7.74-dev do odbioru — 2026-10-24
+
+Właściciel zlecił publikację kolejnego DEV z lokalnymi naprawami. Docelowy tag:
+`dev-v0.7.74`; wydanie pozostaje kandydatem do sprawdzenia na płytce.
+Obejmuje poprawki po 0.7.73 opisane poniżej. Dokładne CI commita, podpis
+i publiczne pobrania są weryfikowane w procesie wydania; fizyczny odbiór
+0.7.73→0.7.74 i porównanie z nagraniem pozostają po stronie właściciela.
+
 ## Przegląd wszystkich funkcji po 0.7.73 — 2026-10-24
 
 Po dalszych zgłoszeniach właściciela rozszerzono analizę na wszystkie rodziny

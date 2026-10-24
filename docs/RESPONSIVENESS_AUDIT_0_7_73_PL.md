@@ -65,6 +65,29 @@ w ignorowanym `.local/` oraz `build-ui/`.
 
 ## Pozostały odbiór na płytce
 
+### Materiał porównawczy właściciela: nagranie rolety
+
+Właściciel potwierdził, że nagranie `84b3fc87-0e71-4bb7-9799-849f967e063a.mp4`
+pochodzi z opublikowanego **0.7.73-dev**, a nie z lokalnego commita `5dfd52d`.
+Film ma 11,75 s, 576×1024; poniżej czasy przybliżone z obejrzanych klatek.
+
+| Czas filmu | Widoczny stan |
+| --- | --- |
+| 0–2,25 s | Potwierdzona pozycja 25%; przeciąganie zmienia osobny podgląd grafiki i żądanej pozycji. |
+| 2,50 s | Po puszczeniu wraca grafika 25%, pojawia się „Sending command…”; widoczne pomiary nadal 0,0 W / 232,3 V. |
+| 6,50 s | „Offline / No response”, „Last position: 25%”, pomiary W/V stają się niedostępne. |
+| 9,25 s | Powrót do „Online / Opening”, pozycja 30%, 132,2 W / 232,3 V. |
+
+Pierwszy widoczny nowy odczyt jest około 6,75 s po pojawieniu się wysyłania.
+Komunikat błędu jest obecny przez kilka sekund. To dowód zachowania starego
+wydania na ekranie, nie pomiar czasu fizycznego startu silnika. Film nie
+rozstrzyga, czy nie powiodła się odpowiedź na POST, czy któryś GET.
+Lokalne odzyskanie pojedynczego GET po poprawnym ACK nie jest dowodem naprawy
+przypadku utraconego ACK; porównanie na kolejnym firmware musi to rozróżnić.
+Oryginał i wybrane klatki pozostają lokalne; filmu nie wysyłano na GitHub.
+
+### Próby do wykonania
+
 1. Zmierzyć dotyk→lokalny feedback, kolejkę, odpowiedź RPC i zmianę odczytu
    osobno dla rolety GOTO/STOP i termostatu. Sprawdzić także przekaźnik,
    dimmer, RGB oraz grupy podczas zwykłego odświeżania tła.

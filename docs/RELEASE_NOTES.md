@@ -1,3 +1,13 @@
+0.7.74-dev: kandydat do odbioru — odczyty urządzeń, STOP grup oraz panel i OTA.
+
+- Znany termostat BLU korzysta z typowanego statusu po weryfikacji bramki i MAC: odświeżenie 8→3 żądania, zapis z odczytem 15→5. Brakujące pomiary pozostają nieznane. Przy opóźnionym mirrorze wykonywane są najwyżej trzy wczesne odczyty; żądana temperatura pozostaje osobna od potwierdzonej, także po zmianie ekranu lub błędzie.
+- Po poprawnym ACK rolety/TRV pojedynczy utracony GET może zostać odzyskany jednym dodatkowym GET. Niepewne polecenie nie jest ponawiane; dwie awarie oraz błędy logowania/limitu/danych nadal są widoczne. Film właściciela z 0.7.73 pozostaje punktem porównania, a nie dowodem naprawy na sprzęcie.
+- STOP grupy rolet pozostaje dostępny podczas pracy wykonawcy. Niewysłane ruchy są anulowane; kolejne przyjęte zatrzymania czekają na pilny kanał. Sceny/grupy/automatyzacje zachowują właściwy cel TRV. Ręczna zmiana temperatury wracająca do tej samej wartości rejestruje nadpisanie automatyzacji.
+- Karty WWW odzyskują sterowanie po jawnym odrzuceniu albo nowym odczycie po utracie odpowiedzi. Informacja o niepewności pozostaje; kolejna komenda wymaga osobnego działania użytkownika. Nagłówek baterii chroni niezapisane zmiany i trwający zapis edytora.
+- Odświeżenie podglądu WWW czeka na nową klatkę LVGL, z limitem 8 s, anulowaniem po zmianie widoku i zachowaniem blokad ekranów prywatnych. Lokalny upload OTA korzysta ze wspólnego z backupem transportu, dzięki czemu serwer może obsługiwać status i STOP. Zachowano jednorazową zgodę LCD, limit 180 s i sprawdzanie sesji przed wyborem boot. Poprawiono odliczanie 10→0 po rzeczywistym sukcesie natywnego OTA.
+- Pełny przegląd rodzin funkcji, lista napraw i walidacja: [RESPONSIVENESS_AUDIT_0_7_73_PL.md](RESPONSIVENESS_AUDIT_0_7_73_PL.md). Odbiór płynności, czasów RPC, aktualizacji 0.7.73→0.7.74, restartu i zachowania danych pozostaje otwarty na ES3C35P. CI/podpis/publiczne pobranie nie zastępują sprzętu: [RELEASE_CHECKLIST_PL.md](RELEASE_CHECKLIST_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Partycje, format danych i klucz OTA bez zmian. Wydanie wyłącznie DEV; bez scalenia do main.
+
 0.7.73-dev: kandydat do odbioru — responsywność rolety, termostatu i odświeżania w tle.
 
 - Dotyk i lokalne potwierdzenie przyjęcia akcji mają pierwszeństwo. Ręczne polecenia wyprzedzają zwykłe odświeżanie, a należne odczyty urządzenia/grupy i kart widocznych na bieżącym ekranie mają priorytet przed pozostałymi urządzeniami. Po dwóch preferowanych odczytach tło otrzymuje możliwość obsługi. Zachowano pilny STOP, świeżość, kontrolę tożsamości i backoff.
