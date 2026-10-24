@@ -39,7 +39,7 @@ async function fixture(browser,options={}){
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   if(!u.pathname.startsWith('/api/')){
    if(u.pathname==='/favicon.ico')return route.fulfill({status:404,body:''});
-   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
+   const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/backup.js':'backup.js','/panel.css':'panel.css'}[u.pathname];assert(asset,'unexpected asset '+u.pathname);
    return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});
   }
   state.requests.push({path:u.pathname,method:req.method()});
@@ -145,7 +145,7 @@ async function preserve(f,selector){
   // Exactly three skins; the retired midnight skin is never offered.
   {const theme=page.locator('#editor select').filter({has:page.locator('option[value="cyber_blue"]')});eq(await theme.count(),1);
    eq(await theme.locator('option').evaluateAll(o=>o.map(x=>x.value)),['graphite','light','cyber_blue']);eq(await theme.inputValue(),'graphite');}
-  await page.locator('nav [data-page="system"]').click();await page.locator('input[type=file]').setInputFiles({name:'TEST-ONLY.bin',mimeType:'application/octet-stream',buffer:Buffer.from('not firmware')});await preserve(f,'input[type=file]');
+  await page.locator('nav [data-page="system"]').click();await page.locator('input[type=file][accept=".bin"]').setInputFiles({name:'TEST-ONLY.bin',mimeType:'application/octet-stream',buffer:Buffer.from('not firmware')});await preserve(f,'input[type=file][accept=".bin"]');
   await switchTo(f,locale);for(const width of [1440,390]){await page.setViewportSize({width,height:900});await geometry(page);await shot(page,path.join(out,`${locale}-paired-${width}.png`));}
   await page.reload();await page.locator('#workspace').waitFor({state:'visible'});eq(await page.locator('html').getAttribute('lang'),locale);eq(state.config.language,'pl');
   state.fail=true;await page.evaluate(()=>poll());state.fail=false;await page.evaluate(()=>poll());await switchTo(f,locale);eq(state.config.language,'pl');

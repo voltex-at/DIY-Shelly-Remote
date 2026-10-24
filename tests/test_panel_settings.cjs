@@ -17,7 +17,7 @@ const waiting={pl:'Pilot jeszcze nie udostępnił nowej klatki. Odśwież podgl�
   await page.addInitScript(lang=>{localStorage.setItem('dsr.web.locale',lang);const timeout=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>ms===1500?0:timeout(fn,ms,...args);},lang);
   await page.route('**/*',async route=>{
    const r=route.request(),u=new URL(r.url());eq(u.origin,'http://127.0.0.1:8765');
-   if(!u.pathname.startsWith('/api/')){const file={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];return file?route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',file)),contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'}):route.fulfill({status:404,body:''});}
+   if(!u.pathname.startsWith('/api/')){const file={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/backup.js':'backup.js','/panel.css':'panel.css'}[u.pathname];return file?route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',file)),contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'}):route.fulfill({status:404,body:''});}
    const send=(status,json)=>route.fulfill({status,json});
    if(u.pathname.endsWith('/pair')){state.pairs++;if(state.gate)await state.gate;if(state.pairFail)return send(401,{error:'Pairing expired, locked or invalid; reopen pairing on the remote'});state.paired=true;return send(200,{paired:true});}
    if(!state.paired)return send(401,{error:'Pair this browser on the remote'});

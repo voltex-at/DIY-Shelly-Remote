@@ -20,7 +20,7 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
  await page.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url());assert.equal(u.origin,'http://127.0.0.1:8765');
   const send=(status,body)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
-  if(!u.pathname.startsWith('/api/')){const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/panel.css':'panel.css'}[u.pathname];assert(asset,u.pathname);return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});}
+  if(!u.pathname.startsWith('/api/')){const asset={'/':'panel.html','/panel.js':'panel.js','/runtime.js':'runtime.js','/actions.js':'actions.js','/backup.js':'backup.js','/panel.css':'panel.css'}[u.pathname];assert(asset,u.pathname);return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',asset)),contentType:asset.endsWith('js')?'text/javascript':asset.endsWith('css')?'text/css':'text/html'});}
   if(u.pathname.endsWith('/config'))return send(200,config);
   if(u.pathname.endsWith('/devices/runtime')){state.gets++;if(state.fail)return route.abort('failed');return send(200,{boot_id:state.boot,devices:state.stale||state.devices});}
   if(u.pathname.endsWith('/devices/refresh')){

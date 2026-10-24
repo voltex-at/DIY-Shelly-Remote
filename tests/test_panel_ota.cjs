@@ -14,7 +14,7 @@ async function shot(name){await page.evaluate(()=>{if(document.querySelector('#m
   await page.route('**/*',async route=>{
    const req=route.request(),u=new URL(req.url());eq(u.origin,'http://127.0.0.1:8765');
    const send=(status,data)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
-   if(!u.pathname.startsWith('/api/')){const a={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css','/runtime.js':'runtime.js','/actions.js':'actions.js'}[u.pathname];if(!a)return route.fulfill({status:404,body:''});return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',a)),contentType:a.endsWith('.js')?'text/javascript':a.endsWith('.css')?'text/css':'text/html'});}
+   if(!u.pathname.startsWith('/api/')){const a={'/':'panel.html','/panel.js':'panel.js','/panel.css':'panel.css','/runtime.js':'runtime.js','/actions.js':'actions.js','/backup.js':'backup.js'}[u.pathname];if(!a)return route.fulfill({status:404,body:''});return route.fulfill({body:fs.readFileSync(path.join(root,'components/dsr_platform/web',a)),contentType:a.endsWith('.js')?'text/javascript':a.endsWith('.css')?'text/css':'text/html'});}
    if(u.pathname.endsWith('/config')){if(req.method()==='PUT'){const revision=config.revision;Object.assign(config,req.postDataJSON(),{revision:revision+1});return send(202,{saving:true});}return send(200,config);}
    if(u.pathname.endsWith('/status'))return send(200,{revision:config.revision,busy:false,firmware:'HOST TEST / MODEL'});
    if(u.pathname.endsWith('/preview.raw'))return route.fulfill({body:Buffer.alloc(320*480*2)});
@@ -36,7 +36,7 @@ async function shot(name){await page.evaluate(()=>{if(document.querySelector('#m
    throw Error('Unexpected endpoint '+u.pathname);
   });
   await page.goto('http://127.0.0.1:8765/');await page.locator('#workspace').waitFor({state:'visible'});await page.locator('nav [data-page=system]').click();
-  const install=page.locator('#editor button.primary'),file=page.locator('#editor input[type=file]');
+  const install=page.locator('#editor .ota-install'),file=page.locator('#editor input[type=file][accept=".bin"]');
   await shot(lang+'-initial');ok(await install.isDisabled());ok(await page.locator('.savebar').isHidden());
   if(lang==='pl'&&outcome==='ok'){
    for(const [name,size] of [['small.bin',511],['large.bin',0x600001],['wrong.txt',512]]){
