@@ -3,7 +3,23 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
-## Bieżący etap: poprawka OTA 0.7.72-dev — 2026-10-24
+## Bieżący etap: responsywność 0.7.73-dev — 2026-10-24
+
+Właściciel zlecił publikację DEV do sprawdzenia na płytce. Wersja 0.7.73-dev
+zachowuje dotychczasowe dane i poprawkę pobierania OTA z 0.7.72. Szczegóły
+rolety i pojedynczego termostatu aktualizują istniejące widżety przy poprawnych
+odczytach; oczekująca nastawa pozostaje odróżniona od potwierdzonego stanu.
+Pomiar baterii w tle nie imituje dotknięcia. Ręczne polecenia oraz odczyty
+bieżącego ekranu wyprzedzają zwykłe odświeżanie innych urządzeń, z zachowaniem
+obsługi tła, backoff i pilnej ścieżki STOP.
+
+Trwające żądanie sieciowe nadal kończy się przed następnym zwykłym zleceniem.
+Wydanie jest kandydatem do odbioru, a nie potwierdzeniem płynności na sprzęcie.
+Pełne CI dokładnego commita, podpis i publiczne pobrania są bramkami publikacji;
+natywne OTA 0.7.72 → 0.7.73, restart, dane i czasy reakcji wymagają próby
+właściciela zgodnie z `docs/RELEASE_CHECKLIST_PL.md` oraz issue #74.
+
+## Poprawka OTA 0.7.72-dev — 2026-10-24
 
 Zdjęcie pilota 0.7.70-dev pokazało `16/6/200/1`: pobranie manifestu odmówione
 z powodu nagłówków przed weryfikacją podpisu. Publiczny redirect GitHub dla

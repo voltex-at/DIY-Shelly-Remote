@@ -1,3 +1,12 @@
+0.7.73-dev: kandydat do odbioru — responsywność rolety, termostatu i odświeżania w tle.
+
+- Dotyk i lokalne potwierdzenie przyjęcia akcji mają pierwszeństwo. Ręczne polecenia wyprzedzają zwykłe odświeżanie, a należne odczyty urządzenia/grupy i kart widocznych na bieżącym ekranie mają priorytet przed pozostałymi urządzeniami. Po dwóch preferowanych odczytach tło otrzymuje możliwość obsługi. Zachowano pilny STOP, świeżość, kontrolę tożsamości i backoff.
+- Szczegóły rolety zachowują grafikę i aktualizują istniejące elementy zamiast przebudowy całego ekranu podczas poprawnych odczytów. Po błędzie transportu ostatnia potwierdzona pozycja jest jawnie historyczna, z rzeczywistym komunikatem błędu; nie uprawnia do ruchu ani nie powoduje ponowienia polecenia. Animacja nadal wynika z odczytu.
+- Szczegóły pojedynczego termostatu we wszystkich trzech skórkach aktualizują pokrętło, temperaturę, zawór i baterię bez pełnej przebudowy poprawnego widoku. Nastawa oczekująca pozostaje osobna od odczytu. Zachowano 1,2 s łączenia kliknięć, a udany zapis otrzymuje jeden GET po 1 s, następnie normalny interwał. Sterowanie wraca po zakończeniu operacji, także gdy ekran otwarto podczas wysyłania.
+- Automatyczny pomiar baterii aktualizuje wynik bez wizualnego naciskania przycisku „Zmierz napięcie” i bez ręcznego komunikatu odczytu. Na stronie baterii pomiar wyprzedza niezwiązane odczyty; w innych miejscach monitoring ustępuje poleceniom i odczytom urządzeń. Ręczne mierzenie może wykorzystać już trwający pomiar.
+- Istniejący pojedynczy worker kończy trwające żądanie HTTP/BLE; priorytet kolejki nie przerywa go. Płynność, czas odpowiedzi bramki oraz natywna aktualizacja z 0.7.72-dev, restart i zachowanie danych pozostają do odbioru właściciela na ES3C35P. Host, CI i podpis nie są potwierdzeniem sprzętu. Wymagania: [RELEASE_CHECKLIST_PL.md](RELEASE_CHECKLIST_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub paczka UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji i klucza OTA, bez scalenia do main i bez wydania Stable. Zachowano poprawkę długich nagłówków GitHub z 0.7.72.
+
 0.7.72-dev: naprawa pobierania OTA przy długim nagłówku GitHub.
 
 - Zdjęcie z fizycznego pilota 0.7.70-dev ujawniło odmowę pobrania manifestu z kodem `16/6/200/1`. Nagłówek `Content-Security-Policy` przekierowania GitHub miał 9217 bajtów, przekraczając dotychczasowy limit pojedynczej wartości 8192 bajty. Odmowa następowała przed sprawdzeniem podpisu.

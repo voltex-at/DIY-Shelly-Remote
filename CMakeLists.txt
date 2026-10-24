@@ -15,7 +15,7 @@ if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
 elseif(NOT DSR_DIAGNOSTIC_BUILD)
     message(FATAL_ERROR "Select -DDSR_BOARD=lcdwiki-es3c35p or -DDSR_DIAGNOSTIC_BUILD=ON")
 endif()
-set(PROJECT_VER "0.7.72-dev")
+set(PROJECT_VER "0.7.73-dev")
 # Release builds (.github/workflows/release.yml) pass the exact tag version.
 if(DEFINED DSR_VERSION AND NOT DSR_VERSION STREQUAL "")
     set(PROJECT_VER "${DSR_VERSION}")
