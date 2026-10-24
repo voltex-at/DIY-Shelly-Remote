@@ -2,6 +2,7 @@
 #include "dsr_automation_model.h"
 #include "dsr_automation_config.h"
 #include "dsr_actions.h"
+#include "dsr_activity_internal.h"
 #include "dsr_workspace.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -242,6 +243,9 @@ void dsr_automation_tick(dsr_fleet_t *fleet,uint32_t now,uint32_t utc,bool onlin
   else dsr_auto_complete(&ctx->model,&ctx->effect,outcome);
   ctx->run_id=0;ctx->effect=(dsr_auto_effect_t){0};
  }
+ /* Never drop an ACK already consumed outside this owner lock. Finish the
+  * result before freezing; admission refuses any not-yet-durable journal. */
+ if(dsr_activity_maintenance_reserved()){give();return;}
  if(!ctx->read_job&&!ctx->run_id&&ctx->model.record.generation!=ctx->model.durable_generation&&
    (ctx->effect.kind==DSR_AUTO_EFFECT_READ_TRV||ctx->effect.kind==DSR_AUTO_EFFECT_SET_TRV)){
   dsr_auto_unqueue(&ctx->model,&ctx->effect);ctx->effect=(dsr_auto_effect_t){0};
@@ -299,7 +303,7 @@ dsr_result_t dsr_automation_backup_record(dsr_auto_record_t *out)
  if(!take())return DSR_BUSY;
  dsr_result_t r=DSR_OK;
  if(ctx->config_invalid||ctx->model.fault!=DSR_OK)r=DSR_CONFLICT;
- if(ctx->journal_submitted||ctx->run_id||ctx->read_job||ctx->effect.kind||ctx->model.pending.kind)r=DSR_BUSY;
+ if(ctx->journal_submitted||ctx->run_id||ctx->read_job||ctx->effect.kind||ctx->model.pending.kind||ctx->model.record.generation!=ctx->model.durable_generation)r=DSR_BUSY;
  for(unsigned i=0;i<DSR_AUTO_RULES;i++)if(ctx->model.record.cycles[i].active)r=DSR_BUSY;
  for(unsigned i=0;i<DSR_AUTO_PARTICIPANTS;i++){
   unsigned phase=ctx->model.record.targets[i].phase;

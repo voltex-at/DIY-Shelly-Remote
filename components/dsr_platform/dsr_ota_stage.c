@@ -22,3 +22,4 @@ void dsr_ota_stage_release(dsr_ota_stage_t *stage){finish(stage,DSR_OTA_STAGE_ID
 void dsr_ota_stage_commit(dsr_ota_stage_t *stage){finish(stage,DSR_OTA_STAGE_STAGED);}
 void dsr_ota_stage_uncertain(dsr_ota_stage_t *stage){finish(stage,DSR_OTA_STAGE_UNCERTAIN);}
 dsr_ota_stage_state_t dsr_ota_stage_status(void){return (dsr_ota_stage_state_t)atomic_load(&state);}
+bool dsr_ota_maintenance_quiet(void){return dsr_ota_stage_status()==DSR_OTA_STAGE_IDLE;}

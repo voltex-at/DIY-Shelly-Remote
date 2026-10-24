@@ -74,6 +74,7 @@ esp_err_t dsr_panel_pairing_revoke(void)
  /* The shared lock linearizes authorization, pairing and RAM invalidation.
   * Deny first: later NVS errors must never resurrect the old credential. */
  has_token=false;memset(token_hash,0,sizeof(token_hash));
+ dsr_activity_persistent_write();
  memset(pairing,0,sizeof(pairing));pair_until=ota_until=0;attempts=0;
  revocation_unconfirmed=true;
  nvs_handle_t handle;
@@ -168,7 +169,7 @@ static esp_err_t pair(httpd_req_t *r)
  bool valid=esp_timer_get_time()<pair_until&&attempts++<5&&strlen(data)==16&&equal(pairing,data,16);
  if(valid){
   random_hex(token,32);mbedtls_sha256((unsigned char *)token,64,digest,0);
-  nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READWRITE,&n)==ESP_OK){result=nvs_set_blob(n,"token_hash",digest,32);if(result==ESP_OK)result=nvs_commit(n);nvs_close(n);}
+  nvs_handle_t n;if(nvs_open("dsr_panel",NVS_READWRITE,&n)==ESP_OK){dsr_activity_persistent_write();result=nvs_set_blob(n,"token_hash",digest,32);if(result==ESP_OK)result=nvs_commit(n);nvs_close(n);}
   if(result==ESP_OK){memcpy(token_hash,digest,32);has_token=true;revocation_unconfirmed=false;pair_until=0;memset(pairing,0,sizeof(pairing));}
  }
  xSemaphoreGive(lock);memset(data,0,strlen(data));free(data);

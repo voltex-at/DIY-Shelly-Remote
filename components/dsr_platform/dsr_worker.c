@@ -56,7 +56,7 @@ static dsr_result_t stop_request(const dsr_connection_t *c,uint32_t operation_id
 {
  if(!stop_mutex||!c||!operation_id||!dsr_connection_valid(c,true)||c->device.endpoint_kind!=DSR_ENDPOINT_COVER)return DSR_INVALID;
  xSemaphoreTake(stop_mutex,portMAX_DELAY);dsr_result_t result=DSR_BUSY;
- if(!urgent_stop.phase&&dsr_activity_begin()){urgent_stop.connection=*c;urgent_stop.actor=actor;urgent_stop.result=(dsr_stop_result_t){.operation_id=operation_id,.layout_id=c->layout_id};urgent_stop.phase=1;if(registered_cover.active&&same_endpoint(&registered_cover.device,registered_cover.layout_id,c))registered_cover.superseded=true;result=DSR_OK;}
+ if(!urgent_stop.phase&&dsr_activity_stop_begin()){urgent_stop.connection=*c;urgent_stop.actor=actor;urgent_stop.result=(dsr_stop_result_t){.operation_id=operation_id,.layout_id=c->layout_id};urgent_stop.phase=1;if(registered_cover.active&&same_endpoint(&registered_cover.device,registered_cover.layout_id,c))registered_cover.superseded=true;result=DSR_OK;}
  xSemaphoreGive(stop_mutex);
 #ifdef DSR_BOARD_ES3C35P
  if(result==DSR_OK&&!actor)dsr_actions_mode_block();

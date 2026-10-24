@@ -23,6 +23,17 @@ static void (*worker)(void *);
 static int (*callback)(struct ble_gap_event *,void *);
 static void *context;
 static jmp_buf idle;
+#ifdef DSR_TEST_SYSTEM_DATA
+#include "dsr_maintenance_private.h"
+#include "dsr_backup_bonds.h"
+static bool on_manager,owner_pump=true,preempt;
+static unsigned captures;static dsr_result_t capture_result=DSR_OK;
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return on_manager?(void *)&worker:(void *)&checks;}
+bool dsr_maintenance_lease_valid(const dsr_maint_lease_t *l){return l&&dsr_activity_maintenance_valid(l->reservation,l->generation);}
+dsr_result_t dsr_backup_bonds_capture(cJSON *root)
+{CHECK(dsr_ble_backup_store_owner()&&!dsr_ble_host_active());captures++;if(capture_result!=DSR_OK)return capture_result;cJSON *bonds=cJSON_AddObjectToObject(root,"bonds");CHECK(bonds&&cJSON_AddNumberToObject(bonds,"version",1)&&cJSON_AddArrayToObject(bonds,"records"));return DSR_OK;}
+static void run_worker(void);
+#endif
 struct test_ble_hs_cfg ble_hs_cfg;
 SemaphoreHandle_t xSemaphoreCreateMutex(void){return (void *)1;}
 int xSemaphoreTake(SemaphoreHandle_t s,TickType_t t){(void)s;(void)t;return 1;}
@@ -39,7 +50,7 @@ int xQueueReceive(QueueHandle_t q,void *v,TickType_t t)
 }
 void vQueueDelete(QueueHandle_t q){(void)q;}
 int xTaskCreatePinnedToCore(void (*fn)(void *),const char *n,unsigned stack,void *a,unsigned p,void *h,int core)
-{(void)n;(void)a;(void)p;(void)h;CHECK(stack==4096&&core==1);worker=fn;return 1;}
+{(void)n;(void)a;(void)p;CHECK(stack==4096&&core==1);worker=fn;if(h)*(void **)h=&worker;return 1;}
 int64_t esp_timer_get_time(void){return (int64_t)clock_ms*1000;}
 esp_err_t nimble_port_init(void){init_calls++;return init_failure?ESP_FAIL:ESP_OK;}
 void nimble_port_freertos_init(void (*fn)(void *)){(void)fn;host_calls++;ble_hs_cfg.sync_cb();}
@@ -56,13 +67,25 @@ int ble_gap_disc_cancel(void){cancel_calls++;radio=false;struct ble_gap_event e=
 void vTaskDelay(TickType_t ticks)
 {
  clock_ms+=ticks;
+#ifdef DSR_TEST_SYSTEM_DATA
+ if(!on_manager&&preempt){CHECK(dsr_activity_stop_begin());dsr_activity_end();preempt=false;}
+ if(!on_manager&&owner_pump&&queued)run_worker();
+#endif
  if(!radio)return;
  struct ble_gap_event e={.type=BLE_GAP_EVENT_DISC,.disc={.addr={.type=0,.val={1,2,3,4,5,6}},.rssi=-45,.length_data=sizeof(blu),.data=blu}};if(mode==4){e.disc.data=rpc;e.disc.length_data=sizeof(rpc);}callback(&e,context);
  if(mode==1)dsr_ble_cancel();
  if(mode==2)ble_hs_cfg.reset_cb(7);
  if(mode==3||mode==4){radio=false;e.type=BLE_GAP_EVENT_DISC_COMPLETE;e.disc_complete.reason=0;callback(&e,context);CHECK(!dsr_ble_scan());}
 }
-static void run_worker(void){if(!setjmp(idle))worker(NULL);}
+static void run_worker(void){
+#ifdef DSR_TEST_SYSTEM_DATA
+ on_manager=true;
+#endif
+ if(!setjmp(idle))worker(NULL);
+#ifdef DSR_TEST_SYSTEM_DATA
+ on_manager=false;
+#endif
+}
 static unsigned rpc_calls;
 static void quarantine_operation(bool ready)
 {CHECK(ready);dsr_ble_manager_quarantine();CHECK(!dsr_ble_host_healthy()&&!dsr_ble_scan());}
@@ -105,8 +128,31 @@ static void parser_tests(void)
  CHECK(dsr_ble_finish(&s,s.generation,DSR_BLE_CANCELLED,16));CHECK(s.elapsed_ms==32&&!s.busy);CHECK(!dsr_ble_ingest(&s,s.generation,address,0,-40,blu,sizeof(blu),17));
  uint32_t previous=s.generation;dsr_ble_begin(&s,50);s.phase=DSR_BLE_SCANNING;CHECK(!dsr_ble_finish(&s,previous,DSR_BLE_DONE,60));CHECK(!dsr_ble_ingest(&s,previous,address,0,-40,blu,sizeof(blu),60));CHECK(s.count==0);
 }
-int main(void)
+#ifdef DSR_TEST_SYSTEM_DATA
+static void owner_tests(void)
 {
+ CHECK(dsr_ble_init()==ESP_OK&&dsr_ble_maintenance_quiet());cJSON *root=cJSON_CreateObject();CHECK(root);dsr_maint_lease_t l;
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));CHECK(!dsr_ble_scan()&&!dsr_ble_manager_rpc(rpc_operation));
+ CHECK(dsr_ble_backup_capture(&l,root)==DSR_OK&&captures==1&&init_calls==0&&host_calls==0);dsr_activity_maintenance_release(l.reservation);
+ CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(dsr_ble_host_active());unsigned started=init_calls;
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));CHECK(dsr_ble_backup_capture(&l,root)==DSR_OK&&captures==2&&!dsr_ble_host_active()&&stop_calls==1&&deinit_calls==1&&init_calls==started);dsr_activity_maintenance_release(l.reservation);
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));submit_failure=true;CHECK(dsr_ble_backup_capture(&l,root)==DSR_BUSY&&dsr_ble_maintenance_quiet());submit_failure=false;dsr_activity_maintenance_release(l.reservation);
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));owner_pump=false;CHECK(dsr_ble_backup_capture(&l,root)==DSR_BUSY&&queued);dsr_activity_maintenance_release(l.reservation);run_worker();CHECK(captures==2&&dsr_ble_maintenance_quiet());owner_pump=true;
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));preempt=true;CHECK(dsr_ble_backup_capture(&l,root)==DSR_BUSY&&captures==2);dsr_activity_maintenance_release(l.reservation);
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));capture_result=DSR_IO;CHECK(dsr_ble_backup_capture(&l,root)==DSR_IO);dsr_activity_maintenance_release(l.reservation);capture_result=DSR_OK;
+ CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(dsr_ble_host_active());
+ CHECK(dsr_activity_maintenance_reserve(&l.reservation,&l.generation));stop_failure=true;unsigned before=captures;CHECK(dsr_ble_backup_capture(&l,root)==DSR_BUSY&&captures==before&&dsr_ble_host_active());stop_failure=false;dsr_activity_maintenance_release(l.reservation);
+ CHECK(dsr_activity_begin());dsr_activity_end();CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();cJSON_Delete(root);
+ printf("PASS: %u existing BLE manager owner checks; actual queue/lifetime code, modeled RTOS/store/radio\n",checks);
+}
+#endif
+int main(int argc,char **argv)
+{
+#ifdef DSR_TEST_SYSTEM_DATA
+ if(argc==2&&!strcmp(argv[1],"--maintenance-owner")){owner_tests();return 0;}
+#else
+ (void)argc;(void)argv;
+#endif
  parser_tests();dsr_ble_snapshot_t s;
  dsr_ble_snapshot(&s);CHECK(s.phase==DSR_BLE_UNAVAILABLE);CHECK(!dsr_ble_scan());CHECK(dsr_ble_init()==ESP_OK);
  submit_failure=true;CHECK(!dsr_ble_scan());dsr_ble_snapshot(&s);CHECK(!s.busy&&s.phase==DSR_BLE_UNAVAILABLE);submit_failure=false;

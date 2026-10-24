@@ -31,7 +31,7 @@ bool dsr_photo_save(const char *id,const void *data,size_t size)
  size_t total,used;if(esp_spiffs_info("dsrdata",&total,&used)!=ESP_OK||used+PHOTO_BYTES+65536>total*3/4){dsr_activity_end();return false;}
  void *copy=malloc(size);if(!copy){dsr_activity_end();return false;}memcpy(copy,data,size);
  char name[38],path[64];if(!dsr_photo_filename(id,name)){free(copy);dsr_activity_end();return false;}
- snprintf(path,sizeof(path),"/dsr/%s",name);FILE *f=fopen(path,"wb");bool ok=false;
+ dsr_activity_persistent_write();snprintf(path,sizeof(path),"/dsr/%s",name);FILE *f=fopen(path,"wb");bool ok=false;
  if(f){ok=fwrite(data,1,size,f)==size&&fflush(f)==0&&fsync(fileno(f))==0;if(fclose(f))ok=false;}
  if(!ok){free(copy);dsr_activity_end();return false;}
  memcpy(photos[count].id,id,33);photos[count].pixels=copy;count++;dsr_activity_end();return true;

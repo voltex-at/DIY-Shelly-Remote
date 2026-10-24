@@ -43,7 +43,8 @@ int ble_gattc_write_flat(uint16_t,uint16_t,const void *,uint16_t,ble_gatt_attr_f
 int ble_gattc_read(uint16_t,uint16_t,ble_gatt_attr_fn *,void *);
 
 struct ble_store_status_event {int event_code;};
-struct ble_hs_cfg {uint8_t sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;int (*store_status_cb)(struct ble_store_status_event *,void *);};
+union ble_store_value;union ble_store_key;
+struct ble_hs_cfg {uint8_t sm_io_cap,sm_bonding,sm_mitm,sm_sc,sm_our_key_dist,sm_their_key_dist;int (*store_status_cb)(struct ble_store_status_event *,void *);int (*store_write_cb)(int,const union ble_store_value *);int (*store_delete_cb)(int,const union ble_store_key *);};
 extern struct ble_hs_cfg ble_hs_cfg;
 int ble_gap_security_initiate(uint16_t);
 int ble_gap_conn_find(uint16_t,struct ble_gap_conn_desc *);

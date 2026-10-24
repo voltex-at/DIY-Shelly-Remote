@@ -125,7 +125,7 @@ static esp_err_t registry_write(connection_registry_v6_t *registry)
  registry->schema=6;for(uint32_t i=0;i<registry->count;i++)if(registry->items[i].device.endpoint_kind==DSR_ENDPOINT_BLU)registry->schema=7;
  nvs_handle_t handle;esp_err_t error=nvs_open("dsr_bindings",NVS_READWRITE,&handle);
  if(error!=ESP_OK)return error;
- error=nvs_set_blob(handle,"registry",registry,sizeof(*registry));if(error==ESP_OK)error=nvs_commit(handle);nvs_close(handle);
+ dsr_activity_persistent_write();error=nvs_set_blob(handle,"registry",registry,sizeof(*registry));if(error==ESP_OK)error=nvs_commit(handle);nvs_close(handle);
  if(error!=ESP_OK)return error;
  connection_registry_v6_t *readback=calloc(1,sizeof(*readback));if(!readback)return ESP_ERR_NO_MEM;
  error=nvs_open("dsr_bindings",NVS_READONLY,&handle);
@@ -195,7 +195,7 @@ esp_err_t dsr_connection_update_name(const dsr_connection_t *c)
  }
  if(r){memset(r,0,sizeof(*r));free(r);}dsr_activity_end();return error;
 }
-#ifdef DSR_BOARD_ES3C35P
+#if defined(DSR_BOARD_ES3C35P) && (defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA))
 #include "dsr_backup_storage.h"
 #include "dsr_maintenance_private.h"
 esp_err_t dsr_connections_restore(const dsr_connection_t *items,size_t count)

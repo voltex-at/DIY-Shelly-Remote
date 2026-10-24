@@ -41,6 +41,7 @@ static esp_err_t save(const dsr_settings_t *settings)
     nvs_handle_t handle;
     esp_err_t error = nvs_open("dsr_cfg", NVS_READWRITE, &handle);
     if (error != ESP_OK) return error;
+    dsr_activity_persistent_write();
     error = nvs_set_blob(handle, "settings", settings, sizeof(*settings));
     if (error == ESP_OK) error = nvs_set_u32(handle, "schema", 2);
     if (error == ESP_OK) error = nvs_commit(handle);
@@ -53,7 +54,7 @@ esp_err_t dsr_settings_save(const dsr_settings_t *settings)
  if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
  esp_err_t e=save(settings);dsr_activity_end();return e;
 }
-#ifdef DSR_BOARD_ES3C35P
+#if defined(DSR_BOARD_ES3C35P) && (defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA))
 #include "dsr_backup_storage.h"
 #include "dsr_maintenance_private.h"
 esp_err_t dsr_settings_restore(const dsr_settings_t *settings)

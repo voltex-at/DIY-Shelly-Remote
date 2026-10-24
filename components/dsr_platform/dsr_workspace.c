@@ -17,6 +17,10 @@ static QueueHandle_t queue;
 static char *current;
 static uint32_t revision;
 static bool busy;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+static bool maintenance_running;
+static TaskHandle_t config_handle;
+#endif
 static char status[96];
 static bool auto_pending,auto_done;
 static uint32_t auto_generation;
@@ -29,13 +33,33 @@ static bool bind_waiting,bind_busy;
 static uint32_t bind_room=UINT32_MAX;
 static dsr_result_t bind_result_code=DSR_OK;
 static char bind_message[64];
-typedef struct {union {char *json;dsr_auto_record_t *record;};uint32_t revision;bool automatic;} request_t;
+typedef struct {union {char *json;dsr_auto_record_t *record;};uint32_t revision;bool automatic;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+ void (*maintenance_run)(void *);
+#endif
+} request_t;
 static bool workspace_ready(void){dsr_config_health_t h;dsr_config_health_snapshot(&h);return h.workspace==DSR_WORKSPACE_READY&&mutex&&queue&&current;}
+bool dsr_workspace_maintenance_quiet(void)
+{
+ if(!workspace_ready())return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool self=false;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+ self=maintenance_running&&xTaskGetCurrentTaskHandle()==config_handle;
+#endif
+ bool quiet=(!busy||self)&&!auto_pending&&!auto_done&&!bind_busy;xSemaphoreGive(mutex);return quiet;
+}
 static void config_task(void *argument)
 {
  (void)argument;request_t request;
  for(;;){
   if(xQueueReceive(queue,&request,portMAX_DELAY)!=pdTRUE)continue;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+  if(request.maintenance_run){
+   xSemaphoreTake(mutex,portMAX_DELAY);maintenance_running=true;xSemaphoreGive(mutex);
+   dsr_activity_end();request.maintenance_run(request.json);
+   xSemaphoreTake(mutex,portMAX_DELAY);maintenance_running=false;busy=false;xSemaphoreGive(mutex);continue;
+  }
+#endif
   if(request.automatic){
    esp_err_t result=dsr_auto_store_save(request.record);free(request.record);
    xSemaphoreTake(mutex,portMAX_DELAY);
@@ -48,7 +72,7 @@ static void config_task(void *argument)
   if(next&&(!automation_candidate||!dsr_automation_config_allowed(automation_candidate,error))){
    free(next);next=NULL;if(!error[0])snprintf(error,sizeof(error),"Not enough memory for configuration check");
   }
-  if(next&&!dsr_config_store_save("/dsr",next,error)){free(next);next=NULL;}
+  if(next){dsr_activity_persistent_write();if(!dsr_config_store_save("/dsr",next,error)){free(next);next=NULL;}}
   xSemaphoreTake(mutex,portMAX_DELAY);
   /* replace already validated the exact revision+1 document and save ACKed
    * its readback. Do not allocate/reparse after commit and risk publishing0
@@ -90,7 +114,12 @@ esp_err_t dsr_workspace_start(void)
  mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(request_t));
  if(!mutex||!queue){dsr_config_health_workspace(DSR_WORKSPACE_ALLOCATING,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
  dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_OK);
- if(xTaskCreate(config_task,"dsr_config",8192,NULL,3,NULL)!=pdPASS){dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+ void *task_handle=&config_handle;
+#else
+ void *task_handle=NULL;
+#endif
+ if(xTaskCreate(config_task,"dsr_config",8192,NULL,3,task_handle)!=pdPASS){dsr_config_health_workspace(DSR_WORKSPACE_TASK,ESP_ERR_NO_MEM);return ESP_ERR_NO_MEM;}
  /* Still before the LVGL task starts. The runtime receives a copy later,
   * never performs Flash I/O while drawing or holding its owner mutex. */
  auto_boot_record=malloc(sizeof(*auto_boot_record));
@@ -127,6 +156,15 @@ bool dsr_workspace_submit(const char *json,uint32_t expected)
  if(ok){ok=dsr_activity_begin();if(ok){request_t req={.json=copy,.revision=expected};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok){busy=true;snprintf(status,sizeof(status),"Saving…");}else dsr_activity_end();}}
  xSemaphoreGive(mutex);if(!ok)free(copy);return ok;
 }
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+bool dsr_workspace_maintenance_submit(void (*run)(void *),void *owned_argument)
+{
+ if(!run||!workspace_ready())return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool ok=!busy&&!bind_busy&&!auto_pending&&!auto_done&&dsr_activity_begin();
+ if(ok){request_t req={.json=owned_argument,.maintenance_run=run};ok=xQueueSend(queue,&req,0)==pdTRUE;if(ok)busy=true;else dsr_activity_end();}
+ xSemaphoreGive(mutex);return ok;
+}
+#endif
 void dsr_workspace_status(bool *pending,char message[96])
 {if(!workspace_ready()){*pending=false;snprintf(message,96,"Configuration storage unavailable");return;}xSemaphoreTake(mutex,portMAX_DELAY);*pending=busy;snprintf(message,96,"%s",status);xSemaphoreGive(mutex);}
 bool dsr_workspace_auto_submit(const dsr_auto_record_t *record,uint32_t generation)

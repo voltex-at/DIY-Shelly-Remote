@@ -33,6 +33,9 @@ bool dsr_ble_host_healthy(void){return !quarantined;}
 void dsr_ble_manager_quarantine(void){CHECK(!held);quarantines++;quarantined=true;}
 bool dsr_ble_manager_rpc(void (*fn)(bool)){if(queued||quarantined)return false;queued=true;operation=fn;return true;}
 void ble_store_config_init(void){}
+static int store_result;
+int ble_store_config_write(int type,const union ble_store_value *v){(void)type;(void)v;return store_result;}
+int ble_store_config_delete(int type,const union ble_store_key *v){(void)type;(void)v;return store_result;}
 int ble_hs_id_infer_auto(int p,uint8_t *own){CHECK(!p);*own=0;return 0;}
 static void gap_event(int type)
 {struct ble_gap_event e={.type=type};if(type==BLE_GAP_EVENT_CONNECT){e.connect.conn_handle=7;}else if(type==BLE_GAP_EVENT_DISCONNECT)e.disconnect.conn.conn_handle=7;else if(type==BLE_GAP_EVENT_ENC_CHANGE)e.enc_change.conn_handle=7;else if(type==BLE_GAP_EVENT_PASSKEY_ACTION){e.passkey.conn_handle=7;e.passkey.params.action=BLE_SM_IOACT_INPUT;}int rc=gap_cb(&e,gap_arg);if(type==BLE_GAP_EVENT_REPEAT_PAIRING)CHECK(rc==BLE_GAP_REPEAT_PAIRING_IGNORE);}
@@ -74,6 +77,9 @@ static void reset(unsigned test)
 int main(void)
 {
  dsr_blu_host_setup();CHECK(ble_hs_cfg.sm_bonding&&ble_hs_cfg.sm_sc&&ble_hs_cfg.store_status_cb);struct ble_store_status_event full={0};CHECK(ble_hs_cfg.store_status_cb(&full,NULL)==BLE_HS_ESTORE_CAP);
+ uint64_t generation=dsr_activity_data_generation();CHECK(ble_hs_cfg.store_write_cb&&ble_hs_cfg.store_delete_cb);
+ CHECK(ble_hs_cfg.store_write_cb(1,NULL)==0&&dsr_activity_data_generation()==generation+1);
+ store_result=7;CHECK(ble_hs_cfg.store_delete_cb(1,NULL)==7&&dsr_activity_data_generation()==generation+2);store_result=0;
  for(unsigned test=0;test<=DISCONNECT_WRITE;test++){
   reset(test);dsr_ble_device_t c=candidate();CHECK(dsr_blu_start(&c)==DSR_OK);dsr_blu_snapshot_t s=run();
   bool success=test==NORMAL||test==PIN_MODE||test==WRITE_TIMEOUT||test==WRONG_READBACK||test==CHANGED_FIELD||test==OLD_CALLBACK||test==DISCONNECT_WRITE;

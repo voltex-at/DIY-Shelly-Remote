@@ -167,6 +167,13 @@ int main(int argc,char **argv){
  if(!strcmp(scenario,"blocked-independent"))cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root,"automations"),1),"enabled",cJSON_CreateTrue());
  json=cJSON_PrintUnformatted(root);CHECK(dsr_workspace_submit(json,7));free(json);cJSON_Delete(root);pump(config_task);CHECK(dsr_workspace_revision()==8);
  dsr_auto_snapshot_t pending;dsr_automation_snapshot(&pending);CHECK(pending.count==(!strcmp(scenario,"blocked-independent")?2:1)&&pending.revision==8&&pending.rules[0].state!=DSR_AUTO_DISABLED);
+ if(!strcmp(scenario,"maintenance-ack")){
+  samples();dsr_automation_tick(&fleet,now,1800000000+now/1000,true);CHECK(queues[0].full);pump(config_task);
+  uint64_t reservation,generation;CHECK(dsr_activity_maintenance_reserve(&reservation,&generation));
+  /* Model admission racing the consumption of the just-completed journal. */
+  dsr_automation_tick(&fleet,now,1800000000+now/1000,true);dsr_activity_maintenance_release(reservation);
+  windows[0]=windows[1]=true;frames(45);CHECK(sets==2&&remote[2]==16&&remote[3]==16);goto finished;
+ }
  if(!strcmp(scenario,"blocked-independent")){
   fleet.slots[2].blocked=true;windows[0]=windows[1]=true;frames(90);CHECK(sets==1&&remote[2]==40&&remote[3]==16);
   windows[1]=false;frames(45);CHECK(sets==2&&remote[3]==44);

@@ -8,7 +8,7 @@ from hostcc import ROOT, build, parse_args
 
 p = argparse.ArgumentParser(description=__doc__)
 RUNTIME_SCENARIOS = ['happy', 'manual', 'manual-failure', 'manual-retry', 'reboot-own',
- 'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit', 'blocked-independent']
+ 'reboot-prepared', 'reboot-baseline', 'reboot-restore', 'corrupt', 'rebind', 'disable', 'active-edit', 'stale', 'manual-read-wait', 'reopen-before-restore', 'reopen-after-restore', 'rate-limit', 'blocked-independent', 'maintenance-ack']
 p.add_argument('--case', choices=['model', 'store', 'http', 'config', 'runtime', 'api', 'rate', 'all'], default='all')
 p.add_argument('--model-case', choices=['barrier','reason'], help='One focused model review regression')
 p.add_argument('--runtime-module', choices=['actor', 'native'], help='Run one controller in the runtime case')
@@ -39,7 +39,7 @@ cases = {
                     'components/dsr_platform/dsr_actions_model.c', 'components/dsr_platform/dsr_actions_parse.c',
                     'components/dsr_platform/dsr_activity.c', 'components/dsr_platform/dsr_ap_model.c',
                     'components/dsr_platform/dsr_wifi_policy.c', 'components/dsr_config/dsr_config.c',
-                    'components/dsr_core/dsr_core.c', 'tests/test_automation_actor.c'],
+                    'components/dsr_core/dsr_core.c', 'tests/support/ota_power_worker_stub.c','tests/test_automation_actor.c'],
                     ['tests/battery', 'tests/actions', 'tests/history', 'tests/actor', 'tests/support',
                      'components/dsr_config/include', 'components/dsr_ota/include', '.test-deps', '/usr/include/cjson'],
                     ['-l:libcjson.so.1', '-lm']),

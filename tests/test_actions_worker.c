@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static unsigned checks,gets,posts,stops,mode;static uint32_t now=120000,run_id;
+static unsigned checks,http_gets,posts,stops,mode;static uint32_t now=120000,run_id;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 typedef struct {size_t size;bool full;unsigned char bytes[sizeof(dsr_event_t)];} queue_t;
 static queue_t queues[2];static unsigned queue_count,lock_count;static bool locks[3],available,power_done;static unsigned binary_count;
@@ -51,7 +51,7 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t f){dsr_http_job_gua
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook){dsr_http_job_write_hook_t previous=write_hook;write_hook=hook;return previous;}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on)
 {
- CHECK(guard&&c->device.endpoint_kind==DSR_ENDPOINT_SWITCH);dsr_result_t result=guard();if(result!=DSR_OK)return result;gets++;
+ CHECK(guard&&c->device.endpoint_kind==DSR_ENDPOINT_SWITCH);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;
  if(mode==1)CHECK(dsr_actions_cancel(12345,run_id));
  if(mode==2){dsr_http_job_guard_t outer=guard;dsr_http_job_write_hook_t outer_write=write_hook;CHECK(dsr_worker_stop_request(&b,outer_id)==DSR_OK);CHECK(urgent&&urgent());CHECK(guard==outer&&write_hook==outer_write);}
  result=guard();if(result!=DSR_OK)return result;CHECK(write_hook);write_hook();posts++;c->device.output=on;c->device.online=true;return DSR_OK;
@@ -59,11 +59,11 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on)
 dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {
  if(intent.command==DSR_COVER_STOP){/* Manual innerSTOP must suspend outer actor cancellation. */if(mode==2)CHECK(!guard&&!write_hook);else if(guard){dsr_result_t result=guard();if(result!=DSR_OK)return result;}if(write_hook)write_hook();stops++;c->device.online=true;return DSR_OK;}
- CHECK(guard);dsr_result_t result=guard();if(result!=DSR_OK)return result;gets++;result=guard();if(result==DSR_OK){CHECK(write_hook);write_hook();posts++;}return result;
+ CHECK(guard);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;result=guard();if(result==DSR_OK){CHECK(write_hook);write_hook();posts++;}return result;
 }
 static dsr_result_t typed_transaction(dsr_connection_t *c)
 {
- CHECK(guard&&write_hook&&c->layout_id==42);dsr_result_t r=guard();if(r!=DSR_OK)return r;gets++;
+ CHECK(guard&&write_hook&&c->layout_id==42);dsr_result_t r=guard();if(r!=DSR_OK)return r;http_gets++;
  if(mode==1)CHECK(dsr_actions_cancel(12345,run_id));
  if(mode==3)mapping=false;
  r=guard();if(r!=DSR_OK)return r;write_hook();posts++;return mode==4?DSR_OFFLINE:DSR_OK;
@@ -71,7 +71,7 @@ static dsr_result_t typed_transaction(dsr_connection_t *c)
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent){CHECK(intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==65);return typed_transaction(c);}
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent){CHECK(intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);return typed_transaction(c);}
 dsr_result_t dsr_http_trv_read(dsr_connection_t *c){(void)c;return DSR_UNSUPPORTED;}
-dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){gets++;c->device.online=true;}return result;}
+dsr_result_t dsr_http_refresh(dsr_connection_t *c){CHECK(guard);dsr_result_t result=guard();if(result==DSR_OK){http_gets++;c->device.online=true;}return result;}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *c,dsr_device_t *d,dsr_telemetry_t *t){(void)c;(void)d;(void)t;abort();}
 void dsr_ap_execute(const dsr_job_t *j,dsr_event_t *e){(void)j;(void)e;abort();}
 void dsr_ap_prepare(void){}
@@ -106,17 +106,21 @@ int main(void)
  a=(dsr_connection_t){.layout_id=42,.device={.host="192.0.2.42",.device_id="shelly-A",.generation=2,.has_switch=true,.online=true}};b=a;b.layout_id=43;strcpy(b.device.host,"192.0.2.43");strcpy(b.device.device_id,"shelly-B");b.device.endpoint_kind=DSR_ENDPOINT_COVER;
  CHECK(dsr_worker_start()==ESP_OK&&dsr_actions_init()==ESP_OK);
  /* Cancel between actual worker guard legs: no model POST, no replay. */
- mode=1;begin(1,1);dsr_job_t j=prepare(101,&a);CHECK(dsr_worker_submit(&j)==DSR_OK);execute();CHECK(gets==1&&!posts);dsr_event_t e=complete(101);CHECK(e.result==DSR_BUSY&&!dsr_actions_target());idle_admission();
+ mode=1;begin(1,1);dsr_job_t j=prepare(101,&a);CHECK(dsr_worker_submit(&j)==DSR_OK);execute();CHECK(http_gets==1&&!posts);dsr_event_t e=complete(101);CHECK(e.result==DSR_BUSY&&!dsr_actions_target());idle_admission();
  /* Manual STOP uses the SAME numeric ID as outer actor job. It still
   * cancels the plan and its inner transaction suspends/restores outerguard. */
- mode=2;begin(1,2);j=prepare(102,&a);outer_id=102;CHECK(dsr_worker_submit(&j)==DSR_OK);execute();CHECK(gets==2&&!posts&&stops==1&&dsr_worker_stop_pending());e=complete(102);CHECK(e.result==DSR_BUSY&&!dsr_actions_target());CHECK(!dsr_activity_restart_reserve());dsr_stop_result_t stopped;CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==102&&stopped.device.endpoint_kind==DSR_ENDPOINT_COVER);idle_admission();
+ mode=2;begin(1,2);j=prepare(102,&a);outer_id=102;CHECK(dsr_worker_submit(&j)==DSR_OK);execute();CHECK(http_gets==2&&!posts&&stops==1&&dsr_worker_stop_pending());e=complete(102);CHECK(e.result==DSR_BUSY&&!dsr_actions_target());CHECK(!dsr_activity_restart_reserve());dsr_stop_result_t stopped;CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==102&&stopped.device.endpoint_kind==DSR_ENDPOINT_COVER);idle_admission();
  /* Cancel/deadline/rebind before queue take: zero first SDK request. */
- mode=0;for(unsigned fault=0;fault<3;fault++){begin(2,3+fault);j=prepare(103+fault,&b);CHECK(dsr_worker_submit(&j)==DSR_OK);unsigned before=gets+posts;if(fault==0)CHECK(dsr_actions_cancel(12345,run_id));else if(fault==1)now+=180000;else mapping=false;execute();e=complete(j.id);CHECK(gets+posts==before&&e.result==(fault==2?DSR_IDENTITY_MISMATCH:DSR_BUSY));mapping=true;(void)dsr_actions_cancel(12345,run_id);CHECK(!dsr_actions_target());idle_admission();}
+ mode=0;for(unsigned fault=0;fault<3;fault++){begin(2,3+fault);j=prepare(103+fault,&b);CHECK(dsr_worker_submit(&j)==DSR_OK);unsigned before=http_gets+posts;if(fault==0)CHECK(dsr_actions_cancel(12345,run_id));else if(fault==1)now+=180000;else mapping=false;execute();e=complete(j.id);CHECK(http_gets+posts==before&&e.result==(fault==2?DSR_IDENTITY_MISMATCH:DSR_BUSY));mapping=true;(void)dsr_actions_cancel(12345,run_id);CHECK(!dsr_actions_target());idle_admission();}
  /* Tombstone also protects an actor Cover admitted before manual STOP. */
  begin(2,6);j=prepare(106,&b);CHECK(dsr_worker_submit(&j)==DSR_OK);CHECK(dsr_worker_stop_request(&b,106)==DSR_OK);unsigned before=posts;execute();e=complete(106);CHECK(e.result==DSR_BUSY&&posts==before&&!dsr_actions_target());CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==106&&stops==2);idle_admission();
  /* An explicit scene STOP has separate trusted admission and its own guard;
   * it is not mistaken for an unrelated manual operationID or auto-cancelled. */
  begin(3,7);j=prepare(107,&b);CHECK(j.cover.command==DSR_COVER_STOP&&dsr_worker_action_stop_request(&b,107)==DSR_OK);execute();CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==107&&stopped.result==DSR_OK&&stops==3);CHECK(dsr_activity_begin());dsr_actions_complete(107,stopped.result);CHECK(!dsr_actions_target());dsr_activity_end();idle_admission();
+ /* A copied maintenance snapshot yields to the real urgent lane. */
+ uint64_t reservation,generation;CHECK(dsr_activity_maintenance_reserve(&reservation,&generation));
+ CHECK(dsr_worker_stop_request(&b,108)==DSR_OK&&!dsr_activity_maintenance_valid(reservation,generation));dsr_activity_maintenance_release(reservation);
+ execute();CHECK(dsr_worker_stop_receive(&stopped,false)&&stopped.operation_id==108&&stopped.result==DSR_OK&&stops==4);idle_admission();
  typed_config=true;const uint8_t families[]={DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB,DSR_ENDPOINT_BLU};const char *payloads[]={"\"command\":\"brightness\",\"value\":65","\"command\":\"rgb\",\"rgb\":[10,120,250]","\"command\":\"target\",\"value\":43"};
  for(unsigned f=0;f<4;f++)for(unsigned fault=0;fault<4;fault++){
   mode=fault==2?3:fault==3?4:fault;a.device.endpoint_kind=families[f<3?f:2];memset(&a.telemetry,0,sizeof(a.telemetry));if(!f)a.telemetry.light.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS;else if(f==1)a.telemetry.rgb.flags=DSR_RGB_VALID;else a.telemetry.blu.errors=DSR_BLU_TRV;

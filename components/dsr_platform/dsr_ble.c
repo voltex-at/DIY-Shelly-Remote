@@ -17,6 +17,19 @@
 #include "host/util/util.h"
 #include <stdatomic.h>
 #include <string.h>
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+#include "dsr_maintenance_private.h"
+#include "dsr_backup_bonds.h"
+#include "dsr_backup_format.h"
+#include "dsr_backup_json.h"
+#include <stdlib.h>
+typedef struct {dsr_maint_lease_t lease;cJSON *root;atomic_uint refs;atomic_bool done;dsr_result_t result;} backup_request_t;
+static backup_request_t *backup_request;
+static TaskHandle_t manager_handle;
+static atomic_bool backup_owner;
+static void backup_release(backup_request_t *r)
+{if(atomic_fetch_sub(&r->refs,1)==1){dsr_backup_json_discard(r->root);dsr_backup_wipe(r,sizeof(*r));free(r);}}
+#endif
 
 static SemaphoreHandle_t mutex;
 static QueueHandle_t queue;
@@ -102,41 +115,107 @@ static void scan_once(uint32_t id)
  * the radio (coexistence) and the controller kept its internal RAM. The next
  * request initializes them again (prepare_host). */
 bool dsr_ble_host_active(void){return atomic_load(&host_on);}
-static void release_host(void)
+static bool release_host(bool reserved)
 {
- if(!initialized)return;
- xSemaphoreTake(mutex,portMAX_DELAY);bool idle=!busy;xSemaphoreGive(mutex);if(!idle)return;
- if(nimble_port_stop()!=0){memory_log("stop_failed");return;}
- if(nimble_port_deinit()!=ESP_OK){atomic_store(&quarantined,true);memory_log("deinit_failed");return;}
+ if(!initialized)return true;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool idle=!busy||reserved;xSemaphoreGive(mutex);if(!idle)return false;
+ if(nimble_port_stop()!=0){memory_log("stop_failed");return false;}
+ if(nimble_port_deinit()!=ESP_OK){atomic_store(&quarantined,true);memory_log("deinit_failed");return false;}
  initialized=false;atomic_store(&host_on,false);atomic_store(&synced,false);atomic_store(&host_failed,false);atomic_store(&quarantined,false);memory_log("released");
+ return true;
 }
 static void scanner_task(void *arg)
-{(void)arg;uint32_t id;for(;;)if(xQueueReceive(queue,&id,initialized?pdMS_TO_TICKS(DSR_BLE_IDLE_RELEASE_MS):portMAX_DELAY)!=pdTRUE)release_host();else{xSemaphoreTake(mutex,portMAX_DELAY);void (*operation)(bool)=rpc_operation;xSemaphoreGive(mutex);if(operation)operation(prepare_host());else scan_once(id);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;state.serial++;xSemaphoreGive(mutex);memory_log("idle");}}
+{
+ (void)arg;uint32_t id;
+ for(;;){
+  if(xQueueReceive(queue,&id,initialized?pdMS_TO_TICKS(DSR_BLE_IDLE_RELEASE_MS):portMAX_DELAY)!=pdTRUE){(void)release_host(false);continue;}
+  xSemaphoreTake(mutex,portMAX_DELAY);void (*operation)(bool)=rpc_operation;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+  backup_request_t *backup=backup_request;
+#endif
+  xSemaphoreGive(mutex);bool activity_owned=true;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+  if(backup){
+   activity_owned=false;backup->result=DSR_BUSY;
+   if(dsr_maintenance_lease_valid(&backup->lease)&&release_host(true)){
+    atomic_store(&backup_owner,true);backup->result=dsr_backup_bonds_capture(backup->root);atomic_store(&backup_owner,false);
+    if(!dsr_maintenance_lease_valid(&backup->lease))backup->result=DSR_BUSY;
+   }
+  }else
+#endif
+  if(operation)operation(prepare_host());else scan_once(id);
+  xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;state.serial++;
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+  backup_request=NULL;
+#endif
+  xSemaphoreGive(mutex);
+  if(activity_owned)dsr_activity_end();
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+  if(backup){atomic_store(&backup->done,true);backup_release(backup);}
+#endif
+  memory_log("idle");
+ }
+}
 bool dsr_ble_manager_rpc(void (*operation)(bool))
 {
- if(!mutex||!queue||!operation)return false;
- xSemaphoreTake(mutex,portMAX_DELAY);if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);return false;}busy=true;rpc_operation=operation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
+ if(!mutex||!queue||!operation||!dsr_activity_begin())return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);dsr_activity_end();return false;}busy=true;rpc_operation=operation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
  uint32_t token=0;if(xQueueSend(queue,&token,0)==pdTRUE)return true;
- xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;xSemaphoreGive(mutex);return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);busy=false;rpc_operation=NULL;xSemaphoreGive(mutex);dsr_activity_end();return false;
 }
 esp_err_t dsr_ble_init(void)
 {
  if(mutex)return ESP_OK;
  mutex=xSemaphoreCreateMutex();queue=xQueueCreate(1,sizeof(uint32_t));
  if(!mutex||!queue){if(mutex)vSemaphoreDelete(mutex);if(queue)vQueueDelete(queue);mutex=NULL;queue=NULL;return ESP_ERR_NO_MEM;}
- if(xTaskCreatePinnedToCore(scanner_task,"dsr_ble_scan",4096,NULL,2,NULL,1)!=pdPASS){vSemaphoreDelete(mutex);vQueueDelete(queue);mutex=NULL;queue=NULL;return ESP_ERR_NO_MEM;}
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+ void *handle=&manager_handle;
+#else
+ void *handle=NULL;
+#endif
+ if(xTaskCreatePinnedToCore(scanner_task,"dsr_ble_scan",4096,NULL,2,handle,1)!=pdPASS){vSemaphoreDelete(mutex);vQueueDelete(queue);mutex=NULL;queue=NULL;return ESP_ERR_NO_MEM;}
  return ESP_OK;
 }
 bool dsr_ble_scan(void)
 {
- if(!mutex||!queue)return false;
+ if(!mutex||!queue||!dsr_activity_begin())return false;
  xSemaphoreTake(mutex,portMAX_DELAY);
- if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);return false;}
+ if(busy||atomic_load(&quarantined)){xSemaphoreGive(mutex);dsr_activity_end();return false;}
  busy=true;dsr_ble_begin(&state,now_ms());uint32_t id=state.generation;atomic_store(&cancelled,false);xSemaphoreGive(mutex);
- if(xQueueSend(queue,&id,0)!=pdTRUE){finish(id,DSR_BLE_UNAVAILABLE);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;xSemaphoreGive(mutex);return false;}
+ if(xQueueSend(queue,&id,0)!=pdTRUE){finish(id,DSR_BLE_UNAVAILABLE);xSemaphoreTake(mutex,portMAX_DELAY);busy=false;xSemaphoreGive(mutex);dsr_activity_end();return false;}
  return true;
 }
 void dsr_ble_cancel(void){atomic_store(&cancelled,true);}
+#if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
+bool dsr_ble_maintenance_quiet(void)
+{
+ if(!mutex||!queue)return false;
+ xSemaphoreTake(mutex,portMAX_DELAY);bool quiet=!busy&&!atomic_load(&quarantined);xSemaphoreGive(mutex);return quiet;
+}
+bool dsr_ble_backup_store_owner(void)
+{return xTaskGetCurrentTaskHandle()==manager_handle&&atomic_load(&backup_owner)&&!atomic_load(&host_on)&&!initialized;}
+dsr_result_t dsr_ble_backup_capture(const dsr_maint_lease_t *lease,cJSON *manifest)
+{
+ if(!cJSON_IsObject(manifest)||!mutex||!queue||!dsr_maintenance_lease_valid(lease))return DSR_BUSY;
+ backup_request_t *r=calloc(1,sizeof(*r));if(!r)return DSR_FULL;
+ r->root=cJSON_CreateObject();if(!r->root){free(r);return DSR_FULL;}
+ r->lease=*lease;r->result=DSR_BUSY;atomic_init(&r->refs,2);atomic_init(&r->done,false);
+ xSemaphoreTake(mutex,portMAX_DELAY);
+ bool accepted=!busy&&!atomic_load(&quarantined)&&dsr_maintenance_lease_valid(lease);
+ if(accepted){busy=true;backup_request=r;uint32_t token=0;accepted=xQueueSend(queue,&token,0)==pdTRUE;if(!accepted){busy=false;backup_request=NULL;}}
+ xSemaphoreGive(mutex);
+ if(!accepted){backup_release(r);backup_release(r);return DSR_BUSY;}
+ uint32_t started=now_ms();while(!atomic_load(&r->done)&&dsr_maintenance_lease_valid(lease)&&now_ms()-started<5000)vTaskDelay(pdMS_TO_TICKS(10));
+ dsr_result_t result=DSR_BUSY;
+ if(atomic_load(&r->done)&&dsr_maintenance_lease_valid(lease)){
+  result=r->result;
+  if(result==DSR_OK){cJSON *bonds=cJSON_DetachItemFromObjectCaseSensitive(r->root,"bonds");if(!bonds||!dsr_backup_json_replace(manifest,"bonds",bonds))result=DSR_FULL;}
+ }
+ /* On timeout the manager retains its own reference. It can finish or reject
+  * the stale lease later without accessing the caller's manifest or stack. */
+ backup_release(r);return result;
+}
+#endif
 void dsr_ble_snapshot(dsr_ble_snapshot_t *out)
 {
  if(!out)return;

@@ -1,4 +1,5 @@
 #include "dsr_style_hint.h"
+#include "dsr_activity.h"
 #include "nvs.h"
 static int cached=-1; /* applied style after legacy mapping */
 static int stored=-1; /* raw NVS byte: a retired or invalid id is rewritten once */
@@ -16,10 +17,11 @@ void dsr_style_hint_set(uint8_t style)
  if(dsr_style_hint_get()==style&&stored==style)return; /* write only on a real change */
  nvs_handle_t handle;
  if(nvs_open("dsr_ui",NVS_READWRITE,&handle)!=ESP_OK)return;
+ dsr_activity_persistent_write();
  if(nvs_set_u8(handle,"style",style)==ESP_OK&&nvs_commit(handle)==ESP_OK)cached=stored=style;
  nvs_close(handle);
 }
-#ifdef DSR_BOARD_ES3C35P
+#if defined(DSR_BOARD_ES3C35P) && (defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA))
 #include "dsr_backup_storage.h"
 #include "dsr_maintenance_private.h"
 esp_err_t dsr_style_hint_restore(uint8_t style)
@@ -27,7 +29,7 @@ esp_err_t dsr_style_hint_restore(uint8_t style)
  if(!dsr_maintenance_boot_writes_allowed())return ESP_ERR_INVALID_STATE;
  if(style>3||style==DSR_STYLE_HINT_RETIRED)return ESP_ERR_INVALID_ARG;
  nvs_handle_t h;esp_err_t e=nvs_open("dsr_ui",NVS_READWRITE,&h);if(e!=ESP_OK)return e;
- e=nvs_set_u8(h,"style",style);if(e==ESP_OK)e=nvs_commit(h);uint8_t check=255;
+ dsr_activity_persistent_write();e=nvs_set_u8(h,"style",style);if(e==ESP_OK)e=nvs_commit(h);uint8_t check=255;
  if(e==ESP_OK)e=nvs_get_u8(h,"style",&check);
  if(e==ESP_OK&&check!=style)e=ESP_FAIL;
  nvs_close(h);if(e==ESP_OK)cached=stored=style;return e;

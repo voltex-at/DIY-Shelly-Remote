@@ -1,5 +1,6 @@
 #include "dsr_automation_store.h"
 #include "dsr_automation_model.h"
+#include "dsr_activity.h"
 #include "nvs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -113,7 +114,7 @@ esp_err_t dsr_auto_store_save(const dsr_auto_record_t *record)
  }
  unsigned destination=exists?1u-chosen:0;encode(record,seq+1,next);nvs_handle_t h;
  e=nvs_open("dsr_auto",NVS_READWRITE,&h);
- if(e==ESP_OK){e=nvs_set_blob(h,slots[destination],next,WIRE);if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);}
+ if(e==ESP_OK){dsr_activity_persistent_write();e=nvs_set_blob(h,slots[destination],next,WIRE);if(e==ESP_OK)e=nvs_commit(h);nvs_close(h);}
  if(e==ESP_OK){
   e=nvs_open("dsr_auto",NVS_READONLY,&h);
   if(e==ESP_OK){size_t size=WIRE;e=nvs_get_blob(h,slots[destination],bytes,&size);nvs_close(h);
@@ -121,7 +122,7 @@ esp_err_t dsr_auto_store_save(const dsr_auto_record_t *record)
  }
  free(bytes);return e;
 }
-#ifdef DSR_BOARD_ES3C35P
+#if defined(DSR_BOARD_ES3C35P) && (defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA))
 #include "dsr_backup_storage.h"
 #include "dsr_maintenance_private.h"
 esp_err_t dsr_auto_store_restore(const dsr_auto_record_t *record)

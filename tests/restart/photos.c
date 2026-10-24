@@ -12,9 +12,8 @@ static int file_token;static unsigned char pixels[DSR_PHOTO_BYTES];static char i
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x);abort();}}while(0)
 int mbedtls_sha256(const unsigned char *data,size_t n,unsigned char out[32],int is224){unsigned length;CHECK(!is224&&EVP_Digest(data,n,out,&length,EVP_sha256(),NULL)==1&&length==32);return 0;}
 esp_err_t esp_spiffs_info(const char *label,size_t *total,size_t *used){CHECK(!strcmp(label,"dsrdata")&&!dsr_activity_restart_reserve());infos++;*total=0x3e0000;*used=fault==2?*total:0;return fault==1?ESP_FAIL:ESP_OK;}
-void *__real_malloc(size_t);
-void *__wrap_malloc(size_t n){CHECK(n==DSR_PHOTO_BYTES&&!dsr_activity_restart_reserve());return fault==8?NULL:__real_malloc(n);}
-FILE *__wrap_fopen(const char *path,const char *mode){char decoded[33];CHECK(!strncmp(path,"/dsr/",5)&&strlen(path+4)<32&&dsr_photo_filename_id(path+5,decoded)&&!strcmp(decoded,id)&&!strcmp(mode,"wb")&&!dsr_activity_restart_reserve());opens++;return fault==3?NULL:(FILE *)&file_token;}
+void *__wrap_malloc(size_t n){CHECK(n==DSR_PHOTO_BYTES&&!dsr_activity_restart_reserve());return fault==8?NULL:malloc(n);}
+FILE *__wrap_fopen(const char *path,const char *mode){char decoded[33];CHECK(!strncmp(path,"/dsr/",5)&&strlen(path)<64&&dsr_photo_filename_id(path+5,decoded)&&!strcmp(decoded,id)&&!strcmp(mode,"wb")&&!dsr_activity_restart_reserve());opens++;return fault==3?NULL:(FILE *)&file_token;}
 size_t __wrap_fwrite(const void *data,size_t size,size_t n,FILE *f){CHECK(f==(FILE *)&file_token&&size==1&&n==DSR_PHOTO_BYTES&&!memcmp(data,pixels,n)&&!dsr_activity_restart_reserve());writes++;return fault==4?n-1:n;}
 int __wrap_fflush(FILE *f){CHECK(f==(FILE *)&file_token&&!dsr_activity_restart_reserve());flushes++;return fault==5?EOF:0;}
 int __wrap_fileno(FILE *f){CHECK(f==(FILE *)&file_token);return 17;}

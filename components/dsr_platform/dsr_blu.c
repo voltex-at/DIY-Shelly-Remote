@@ -13,6 +13,7 @@
 #include "host/ble_gatt.h"
 #include "host/ble_sm.h"
 #include "host/ble_store.h"
+#include "store/config/ble_store_config.h"
 #include "os/os_mbuf.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,11 +50,18 @@ static bool io_matches(uint16_t handle,void *arg)
 /* A full store fails instead of automatically evicting another Shelly bond. */
 static int store_full(struct ble_store_status_event *event,void *arg)
 {(void)event;(void)arg;return BLE_HS_ESTORE_CAP;}
+static int store_write(int kind,const union ble_store_value *value)
+{dsr_activity_data_changed();return ble_store_config_write(kind,value);}
+static int store_delete(int kind,const union ble_store_key *key)
+{dsr_activity_data_changed();return ble_store_config_delete(kind,key);}
 void dsr_blu_host_setup(void)
 {
  ble_hs_cfg.sm_io_cap=BLE_HS_IO_KEYBOARD_ONLY;ble_hs_cfg.sm_bonding=1;ble_hs_cfg.sm_mitm=0;ble_hs_cfg.sm_sc=1;
  ble_hs_cfg.sm_our_key_dist=BLE_SM_PAIR_KEY_DIST_ENC|BLE_SM_PAIR_KEY_DIST_ID;ble_hs_cfg.sm_their_key_dist=BLE_SM_PAIR_KEY_DIST_ENC|BLE_SM_PAIR_KEY_DIST_ID;
  ble_hs_cfg.store_status_cb=store_full;ble_store_config_init();
+ /* A failed NVS commit can still have changed Flash: attempted writes also
+  * invalidate a pre-existing maintenance grant, without exposing key bytes. */
+ ble_hs_cfg.store_write_cb=store_write;ble_hs_cfg.store_delete_cb=store_delete;
 }
 static int gap(struct ble_gap_event *event,void *arg)
 {

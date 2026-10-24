@@ -35,5 +35,6 @@ esp_err_t nvs_erase_all(nvs_handle_t h)
 {test_nvs_calls++;test_nvs_writes++;for(unsigned i=0;i<200;i++)if(entries[i].ns==h){memset(entries[i].bytes,0,entries[i].size);free(entries[i].bytes);memset(entries+i,0,sizeof(entries[i]));}return ESP_OK;}
 bool dsr_activity_begin(void){return true;}
 void dsr_activity_end(void){}
+void dsr_activity_data_changed(void){}
 int64_t esp_timer_get_time(void){return 0;}
 bool dsr_maintenance_boot_writes_allowed(void){return test_boot_allowed;}

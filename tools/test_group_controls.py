@@ -30,7 +30,8 @@ with tempfile.TemporaryDirectory(prefix='dsr-groups-') as temp:
         if case == 'worker':
             sources = [platform + name + '.c' for name in ['dsr_worker', 'dsr_actions', 'dsr_actions_model',
                        'dsr_actions_parse', 'dsr_activity', 'dsr_ap_model', 'dsr_wifi_policy']]
-            sources += ['components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/test_actions_worker.c']
+            sources += ['components/dsr_config/dsr_config.c', 'components/dsr_core/dsr_core.c', 'tests/test_actions_worker.c',
+                        platform+'dsr_ota_power.c',platform+'dsr_ota_power_model.c','tests/support/automation_runtime_stub.c']
             inc = ['tests/battery', 'tests/actions', 'tests/history', 'tests/actor', *inc, 'components/dsr_ota/include']
             flags += ['-DDSR_BOARD_ES3C35P=1']
         binary = Path(temp) / case
