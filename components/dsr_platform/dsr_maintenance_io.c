@@ -37,6 +37,8 @@ dsr_result_t dsr_maint_io_random(uint8_t *out,size_t size)
  if(!dsr_wifi_connected()&&!dsr_ble_host_active())return DSR_OFFLINE;
  esp_fill_random(out,size);return DSR_OK;
 }
+dsr_result_t dsr_maint_io_identifier(uint8_t out[16])
+{if(!out)return DSR_INVALID;esp_fill_random(out,16);uint8_t v=0;for(unsigned i=0;i<16;i++)v|=out[i];return v?DSR_OK:DSR_IO;}
 void *dsr_maint_io_alloc(size_t size)
 {return size&&size<=2097152?heap_caps_calloc(1,size,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT):NULL;}
 void dsr_maint_io_free(void *owned,size_t size)

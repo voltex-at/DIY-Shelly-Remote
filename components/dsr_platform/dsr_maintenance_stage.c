@@ -11,7 +11,7 @@
 #include "mbedtls/sha256.h"
 #include <string.h>
 enum {PLAIN=115200,SEALED=115200+DSR_MAINT_RECORD_HEADER};
-struct dsr_maint_stage {dsr_maint_record_t record;cJSON *manifest;};
+struct dsr_maint_stage {dsr_maint_record_t record;cJSON *manifest;bool verified;};
 static uint32_t get32(const uint8_t *p){return (uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
 static void put(uint8_t *p,uint32_t v,unsigned n){for(unsigned i=0;i<n;i++){p[i]=(uint8_t)v;v>>=8;}}
 static size_t length(const dsr_maint_record_t *r,unsigned index)
@@ -134,9 +134,10 @@ done:
  if(s&&begun){dsr_result_t cleanup=dsr_maint_stage_cancel(s);if(cleanup!=DSR_OK)result=DSR_IO;}
  dsr_maint_io_free(data,data?sizeof(*data):0);dsr_maint_io_free(cipher,cipher?SEALED:0);dsr_maint_io_free(plain,plain?PLAIN:0);dsr_maint_stage_free(s);dsr_maintenance_release(&lease);return result;
 }
-dsr_result_t dsr_maint_stage_commit(dsr_maint_stage_t *s,const dsr_maint_lease_t *lease)
+dsr_result_t dsr_maint_stage_barrier(dsr_maint_stage_t *s,const dsr_maint_lease_t *lease)
 {
  if(!s||!lease)return DSR_INVALID;
+ s->verified=false;
  if(!dsr_maintenance_lease_valid(lease))return DSR_BUSY;
  if(s->record.generation!=lease->generation)return DSR_CONFLICT;
  uint8_t *cipher=dsr_maint_io_alloc(SEALED),*plain=dsr_maint_io_alloc(PLAIN);cJSON *barrier=NULL;dsr_result_t result=DSR_FULL;
@@ -145,9 +146,18 @@ dsr_result_t dsr_maint_stage_commit(dsr_maint_stage_t *s,const dsr_maint_lease_t
  /* Stop/deinit acknowledgements end all uncounted SDK store callbacks before
   * the final atomic, non-revocable intent transition. No new host is started. */
  barrier=cJSON_CreateObject();if(!barrier){result=DSR_FULL;goto done;}
- result=dsr_maintenance_bonds_capture(lease,barrier);if(result!=DSR_OK)goto done;
- if(!dsr_activity_maintenance_commit_begin(lease->reservation,lease->generation)){result=DSR_CONFLICT;goto done;}
- dsr_maint_record_t next=s->record;next.phase=DSR_MAINT_COMMIT;result=dsr_maint_store_write(&next);
+ result=dsr_maintenance_bonds_capture(lease,barrier);
+ if(result==DSR_OK){s->verified=dsr_maintenance_lease_valid(lease);if(!s->verified)result=DSR_CONFLICT;}
+done:
+ dsr_backup_json_discard(barrier);dsr_maint_io_free(cipher,cipher?SEALED:0);dsr_maint_io_free(plain,plain?PLAIN:0);return result;
+}
+dsr_result_t dsr_maint_stage_commit_verified(dsr_maint_stage_t *s,const dsr_maint_lease_t *lease)
+{
+ if(!s||!lease)return DSR_INVALID;
+ if(!s->verified||s->record.generation!=lease->generation||!dsr_maintenance_lease_valid(lease))return DSR_CONFLICT;
+ s->verified=false;
+ if(!dsr_activity_maintenance_commit_begin(lease->reservation,lease->generation))return DSR_CONFLICT;
+ dsr_maint_record_t next=s->record;next.phase=DSR_MAINT_COMMIT;dsr_result_t result=dsr_maint_store_write(&next);
  if(result==DSR_OK)s->record=next;
  else{
   bool found,pending;dsr_maint_record_t current;dsr_result_t read=dsr_maint_store_load(&current,&found,&pending);
@@ -157,7 +167,7 @@ dsr_result_t dsr_maint_stage_commit(dsr_maint_stage_t *s,const dsr_maint_lease_t
   }
   dsr_backup_wipe(&current,sizeof(current));
  }
- dsr_backup_wipe(&next,sizeof(next));
-done:
- dsr_backup_json_discard(barrier);dsr_maint_io_free(cipher,cipher?SEALED:0);dsr_maint_io_free(plain,plain?PLAIN:0);return result;
+ dsr_backup_wipe(&next,sizeof(next));return result;
 }
+dsr_result_t dsr_maint_stage_commit(dsr_maint_stage_t *s,const dsr_maint_lease_t *lease)
+{dsr_result_t result=dsr_maint_stage_barrier(s,lease);return result==DSR_OK?dsr_maint_stage_commit_verified(s,lease):result;}

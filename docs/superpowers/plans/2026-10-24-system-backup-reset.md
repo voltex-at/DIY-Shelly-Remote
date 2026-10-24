@@ -132,10 +132,10 @@ projektowym Cygwin; nie commitować lokalnego wrappera, .local ani dowodów rend
 
 **Interfaces:** `dsr_result_t dsr_maintenance_request(const dsr_maint_request_t *request);`, `dsr_result_t dsr_maintenance_confirm(const uint8_t request_id[16],bool stable_usb);`, `bool dsr_maintenance_cancel(const uint8_t request_id[16]);`. Confirm jest wywołaniem wyłącznie fizycznego LVGL ownera; nie istnieje publiczny HTTP odpowiednik. request/confirm są nonblocking, wynik przez snapshot; powiązanie z sesją ustawia zaufany handler, nie pole JSON.
 
-- [ ] **RED:** typowanie zgód EXPORT/UPLOAD/COMMIT/RESET, expiry120000 ms/wrap, replay, obcy request/session, nowy digest/generation, wyjście, timeout power oraz LOW19/READY20/UNKNOWN+USB/BUSY. `CHECK(commit_without_lcd==false); CHECK(low_battery_writes==0); CHECK(busy_is_not_unknown); CHECK(no_flash_before_confirm);`.
-- [ ] **RED run:** `... test_system_data.py --case admission` z nowym zestawem grantów; FAIL przed handlerem koordynatora.
-- [ ] **Implement:** świeży odczyt przez sole worker jak istniejący `dsr_ota_power_read/acquire`, nie cache LCD. Zwolnić worker lease zanim maintenance próbuje count=0; po uzyskaniu barier sprawdzić nadal świeży wynik i generation. LOW nigdy nie ma obejścia USB, UNKNOWN wymaga potwierdzenia. Reset przygotowuje i readbackuje własny RESET COMMITTED, zanim restart zostanie zlecony. Zmiana sesji lub magazynu unieważnia precommit grant. Zgoda na import jawnie obejmuje enrollment tylko zapisanych tożsamości.
-- [ ] **GREEN:** tylko grant/power/admission cases, regresja istniejącego OTA power bez zmiany jego polityki. Commit `feat: require physical one-shot consent for data maintenance`.
+- [x] **RED:** typowanie zgód EXPORT/UPLOAD/COMMIT/RESET, expiry120000 ms/wrap, replay, obcy request/session, nowy digest/generation, wyjście, timeout power oraz LOW19/READY20/UNKNOWN+USB/BUSY. `CHECK(commit_without_lcd==false); CHECK(low_battery_writes==0); CHECK(busy_is_not_unknown); CHECK(no_flash_before_confirm);`.
+- [x] **RED run:** `... test_system_data.py --case admission` z nowym zestawem grantów; FAIL przed handlerem koordynatora.
+- [x] **Implement:** świeży odczyt przez sole worker jak istniejący `dsr_ota_power_read/acquire`, nie cache LCD. Zwolnić worker lease zanim maintenance próbuje count=0; po uzyskaniu barier sprawdzić nadal świeży wynik i generation. LOW nigdy nie ma obejścia USB, UNKNOWN wymaga potwierdzenia. Reset przygotowuje i readbackuje własny RESET COMMITTED, zanim restart zostanie zlecony. Zmiana sesji lub magazynu unieważnia precommit grant. Zgoda na import jawnie obejmuje enrollment tylko zapisanych tożsamości.
+- [x] **GREEN:** tylko grant/power/admission cases, regresja istniejącego OTA power bez zmiany jego polityki. Commit `feat: require physical one-shot consent for data maintenance`.
 
 ### Task 6: Boot recovery importu i pełnego resetu
 

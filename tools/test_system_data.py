@@ -10,11 +10,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 case_names = ['format','sources','bonds','admission','stage','recovery','api']
-p.add_argument('--case', choices=[*case_names,'source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
+p.add_argument('--case', choices=[*case_names,'control','grant_model','source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
 p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'control': ['components/dsr_platform/dsr_maintenance_control.c','components/dsr_platform/dsr_maintenance_grant.c',
+             'components/dsr_platform/dsr_maintenance.c','components/dsr_platform/dsr_activity.c','tests/test_system_data_control.c'],
+ 'grant_model': ['components/dsr_platform/dsr_maintenance_grant.c','tests/test_system_data_grants.c'],
  'stage': ['components/dsr_platform/dsr_maintenance_stage.c','components/dsr_platform/dsr_maintenance_crypto.c',
            'components/dsr_platform/dsr_maintenance_model.c','components/dsr_platform/dsr_maintenance_store.c','components/dsr_platform/dsr_maintenance.c',
            'components/dsr_platform/dsr_backup_sources_model.c','components/dsr_platform/dsr_backup_bonds_model.c','components/dsr_platform/dsr_backup_json.c',

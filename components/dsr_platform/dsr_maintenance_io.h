@@ -6,6 +6,9 @@ typedef struct dsr_maint_file dsr_maint_file_t;
  * read/write call is bounded to DSR_MAINT_IO_CHUNK. Ports never touch OTA. */
 dsr_result_t dsr_maint_io_limits(dsr_maint_limits_t *);
 dsr_result_t dsr_maint_io_random(uint8_t *out,size_t size);
+/* Nonsecret unique operation label, permitted with RF off for local reset.
+ * Never use this as encryption key, IV or web authorization capability. */
+dsr_result_t dsr_maint_io_identifier(uint8_t out[16]);
 void *dsr_maint_io_alloc(size_t size);
 void dsr_maint_io_free(void *owned,size_t size);
 dsr_result_t dsr_maint_io_exists(const char *name,bool *exists);

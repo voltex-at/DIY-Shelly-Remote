@@ -4,6 +4,9 @@
 #include "dsr_actions.h"
 #include "dsr_automation_store.h"
 #include "dsr_automation.h"
+#ifdef ESP_PLATFORM
+#include "dsr_maintenance_control.h"
+#endif
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/queue.h"
@@ -52,7 +55,11 @@ static void config_task(void *argument)
 {
  (void)argument;request_t request;
  for(;;){
+#ifdef ESP_PLATFORM
+  if(xQueueReceive(queue,&request,pdMS_TO_TICKS(250))!=pdTRUE){dsr_maintenance_poll();continue;}
+#else
   if(xQueueReceive(queue,&request,portMAX_DELAY)!=pdTRUE)continue;
+#endif
 #if defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA)
   if(request.maintenance_run){
    xSemaphoreTake(mutex,portMAX_DELAY);maintenance_running=true;xSemaphoreGive(mutex);

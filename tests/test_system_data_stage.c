@@ -90,6 +90,8 @@ int main(int argc,char **argv)
  dsr_maintenance_release(&lease);CHECK(dsr_maint_store_load(&loaded,&found,&pending)==DSR_OK&&pending&&loaded.phase==DSR_MAINT_PREPARING);CHECK(dsr_maint_stage_cancel(stage)==DSR_OK);dsr_maint_stage_free(stage);stage=NULL;
  CHECK(dsr_maint_stage_prepare(small,&stage)==DSR_OK);CHECK(dsr_maintenance_acquire(&lease));test_nvs_fail_after=0;CHECK(dsr_maint_stage_commit(stage,&lease)==DSR_IO&&dsr_maintenance_lease_valid(&lease));
  dsr_maintenance_release(&lease);CHECK(dsr_maint_stage_cancel(stage)==DSR_OK);dsr_maint_stage_free(stage);stage=NULL;
+ CHECK(dsr_maint_stage_prepare(small,&stage)==DSR_OK);CHECK(dsr_maintenance_acquire(&lease));CHECK(dsr_maint_stage_barrier(stage,&lease)==DSR_OK);dsr_maintenance_release(&lease);
+ dsr_maintenance_mutated();CHECK(dsr_maintenance_acquire(&lease));CHECK(dsr_maint_stage_commit_verified(stage,&lease)==DSR_CONFLICT);dsr_maintenance_release(&lease);CHECK(dsr_maint_stage_cancel(stage)==DSR_OK);dsr_maint_stage_free(stage);stage=NULL;
  CHECK(dsr_maint_stage_prepare(full,&stage)==DSR_OK&&stage&&files==17);CHECK(dsr_maint_stage_record(stage,&record)&&record.generation==dsr_maintenance_generation()&&record.photos==16&&record.bonds==16);
  CHECK(max_chunk<=4096&&peak_fs<=limits.total*3/4&&test_active_writes==0&&!handles);CHECK(dsr_maintenance_acquire(&lease));CHECK(dsr_maint_stage_commit(stage,&lease)==DSR_OK);
  CHECK(dsr_maint_store_load(&loaded,&found,&pending)==DSR_OK&&pending&&loaded.phase==DSR_MAINT_COMMIT);CHECK(!dsr_activity_stop_begin()&&!dsr_activity_begin());dsr_maintenance_release(&lease);CHECK(!dsr_activity_begin());

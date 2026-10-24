@@ -9,6 +9,8 @@ if(DSR_BOARD STREQUAL "lcdwiki-es3c35p")
     set_source_files_properties(dsr_automation_model.c dsr_automation_store.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
     list(APPEND platform_source "dsr_device_settings.c" "dsr_blu.c")
     list(APPEND platform_source "dsr_ota_power.c" "dsr_ota_power_model.c" "dsr_panel_permission.c" "dsr_system_info.c" "dsr_system_runtime.c" "dsr_battery.c" "dsr_battery_profile.c" "dsr_workspace.c" "dsr_config_health.c" "dsr_storage.c" "dsr_boot.c" "dsr_panel.c" "dsr_runtime_api.c" "dsr_ota_upload.c" "dsr_ota_install.c" "dsr_ota_stage.c" "dsr_native_ota.c" "dsr_native_ota_clock.c" "dsr_backup_format.c" "dsr_backup_json.c" "dsr_backup_sources_model.c" "dsr_backup_sources.c" "dsr_maintenance.c" "dsr_maintenance_model.c" "dsr_maintenance_crypto.c" "dsr_maintenance_stage.c" "dsr_maintenance_io.c" "dsr_maintenance_store.c" "dsr_backup_bonds.c" "dsr_backup_bonds_model.c" "dsr_backup_bonds_sdk.c" "dsr_photos.c" "dsr_tls.c" "dsr_lan.c" "dsr_ble.c" "dsr_ble_rpc.c" "dsr_ble_model.c" "dsr_restart.c" "dsr_clock.c" "dsr_actions.c" "dsr_actions_model.c" "dsr_actions_parse.c" "dsr_actions_api.c" "dsr_style_hint.c")
+    list(APPEND platform_source "dsr_maintenance_control.c" "dsr_maintenance_grant.c")
+    set_source_files_properties(dsr_maintenance_control.c dsr_maintenance_grant.c PROPERTIES COMPILE_OPTIONS "-fstack-usage")
     set(panel_assets "web/panel.html" "web/panel.js" "web/panel.css" "web/runtime.js" "web/actions.js")
 endif()
 idf_component_register(
