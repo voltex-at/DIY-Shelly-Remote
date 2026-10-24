@@ -345,6 +345,16 @@ dsr_cyber_shutter_t *dsr_ui_cyber_cover_transition(lv_obj_t *o,int from,int perc
  if(known&&moving&&from!=percent){lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,s);lv_anim_set_exec_cb(&a,shutter_frame);lv_anim_set_values(&a,from*100,percent*100);lv_anim_set_duration(&a,300);lv_anim_set_path_cb(&a,lv_anim_path_linear);lv_anim_start(&a);}
  return s;
 }
+void dsr_ui_cyber_cover_update(dsr_cyber_shutter_t *s,int percent,bool known,bool moving)
+{
+ if(!s)return;
+ int target=shutter_percent(percent)*100;
+ if(!s->preview&&s->known==known&&s->confirmed==target&&moving)return;
+ int from=s->open;bool changed=s->known!=known||s->preview,tween=s->known&&known&&moving&&from!=target;
+ lv_anim_delete(s,shutter_frame);s->preview=false;s->known=known;s->confirmed=target;
+ if(tween){lv_anim_t a;lv_anim_init(&a);lv_anim_set_var(&a,s);lv_anim_set_exec_cb(&a,shutter_frame);lv_anim_set_values(&a,from,target);lv_anim_set_duration(&a,300);lv_anim_set_path_cb(&a,lv_anim_path_linear);lv_anim_start(&a);}
+ else if(changed||s->open!=target){s->open=target;lv_obj_invalidate(s->well);}
+}
 void dsr_ui_cyber_cover_preview(dsr_cyber_shutter_t *s,int target,int confirmed)
 {if(!s)return;lv_anim_delete(s,shutter_frame);s->preview=true;s->open=shutter_percent(target)*100;s->confirmed=shutter_percent(confirmed)*100;lv_obj_invalidate(s->well);}
 void dsr_ui_cyber_cover_restore(dsr_cyber_shutter_t *s,int confirmed)

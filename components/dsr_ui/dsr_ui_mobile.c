@@ -74,6 +74,7 @@ static bool group_cover_selected(void);
 static dsr_mobile_device_t *detail_device(void);
 static void group_refresh_members(void);
 static void shared_cover_details(lv_obj_t *root,dsr_mobile_device_t *d);
+static void cover_view_reset(void);
 static void relay_details(lv_obj_t *root,const dsr_mobile_device_t *d);
 static int group_display_index(const dsr_mobile_device_t *d);
 static void trv_round_action(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid,lv_event_cb_t callback);
@@ -135,7 +136,7 @@ void dsr_mobile_bind(const dsr_mobile_actions_t *a){if(a)actions=*a;else memset(
 bool dsr_mobile_active(void){return active;}
 dsr_mobile_page_t dsr_mobile_page(void){return page;}
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
@@ -754,7 +755,7 @@ static void cover_stop(lv_event_t *event)
  else if(actions.stop_cover)actions.stop_cover(selected);
 }
 /* Reverse action beside the central STOP while moving: icon above its label. */
-static void cover_compact(lv_obj_t *parent,int x,int y,int w,int h,unsigned i,bool valid)
+static lv_obj_t *cover_compact(lv_obj_t *parent,int x,int y,int w,int h,unsigned i,bool valid)
 {
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE,tall=h>=56;int size=tall?28:20;
  lv_obj_t *b=dsr_sc_button(parent,x,y,w,h,hud?DSR_SC_BLUE:DSR_SC_CARD,hud?10:14,group_cover_selected()?group_cover_pair:cover_control,(void *)(uintptr_t)(selected*2+(i==0)));
@@ -762,6 +763,7 @@ static void cover_compact(lv_obj_t *parent,int x,int y,int w,int h,unsigned i,bo
  dsr_sc_icon(b,hud?(i?DSR_ICON_COVER_CLOSE:DSR_ICON_COVER_OPEN):(i?DSR_ICON_DOWN:DSR_ICON_UP),(w-size)/2,tall?7:3,size,valid?(hud?DSR_SC_GLOW:DSR_SC_BLUE):DSR_SC_OFF);
  lv_obj_t *label=dsr_sc_text(b,i?"Zamknij":"Otwórz",2,tall?38:25,w-4,tall?&dsr_roboto_14:&dsr_roboto_12,valid?DSR_SC_TEXT:DSR_SC_OFF);center(label);truncate(label,tall?18:16);
  if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
+ return b;
 }
 static bool position_enabled(const dsr_mobile_device_t *d)
 {if(group_display_index(d)>=0){group_state_t s=group_state(selected);return group_ready(s)&&s.family==DSR_ENDPOINT_COVER&&s.known&&d->can_position;}return !cover_preview&&d->online&&d->error==DSR_OK&&!d->busy&&d->has_position&&d->can_position&&actions.set_position;}
@@ -1247,6 +1249,7 @@ static void render(void)
     if(!active)return;
     if(dsr_board_display_sleeping()){wake_repaint=true;return;}
     wake_repaint=false;
+    cover_view_reset();
     trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
     lv_obj_t *root=lv_screen_active();content=sample_age=info_overlay=NULL;placed_count=0;lv_obj_clean(root);lv_obj_remove_style_all(root);
     dsr_sc_background(root);
@@ -1482,6 +1485,7 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
     for(unsigned i=0;stable&&i<m->device_count;i++)if(m->devices[i].id!=model.devices[i].id||m->devices[i].generation!=model.devices[i].generation||m->devices[i].endpoint_kind!=model.devices[i].endpoint_kind||m->devices[i].channel!=model.devices[i].channel||strcmp(m->devices[i].identity,model.devices[i].identity)||strcmp(m->devices[i].host,model.devices[i].host))stable=false;
     if(active&&stable&&pointer_busy()&&!cancel_group_drag){preview_saved=*m;repaint_pending=true;return;}
     repaint_pending=false;
+    if(active&&!wake_repaint&&stable&&refresh_cover_details(m))return;
     if(active&&!wake_repaint&&refresh_cards(m))return;
     model=*m;
 #ifndef DSR_UI_REVIEW_DEMO

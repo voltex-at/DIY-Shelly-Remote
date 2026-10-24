@@ -51,7 +51,7 @@ int main(int argc,char **argv)
  before=test_cover_requests();point(160,250,true);point(160,207,true);wifi.connected=false;tick();point(160,207,false);tick();CHECK(test_cover_requests()==before&&!in_flight);wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,41,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);
  /* Owner video: failed write/readback must recover via GET, with no replay. */
  click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);unsigned movements=job_counts[DSR_JOB_COVER];
- response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));
+ response=(dsr_event_t){.device=submitted.connection.device};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);CHECK(find_label(lv_screen_active(),"Ostatnia pozycja: 41%")&&find_label(lv_screen_active(),"Brak odpowiedzi")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
  lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&job_counts[DSR_JOB_COVER]==movements);
  cover_response(DSR_COVER_STATE_OPENING,55,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 55%"));
  lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,67,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 67%")&&job_counts[DSR_JOB_COVER]==movements);screenshot("257-cover-lost-readback-recovered");

@@ -509,6 +509,7 @@ const char *dsr_sc_tr(const char *text)
  {"Otwieranie","Opening","Wird geöffnet"},{"Zamykanie","Closing","Wird geschlossen"},
  {"Zatrzymano","Stopped","Gestoppt"},{"Kalibracja","Calibration","Kalibrierung"},
  {"Nieznana pozycja","Position unknown","Position unbekannt"},{"Stan nieznany","State unknown","Zustand unbekannt"},
+ {"Ostatnia pozycja: %u%%","Last position: %u%%","Letzte Position: %u%%"},
  {"Brak obsługi Cover RPC","Cover RPC not implemented","Cover RPC nicht implementiert"},
  {"Roleta w salonie","Living room cover","Rollladen Wohnzimmer"},
  {"Podgląd grafiki bez sterowania sprzętem.","Visual preview without hardware control.","Designvorschau ohne Gerätesteuerung."},

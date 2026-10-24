@@ -50,6 +50,11 @@ owner poll and yield to queued device controls, STOP and active group/scene work
 A real Measure tap may adopt the existing read without queuing a second one.
 Actual failures remain visible; requested cover positions are never presented
 as confirmed movement.
+Cover details update the existing artwork and labels for stable endpoints.
+After a transport failure, a last confirmed position may remain on screen only
+with an explicit historical caption and the actual error; it never authorizes
+movement. Calibration, invalid data, auth failure or a changed endpoint clears
+that presentation history. Recovery uses GET readback, never a replayed move.
 
 ## Local contact/heating rules
 

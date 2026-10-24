@@ -56,6 +56,9 @@ pełny zestaw raz na końcowym commicie przed wydaniem.
   może powodować chwilowego komunikatu o braku pomiarów ani resetu grafiki.
   Animacja musi wynikać z potwierdzonego ruchu, nie z samej żądanej pozycji;
   rzeczywistego błędu odczytu nie wolno ukrywać ani ponawiać polecenia ruchu.
+  Przy timeout sprawdzić zachowanie grafiki z podpisem „Ostatnia pozycja”,
+  widoczny błąd, blokadę ruchu i niezależne STOP. Powrót odczytów ma aktualizować
+  istniejący widok; zmiana powiązania nie może odziedziczyć poprzedniej pozycji.
 - [ ] Na stronie baterii sprawdzić automatyczny pomiar: zmienia wartości bez
   przygaszania/naciskania „Zmierz napięcie” i bez komunikatu pomiaru ręcznego.
   Dotknięcie przycisku podczas odczytu w tle wykorzystuje ten sam pomiar.
