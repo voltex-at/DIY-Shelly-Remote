@@ -3,12 +3,20 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
-## Lokalne poprawki po sprzętowym zgłoszeniu 0.7.74 — 2026-10-24
+## Przygotowanie 0.7.75-dev do odbioru — 2026-10-24
+
+Właściciel zlecił publikację kolejnego DEV z poprawkami commita `a747fbe`.
+Docelowy tag to `dev-v0.7.75`. Sprawdzane są pełne CI dokładnego commita,
+podpis oraz publiczne pobrania katalogu, manifestu i BIN. Wydanie pozostaje
+kandydatem do próby na płytce; odbiór dotyku/płynności, rzeczywistego timeoutu
+i aktualizacji 0.7.74→0.7.75 jest otwarty. Bez Stable i scalenia do main.
+
+## Poprawki po sprzętowym zgłoszeniu 0.7.74 — 2026-10-24
 
 [Raport responsywności po 0.7.74](RESPONSIVENESS_AUDIT_0_7_74_PL.md) opisuje
 odtworzone przyczyny zbędnych przebudów ekranów, rozdzielenie wyniku zapisu
 od odczytu i ograniczone odzyskanie przez GET. Dotyk nie otrzymał nowego progu
-nacisku. Są to poprawki po opublikowanym tagu, bez kolejnego wydania;
+nacisku. Są to poprawki po opublikowanym tagu, przeznaczone do 0.7.75-dev;
 potwierdzenie płynności i diagnoza rzeczywistego timeoutu nadal wymagają płytki.
 
 ## Opublikowany 0.7.74-dev do odbioru — 2026-10-24

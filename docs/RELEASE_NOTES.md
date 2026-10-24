@@ -1,3 +1,11 @@
+0.7.75-dev: kandydat do odbioru — mniej przebudów UI i dokładniejsze potwierdzanie poleceń.
+
+- Pomiary W/V/A przekaźnika, dimmera i RGB aktualizują istniejące etykiety zamiast przebudowy szczegółów. Jeden poll sieci publikuje jedną końcową aktualizację modelu; niezwiązane urządzenie nie przebudowuje szczegółów grupy. Dotknięcie aktywnej zakładki nie tworzy jej ponownie. Zachowano zaakceptowane układy trzech skórek i ustawienia dotyku.
+- Rozróżniono niepotwierdzony zapis od niepotwierdzonego odczytu po ACK dla przekaźnika, rolety, dimmera, RGB i TRV. Po próbie zapisu z błędem transportu wykonywany jest jeden wczesny GET po 1 s, bez ponawiania polecenia. Nieudane odzyskanie wraca do zwykłego backoff; rzeczywiste błędy pozostają widoczne.
+- STOP i nowe polecenia odrzucone przed wysłaniem nie dziedziczą fazy poprzedniej komendy. Zachowano pilny kanał STOP, kontrolę tożsamości, blokady logowania/429 i oddzielenie żądanej pozycji/temperatury od rzeczywistego odczytu.
+- Dodano ograniczone logi faz poleceń oraz czasu budowy i rysowania widoku. Raport: [RESPONSIVENESS_AUDIT_0_7_74_PL.md](RESPONSIVENESS_AUDIT_0_7_74_PL.md). Opóźnienia i timeout z pilota 0.7.74 wymagają porównania na płytce; host i CI nie potwierdzają ich ustąpienia.
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Partycje, dane i klucz OTA bez zmian. Wymagany odbiór aktualizacji 0.7.74→0.7.75, restartu, danych oraz responsywności według [RELEASE_CHECKLIST_PL.md](RELEASE_CHECKLIST_PL.md). Wyłącznie DEV, bez scalenia do main.
+
 0.7.74-dev: kandydat do odbioru — odczyty urządzeń, STOP grup oraz panel i OTA.
 
 - Znany termostat BLU korzysta z typowanego statusu po weryfikacji bramki i MAC: odświeżenie 8→3 żądania, zapis z odczytem 15→5. Brakujące pomiary pozostają nieznane. Przy opóźnionym mirrorze wykonywane są najwyżej trzy wczesne odczyty; żądana temperatura pozostaje osobna od potwierdzonej, także po zmianie ekranu lub błędzie.

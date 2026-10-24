@@ -1,4 +1,4 @@
-# Development — 0.7.74-dev
+# Development — 0.7.75-dev
 
 Current code is on `work/dev-0.7.70`; `main` is an older baseline. Read
 [PROJECT_STATUS_PL.md](PROJECT_STATUS_PL.md) and [issue #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74)

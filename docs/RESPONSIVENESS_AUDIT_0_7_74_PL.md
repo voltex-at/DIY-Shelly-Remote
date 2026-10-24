@@ -1,7 +1,7 @@
 # Responsywność i potwierdzanie poleceń po 0.7.74-dev
 
 Data: 2026-10-24. Baza: `dev-v0.7.74`, commit `a47e677`.
-Gałąź: `work/dev-0.7.70`. Poniższe zmiany są lokalną kontynuacją;
+Gałąź: `work/dev-0.7.70`. Poniższe zmiany są podstawą kandydata 0.7.75-dev;
 nie należą do opublikowanego firmware 0.7.74-dev.
 
 ## Zgłoszenie i dowody
