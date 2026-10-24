@@ -14,6 +14,8 @@
 #include "dsr_restart.h"
 #include "dsr_config_health.h"
 #include "dsr_maintenance_recovery.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_heap_caps.h"
 static void boot_memory(const char *stage)
 {
@@ -60,7 +62,19 @@ void app_main(void)
 #ifdef DSR_BOARD_ES3C35P
     boot_memory("board_ready");
     dsr_ui_splash_begin(); /* owner logo instead of a dark LCD during startup */
-    if(dsr_maintenance_recover(NULL)!=DSR_OK){dsr_boot_diagnostic("maintenance",ESP_FAIL);return;}
+    dsr_result_t recovery=dsr_maintenance_recover(dsr_ui_maintenance_boot_publish);
+    while(recovery!=DSR_OK&&dsr_ui_maintenance_boot_available()){
+        bool stable_usb=false;unsigned action=dsr_ui_maintenance_boot_take_action(&stable_usb);
+        if(action==1)recovery=dsr_maintenance_recover(dsr_ui_maintenance_boot_publish);
+        else if(action==2){
+            dsr_maint_status_t status={.op=DSR_MAINT_RESET,.phase=DSR_MAINT_APPLYING};dsr_ui_maintenance_boot_publish(&status);
+            recovery=dsr_maintenance_recovery_reset(stable_usb);
+            if(recovery==DSR_OK)recovery=dsr_maintenance_recover(dsr_ui_maintenance_boot_publish);
+            else{status.phase=DSR_MAINT_FAULT;status.result=recovery;status.usb_required=recovery==DSR_INVALID;dsr_ui_maintenance_boot_publish(&status);}
+        }
+        if(recovery!=DSR_OK)vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    if(recovery!=DSR_OK){dsr_boot_diagnostic("maintenance",ESP_FAIL);return;}
     dsr_settings_t settings;
     error = dsr_settings_load(&settings);
     if (error != ESP_OK) ESP_LOGE(tag, "Settings load: %s; Wi-Fi not started", esp_err_to_name(error));

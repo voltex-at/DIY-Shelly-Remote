@@ -55,7 +55,7 @@ for name,expected in auth_blocks.items():
         automation=b' if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);\n'
         assert block.count(automation)==1 and block.index(automation)>block.index(b'if(!authorized(r))'),'Read-only automation status must remain behind authorization'
         block=block.replace(automation,b'')
-        privacy=b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
+        privacy=b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive())'
         assert block.count(privacy)==1 and block.index(privacy)>block.index(b'if(!authorized(r))'),'Settings preview privacy must remain after authorization'
         block=block.replace(privacy,b'(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())')
         preview=b'esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive())'

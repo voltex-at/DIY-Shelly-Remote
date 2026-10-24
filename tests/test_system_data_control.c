@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 static unsigned checks,writes,restarts,power_reads;static uint32_t now=100;
-static bool held,queue_busy,power_timeout,mutate_barrier;static dsr_ota_power_result_t power=DSR_OTA_POWER_READY;
+static bool held,queue_busy,power_timeout,mutate_barrier,restart_unavailable;static dsr_ota_power_result_t power=DSR_OTA_POWER_READY;
 static void (*job)(void*);static void *arg;static dsr_maint_record_t stored;static bool pending;
 #define CHECK(x) do{checks++;if(!(x)){fprintf(stderr,"control:%d %s\n",__LINE__,#x);exit(1);}}while(0)
 int64_t esp_timer_get_time(void){return (int64_t)now*1000;}
@@ -31,7 +31,7 @@ dsr_result_t dsr_maint_store_begin(dsr_maint_record_t *r){CHECK(!held);writes++;
 dsr_result_t dsr_maint_store_write(dsr_maint_record_t *r){CHECK(!held);writes++;stored=*r;stored.sequence=++r->sequence;return DSR_OK;}
 dsr_result_t dsr_maint_store_load(dsr_maint_record_t *r,bool *found,bool *p){*r=stored;*found=pending;*p=pending;return DSR_OK;}
 dsr_result_t dsr_maint_store_finish(dsr_maint_record_t *r,bool cancel){(void)r;(void)cancel;return DSR_OK;}
-dsr_restart_result_t dsr_restart_request_maintenance(uint64_t r,uint64_t g){CHECK(dsr_activity_maintenance_commit_valid(r,g));CHECK(stored.phase==DSR_MAINT_COMMIT);restarts++;return DSR_RESTART_ACCEPTED;}
+dsr_restart_result_t dsr_restart_request_maintenance(uint64_t r,uint64_t g){CHECK(dsr_activity_maintenance_commit_valid(r,g));CHECK(stored.phase==DSR_MAINT_COMMIT);if(restart_unavailable)return DSR_RESTART_UNAVAILABLE;restarts++;return DSR_RESTART_ACCEPTED;}
 dsr_result_t dsr_maint_stage_barrier(dsr_maint_stage_t *s,const dsr_maint_lease_t *l){(void)s;(void)l;return DSR_OK;}
 dsr_result_t dsr_maint_stage_commit_verified(dsr_maint_stage_t *s,const dsr_maint_lease_t *l){(void)s;(void)l;return DSR_BUSY;}
 bool dsr_maint_stage_record(const dsr_maint_stage_t *s,dsr_maint_record_t *r){(void)s;memset(r,0,sizeof(*r));return false;}
@@ -58,7 +58,7 @@ int main(void)
  power_timeout=true;CHECK(dsr_maintenance_confirm(r.nonce,true)==DSR_OK);run();dsr_maintenance_status(&st);CHECK(st.result==DSR_BUSY&&!st.usb_required&&!writes);power_timeout=false;
  power=DSR_OTA_POWER_READY;mutate_barrier=true;CHECK(dsr_maintenance_confirm(r.nonce,false)==DSR_OK);run();CHECK(!writes&&!restarts);mutate_barrier=false;
  r.nonce[0]++;CHECK(dsr_maintenance_request(&r)==DSR_OK);CHECK(dsr_maintenance_confirm(r.nonce,false)==DSR_OK);CHECK(dsr_maintenance_cancel(r.nonce));run();CHECK(!writes);
- r.nonce[0]++;CHECK(dsr_maintenance_request(&r)==DSR_OK);CHECK(dsr_maintenance_confirm(r.nonce,false)==DSR_OK);run();CHECK(writes==2&&restarts==1);CHECK(!held&&!dsr_activity_begin());
+ r.nonce[0]++;CHECK(dsr_maintenance_request(&r)==DSR_OK);CHECK(dsr_maintenance_confirm(r.nonce,false)==DSR_OK);restart_unavailable=true;run();CHECK(writes==2&&restarts==0);CHECK(!held&&!dsr_activity_begin());restart_unavailable=false;CHECK(dsr_maintenance_restart()==DSR_OK&&restarts==1);
  dsr_maintenance_status(&st);CHECK(st.phase==DSR_MAINT_COMMITTED&&!st.can_confirm);CHECK(!dsr_maintenance_cancel(r.nonce));CHECK(dsr_maintenance_confirm(r.nonce,false)==DSR_CONFLICT);
  printf("PASS: %u physical control checks; real grants/admission, modeled power/queue/flash/restart\n",checks);return 0;
 }

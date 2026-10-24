@@ -39,7 +39,7 @@ for name,expected in auth_hashes.items():
         automation=' if(!strcmp(r->uri,"/api/v1/automations/status"))return automation_api(r);\n'
         assert block.count(automation)==1 and block.index(automation)>block.index('if(!authorized(r))'),'Read-only automation status must stay behind unchanged authentication'
         block=block.replace(automation,'')
-        privacy='(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())'
+        privacy='(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive())'
         assert block.count(privacy)==1 and block.index(privacy)>block.index('if(!authorized(r))'), 'Settings preview privacy must remain behind authorization'
         # New credential/PIN screens additionally suppress preview. Normalize
         # precisely this stricter predicate; preserve the frozen auth/route hash.

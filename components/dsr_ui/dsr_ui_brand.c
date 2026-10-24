@@ -8,6 +8,7 @@
 #include "dsr_boot.h"
 #include "dsr_style_hint.h"
 #include "esp_app_desc.h"
+#include "dsr_ui.h"
 
 extern const uint8_t _binary_brand_splash_dark_rgb565_start[];
 extern const uint8_t _binary_brand_splash_light_rgb565_start[];
@@ -40,7 +41,7 @@ void dsr_ui_splash_show(void)
  lv_obj_align(version,LV_ALIGN_BOTTOM_MID,0,-14);
 }
 void dsr_ui_splash_release(void)
-{if(splash){lv_obj_delete(splash);splash=NULL;}}
+{dsr_ui_maintenance_boot_release();if(splash){lv_obj_delete(splash);splash=NULL;}}
 bool dsr_ui_splash_visible(void){return splash!=NULL;}
 
 void dsr_ui_splash_begin(void)
@@ -48,8 +49,10 @@ void dsr_ui_splash_begin(void)
  /* The workspace (true style) is not mounted yet: use the NVS hint. */
  dsr_sc_appearance(DSR_SC_BLUE,dsr_style_hint_get(),1); /* EN: language not known yet */
  dsr_ui_splash_show();
+ dsr_ui_maintenance_boot_begin();
  dsr_boot_provisioning_ui(true);
  splash_task=dsr_board_start_ui_task(dsr_boot_ui_gate)==ESP_OK;
+ dsr_ui_maintenance_boot_owner(splash_task);
  if(!splash_task){dsr_boot_provisioning_ui(false);return;} /* stay dark, as before */
  dsr_board_ui_hold(120); /* first frame before backlight: no panel garbage */
  (void)dsr_board_restore_backlight();

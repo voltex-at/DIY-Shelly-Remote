@@ -1,5 +1,6 @@
 #include "dsr_automation.h"
 #include "dsr_backup_api.h"
+#include "dsr_maintenance_api.h"
 #include "dsr_workspace.h"
 #include "dsr_runtime_api.h"
 #include "dsr_actions.h"
@@ -111,9 +112,9 @@ void dsr_panel_pair_begin(char code[17])
 bool dsr_panel_allow_ota(bool stable_usb)
 {return dsr_panel_ota_enable(lock,panel_ready,&ota_until,stable_usb);}
 bool dsr_panel_preview_requested(void)
-{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
+{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)
-{if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive())||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
+{if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive())||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
 static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {httpd_resp_set_status(r,status);httpd_resp_set_type(r,"application/json");httpd_resp_set_hdr(r,"Cache-Control","no-store");return httpd_resp_sendstr(r,body);}
 static bool local_request(httpd_req_t *r)
@@ -364,7 +365,7 @@ static esp_err_t api(httpd_req_t *r)
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){
   unsigned char *copy=malloc(320*480*2);if(!copy)return json(r,"503 Service Unavailable","{}");
-  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive());need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
+  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive());need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
   esp_err_t e;if(ready){httpd_resp_set_type(r,"application/octet-stream");httpd_resp_set_hdr(r,"Cache-Control","no-store");e=httpd_resp_send(r,(const char *)copy,320*480*2);}else e=json(r,"202 Accepted","{\"waiting\":true}");free(copy);return e;
  }
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){

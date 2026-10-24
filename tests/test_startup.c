@@ -3,6 +3,7 @@
 #include "dsr_ui.h"
 #include "dsr_platform.h"
 #include "dsr_maintenance_recovery.h"
+#include "freertos/task.h"
 #include "dsr_config_health.h"
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
@@ -21,6 +22,7 @@ static esp_err_t nvs_error, board_error, worker_error, wifi_error, storage_error
 static esp_err_t ui_error, backlight_error, state_error, confirm_error;
 static esp_err_t restart_error;
 static dsr_result_t maintenance_error;
+static bool maintenance_ui,boot_usb;static unsigned boot_action,recovery_calls;
 static esp_ota_img_states_t image_state;
 static bool missing_partition;
 static uint8_t desired_brightness,restored_brightness;
@@ -52,7 +54,12 @@ esp_err_t dsr_lan_init(void) { call('L'); return ESP_OK; }
 esp_err_t dsr_ble_init(void) { call('E'); return ESP_OK; }
 esp_err_t dsr_restart_start(void) { return restart_error; }
 void dsr_ui_splash_begin(void) { call('Z'); }
-dsr_result_t dsr_maintenance_recover(dsr_maint_progress_fn fn){CHECK(fn==NULL);call('R');CHECK(!dsr_boot_ready());return maintenance_error;}
+dsr_result_t dsr_maintenance_recover(dsr_maint_progress_fn fn){CHECK(fn==dsr_ui_maintenance_boot_publish);call('R');CHECK(!dsr_boot_ready());recovery_calls++;return maintenance_ui&&recovery_calls>1?DSR_OK:maintenance_error;}
+void dsr_ui_maintenance_boot_publish(const dsr_maint_status_t *s){CHECK(s);}
+bool dsr_ui_maintenance_boot_available(void){return maintenance_ui;}
+unsigned dsr_ui_maintenance_boot_take_action(bool *usb){*usb=boot_usb;unsigned action=boot_action;boot_action=0;return action;}
+dsr_result_t dsr_maintenance_recovery_reset(bool usb){CHECK(usb&&!dsr_boot_ready());call('D');return DSR_OK;}
+void vTaskDelay(TickType_t ticks){CHECK(ticks>0);}
 void dsr_ui_splash_end(void) { call('z'); }
 void dsr_ui_init(void) { call('I'); desired_brightness=20; /* UI fixture loads the saved brightness; real UI separately tested. */ }
 esp_err_t dsr_board_start_ui_task(bool (*ready)(void))
@@ -70,6 +77,7 @@ static void reset(void)
     nvs_error=board_error=worker_error=wifi_error=storage_error=ui_error=backlight_error=state_error=confirm_error=ESP_OK;
     restart_error=ESP_OK;
     maintenance_error=DSR_OK;
+    maintenance_ui=boot_usb=false;boot_action=recovery_calls=0;
     image_state=ESP_OTA_IMG_PENDING_VERIFY;
     dsr_config_health_storage(DSR_STORAGE_NOT_STARTED,ESP_OK);
     dsr_config_health_workspace(DSR_WORKSPACE_NOT_STARTED,ESP_OK);
@@ -92,6 +100,8 @@ int main(void)
     /* Actual app_main returns normally on every injected critical error.
      * No restart/erase API or ESP_ERROR_CHECK substitute is linked here. */
     reset();maintenance_error=DSR_IO;app_main();diagnostic("NBZR");
+    reset();maintenance_error=DSR_IO;maintenance_ui=true;boot_action=1;app_main();CHECK(!strcmp(trace,"NBZRRSWFCPLEzITK")&&dsr_boot_ready());
+    reset();maintenance_error=DSR_IO;maintenance_ui=boot_usb=true;boot_action=2;app_main();CHECK(!strcmp(trace,"NBZRDRSWFCPLEzITK")&&dsr_boot_ready());
     for (unsigned restart=0; restart<2; restart++) {
         reset(); ui_error=ESP_ERR_NO_MEM; app_main(); diagnostic("NBZRSWFCPLEzIT");
     }

@@ -24,7 +24,7 @@ static void unlock(void){atomic_flag_clear_explicit(&control_lock,memory_order_r
 #endif
 static struct {
  dsr_maint_grant_t grant;dsr_maint_stage_t *candidate;
- uint32_t revision;uint8_t photos,connections,rules;bool job_busy,committed;
+ dsr_maint_lease_t committed_lease;uint32_t revision;uint8_t photos,connections,rules;bool job_busy,committed;
 } control;
 typedef struct {dsr_maint_request_t request;bool usb;} confirm_job_t;
 static uint32_t clock_ms(void){return (uint32_t)((uint64_t)esp_timer_get_time()/1000);}
@@ -134,7 +134,7 @@ static void confirm_run(void *owned)
   result=dsr_restart_request_maintenance(lease.reservation,lease.generation)==DSR_RESTART_ACCEPTED?DSR_OK:DSR_BUSY;
  }
 done:
- if(dsr_activity_maintenance_committed()){lock();control.committed=true;unlock();}
+ if(dsr_activity_maintenance_committed()){lock();control.committed=true;control.committed_lease=lease;unlock();}
  dsr_maintenance_release(&lease);lock();control.job_busy=false;
  if(matching(&j->request)){control.grant.result=result;if(control.grant.state==DSR_GRANT_RUNNING)dsr_maint_grant_finish(&control.grant,result);control.revision++;}unlock();wipe(j,sizeof(*j));free(j);
 }
@@ -160,4 +160,12 @@ void dsr_maintenance_poll(void)
  if(!stage)return;
  dsr_maint_lease_t lease={0};dsr_result_t result=DSR_BUSY;if(dsr_maintenance_acquire(&lease)){result=dsr_maint_stage_cancel(stage);dsr_maintenance_release(&lease);}
  lock();if(result==DSR_OK)control.candidate=NULL;control.job_busy=false;unlock();if(result==DSR_OK)dsr_maint_stage_free(stage);
+}
+dsr_result_t dsr_maintenance_local_reset_request(void)
+{dsr_maint_request_t r={.op=DSR_MAINT_RESET};dsr_result_t result=dsr_maint_io_identifier(r.nonce);return result==DSR_OK?dsr_maintenance_request(&r):result;}
+dsr_result_t dsr_maintenance_restart(void)
+{
+ lock();dsr_maint_lease_t lease=control.committed_lease;bool committed=control.committed;unlock();
+ if(!committed||!lease.reservation)return DSR_CONFLICT;
+ return dsr_restart_request_maintenance(lease.reservation,lease.generation)==DSR_RESTART_ACCEPTED?DSR_OK:DSR_BUSY;
 }

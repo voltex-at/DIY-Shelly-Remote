@@ -443,23 +443,24 @@ static void system_info(lv_event_t *event)
  char text[160];snprintf(text,sizeof(text),dsr_sc_tr("RAM wolna: %lu B\nNajwiększy blok: %lu B\nPSRAM wolna: %lu B\nFlash dostępna: %lu B / 0x%x"),(unsigned long)info.internal_free,(unsigned long)info.internal_largest,(unsigned long)info.psram_free,(unsigned long)info.flash_bytes,(unsigned)info.flash_error);
  dsr_sc_text(body,text,4,76,284,&dsr_roboto_14,DSR_SC_TEXT);
  row(body,"Diagnostyka konfiguracji",194,dsr_ui_config_diagnostics);
- dsr_sc_text(body,"Restart: w menu System, po potwierdzeniu. Eksport i reset: niewdrożone.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
+ dsr_sc_text(body,"Kopia i reset: w menu System, po fizycznym potwierdzeniu.",4,256,284,&dsr_roboto_14,DSR_SC_MUTED);
  row(body,"Odśwież",342,system_info);
 }
 static void system_menu(lv_event_t *event)
 {
  (void)event;lv_obj_t *body=settings_body("System");
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
-  const char *names[]={"Firmware Update","Informacje i diagnostyka","Hardware tests","Konfiguracja wpisów i scen","Restart pilota","Aktywność"};
-  const dsr_ui_icon_t icons[]={DSR_ICON_FIRMWARE,DSR_ICON_DIAGNOSTICS,DSR_ICON_HARDWARE,DSR_ICON_SCENES,DSR_ICON_RESTART,DSR_ICON_ACTIVITY};
-  const lv_event_cb_t callbacks[]={dsr_ui_native_ota_open,system_info,hardware,dsr_ui_config_registry,restart_screen,dsr_ui_activity_open};
-  for(unsigned i=0;i<6;i++)system_row(body,names[i],(int)i*62,54,icons[i],callbacks[i]);
+  const char *names[]={"Firmware Update","Informacje i diagnostyka","Hardware tests","Konfiguracja wpisów i scen","Restart pilota","Aktywność","Kopia i reset"};
+  const dsr_ui_icon_t icons[]={DSR_ICON_FIRMWARE,DSR_ICON_DIAGNOSTICS,DSR_ICON_HARDWARE,DSR_ICON_SCENES,DSR_ICON_RESTART,DSR_ICON_ACTIVITY,DSR_ICON_SAVE};
+  const lv_event_cb_t callbacks[]={dsr_ui_native_ota_open,system_info,hardware,dsr_ui_config_registry,restart_screen,dsr_ui_activity_open,dsr_ui_maintenance_open};
+  for(unsigned i=0;i<7;i++)system_row(body,names[i],(int)i*62,54,icons[i],callbacks[i]);
   return;
  }
  row(body,"Firmware Update",0,dsr_ui_native_ota_open);row(body,"Informacje i diagnostyka",58,system_info);
  row(body,"Hardware tests",116,hardware);row(body,"Konfiguracja wpisów i scen",174,dsr_ui_config_registry);
  row(body,"Restart pilota",232,restart_screen);
  row(body,"Aktywność",290,dsr_ui_activity_open);
+ row(body,"Kopia i reset",348,dsr_ui_maintenance_open);
 }
 void dsr_ui_system_open(lv_event_t *event){system_menu(event);}
 static void screen_settings(lv_event_t *event)

@@ -9,4 +9,7 @@ dsr_result_t dsr_maintenance_confirm(const uint8_t request_id[16],bool stable_us
 bool dsr_maintenance_cancel(const uint8_t request_id[16]);
 void dsr_maintenance_status(dsr_maint_status_t *);
 bool dsr_maintenance_sensitive(void);
+dsr_result_t dsr_maintenance_local_reset_request(void);
+/* Explicit native retry of the closed committed-intent restart handoff. */
+dsr_result_t dsr_maintenance_restart(void);
 #endif
