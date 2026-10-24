@@ -67,8 +67,15 @@ polling; inactive ADC monitoring runs last. Entering a screen may refresh a heal
 older than two seconds; failed-device/login backoff and direct HT sleep remain.
 Thermostat writes keep the 1.2 s tap coalescing interval. Known TRVs use typed
 status after gateway/MAC verification (three requests per refresh, five per
-successful write/readback). An acknowledged Cover/TRV write may recover one
-lost status GET; uncertain writes are never replayed. A delayed TRV mirror gets
+successful write/readback). Cover ends at the documented null command ACK;
+its owner publishes acceptance before scheduling a separate background GET.
+ACK never refreshes sample time or substitutes target position for actual data.
+One failed transport read after ACK may retry quietly with the previous sample
+at its original age; persistent loss and auth/identity/data/safety errors remain
+visible independently of the accepted command. Urgent STOP has its own ACK and
+does not borrow a superseded move's phase or erase an unsent move's old sample.
+An acknowledged TRV write may recover one lost status GET; uncertain writes
+are never replayed. A delayed TRV mirror gets
 at most three early GET-only follow-ups, ending on convergence or error before
 normal cadence/backoff resumes. Pending targets remain separate from reported data.
 The existing serial worker finishes in-flight I/O: queue priority cannot shorten

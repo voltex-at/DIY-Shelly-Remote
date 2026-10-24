@@ -60,8 +60,8 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on)
 }
 dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {
- if(intent.command==DSR_COVER_STOP){/* Manual innerSTOP must suspend outer actor cancellation. */CHECK(!progress_hook);if(mode==2)CHECK(!guard&&!write_hook);else if(guard){dsr_result_t result=guard();if(result!=DSR_OK)return result;}if(write_hook)write_hook();stops++;c->device.online=true;return DSR_OK;}
- CHECK(guard);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;result=guard();if(result==DSR_OK){CHECK(write_hook);write_hook();posts++;}return result;
+ if(intent.command==DSR_COVER_STOP){/* Manual innerSTOP has its own phase observer and suspends outer actor cancellation. */CHECK(progress_hook);if(mode==2)CHECK(!guard&&!write_hook);else if(guard){dsr_result_t result=guard();if(result!=DSR_OK)return result;}if(write_hook)write_hook();progress_hook(DSR_COMMAND_WRITE);stops++;c->device.online=false;progress_hook(DSR_COMMAND_ACK);return DSR_OK;}
+ CHECK(guard);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;result=guard();if(result==DSR_OK){CHECK(write_hook&&progress_hook);write_hook();progress_hook(DSR_COMMAND_WRITE);posts++;progress_hook(DSR_COMMAND_ACK);c->device.online=false;}return result;
 }
 static dsr_result_t typed_transaction(dsr_connection_t *c)
 {
@@ -128,6 +128,9 @@ int main(void)
   mode=fault==2?3:fault==3?4:fault;a.device.endpoint_kind=families[f<3?f:2];memset(&a.telemetry,0,sizeof(a.telemetry));if(!f)a.telemetry.light.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS;else if(f==1)a.telemetry.rgb.flags=DSR_RGB_VALID;else a.telemetry.blu.errors=DSR_BLU_TRV;
   CHECK(dsr_actions_publish_begin(7,true));dsr_actions_publish_at(&a,true,false,DSR_OK,true);dsr_actions_publish_end();dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);char json[256];snprintf(json,sizeof(json),"{\"id\":1,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\",%s}",s.boot_id,s.admission_generation,100+f*4+fault,payloads[f<3?f:2]);if(f==3)snprintf(json,sizeof(json),"{\"id\":4,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\"}",s.boot_id,s.admission_generation,100+f*4+fault);CHECK(dsr_actions_request(json,f==3?1:0,1,&run_id)==DSR_OK);j=(dsr_job_t){.id=200+f*4+fault,.connection=a};CHECK(dsr_actions_prepare_job(&j,DSR_OK,true));unsigned before_posts=posts;CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);mapping=true;CHECK(posts==before_posts+(fault==0||fault==3));CHECK(e.result==(!fault?DSR_OK:fault==1?DSR_BUSY:fault==2?DSR_IDENTITY_MISMATCH:DSR_OFFLINE));CHECK(e.command_phase==(!fault?DSR_COMMAND_CONFIRMED:fault==3?DSR_COMMAND_WRITE:DSR_COMMAND_NONE));CHECK(!dsr_actions_target());dsr_actions_snapshot(&s);CHECK(s.steps[0].outcome==(!fault?DSR_ACTION_SUCCESS:fault==2?DSR_ACTION_FAILED:DSR_ACTION_UNCERTAIN));idle_admission();
  }
+ mode=0;begin(2,200);j=prepare(1300,&b);CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(1300);
+ CHECK(e.result==DSR_OK&&e.command_phase==DSR_COMMAND_ACK&&!e.device.online);idle_admission();
+ CHECK(stopped.command_phase==DSR_COMMAND_ACK);
  printf("PASS: %u actual actor/worker checks; typed Light/RGB/TRV guards, cancel before POST, rebind, uncertain no-retry, nested STOP and exact ACK/leases; HTTP transaction models, no radio\n",checks);return 0;
 }
 

@@ -601,10 +601,10 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
  if(result==DSR_OK)command_progress(DSR_COMMAND_ACK);
- if(urgent())return DSR_BAD_RESPONSE;
- if(result!=DSR_OK)return result;
- result=allowed();if(result!=DSR_OK)return result;
- return command_readback(c);
+ /* End this transaction at acceptance. The owner schedules a separate GET;
+  * neither its timeout nor an urgent STOP can revoke this null ACK. The
+  * pre-write sample is not a post-write observation and stays offline here. */
+ return result;
 }
 
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)

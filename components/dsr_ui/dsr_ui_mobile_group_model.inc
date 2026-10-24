@@ -70,16 +70,17 @@ static dsr_mobile_device_t *group_model(unsigned index)
  snprintf(d->name,sizeof(d->name),"%s",g->name);d->room=g->room;d->endpoint_kind=s.family<=DSR_ENDPOINT_BLU?s.family:DSR_ENDPOINT_SWITCH;
  d->kind=s.family==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:s.family==DSR_ENDPOINT_BLU?DSR_DEVICE_SENSOR:s.family==DSR_ENDPOINT_RGB?DSR_DEVICE_RGB:s.family==DSR_ENDPOINT_LIGHT?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY;
  d->online=model.wifi&&s.live>0;d->error=s.family>=254?DSR_UNSUPPORTED:DSR_OK;d->busy=s.busy;d->output=s.power_known&&!s.power_mixed&&s.on;d->can_switch=group_ready(s);d->can_cover=d->can_position=group_ready(s);d->can_stop_cover=group_stop_ready(s);d->can_light=group_ready(s);
- bool all_power=s.total!=0,all_temp=s.total!=0,all_battery=s.total!=0,all_position=s.total!=0,first=true;double temp=0,battery=0;
+ bool all_power=s.total!=0,all_temp=s.total!=0,all_battery=s.total!=0,all_position=s.total!=0,first=true,waiting=false,sending=false;double temp=0,battery=0;
  for(unsigned i=0;i<model.device_count;i++)if(g->member_mask&(1u<<i)){
   const dsr_mobile_device_t *member=&model.devices[i];bool live=member->online&&member->error==DSR_OK;
   all_power&=live&&member->has_power&&isfinite(member->power_w);if(live&&member->has_power&&isfinite(member->power_w))d->power_w+=member->power_w;
   all_temp&=live&&member->has_temperature&&isfinite(member->temperature_c);all_battery&=live&&member->has_battery&&isfinite(member->battery_pct);all_position&=live&&member->can_position;
   if(first){temp=member->temperature_c;battery=member->battery_pct;if(d->room==DSR_UI_NO_ROOM)d->room=member->room;first=false;}else{all_temp&=fabs(temp-member->temperature_c)<.01;all_battery&=fabs(battery-member->battery_pct)<.01;if(g->room==DSR_UI_NO_ROOM&&d->room!=member->room)d->room=DSR_UI_NO_ROOM;}
   d->can_refresh|=member->can_refresh;d->cover_errors|=member->cover_errors;d->command_pending|=member->command_pending;
+  if(member->command_pending){waiting|=member->command_phase==DSR_COMMAND_ACK;sending|=member->command_phase!=DSR_COMMAND_ACK;}
  }
  d->has_power=all_power;d->has_temperature=all_temp;d->temperature_c=temp;d->has_battery=all_battery;d->battery_pct=battery;
- if(s.family==DSR_ENDPOINT_COVER){d->has_position=s.known&&!s.mixed;d->position_pct=s.value;d->can_position&=all_position;d->cover_state=s.cover_motion==1?DSR_COVER_OPENING:s.cover_motion==2?DSR_COVER_CLOSING:s.cover_motion?DSR_COVER_UNKNOWN:DSR_COVER_STOPPED;}
+ if(s.family==DSR_ENDPOINT_COVER){if(waiting&&!sending)d->command_phase=DSR_COMMAND_ACK;d->has_position=s.known&&!s.mixed;d->position_pct=s.value;d->can_position&=all_position;d->cover_state=s.cover_motion==1?DSR_COVER_OPENING:s.cover_motion==2?DSR_COVER_CLOSING:s.cover_motion?DSR_COVER_UNKNOWN:DSR_COVER_STOPPED;}
  else if(s.family==DSR_ENDPOINT_BLU){d->blu.errors=DSR_BLU_TRV;d->has_trv_target=s.known&&!s.mixed;d->trv_target_c=s.value*.5;}
  else if(s.family==DSR_ENDPOINT_LIGHT)d->light=(dsr_light_status_t){.flags=s.known&&!s.mixed?DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS:0,.brightness=s.value};
  else if(s.family==DSR_ENDPOINT_RGB)d->rgb=(dsr_rgb_status_t){.flags=s.known&&!s.mixed?DSR_RGB_VALID:0,.brightness=s.value,.r=s.rgb[0],.g=s.rgb[1],.b=s.rgb[2]};

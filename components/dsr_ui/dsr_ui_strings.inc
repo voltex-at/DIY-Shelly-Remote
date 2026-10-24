@@ -285,6 +285,7 @@
 {"Nieprawidłowe dane","Invalid data","Ungültige Daten"},{"Błąd komunikacji","Communication error","Kommunikationsfehler"},
 {"Odczyty niedostępne","Readings unavailable","Keine Messwerte"},
 {"Wysyłanie polecenia…","Sending command…","Befehl wird gesendet…"},{"Odczyt stanu…","Reading state…","Status wird gelesen…"},
+{"Polecenie przyjęte","Command accepted","Befehl angenommen"},
 {"Odśwież stan","Refresh state","Neu laden"},{"Odśwież, aby potwierdzić stan","Refresh to confirm state","Status zum Bestätigen neu laden"},
 {"Zapisano wcześniejszą wersję • są niezapisane zmiany","Earlier version saved • unsaved edits remain","Vorherige Version gespeichert • Änderungen ungespeichert"},
 {"Zapis nie powiódł się. Zmiany pozostają w edytorze.","Save failed. Your edits remain in the editor.","Speichern fehlgeschlagen. Änderungen bleiben im Editor."},

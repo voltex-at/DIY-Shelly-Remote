@@ -94,12 +94,15 @@ static bool run_stop(void)
  dsr_http_urgent_hook(NULL);
  dsr_http_job_guard_t previous_guard=dsr_http_job_guard(NULL);
  dsr_http_job_write_hook_t previous_write=dsr_http_job_write_hook(NULL);
- dsr_http_job_progress_hook_t previous_progress=dsr_http_job_progress_hook(NULL);
+ dsr_command_phase_t previous_phase=observed_command_phase;observed_command_phase=DSR_COMMAND_NONE;
+ dsr_http_job_progress_hook_t previous_progress=dsr_http_job_progress_hook(observe_command);
 #ifdef DSR_BOARD_ES3C35P
  const dsr_connection_t *previous_connection=actor_connection;uint32_t previous_job=actor_job;
  if(urgent_stop.actor){actor_connection=&urgent_stop.connection;actor_job=urgent_stop.result.operation_id;(void)dsr_http_job_guard(actor_guard);(void)dsr_http_job_write_hook(actor_write);}
 #endif
  dsr_result_t result=!dsr_workspace_mapping_matches(&urgent_stop.connection)?DSR_IDENTITY_MISMATCH:dsr_wifi_connected()&&!dsr_wifi_temporary_active()?dsr_http_cover(&urgent_stop.connection,(dsr_cover_intent_t){.command=DSR_COVER_STOP}):DSR_OFFLINE;
+ uint8_t stop_phase=(uint8_t)observed_command_phase;observed_command_phase=previous_phase;
+ ESP_LOGI("dsr_network","Cover STOP result=%d job=%lu layout=%lu phase=%u",(int)result,(unsigned long)urgent_stop.result.operation_id,(unsigned long)urgent_stop.result.layout_id,(unsigned)stop_phase);
  dsr_http_urgent_hook(run_stop);
  (void)dsr_http_job_guard(previous_guard);
  (void)dsr_http_job_write_hook(previous_write);
@@ -109,7 +112,7 @@ static bool run_stop(void)
 #endif
  xSemaphoreTake(stop_mutex,portMAX_DELAY);
  if(result!=DSR_OK)urgent_stop.connection.device.online=false;
- urgent_stop.result.result=result;urgent_stop.result.device=urgent_stop.connection.device;urgent_stop.result.telemetry=urgent_stop.connection.telemetry;
+ urgent_stop.result.result=result;urgent_stop.result.command_phase=stop_phase;urgent_stop.result.device=urgent_stop.connection.device;urgent_stop.result.telemetry=urgent_stop.connection.telemetry;
  erase(&urgent_stop.connection,sizeof(urgent_stop.connection));urgent_stop.phase=3;xSemaphoreGive(stop_mutex);return true;
 }
 static void network_task(void *arg)
@@ -208,9 +211,9 @@ static void network_task(void *arg)
             event.device = job.connection.device;
             event.telemetry=job.connection.telemetry;
             /* Transaction outcomes only: never host, identity or credentials.
-             * SET result includes mandatory GetStatus readback; it is not a
-             * claim that a timed-out write did or did not reach the relay. */
-            if(event.device.endpoint_kind==DSR_ENDPOINT_COVER)ESP_LOGI("dsr_network","Cover readback result=%d state=%u position_available=%u position=%u job=%lu layout=%lu phase=%u",(int)event.result,(unsigned)event.telemetry.cover.state,(unsigned)((event.telemetry.cover.flags&DSR_COVER_POSITION)!=0),(unsigned)event.telemetry.cover.current_pos,(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)event.command_phase);
+             * Cover ends at ACK; its status arrives as a separate PROBE.
+             * Other SET adapters retain their typed readback contract. */
+            if(event.device.endpoint_kind==DSR_ENDPOINT_COVER)ESP_LOGI("dsr_network","Cover %s result=%d state=%u position_available=%u position=%u job=%lu layout=%lu phase=%u",job.kind==DSR_JOB_COVER?"command":"readback",(int)event.result,(unsigned)event.telemetry.cover.state,(unsigned)((event.telemetry.cover.flags&DSR_COVER_POSITION)!=0),(unsigned)event.telemetry.cover.current_pos,(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)event.command_phase);
             else if(event.device.endpoint_kind==DSR_ENDPOINT_BLU)ESP_LOGI("dsr_network","BLU via gateway result=%d online=%u flags=0x%02x errors=0x%02x battery_available=%u job=%lu layout=%lu phase=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.blu.flags,(unsigned)event.telemetry.blu.errors,(unsigned)event.telemetry.has_blu_battery,(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)event.command_phase);
             else if(event.device.endpoint_kind==DSR_ENDPOINT_HT)ESP_LOGI("dsr_network","H&T GetStatus result=%d online=%u temperature_available=%u humidity_available=%u battery_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_temperature,(unsigned)event.telemetry.has_humidity,(unsigned)event.telemetry.has_battery);
             else if(job.kind==DSR_JOB_SET_OUTPUT)ESP_LOGI("dsr_network","Switch.Set/readback result=%d requested=%u confirmed=%u output=%u",(int)event.result,(unsigned)job.on,(unsigned)(event.result==DSR_OK&&event.device.online),(unsigned)event.device.output);

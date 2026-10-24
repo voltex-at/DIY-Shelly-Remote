@@ -78,6 +78,8 @@ dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t
 /* Name-only NVS update: never changes endpoint, locator or credentials. */
 esp_err_t dsr_connection_update_name(const dsr_connection_t *connection);
 dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on);
+/* Ends at the documented null ACK. Position/motion need a separate refresh;
+ * success never makes the pre-write telemetry a fresh post-command sample. */
 dsr_result_t dsr_http_cover(dsr_connection_t *connection,dsr_cover_intent_t intent);
 dsr_result_t dsr_http_rgb(dsr_connection_t *connection,dsr_rgb_intent_t intent);
 dsr_result_t dsr_http_light(dsr_connection_t *connection,dsr_light_intent_t intent);
@@ -131,7 +133,7 @@ dsr_result_t dsr_worker_submit(const dsr_job_t *job);
 bool dsr_worker_receive(dsr_event_t *event);
 /* Independent urgent lane: never enters the outer event queue or releases
  * its semaphore. One STOP, including its final result, until consume. */
-typedef struct {uint32_t operation_id,layout_id;dsr_device_t device;dsr_telemetry_t telemetry;dsr_result_t result;} dsr_stop_result_t;
+typedef struct {uint32_t operation_id,layout_id;dsr_device_t device;dsr_telemetry_t telemetry;dsr_result_t result;uint8_t command_phase;} dsr_stop_result_t;
 dsr_result_t dsr_worker_stop_request(const dsr_connection_t *connection,uint32_t operation_id);
 /* Trusted actor owner only; separate admission from manual operationIDs.
  * Numeric jobID/WWW operationID equality never confers actor ownership. */

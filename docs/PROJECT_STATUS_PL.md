@@ -3,6 +3,16 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
+## Roleta: ACK i odczyt w tle po 0.7.75 — 2026-10-24
+
+Właściciel zatwierdził rozdzielenie przyjęcia komendy i późniejszego odczytu.
+Komenda Cover, również grupy/sceny i STOP, kończy się na prawidłowym ACK.
+Odczyt jest osobnym zleceniem; jego błąd nie zmienia wyniku przyjętej komendy.
+Zachowano rzeczywiste pozycje, wiek danych, pilny STOP i zakaz replay.
+[Raport i walidacja](RESPONSIVENESS_AUDIT_0_7_75_PL.md) opisują także poprawki
+trzech przypadków STOP/grup znalezionych w niezależnym przeglądzie.
+Zmiana jest lokalna po opublikowanym 0.7.75-dev; odbiór na płytce pozostaje otwarty.
+
 ## Przygotowanie 0.7.75-dev do odbioru — 2026-10-24
 
 Właściciel zlecił publikację kolejnego DEV z poprawkami commita `a747fbe`.

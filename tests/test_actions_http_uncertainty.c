@@ -8,12 +8,13 @@
 static dsr_actions_model_t actor;
 static dsr_action_key_t frozen;
 static unsigned permissions, deny_after_ack;
+static uint32_t actor_request=101;
 static dsr_result_t actor_permission(void)
 {
     permissions++;
     if (deny_after_ack && permissions == deny_after_ack)
         return DSR_IDENTITY_MISMATCH; /* exact workspace mapping removed */
-    return dsr_actions_model_worker_allowed(&actor, 101, &frozen, 11)
+    return dsr_actions_model_worker_allowed(&actor, actor_request, &frozen, 11)
         ? DSR_OK : DSR_BUSY;
 }
 static void actor_write(void){CHECK(dsr_actions_model_write_attempted(&actor,101));}
@@ -41,7 +42,7 @@ int main(void)
               "0123456789abcdef", 0, 1, 10));
         CHECK(dsr_actions_model_check(&actor,0,&frozen,DSR_OK,true,true,10));
         CHECK(dsr_actions_model_queued(&actor,0,101,10));
-        permissions=0;deny_after_ack=mode%2 ? (cover ? 4 : 3) : 0;
+        actor_request=101;permissions=0;deny_after_ack=mode%2 ? (cover ? 4 : 3) : 0;
         CHECK(dsr_http_job_guard(actor_permission)==NULL);
         CHECK(dsr_http_job_write_hook(actor_write)==NULL);
         step_t relay[]={{"/shelly",gen2,200,false,false},
@@ -58,10 +59,27 @@ int main(void)
             : dsr_http_set_output(&c,true);
         CHECK(dsr_http_job_guard(NULL)==actor_permission);
         CHECK(dsr_http_job_write_hook(NULL)==actor_write);
-        CHECK(used==(cover ? 4u : 3u)-(mode%2)); /* POST ACK occurred once */
-        CHECK(result==(mode%2 ? DSR_IDENTITY_MISMATCH : DSR_AUTH_REQUIRED));
+        CHECK(used==(cover ? 3u : 3u-(mode%2))); /* POST ACK occurred once */
+        CHECK(result==(cover ? DSR_OK : mode%2 ? DSR_IDENTITY_MISMATCH : DSR_AUTH_REQUIRED));
         CHECK(dsr_actions_model_complete(&actor,101,result,12));
         int next=dsr_actions_model_current(&actor,12);
+        if(cover){
+            /* ACK completes this scene step. A separately failed read gates
+             * the next step; it cannot retroactively turn ACK into failure. */
+            CHECK(actor.steps[0].outcome==DSR_ACTION_SUCCESS&&next==1);
+            CHECK(dsr_actions_model_check(&actor,1,&frozen,DSR_OK,false,true,12));
+            CHECK(dsr_actions_model_queued(&actor,1,102,12));actor_request=102;
+            permissions=0;deny_after_ack=mode%2?1:0;
+            CHECK(dsr_http_job_guard(actor_permission)==NULL);
+            step_t read[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
+            fixture(read,2,HTTP_AUTH_TYPE_DIGEST);
+            dsr_result_t gate=dsr_http_refresh(&c);
+            CHECK(gate==(mode%2?DSR_IDENTITY_MISMATCH:DSR_AUTH_REQUIRED)&&used==(mode%2?0u:2u));
+            CHECK(dsr_http_job_guard(NULL)==actor_permission);
+            CHECK(dsr_actions_model_complete(&actor,102,gate,12));
+            CHECK(actor.steps[0].outcome==DSR_ACTION_SUCCESS&&actor.steps[1].outcome==DSR_ACTION_FAILED&&dsr_actions_model_current(&actor,12)==2);
+            continue;
+        }
         fprintf(stderr,"%s POST ACK -> %s: result=%u outcome=%u same-endpoint=%u next=%d\n",
             cover?"Cover":"Switch",mode%2?"mapping guard":"readback401",result,
             actor.steps[0].outcome,actor.steps[1].outcome,next);
@@ -70,6 +88,6 @@ int main(void)
     }
     cover_payload=NULL;
     CHECK(wrong==0);
-    printf("PASS: %u genuine HTTP/model uncertainty checks\n",checks);
+    printf("PASS: %u genuine HTTP/model checks; relay uncertainty, independent Cover ACK and later read gate\n",checks);
     return 0;
 }

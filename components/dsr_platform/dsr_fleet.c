@@ -41,7 +41,7 @@ dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *f,unsigned index,dsr_cover_int
  if(!f||index>=f->count||!dsr_cover_intent_valid(intent)||intent.command==DSR_COVER_STOP)return DSR_INVALID;
  dsr_fleet_slot_t *s=&f->slots[index];
  if(s->connection.device.endpoint_kind!=DSR_ENDPOINT_COVER)return DSR_UNSUPPORTED;
- if(s->queued||s->urgent_stop||(s->in_flight&&s->operation==DSR_JOB_COVER))return DSR_BUSY;
+ if(s->queued||s->urgent_stop||dsr_fleet_cover_waiting(s)||(s->in_flight&&s->operation==DSR_JOB_COVER))return DSR_BUSY;
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi||!s->connection.device.online||!s->sample_valid||now-s->sample_ms>15000)return DSR_OFFLINE;
  if(s->blocked)return s->result;
@@ -104,7 +104,7 @@ static bool cover_followup(const dsr_fleet_slot_t *s)
 {
  const dsr_cover_status_t *c=&s->connection.telemetry.cover;
  return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&
-  (s->operation==DSR_JOB_COVER||s->failures==1||s->failures==2||
+  (dsr_fleet_cover_waiting(s)||s->operation==DSR_JOB_COVER||s->failures==1||s->failures==2||
    c->state==DSR_COVER_STATE_OPENING||c->state==DSR_COVER_STATE_CLOSING||
    c->state==DSR_COVER_STATE_CALIBRATING||
    ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
@@ -117,7 +117,7 @@ static bool cover_motion(const dsr_fleet_slot_t *s)
 {
  const dsr_cover_status_t *c=&s->connection.telemetry.cover;
  return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&
-  (s->queued||s->urgent_stop||s->mailbox_pending||(s->in_flight&&s->operation==DSR_JOB_COVER)||
+  (dsr_fleet_cover_waiting(s)||s->queued||s->urgent_stop||s->mailbox_pending||(s->in_flight&&s->operation==DSR_JOB_COVER)||
    c->state==DSR_COVER_STATE_OPENING||c->state==DSR_COVER_STATE_CLOSING||
    c->state==DSR_COVER_STATE_CALIBRATING||
    ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
@@ -159,6 +159,7 @@ void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
  if(control_job(job->kind))s->command_phase=DSR_COMMAND_NONE;
+ if(job->kind==DSR_JOB_COVER)s->cover=job->cover;
  if(job->kind==DSR_JOB_TRV){s->trv=job->trv;s->trv_followups=0;}
  if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||job->kind==DSR_JOB_TRV||(job->kind==DSR_JOB_PROBE&&DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)))discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
@@ -176,6 +177,26 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(!s->in_flight||s->request_id!=event->id)return false;
  s->in_flight=false;dsr_result_t result=event->result;
  if(!dsr_endpoint_equal(&s->connection.device,&event->device)||strcmp(s->connection.device.host,event->device.host))result=DSR_IDENTITY_MISMATCH;
+ bool cover=s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER;
+ bool awaiting=cover&&s->operation==DSR_JOB_PROBE&&s->command_phase==DSR_COMMAND_ACK&&s->command_result==DSR_OK;
+ if(control_job(s->operation))s->command_result=(uint8_t)result;
+ /* The urgent STOP superseded this movement before its write. Cancellation
+  * is not a failed observation; retain the last actual sample at its old age. */
+ if(cover&&s->operation==DSR_JOB_COVER&&s->urgent_stop&&result==DSR_BUSY&&event->command_phase==DSR_COMMAND_NONE){
+  s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return true;
+ }
+ /* ACK is a command result, not a sample. Publish it now, free the worker,
+  * then let ordinary priority/STOP arbitration admit the read-only job. */
+ if(cover&&s->operation==DSR_JOB_COVER&&result==DSR_OK&&event->command_phase==DSR_COMMAND_ACK){
+  s->result=DSR_OK;s->command_error=false;s->command_phase=s->urgent_stop?DSR_COMMAND_NONE:DSR_COMMAND_ACK;s->failures=0;s->blocked=false;s->next_poll=now;
+  return true;
+ }
+ /* One transport retry in the background. Keep the last actual data and its
+  * original age; never extend freshness or substitute the requested target.
+  * Invalid/auth/identity/safety responses are not covered by this grace. */
+ if(awaiting&&result==DSR_OFFLINE&&!s->failures&&s->sample_valid&&now-s->sample_ms<=DSR_FLEET_FRESH_MS){
+  s->failures=1;s->next_poll=now+1000u;return true;
+ }
  if(result==DSR_OK){s->connection.device=event->device;s->connection.telemetry=event->telemetry;s->failures=0;if(event->device.online){s->sample_valid=true;s->sample_ms=now;}}
  else {s->connection.device.online=false;s->connection.device.has_power=false;
   bool retained=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)&&(result==DSR_OFFLINE||result==DSR_IO||result==DSR_RATE_LIMITED||result==DSR_BAD_RESPONSE||result==DSR_UNSUPPORTED);
@@ -188,7 +209,9 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  /* A confirmed read ends the temporary login limit even when the 429 came
   * from a command. Keep other uncertain command failures until a new intent. */
  if(s->operation==DSR_JOB_PROBE&&result==DSR_OK&&event->device.online&&s->result==DSR_RATE_LIMITED){s->result=DSR_OK;s->command_error=false;}
+ if(awaiting)s->command_error=false;
  if(control_job(s->operation))s->command_phase=result!=DSR_IDENTITY_MISMATCH&&event->command_phase<=DSR_COMMAND_CONFIRMED?event->command_phase:DSR_COMMAND_NONE;
+ else if(awaiting&&result!=DSR_OK&&result!=DSR_IDENTITY_MISMATCH){s->command_phase=DSR_COMMAND_READBACK;s->command_error=false;}
  else if(s->operation==DSR_JOB_PROBE&&(result!=DSR_OK||!s->command_error))s->command_phase=DSR_COMMAND_NONE;
  /* Wrong credentials or another device at this address need the user. A 429
   * is Shelly's temporary login limit: never retried quickly, never a silent
@@ -196,6 +219,7 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  s->blocked=result==DSR_AUTH_REQUIRED||result==DSR_IDENTITY_MISMATCH;
  uint32_t delay=s->failures?(5000u<<s->failures):5000u;
  if(!s->blocked&&cover_followup(s))delay=1000u;
+ if(awaiting&&result==DSR_OK)delay=1000u;
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
  /* BLU values come from an always-on gateway: poll often, back off on errors. */
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}

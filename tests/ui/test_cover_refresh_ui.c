@@ -50,6 +50,11 @@ int main(int argc,char **argv)
   CHECK(position_text(79,false)&&find_label(lv_screen_active(),"Wysyłanie polecenia…"));
   if(!lang)frame("sending",skins[s]);
   bottom_stop();
+  d->command_phase=DSR_COMMAND_ACK;dsr_mobile_update(&view);
+  CHECK(!deleted&&position_text(79,false)&&find_label(lv_screen_active(),"Polecenie przyjęte"));
+  CHECK(!find_label(lv_screen_active(),"Wysyłanie polecenia…")&&!find_label(lv_screen_active(),"Brak odpowiedzi"));
+  bottom_stop();if(!lang)frame("accepted",skins[s]);
+  d->command_phase=DSR_COMMAND_NONE;
   d->busy=d->command_pending=false;d->online=d->has_position=false;d->can_cover=d->can_position=false;d->has_power=d->has_voltage=false;d->error=DSR_OFFLINE;dsr_mobile_update(&view);
   CHECK(!deleted&&position_text(79,true));
   CHECK(find_label(lv_screen_active(),"Offline")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
@@ -71,6 +76,9 @@ int main(int argc,char **argv)
   if(!lang)frame("moving",skins[s]);
   /* A malformed/calibrating position and a rebind must not reuse history. */
   d->has_position=false;d->cover_state=DSR_COVER_CALIBRATING;dsr_mobile_update(&view);CHECK(find_label(lv_screen_active(),"Nieznana pozycja")&&!position_text(67,true));
+  d->can_cover=false;d->command_phase=DSR_COMMAND_ACK;d->busy=d->command_pending=true;dsr_mobile_update(&view);
+  CHECK(find_label(lv_screen_active(),"Polecenie przyjęte")&&find_label(lv_screen_active(),"Nieznana pozycja"));bottom_stop();
+  d->can_cover=true;d->command_phase=DSR_COMMAND_NONE;d->busy=d->command_pending=false;
   d->online=false;d->error=DSR_AUTH_REQUIRED;dsr_mobile_update(&view);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));
   d->online=d->has_position=true;d->error=DSR_OK;d->cover_state=DSR_COVER_STOPPED;dsr_mobile_update(&view);CHECK(position_text(67,false));
   d->online=d->has_position=false;d->error=DSR_OFFLINE;dsr_mobile_update(&view);CHECK(position_text(67,true));

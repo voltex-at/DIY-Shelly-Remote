@@ -9,12 +9,16 @@ typedef struct {
  dsr_device_t intent_identity;
  uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
  dsr_result_t maintenance_result;
- uint8_t failures,trv_followups,command_phase; /* transient phase uses padding */
+ /* Command outcome is independent of later status failures. These bounded
+  * transient bytes use existing alignment padding, never persistent storage. */
+ uint8_t failures,trv_followups,command_phase,command_result;
  bool sample_valid,blocked,command_error,queued,in_flight,layout_enabled,urgent_stop;
  uint8_t mailbox_pending; /* LCD accepted intent before shared-mailbox take: move1/STOP2. */
  union {bool on;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_rgb_intent_t rgb;dsr_trv_intent_t trv;};
  dsr_job_kind_t operation;
 } dsr_fleet_slot_t;
+static inline bool dsr_fleet_cover_waiting(const dsr_fleet_slot_t *s)
+{return s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&s->command_phase==DSR_COMMAND_ACK&&s->result==DSR_OK;}
 typedef struct {
  dsr_fleet_slot_t slots[DSR_MAX_DEVICES];
  size_t count;
