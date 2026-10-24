@@ -193,6 +193,15 @@ static void test_blu_trv(void)
  dsr_job_t job;unsigned at;CHECK(dsr_fleet_next(&f,200,true,&job,&at)&&job.kind==DSR_JOB_TRV&&job.trv.half_c==43);
  job.id=901;f.slots[at].trv.half_c=40;dsr_fleet_started(&f,at,&job);CHECK(f.slots[at].trv.half_c==43); /* actor jobs also own their current target */
  dsr_event_t ev={.id=901,.device=f.slots[0].connection.device,.result=DSR_BAD_RESPONSE};CHECK(dsr_fleet_complete(&f,at,&ev,300)&&f.slots[0].command_error);
+ /* An uncertain write gets one early GET, not the ordinary 30 s failure
+  * delay and never another TRV.SetTarget. Failed recovery restores backoff. */
+ fc.telemetry.blu.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET;fc.telemetry.blu.flags=DSR_BLU_VALID;
+ CHECK(dsr_fleet_upsert(&f,&fc,400)==DSR_OK&&dsr_fleet_trv_request(&f,0,i,true,400)==DSR_OK);
+ CHECK(dsr_fleet_next(&f,400,false,&job,&at)&&job.kind==DSR_JOB_TRV);job.id=903;dsr_fleet_started(&f,at,&job);
+ ev=(dsr_event_t){.id=903,.device=fc.device,.result=DSR_OFFLINE,.command_phase=DSR_COMMAND_WRITE};
+ CHECK(dsr_fleet_complete(&f,at,&ev,401)&&f.slots[0].command_phase==DSR_COMMAND_WRITE&&f.slots[0].next_poll==1401&&!f.slots[0].connection.device.online);
+ CHECK(dsr_fleet_next_poll(&f,1401,1,&job,&at)&&job.kind==DSR_JOB_PROBE);job.id=904;dsr_fleet_started(&f,at,&job);
+ ev.id=904;ev.command_phase=DSR_COMMAND_NONE;CHECK(dsr_fleet_complete(&f,at,&ev,1402)&&f.slots[0].command_phase==DSR_COMMAND_NONE&&f.slots[0].next_poll>2402);
  /* A plain refresh after a TRV request never turns into a TRV write. */
  f.slots[0].connection.device.online=true;f.slots[0].sample_valid=true;f.slots[0].sample_ms=300;f.slots[0].command_error=false;f.slots[0].blocked=false;
  CHECK(dsr_fleet_ht_refresh(&f,0,true,300)==DSR_OK);CHECK(dsr_fleet_next(&f,300,true,&job,&at)&&job.kind==DSR_JOB_PROBE);job.id=902;dsr_fleet_started(&f,at,&job); /* releases the queued activity */

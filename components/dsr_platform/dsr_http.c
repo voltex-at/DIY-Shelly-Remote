@@ -16,6 +16,10 @@
 static bool (*urgent_hook)(void);
 static dsr_http_job_guard_t job_guard;
 static dsr_http_job_write_hook_t write_hook;
+static dsr_http_job_progress_hook_t progress_hook;
+dsr_http_job_progress_hook_t dsr_http_job_progress_hook(dsr_http_job_progress_hook_t hook)
+{dsr_http_job_progress_hook_t previous=progress_hook;progress_hook=hook;return previous;}
+static void command_progress(dsr_command_phase_t phase){if(progress_hook)progress_hook(phase);}
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook)
 {dsr_http_job_write_hook_t previous=write_hook;write_hook=hook;return previous;}
 dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard)
@@ -81,6 +85,7 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
         dsr_result_t admission=control_write&&!strcmp(request->path,"/rpc")?allowed():DSR_OK;
         if(admission!=DSR_OK){esp_http_client_cleanup(client);wipe(response.text,RESPONSE_LIMIT+1);free(response.text);return admission;}
         if(control_write&&write_hook)write_hook();
+        if(control_write)command_progress(DSR_COMMAND_WRITE);
         error = esp_http_client_perform(client);
     }
     int status = esp_http_client_get_status_code(client);
@@ -467,12 +472,16 @@ static dsr_result_t status(dsr_connection_t *c){return status_expected(c,NULL);}
  * Authentication, rate limits, malformed data and cancellation stay terminal. */
 static dsr_result_t command_readback(dsr_connection_t *c)
 {
+ command_progress(DSR_COMMAND_READBACK);
  uint8_t hint=trv_hint(c);dsr_result_t result=status(c);
- if(result!=DSR_OFFLINE)return result;
- if(urgent())return DSR_BUSY;
- result=allowed();if(result!=DSR_OK)return result;
- if(c->device.endpoint_kind==DSR_ENDPOINT_BLU)c->telemetry.blu.errors=hint;
- return status(c);
+ if(result==DSR_OFFLINE){
+  if(urgent())return DSR_BUSY;
+  result=allowed();if(result!=DSR_OK)return result;
+  if(c->device.endpoint_kind==DSR_ENDPOINT_BLU)c->telemetry.blu.errors=hint;
+  result=status(c);
+ }
+ if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
+ return result;
 }
 
 /* Read-only advisory name, after identity and status succeeded. A failed or
@@ -564,14 +573,16 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
     result = fetch_command(connection, &request, &root);
     cJSON_Delete(root);
     if (result != DSR_OK) return result;
+    command_progress(DSR_COMMAND_ACK);
     if(urgent())return DSR_BAD_RESPONSE;
     result=allowed();if(result!=DSR_OK)return result;
     /* Never display an optimistic position; don't replay after a timeout. */
-    result = status(connection);
+    command_progress(DSR_COMMAND_READBACK);result = status(connection);
     if (result == DSR_OK && connection->device.output != on) {
         connection->device.online = false;
         return DSR_BAD_RESPONSE;
     }
+    if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
     return result;
 }
 
@@ -589,6 +600,7 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  /* Only the documented null ACK confirms acceptance, never position. */
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
+ if(result==DSR_OK)command_progress(DSR_COMMAND_ACK);
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result;
  result=allowed();if(result!=DSR_OK)return result;
@@ -614,6 +626,7 @@ dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
  result=fetch_json_payload(c,&request,false,&ack,15000,payload,"application/json",true);
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
+ if(result==DSR_OK)command_progress(DSR_COMMAND_ACK);
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
  result=allowed();if(result!=DSR_OK)return result;
@@ -675,8 +688,9 @@ dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
  cJSON_Delete(ack);c->device.online=false;
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
+ command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- result=status(c);if(result!=DSR_OK)return result;
+ command_progress(DSR_COMMAND_READBACK);result=status(c);if(result!=DSR_OK)return result;
  const dsr_light_status_t *s=&c->telemetry.light;
  /* During a transition the current output may still match the previous
   * state. The target decides whether this particular intent was confirmed. */
@@ -685,6 +699,7 @@ dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
  bool matches=intent.command==DSR_LIGHT_SET_BRIGHTNESS?(s->flags&DSR_LIGHT_TRANSITION?s->target:s->brightness)==intent.brightness:
   output_matches;
  if(!matches||s->errors||s->conditions){c->device.online=false;return DSR_BAD_RESPONSE;}
+ command_progress(DSR_COMMAND_CONFIRMED);
  return DSR_OK;
 }
 
@@ -704,8 +719,11 @@ dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent)
  cJSON_Delete(ack);c->device.online=false;
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* Never replay an uncertain SET. */
+ command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- return status_expected(c,&intent);
+ command_progress(DSR_COMMAND_READBACK);result=status_expected(c,&intent);
+ if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
+ return result;
 }
 
 static void ap_identity(const dsr_lan_device_t *source,const char *ssid,dsr_ap_identity_t *out)

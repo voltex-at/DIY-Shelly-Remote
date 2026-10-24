@@ -38,6 +38,7 @@ typedef struct {
     bool can_refresh,can_position,has_energy;
     uint8_t cover_errors,endpoint_kind; /* Actual bound transport family, for typed queries. */
     union {bool can_light;bool can_rgb;};
+    uint8_t command_phase; /* transient worker observation, never telemetry */
     union {dsr_light_status_t light;dsr_rgb_status_t rgb;dsr_ht_status_t ht;dsr_blu_status_t blu;}; /* Existing alignment padding: model size is unchanged. */
     double energy_wh;
 } dsr_mobile_device_t;

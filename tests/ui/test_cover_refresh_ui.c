@@ -42,6 +42,13 @@ int main(int argc,char **argv)
   CHECK(find_label(lv_screen_active(),"Offline")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
   CHECK(lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Otwórz")),LV_STATE_DISABLED));
   CHECK(!lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Stop")),LV_STATE_DISABLED));
+  d->command_phase=DSR_COMMAND_WRITE;dsr_mobile_update(&view);
+  CHECK(find_label(lv_screen_active(),"Polecenie niepotwierdzone")&&!find_label(lv_screen_active(),"Brak odpowiedzi"));
+  if(!lang)frame("uncertain-command",skins[s]);
+  d->command_phase=DSR_COMMAND_READBACK;dsr_mobile_update(&view);
+  CHECK(find_label(lv_screen_active(),"Odczyt niepotwierdzony")&&!find_label(lv_screen_active(),"Brak odpowiedzi"));
+  if(!lang)frame("uncertain-readback",skins[s]);
+  d->command_phase=DSR_COMMAND_NONE;dsr_mobile_update(&view);CHECK(find_label(lv_screen_active(),"Brak odpowiedzi"));
   if(!lang)frame("timeout",skins[s]);
   d->online=d->has_position=d->can_cover=d->can_position=true;d->error=DSR_OK;d->position_pct=75;d->cover_state=DSR_COVER_CLOSING;dsr_mobile_update(&view);
   CHECK(!deleted&&position_text(75,false)&&!position_text(79,true));

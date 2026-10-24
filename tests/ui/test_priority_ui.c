@@ -6,11 +6,61 @@
 static dsr_mobile_model_t priority_view;
 static unsigned deleted,sent;
 static uint8_t target_half;
+static unsigned model_updates;
+void __real_dsr_mobile_update(const dsr_mobile_model_t *m);
+void __wrap_dsr_mobile_update(const dsr_mobile_model_t *m){model_updates++;__real_dsr_mobile_update(m);}
 static void view_deleted(lv_event_t *e){(void)e;deleted++;}
+static unsigned age_draws;
+static void age_drawn(lv_event_t *e){(void)e;age_draws++;}
+static void unrelated_group_refresh(void)
+{
+ dsr_sc_appearance(DSR_SC_BLUE,3,0);
+ priority_view=(dsr_mobile_model_t){.wifi=true,.device_count=2,.group_count=1};
+ priority_view.devices[0]=(dsr_mobile_device_t){.id=41,.name="Group member",.identity="member",.host="192.168.1.80",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_SWITCH,.kind=DSR_DEVICE_RELAY,.online=true,.can_switch=true,.has_sample_time=true,.has_power=true,.power_w=3};
+ priority_view.devices[1]=priority_view.devices[0];priority_view.devices[1].id=42;
+ strcpy(priority_view.devices[1].name,"Other device");strcpy(priority_view.devices[1].identity,"other");
+ priority_view.groups[0]=(dsr_mobile_group_t){.id=71,.name="Refresh group",.members=1,.member_mask=1,.room=DSR_UI_NO_ROOM};
+ dsr_mobile_update(&priority_view);dsr_mobile_open_group(71);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *title=find_label(lv_screen_active(),"Refresh group");CHECK(title);lv_obj_add_event_cb(title,view_deleted,LV_EVENT_DELETE,NULL);deleted=0;
+ priority_view.devices[1].power_w=9;dsr_mobile_update(&priority_view);CHECK(!deleted);
+ lv_obj_t *age=find_label(lv_screen_active(),"Urządzenia: 1 • online: 1");CHECK(age);lv_refr_now(display);
+ age_draws=0;lv_obj_add_event_cb(age,age_drawn,LV_EVENT_DRAW_MAIN,NULL);lv_tick_inc(35);lv_timer_handler();lv_refr_now(display);CHECK(!age_draws);
+ dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+}
+static void active_navigation(void)
+{
+ dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *bar=lv_obj_get_child(lv_screen_active(),-1),*home=NULL;CHECK(bar&&lv_obj_get_height(bar)==52);
+ for(unsigned i=0;i<lv_obj_get_child_count(bar);i++){lv_obj_t *b=lv_obj_get_child(bar,(int)i);if(lv_obj_get_width(b)==64&&lv_obj_get_height(b)==47&&lv_obj_get_x(b)==0)home=b;}
+ CHECK(home);deleted=0;lv_obj_add_event_cb(bar,view_deleted,LV_EVENT_DELETE,NULL);lv_obj_send_event(home,LV_EVENT_CLICKED,NULL);CHECK(!deleted&&dsr_mobile_page()==DSR_MOBILE_HOME);
+ dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+}
 static void target_sent(unsigned index,uint8_t half)
 {CHECK(index==0);sent++;target_half=half;dsr_mobile_trv_request_state(41,half,1,true);}
 static lv_obj_t *input_dial(lv_obj_t *o)
 {if(lv_obj_check_type(o,&lv_arc_class)&&lv_obj_has_flag(o,LV_OBJ_FLAG_ADV_HITTEST))return o;for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *a=input_dial(lv_obj_get_child(o,(int)i));if(a)return a;}return NULL;}
+static void electrical_refresh(void)
+{
+ const unsigned skins[]={0,2,3},families[]={DSR_ENDPOINT_SWITCH,DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB};
+ for(unsigned skin=0;skin<3;skin++)for(unsigned lang=0;lang<3;lang++)for(unsigned kind=0;kind<3;kind++){
+  dsr_sc_appearance(DSR_SC_BLUE,skins[skin],lang);
+  priority_view=(dsr_mobile_model_t){.wifi=true,.device_count=1};
+  dsr_mobile_device_t *d=&priority_view.devices[0];
+  *d=(dsr_mobile_device_t){.id=41,.name="Electrical refresh",.identity="electrical-fixture",.host="192.168.1.80",.generation=DSR_GEN2_PLUS,.endpoint_kind=families[kind],.kind=kind==2?DSR_DEVICE_RGB:kind==1?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY,.online=true,.output=true,.can_switch=true,.can_light=true,.has_sample_time=true,.has_power=true,.power_w=12.3,.has_voltage=true,.voltage_v=230.1,.has_current=true,.current_a=.123};
+  if(kind==1)d->light=(dsr_light_status_t){.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS,.brightness=50};
+  if(kind==2)d->rgb=(dsr_rgb_status_t){.flags=DSR_RGB_VALID,.brightness=50,.r=255,.g=64,.b=32};
+  dsr_mobile_update(&priority_view);dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_update_layout(lv_screen_active());
+  lv_obj_t *title=find_label(lv_screen_active(),kind==2?"Sterowanie RGB":kind==1?"Jasność":"Electrical refresh");CHECK(title);
+  lv_obj_add_event_cb(title,view_deleted,LV_EVENT_DELETE,NULL);deleted=0;
+  d->power_w=13.7;d->voltage_v=229.2;d->current_a=.321;dsr_mobile_update(&priority_view);
+  CHECK(!deleted&&find_label(lv_screen_active(),"13.7 W"));
+  if(kind!=2)CHECK(find_label(lv_screen_active(),"229.2 V"));
+  if(kind==1)CHECK(find_label(lv_screen_active(),"0.32 A"));
+  /* Safety changes still rebuild through the existing disabled/error view. */
+  d->online=false;d->error=DSR_AUTH_REQUIRED;dsr_mobile_update(&priority_view);CHECK(deleted);
+  dsr_mobile_hide();lv_obj_clean(lv_screen_active());
+ }
+}
 static void thermostat(void)
 {
  const unsigned skins[]={0,2,3};
@@ -41,6 +91,9 @@ static void thermostat(void)
   d->busy=d->command_pending=false;dsr_mobile_update(&priority_view);CHECK(!deleted&&!lv_obj_has_state(dial,LV_STATE_DISABLED));
   /* Authentication/identity changes keep the existing fail-closed path. */
   d->online=false;d->error=DSR_AUTH_REQUIRED;dsr_mobile_update(&priority_view);CHECK(deleted&&find_label(lv_screen_active(),"Błąd logowania"));
+  d->error=DSR_OFFLINE;d->command_phase=DSR_COMMAND_WRITE;dsr_mobile_update(&priority_view);
+  CHECK(find_label(lv_screen_active(),"Polecenie niepotwierdzone")&&!find_label(lv_screen_active(),"Brak odpowiedzi"));
+  d->command_phase=DSR_COMMAND_READBACK;dsr_mobile_update(&priority_view);CHECK(find_label(lv_screen_active(),"Odczyt niepotwierdzony"));
   dsr_mobile_hide();lv_obj_clean(lv_screen_active());
   CHECK(!dsr_mobile_visible_devices());
  }
@@ -84,7 +137,9 @@ static void network_priority(void)
  /* All three are overdue, but the ordinary cursor points to #1. Opening
   * #3 must choose it before unrelated background work. */
  dsr_network_device_control(3);CHECK(dsr_mobile_visible_devices()==4);lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.layout_id==3);
+ unsigned before_model_updates=model_updates;
  response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(model_updates-before_model_updates==1); /* completion + next read share one paint */
  CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.layout_id!=3); /* due background gets a turn */
  response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);
  if(in_flight){response=(dsr_event_t){.device=submitted.connection.device};response.device.online=response.device.has_switch=true;deliver(DSR_OK,DSR_WIFI_IDLE);}
@@ -97,6 +152,6 @@ static void network_priority(void)
 int main(int argc,char **argv)
 {
  CHECK(argc==2);output=argv[1];lv_init();display=lv_display_create(320,480);lv_display_set_color_format(display,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(display,draw_buffer,NULL,sizeof(draw_buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(display,flush);
- dsr_mobile_actions_t a={.set_trv=target_sent};dsr_mobile_bind(&a);thermostat();scheduling();network_priority();
+ dsr_mobile_actions_t a={.set_trv=target_sent};dsr_mobile_bind(&a);electrical_refresh();thermostat();unrelated_group_refresh();active_navigation();scheduling();network_priority();
  printf("PASS: %u focused priority/TRV UI checks, 3 skins x PL/EN/DE; radio and motor are not exercised\n",checks);lv_deinit();return 0;
 }

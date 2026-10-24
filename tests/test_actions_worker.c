@@ -49,16 +49,18 @@ char *dsr_workspace_snapshot(void)
 void dsr_http_urgent_hook(bool(*f)(void)){urgent=f;}
 dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t f){dsr_http_job_guard_t old=guard;guard=f;return old;}
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook){dsr_http_job_write_hook_t previous=write_hook;write_hook=hook;return previous;}
+static dsr_http_job_progress_hook_t progress_hook;
+dsr_http_job_progress_hook_t dsr_http_job_progress_hook(dsr_http_job_progress_hook_t hook){dsr_http_job_progress_hook_t previous=progress_hook;progress_hook=hook;return previous;}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on)
 {
  CHECK(guard&&c->device.endpoint_kind==DSR_ENDPOINT_SWITCH);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;
  if(mode==1)CHECK(dsr_actions_cancel(12345,run_id));
- if(mode==2){dsr_http_job_guard_t outer=guard;dsr_http_job_write_hook_t outer_write=write_hook;CHECK(dsr_worker_stop_request(&b,outer_id)==DSR_OK);CHECK(urgent&&urgent());CHECK(guard==outer&&write_hook==outer_write);}
+ if(mode==2){dsr_http_job_guard_t outer=guard;dsr_http_job_write_hook_t outer_write=write_hook;dsr_http_job_progress_hook_t outer_progress=progress_hook;CHECK(dsr_worker_stop_request(&b,outer_id)==DSR_OK);CHECK(urgent&&urgent());CHECK(guard==outer&&write_hook==outer_write&&progress_hook==outer_progress);}
  result=guard();if(result!=DSR_OK)return result;CHECK(write_hook);write_hook();posts++;c->device.output=on;c->device.online=true;return DSR_OK;
 }
 dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
 {
- if(intent.command==DSR_COVER_STOP){/* Manual innerSTOP must suspend outer actor cancellation. */if(mode==2)CHECK(!guard&&!write_hook);else if(guard){dsr_result_t result=guard();if(result!=DSR_OK)return result;}if(write_hook)write_hook();stops++;c->device.online=true;return DSR_OK;}
+ if(intent.command==DSR_COVER_STOP){/* Manual innerSTOP must suspend outer actor cancellation. */CHECK(!progress_hook);if(mode==2)CHECK(!guard&&!write_hook);else if(guard){dsr_result_t result=guard();if(result!=DSR_OK)return result;}if(write_hook)write_hook();stops++;c->device.online=true;return DSR_OK;}
  CHECK(guard);dsr_result_t result=guard();if(result!=DSR_OK)return result;http_gets++;result=guard();if(result==DSR_OK){CHECK(write_hook);write_hook();posts++;}return result;
 }
 static dsr_result_t typed_transaction(dsr_connection_t *c)
@@ -66,7 +68,7 @@ static dsr_result_t typed_transaction(dsr_connection_t *c)
  CHECK(guard&&write_hook&&c->layout_id==42);dsr_result_t r=guard();if(r!=DSR_OK)return r;http_gets++;
  if(mode==1)CHECK(dsr_actions_cancel(12345,run_id));
  if(mode==3)mapping=false;
- r=guard();if(r!=DSR_OK)return r;write_hook();posts++;return mode==4?DSR_OFFLINE:DSR_OK;
+ r=guard();if(r!=DSR_OK)return r;write_hook();CHECK(progress_hook);progress_hook(DSR_COMMAND_WRITE);posts++;if(mode==4)return DSR_OFFLINE;progress_hook(DSR_COMMAND_CONFIRMED);return DSR_OK;
 }
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent){CHECK(intent.command==DSR_LIGHT_SET_BRIGHTNESS&&intent.brightness==65);return typed_transaction(c);}
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent){CHECK(intent.command==DSR_TRV_SET_TARGET&&intent.half_c==43);return typed_transaction(c);}
@@ -124,7 +126,7 @@ int main(void)
  typed_config=true;const uint8_t families[]={DSR_ENDPOINT_LIGHT,DSR_ENDPOINT_RGB,DSR_ENDPOINT_BLU};const char *payloads[]={"\"command\":\"brightness\",\"value\":65","\"command\":\"rgb\",\"rgb\":[10,120,250]","\"command\":\"target\",\"value\":43"};
  for(unsigned f=0;f<4;f++)for(unsigned fault=0;fault<4;fault++){
   mode=fault==2?3:fault==3?4:fault;a.device.endpoint_kind=families[f<3?f:2];memset(&a.telemetry,0,sizeof(a.telemetry));if(!f)a.telemetry.light.flags=DSR_LIGHT_VALID|DSR_LIGHT_BRIGHTNESS;else if(f==1)a.telemetry.rgb.flags=DSR_RGB_VALID;else a.telemetry.blu.errors=DSR_BLU_TRV;
-  CHECK(dsr_actions_publish_begin(7,true));dsr_actions_publish_at(&a,true,false,DSR_OK,true);dsr_actions_publish_end();dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);char json[256];snprintf(json,sizeof(json),"{\"id\":1,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\",%s}",s.boot_id,s.admission_generation,100+f*4+fault,payloads[f<3?f:2]);if(f==3)snprintf(json,sizeof(json),"{\"id\":4,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\"}",s.boot_id,s.admission_generation,100+f*4+fault);CHECK(dsr_actions_request(json,f==3?1:0,1,&run_id)==DSR_OK);j=(dsr_job_t){.id=200+f*4+fault,.connection=a};CHECK(dsr_actions_prepare_job(&j,DSR_OK,true));unsigned before_posts=posts;CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);mapping=true;CHECK(posts==before_posts+(fault==0||fault==3));CHECK(e.result==(!fault?DSR_OK:fault==1?DSR_BUSY:fault==2?DSR_IDENTITY_MISMATCH:DSR_OFFLINE));CHECK(!dsr_actions_target());dsr_actions_snapshot(&s);CHECK(s.steps[0].outcome==(!fault?DSR_ACTION_SUCCESS:fault==2?DSR_ACTION_FAILED:DSR_ACTION_UNCERTAIN));idle_admission();
+  CHECK(dsr_actions_publish_begin(7,true));dsr_actions_publish_at(&a,true,false,DSR_OK,true);dsr_actions_publish_end();dsr_actions_snapshot_t s;dsr_actions_snapshot(&s);char json[256];snprintf(json,sizeof(json),"{\"id\":1,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\",%s}",s.boot_id,s.admission_generation,100+f*4+fault,payloads[f<3?f:2]);if(f==3)snprintf(json,sizeof(json),"{\"id\":4,\"revision\":7,\"boot_id\":%u,\"admission_generation\":%u,\"nonce\":\"%016x\"}",s.boot_id,s.admission_generation,100+f*4+fault);CHECK(dsr_actions_request(json,f==3?1:0,1,&run_id)==DSR_OK);j=(dsr_job_t){.id=200+f*4+fault,.connection=a};CHECK(dsr_actions_prepare_job(&j,DSR_OK,true));unsigned before_posts=posts;CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);mapping=true;CHECK(posts==before_posts+(fault==0||fault==3));CHECK(e.result==(!fault?DSR_OK:fault==1?DSR_BUSY:fault==2?DSR_IDENTITY_MISMATCH:DSR_OFFLINE));CHECK(e.command_phase==(!fault?DSR_COMMAND_CONFIRMED:fault==3?DSR_COMMAND_WRITE:DSR_COMMAND_NONE));CHECK(!dsr_actions_target());dsr_actions_snapshot(&s);CHECK(s.steps[0].outcome==(!fault?DSR_ACTION_SUCCESS:fault==2?DSR_ACTION_FAILED:DSR_ACTION_UNCERTAIN));idle_admission();
  }
  printf("PASS: %u actual actor/worker checks; typed Light/RGB/TRV guards, cancel before POST, rebind, uncertain no-retry, nested STOP and exact ACK/leases; HTTP transaction models, no radio\n",checks);return 0;
 }

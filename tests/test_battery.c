@@ -310,6 +310,8 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard){dsr_http_job
 
 static dsr_http_job_write_hook_t action_write_hook;
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook){dsr_http_job_write_hook_t previous=action_write_hook;action_write_hook=hook;return previous;}
+static dsr_http_job_progress_hook_t progress_hook;
+dsr_http_job_progress_hook_t dsr_http_job_progress_hook(dsr_http_job_progress_hook_t hook){dsr_http_job_progress_hook_t previous=progress_hook;progress_hook=hook;return previous;}
 
 void dsr_actions_worker_write_attempted(uint32_t id){(void)id;}
 

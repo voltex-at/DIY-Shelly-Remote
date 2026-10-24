@@ -8,6 +8,8 @@ int dsr_fleet_find(const dsr_fleet_t *f,const dsr_device_t *d)
 {for(size_t i=0;i<f->count;i++)if(dsr_endpoint_equal(&f->slots[i].connection.device,d))return (int)i;return -1;}
 static void discard(dsr_fleet_slot_t *s)
 {if(s->queued){s->queued=false;memset(&s->intent_identity,0,sizeof(s->intent_identity));dsr_activity_end();}}
+static bool control_job(dsr_job_kind_t kind)
+{return kind==DSR_JOB_SET_OUTPUT||kind==DSR_JOB_COVER||kind==DSR_JOB_LIGHT||kind==DSR_JOB_RGB||kind==DSR_JOB_TRV;}
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *f,const dsr_connection_t *c,uint32_t now)
 {
  if(!f||!dsr_connection_valid(c,true))return DSR_INVALID;
@@ -32,7 +34,7 @@ dsr_result_t dsr_fleet_request(dsr_fleet_t *f,unsigned index,bool on,bool wifi,u
  if(!s->connection.device.has_switch)return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
  s->queued=true;s->on=on;s->intent_identity=s->connection.device;s->intent_order=++f->order;
- s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *f,unsigned index,dsr_cover_intent_t intent,bool wifi,uint32_t now)
 {
@@ -45,7 +47,7 @@ dsr_result_t dsr_fleet_cover_request(dsr_fleet_t *f,unsigned index,dsr_cover_int
  if(s->blocked)return s->result;
  if(!dsr_cover_can_move(&s->connection.telemetry.cover,intent))return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->queued=true;s->cover=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->queued=true;s->cover=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 dsr_result_t dsr_fleet_light_request(dsr_fleet_t *f,unsigned index,dsr_light_intent_t intent,bool wifi,uint32_t now)
 {
@@ -58,7 +60,7 @@ dsr_result_t dsr_fleet_light_request(dsr_fleet_t *f,unsigned index,dsr_light_int
  if(s->blocked)return s->result;
  if(!dsr_light_can_set(&s->connection.telemetry.light,intent))return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->queued=true;s->light=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->queued=true;s->light=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *f,unsigned index,dsr_rgb_intent_t intent,bool wifi,uint32_t now)
 {
@@ -71,7 +73,7 @@ dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *f,unsigned index,dsr_rgb_intent_
  if(s->blocked)return s->result;
  if(!dsr_rgb_can_set(&s->connection.telemetry.rgb,intent))return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->queued=true;s->rgb=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->queued=true;s->rgb=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 dsr_result_t dsr_fleet_ht_refresh(dsr_fleet_t *f,unsigned index,bool wifi,uint32_t now)
 {
@@ -81,7 +83,7 @@ dsr_result_t dsr_fleet_ht_refresh(dsr_fleet_t *f,unsigned index,bool wifi,uint32
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi)return DSR_OFFLINE;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->blocked=false;s->queued=true;s->trv_followups=0;s->trv=(dsr_trv_intent_t){0};s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->blocked=false;s->queued=true;s->trv_followups=0;s->trv=(dsr_trv_intent_t){0};s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_t intent,bool wifi,uint32_t now)
 {
@@ -94,7 +96,7 @@ dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_
  if(s->blocked)return s->result;
  if(!(s->connection.telemetry.blu.errors&DSR_BLU_TRV))return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->queued=true;s->trv_followups=0;s->trv=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->queued=true;s->trv_followups=0;s->trv=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;s->command_phase=DSR_COMMAND_NONE;return DSR_OK;
 }
 void dsr_fleet_cancel_queued(dsr_fleet_t *f,unsigned index)
 {if(f&&index<f->count)discard(&f->slots[index]);}
@@ -141,7 +143,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
   dsr_fleet_slot_t *s=&f->slots[i];if(!s->queued||s->in_flight)continue;
   bool sensor=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind);
   if(!s->layout_enabled||(!sensor&&(now-s->sample_ms>15000||!s->connection.device.online))||!dsr_endpoint_equal(&s->connection.device,&s->intent_identity)||strcmp(s->connection.device.host,s->intent_identity.host)||s->blocked){
-   s->result=s->blocked?s->result:(!s->connection.device.online||now-s->sample_ms>15000)?DSR_OFFLINE:DSR_IDENTITY_MISMATCH;s->command_error=true;discard(s);continue;
+   s->result=s->blocked?s->result:(!s->connection.device.online||now-s->sample_ms>15000)?DSR_OFFLINE:DSR_IDENTITY_MISMATCH;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;discard(s);continue;
   }
   if(at<0||(int32_t)(s->intent_order-f->slots[at].intent_order)<0)at=(int)i;
  }
@@ -156,6 +158,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
+ if(control_job(job->kind))s->command_phase=DSR_COMMAND_NONE;
  if(job->kind==DSR_JOB_TRV){s->trv=job->trv;s->trv_followups=0;}
  if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||job->kind==DSR_JOB_TRV||(job->kind==DSR_JOB_PROBE&&DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)))discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
@@ -185,6 +188,8 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  /* A confirmed read ends the temporary login limit even when the 429 came
   * from a command. Keep other uncertain command failures until a new intent. */
  if(s->operation==DSR_JOB_PROBE&&result==DSR_OK&&event->device.online&&s->result==DSR_RATE_LIMITED){s->result=DSR_OK;s->command_error=false;}
+ if(control_job(s->operation))s->command_phase=result!=DSR_IDENTITY_MISMATCH&&event->command_phase<=DSR_COMMAND_CONFIRMED?event->command_phase:DSR_COMMAND_NONE;
+ else if(s->operation==DSR_JOB_PROBE&&(result!=DSR_OK||!s->command_error))s->command_phase=DSR_COMMAND_NONE;
  /* Wrong credentials or another device at this address need the user. A 429
   * is Shelly's temporary login limit: never retried quickly, never a silent
   * permanent stop (it used to block polling until a manual Refresh). */
@@ -205,11 +210,14 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
   if(s->trv_followups||(s->operation==DSR_JOB_TRV&&result==DSR_OK))delay=1000u;
  }
  if(result==DSR_RATE_LIMITED){uint32_t limited=DSR_FLEET_RATE_LIMIT_MS<<(s->failures>2?2:s->failures-1);if(limited>DSR_FLEET_RATE_LIMIT_MAX_MS)limited=DSR_FLEET_RATE_LIMIT_MAX_MS;if(delay<limited)delay=limited;}
+ /* One fresh observation after a possibly delivered write. The outcome is
+  * still uncertain; a failed GET resumes ordinary endpoint backoff. */
+ if(control_job(s->operation)&&result==DSR_OFFLINE&&s->command_phase>=DSR_COMMAND_WRITE)delay=1000u;
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}
  return true;
 }
 void dsr_fleet_wifi(dsr_fleet_t *f,bool online,uint32_t now)
-{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->connection.device.online=false;if(!online&&s->queued){discard(s);s->result=DSR_OFFLINE;s->command_error=true;}if(online)s->next_poll=now;}}
+{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->connection.device.online=false;if(!online&&s->queued){discard(s);s->result=DSR_OFFLINE;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;}if(online)s->next_poll=now;}}
 void dsr_fleet_refresh(dsr_fleet_t *f,uint32_t now)
 {for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->blocked=false;s->command_error=false;s->result=DSR_OK;s->failures=0;s->next_poll=now;}}

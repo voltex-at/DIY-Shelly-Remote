@@ -13,6 +13,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_attr.h"
+#include "esp_timer.h"
 #endif
 
 _Static_assert(sizeof(dsr_mobile_model_t)<=8192,"bounded shared mobile view model");
@@ -60,6 +61,8 @@ static bool light_drag;
 static uint32_t light_drag_id;
 static lv_obj_t *light_slider;
 static lv_obj_t *light_knob,*light_value,*wheel_knob,*rgb_text;
+/* Existing electrical labels on the visible detail page: W, V and A. */
+static lv_obj_t *detail_electrical[3];
 static bool lighting_page(void);
 static dsr_mobile_device_t *lighting_device(void);
 static bool lighting_selected(void);
@@ -112,7 +115,7 @@ static void update_sample_age(void)
  if(page==DSR_MOBILE_GROUP_CONTROL){
   if(selected>=model.group_count)return;
   unsigned total=0,online=0;for(unsigned i=0;i<model.device_count;i++)if(model.groups[selected].member_mask&(1u<<i)){total++;online+=model.devices[i].online&&model.devices[i].error==DSR_OK;}
-  char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),total,online);lv_label_set_text(sample_age,text);return;
+  char text[80];snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),total,online);if(strcmp(lv_label_get_text(sample_age),text))lv_label_set_text(sample_age,text);return;
  }
  if(selected>=model.device_count)return;
  const dsr_mobile_device_t *d=&model.devices[selected];char text[72];
@@ -152,7 +155,7 @@ uint16_t dsr_mobile_visible_devices(void)
  return mask;
 }
 static void end_preview(void){if(cover_preview){model=preview_saved;memset(&preview_saved,0,sizeof(preview_saved));cover_preview=false;}}
-void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
+void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;memset(detail_electrical,0,sizeof(detail_electrical));end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
 static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
@@ -196,6 +199,12 @@ static void edit_device(lv_event_t *event){(void)event;if(!cover_preview&&!model
 static const char *device_error(dsr_result_t result)
 {
  switch(result){case DSR_AUTH_REQUIRED:return "Błąd logowania";case DSR_OFFLINE:return "Brak odpowiedzi";case DSR_IDENTITY_MISMATCH:return "Zmieniona tożsamość";case DSR_RATE_LIMITED:return "Limit zapytań";case DSR_BAD_RESPONSE:return "Stan niepotwierdzony";case DSR_UNSUPPORTED:return "Nieobsługiwany kanał";case DSR_IO:return "Błąd pamięci";case DSR_INVALID:return "Nieprawidłowe dane";default:return "Błąd komunikacji";}
+}
+static const char *device_problem(const dsr_mobile_device_t *d)
+{
+ if(d->error==DSR_OFFLINE&&d->command_phase>=DSR_COMMAND_WRITE&&d->command_phase<=DSR_COMMAND_CONFIRMED)
+  return d->command_phase>=DSR_COMMAND_ACK?"Odczyt niepotwierdzony":"Polecenie niepotwierdzone";
+ return device_error(d->error);
 }
 static void control(lv_event_t *e)
 {
@@ -290,6 +299,7 @@ static void tabs(lv_obj_t *root)
 static void bottom_action(lv_event_t *event)
 {
  unsigned i=(unsigned)(uintptr_t)lv_event_get_user_data(event);
+ if((i==0&&page==DSR_MOBILE_HOME)||(i==1&&page==DSR_MOBILE_ROOMS))return;
  if(i==0)dsr_mobile_show(DSR_MOBILE_HOME,0);else if(i==1)dsr_mobile_show(DSR_MOBILE_ROOMS,0);
  else if(i==2&&actions.open_battery)actions.open_battery();
  else if(i==3&&actions.open_settings)actions.open_settings();else if(i==4){if((page==DSR_MOBILE_GROUPS||page==DSR_MOBILE_SCENES)&&actions.edit_action){actions.edit_action(page==DSR_MOBILE_SCENES,0);return;}if(page==DSR_MOBILE_ROOMS)add_room(NULL);else if(actions.add_device)actions.add_device();}
@@ -434,7 +444,7 @@ static const char *card_state(const dsr_mobile_device_t *d,unsigned fields)
  bool cover=d->kind==DSR_DEVICE_COVER,sensor=d->kind==DSR_DEVICE_CONTACT||d->kind==DSR_DEVICE_SENSOR;
  if(cover&&d->online&&d->error==DSR_OK&&!unbound(d))return d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Roleta";
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE&&cyber_blu(d)&&cyber_contact(d)&&(!cyber_blu_live(d)||!(d->blu.flags&DSR_BLU_HAS_OPEN))&&d->error==DSR_OK&&!unbound(d))return "Brak danych";
- return unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_error(d->error):!d->online?not_online(d):d->busy&&!(sensor&&d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
+ return unbound(d)?"Brak powiązania":d->error!=DSR_OK?device_problem(d):!d->online?not_online(d):d->busy&&!(sensor&&d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):sensor?(d->has_contact&&((fields&64)||d->endpoint_kind==DSR_ENDPOINT_BLU)?(d->contact_open?"Otwarte":"Zamknięte"):(d->blu.flags&DSR_BLU_HAS_MOTION)&&d->endpoint_kind==DSR_ENDPOINT_BLU?((d->blu.flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):"Online"):cover?"Roleta":d->output?"Włączone":"Wyłączone";
 }
 static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
 {
@@ -752,11 +762,11 @@ static void empty(const char *heading,const char *text)
     lv_obj_t *h=dsr_sc_text(content,heading,10,109,280,&dsr_roboto_18,DSR_SC_TEXT);center(h);
     lv_obj_t *s=dsr_sc_text(content,text,19,148,262,&dsr_roboto_14,DSR_SC_MUTED);center(s);
 }
-static void metric(lv_obj_t *root,const char *label,const char *value,int x)
+static lv_obj_t *metric(lv_obj_t *root,const char *label,const char *value,int x)
 {
     lv_obj_t *box=dsr_sc_panel(root,x,355,144,62,DSR_SC_CARD,9);
     center(dsr_sc_text(box,label,4,9,136,&dsr_roboto_12,DSR_SC_MUTED));
-    center(dsr_sc_text(box,value,4,31,136,&dsr_roboto_18,DSR_SC_TEXT));
+    lv_obj_t *number=dsr_sc_text(box,value,4,31,136,&dsr_roboto_18,DSR_SC_TEXT);center(number);return number;
 }
 static bool cover_position(const dsr_mobile_device_t *d)
 {return d->online&&d->error==DSR_OK&&d->has_position&&isfinite(d->position_pct)&&d->position_pct>=0&&d->position_pct<=100;}
@@ -879,7 +889,7 @@ static void ht_details(lv_obj_t *root)
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){
   bool fresh=d->online&&d->error==DSR_OK;
   dsr_sc_badge(root,fresh?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,fresh?"Online":"Offline",12,94,104,fresh?DSR_SC_GLOW:0xffc65b);
-  dsr_sc_badge(root,DSR_ICON_CONTACT,d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):fresh?"Odpowiedź odebrana":"Możliwe uśpienie",124,94,184,fresh?DSR_SC_TEXT:0xffc65b);
+  dsr_sc_badge(root,DSR_ICON_CONTACT,d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_problem(d):fresh?"Odpowiedź odebrana":"Możliwe uśpienie",124,94,184,fresh?DSR_SC_TEXT:0xffc65b);
   const dsr_ui_icon_t icons[]={DSR_ICON_THERMOSTAT,DSR_ICON_ILLUMINANCE};const char *names[]={"Temperatura","Wilgotność"};
   for(unsigned i=0;i<2;i++){
    lv_obj_t *card=dsr_sc_panel(root,12+(int)i*152,128,144,102,DSR_SC_CARD,10);dsr_sc_icon(card,icons[i],12,10,28,DSR_SC_GLOW);
@@ -897,7 +907,7 @@ static void ht_details(lv_obj_t *root)
  }
  lv_obj_t *panel=dsr_sc_panel(root,12,89,296,246,DSR_SC_CARD,10);
  dsr_sc_text(panel,"H&T Gen3 • tylko odczyt",12,10,272,&dsr_roboto_16,DSR_SC_TEXT);
- const char *state=d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_error(d->error):d->online?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie";
+ const char *state=d->busy?"Odczyt stanu…":d->error!=DSR_OK?device_problem(d):d->online?"Odpowiedź urządzenia odebrana":"Brak odpowiedzi • możliwe uśpienie";
  dsr_sc_text(panel,state,12,40,272,&dsr_roboto_12,DSR_SC_MUTED);
  if(d->has_temperature)snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"— °C");
  center(dsr_sc_text(panel,text,8,69,280,&dsr_roboto_28,DSR_SC_TEXT));
@@ -1065,7 +1075,7 @@ static void trv_details_view(lv_obj_t *root,const dsr_mobile_device_t *d,bool gr
  dsr_sc_icon(root,DSR_ICON_BATTERY,166,334,24,live&&d->has_battery?DSR_SC_BLUE:DSR_SC_OFF);
  trv_view.battery=dsr_sc_text(root,dsr_sc_user(text),192,338,116,&dsr_roboto_14,DSR_SC_MUTED);center(trv_view.battery);
  bool sending=trv_slot(d->id)>=0||(d->busy&&d->command_pending&&live);
- const char *state=!live&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):sending?"Wysyłanie do termostatu przez bramkę…":"";
+ const char *state=d->error==DSR_OFFLINE&&d->command_phase>=DSR_COMMAND_WRITE?device_problem(d):!live&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_problem(d):sending?"Wysyłanie do termostatu przez bramkę…":"";
  trv_view.status=dsr_sc_text(root,state,12,369,296,&dsr_roboto_12,d->error!=DSR_OK||!live?0xffc18c:DSR_SC_MUTED);center(trv_view.status);
  if(live&&(b->errors&DSR_BLU_TRV_FAULT))center(dsr_sc_text(root,"Termostat zgłasza błąd (np. brak kalibracji)",12,391,296,&dsr_roboto_12,0xffc18c));
  else{sample_age=dsr_sc_text(root,"",12,404,296,&dsr_roboto_11,DSR_SC_MUTED);center(sample_age);update_sample_age();}
@@ -1167,7 +1177,7 @@ static void cyber_blu_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  int gateway_y=panel_height+8;
  lv_obj_t *gateway=dsr_sc_panel(content,0,gateway_y,304,68,DSR_SC_CARD,10);dsr_sc_icon(gateway,d->online&&d->error==DSR_OK?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,10,16,32,DSR_SC_BLUE);dsr_sc_panel(gateway,48,10,1,48,DSR_SC_EDGE,0);
  dsr_sc_text(gateway,"Shelly BLU • przez bramkę",58,5,234,&dsr_roboto_14,DSR_SC_TEXT);
- const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):(b->errors&DSR_BLU_ERROR_MASK)?((b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome"):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
+ const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_problem(d):(b->errors&DSR_BLU_ERROR_MASK)?((b->errors&(DSR_BLU_ERROR_KEY|DSR_BLU_ERROR_DECRYPT))?"Bramka: brak lub błędny klucz szyfrowania":"Bramka: błąd danych BTHome"):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
  label=dsr_sc_text(gateway,state,58,25,234,&dsr_roboto_12,d->online&&d->error==DSR_OK&&!(b->errors&DSR_BLU_ERROR_MASK)?0x00cfff:0xffb52e);lv_obj_update_layout(label);
  int age_y=25+lv_obj_get_height(label)+4;
  sample_age=dsr_sc_text(gateway,"",58,age_y,234,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();lv_obj_update_layout(sample_age);
@@ -1187,7 +1197,7 @@ static void blu_details(lv_obj_t *root)
  if(hud){gateway=dsr_sc_panel(root,12,304,296,70,DSR_SC_CARD,10);lv_obj_add_flag(gateway,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(gateway,LV_DIR_VER);dsr_sc_scrollbar(gateway);lv_obj_set_flex_flow(gateway,LV_FLEX_FLOW_COLUMN);lv_obj_set_style_pad_hor(gateway,10,0);lv_obj_set_style_pad_ver(gateway,6,0);lv_obj_set_style_pad_row(gateway,4,0);}
  dsr_sc_text(gateway,"Shelly BLU • przez bramkę",12,hud?6:10,272,hud?&dsr_roboto_12:&dsr_roboto_16,DSR_SC_TEXT);
  /* Background polls keep the last values; only a reading with nothing current says so. */
- const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_error(d->error):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
+ const char *state=d->busy&&!d->online?"Odczyt stanu…":!d->online&&(d->error==DSR_OK||d->error==DSR_OFFLINE)?"Bramka nie odpowiada":d->error!=DSR_OK?device_problem(d):d->online?"Odczyt z bramki odebrany":"Bramka nie odpowiada";
  dsr_sc_text(gateway,state,12,hud?24:40,272,&dsr_roboto_12,DSR_SC_MUTED);
  bool live=d->online;
  const char *main_text=!live?"—":(b->flags&DSR_BLU_HAS_OPEN)?((b->flags&DSR_BLU_OPEN)?"Otwarte":"Zamknięte"):(b->flags&DSR_BLU_HAS_MOTION)?((b->flags&DSR_BLU_MOTION)?"Ruch wykryty":"Brak ruchu"):NULL;
@@ -1240,10 +1250,10 @@ static void relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
     if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){cyber_relay_details(root,d);return;}
     lv_obj_t *panel=dsr_sc_panel(root,12,89,296,256,DSR_SC_CARD,10);
     dsr_sc_text(panel,"Główne sterowanie",13,12,270,&dsr_roboto_16,DSR_SC_TEXT);
-    const char *status=group?group_relay_status(d):unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
+    const char *status=group?group_relay_status(d):unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_problem(d):!d->online?"Offline • stan niepotwierdzony":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone • Online":"Wyłączone • Online";
     center(dsr_sc_text(panel,status,8,41,280,&dsr_roboto_12,d->error!=DSR_OK?0xffc18c:d->online?DSR_SC_TEXT:DSR_SC_MUTED));
     char power[40];if(d->online&&d->error==DSR_OK&&d->has_power&&!d->busy)snprintf(power,sizeof(power),"%.1f W",d->power_w);else snprintf(power,sizeof(power),"—");
-    center(dsr_sc_text(panel,power,8,70,280,&dsr_roboto_28,DSR_SC_TEXT));
+    detail_electrical[0]=dsr_sc_text(panel,power,8,70,280,&dsr_roboto_28,DSR_SC_TEXT);center(detail_electrical[0]);
     center(dsr_sc_text(panel,d->has_power?"Moc chwilowa":"Pomiar mocy niedostępny",8,103,280,&dsr_roboto_12,DSR_SC_MUTED));
     if(group)dsr_sc_power_button(panel,105,130,86,d->output,d->online&&group_ready(group_state(selected)),DSR_ICON_POWER,DSR_SC_GLOW,group_power,(void *)(uintptr_t)selected);else power_button(panel,selected,105,130,86);
     if(actions.refresh){lv_obj_t *button=dsr_sc_button(panel,202,148,82,48,DSR_SC_PANEL,10,refresh,NULL);lv_obj_t *label=dsr_sc_text(button,"Odśwież stan",4,8,74,&dsr_roboto_12,DSR_SC_TEXT);center(label);if(d->busy||!d->can_refresh)lv_obj_add_state(button,LV_STATE_DISABLED);}
@@ -1252,7 +1262,7 @@ static void relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
     char voltage[32],current[32];
     if(d->online&&d->error==DSR_OK&&d->has_voltage)snprintf(voltage,sizeof(voltage),"%.1f V",d->voltage_v);else snprintf(voltage,sizeof(voltage),"—");
     if(d->online&&d->error==DSR_OK&&d->has_current)snprintf(current,sizeof(current),"%.3f A",d->current_a);else snprintf(current,sizeof(current),"—");
-    metric(root,"Napięcie",voltage,12);metric(root,"Natężenie",current,164);
+    detail_electrical[1]=metric(root,"Napięcie",voltage,12);detail_electrical[2]=metric(root,"Natężenie",current,164);
 }
 static void open_device_settings(lv_event_t *event)
 {(void)event;if(selected<model.device_count&&actions.device_settings)actions.device_settings(model.devices[selected].id);}
@@ -1265,7 +1275,7 @@ static void device_settings(lv_obj_t *root)
  lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
  lv_obj_t *identity=dsr_sc_panel(content,0,0,296,174,DSR_SC_CARD,14);
  dsr_sc_icon(identity,DSR_ICON_INFO,12,13,24,DSR_SC_BLUE);dsr_sc_text(identity,dsr_sc_name(d->name),48,17,236,&dsr_roboto_16,DSR_SC_TEXT);
- dsr_sc_text(identity,unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->online?"Online":not_online(d),12,44,272,&dsr_roboto_14,d->online&&d->error==DSR_OK?DSR_SC_BLUE:DSR_SC_MUTED);
+ dsr_sc_text(identity,unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_problem(d):d->online?"Online":not_online(d),12,44,272,&dsr_roboto_14,d->online&&d->error==DSR_OK?DSR_SC_BLUE:DSR_SC_MUTED);
  lv_obj_t *model_name=dsr_sc_text(identity,d->model[0]?d->model:"Model nieodczytany",12,68,272,&dsr_roboto_14,DSR_SC_MUTED);truncate(model_name,20);
  snprintf(text,sizeof(text),dsr_sc_tr("Adres karty: %s • kanał %u"),d->host[0]?d->host:"—",d->channel);dsr_sc_text(identity,text,12,110,272,&dsr_roboto_12,DSR_SC_TEXT);
  snprintf(text,sizeof(text),d->fw[0]?dsr_sc_tr("Firmware: %s"):"%s",d->fw[0]?d->fw:dsr_sc_tr("Firmware nieodczytany"));dsr_sc_text(identity,text,12,90,272,&dsr_roboto_12,DSR_SC_MUTED);
@@ -1298,7 +1308,11 @@ static void render(void)
 {
     if(!active)return;
     if(dsr_board_display_sleeping()){wake_repaint=true;return;}
+#ifdef ESP_PLATFORM
+    int64_t began=esp_timer_get_time();
+#endif
     wake_repaint=false;
+    memset(detail_electrical,0,sizeof(detail_electrical));
     cover_view_reset();
     memset(&trv_view,0,sizeof(trv_view));
     trv_dial.dragging=false;trv_dial.label=trv_dial.knob=trv_dial.caption=trv_dial.arc=NULL;rgb_dirty=false;rgb_swatch=rgb_apply_button=NULL;memset(rgb_values,0,sizeof(rgb_values));cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;int scroll=content?lv_obj_get_scroll_y(content):0;
@@ -1350,6 +1364,10 @@ static void render(void)
     rendered_language=dsr_sc_language();rendered_style=dsr_sc_style();
     /* A horizontal metrics drag must never displace the whole screen. */
     lv_obj_update_layout(root);lv_obj_scroll_to(root,0,0,LV_ANIM_OFF);
+#ifdef ESP_PLATFORM
+    int64_t elapsed=esp_timer_get_time()-began;static int64_t last_report;
+    if(elapsed>50000&&began-last_report>5000000){last_report=began;ESP_LOGW("dsr_ui","Slow view build: page=%u ms=%lu",(unsigned)page,(unsigned long)(elapsed/1000));}
+#endif
 }
 void dsr_mobile_show(dsr_mobile_page_t p,unsigned index)
 {
@@ -1394,6 +1412,22 @@ static bool electrical_only(const dsr_mobile_device_t *a,const dsr_mobile_device
  if(a->kind==DSR_DEVICE_SENSOR||a->kind==DSR_DEVICE_CONTACT||a->kind==DSR_DEVICE_COVER)return false;
  const size_t first=offsetof(dsr_mobile_device_t,power_w),after=offsetof(dsr_mobile_device_t,id),end=offsetof(dsr_mobile_device_t,energy_wh);
  return !memcmp(a,b,first)&&!memcmp((const char *)a+after,(const char *)b+after,end-after);
+}
+static bool refresh_electrical_details(const dsr_mobile_model_t *m)
+{
+ if(page!=DSR_MOBILE_DETAILS||selected>=model.device_count||rgb_color_view||!detail_electrical[0])return false;
+ const dsr_mobile_device_t *old=&model.devices[selected],*next=&m->devices[selected];
+ if(!next->online||next->error!=DSR_OK||next->busy||!electrical_only(old,next))return false;
+ bool present[]={next->has_power,next->has_voltage,next->has_current};
+ double values[]={next->power_w,next->voltage_v,next->current_a};
+ const char *units[]={"W","V","A"};
+ for(unsigned i=0;i<3;i++)if(detail_electrical[i]){
+  char text[40];
+  if(present[i]&&isfinite(values[i]))snprintf(text,sizeof(text),i==2?(next->endpoint_kind==DSR_ENDPOINT_LIGHT?"%.2f %s":"%.3f %s"):"%.1f %s",values[i],units[i]);
+  else snprintf(text,sizeof(text),dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE||next->endpoint_kind==DSR_ENDPOINT_LIGHT||next->endpoint_kind==DSR_ENDPOINT_RGB?"— %s":"—",units[i]);
+  if(strcmp(lv_label_get_text(detail_electrical[i]),text))lv_label_set_text(detail_electrical[i],text);
+ }
+ model=*m;update_sample_age();return true;
 }
 static bool update_electrical(placed_card_t *c,const dsr_mobile_device_t *d)
 {
@@ -1534,10 +1568,16 @@ void dsr_mobile_update(const dsr_mobile_model_t *m)
     const size_t structure=offsetof(dsr_mobile_model_t,rooms);
     if(stable&&memcmp((const char *)m+structure,(const char *)&model+structure,sizeof(model)-structure))stable=false;
     for(unsigned i=0;stable&&i<m->device_count;i++)if(m->devices[i].id!=model.devices[i].id||m->devices[i].generation!=model.devices[i].generation||m->devices[i].endpoint_kind!=model.devices[i].endpoint_kind||m->devices[i].channel!=model.devices[i].channel||strcmp(m->devices[i].identity,model.devices[i].identity)||strcmp(m->devices[i].host,model.devices[i].host))stable=false;
+    if(active&&!wake_repaint&&stable&&page==DSR_MOBILE_GROUP_CONTROL&&selected<model.group_count&&m->wifi==model.wifi&&m->demo==model.demo){
+     bool unchanged=true;uint16_t members=model.groups[selected].member_mask;
+     for(unsigned i=0;i<model.device_count;i++)if((members&(1u<<i))&&memcmp(&model.devices[i],&m->devices[i],sizeof(model.devices[i])))unchanged=false;
+     if(unchanged){model=*m;update_sample_age();return;}
+    }
     if(active&&stable&&pointer_busy()&&!cancel_group_drag){preview_saved=*m;repaint_pending=true;return;}
     repaint_pending=false;
     if(active&&!wake_repaint&&stable&&refresh_cover_details(m))return;
     if(active&&!wake_repaint&&stable&&refresh_trv_details(m))return;
+    if(active&&!wake_repaint&&stable&&refresh_electrical_details(m))return;
     if(active&&!wake_repaint&&refresh_cards(m))return;
     model=*m;
 #ifndef DSR_UI_REVIEW_DEMO

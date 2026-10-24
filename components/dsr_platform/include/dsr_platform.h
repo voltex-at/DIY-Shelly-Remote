@@ -97,6 +97,10 @@ dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t guard);
  * never ACK/success; sole worker must suspend/restore it around inner STOP. */
 typedef void (*dsr_http_job_write_hook_t)(void);
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t hook);
+/* Transient observation owned by the sole worker, never a success result. */
+typedef enum {DSR_COMMAND_NONE,DSR_COMMAND_WRITE,DSR_COMMAND_ACK,DSR_COMMAND_READBACK,DSR_COMMAND_CONFIRMED} dsr_command_phase_t;
+typedef void (*dsr_http_job_progress_hook_t)(dsr_command_phase_t phase);
+dsr_http_job_progress_hook_t dsr_http_job_progress_hook(dsr_http_job_progress_hook_t hook);
 
 typedef enum { DSR_JOB_PROBE, DSR_JOB_SET_OUTPUT, DSR_JOB_BIND, DSR_JOB_WIFI_SCAN, DSR_JOB_WIFI_CONNECT,DSR_JOB_BATTERY_READ, DSR_JOB_DISPLAY_SAVE, DSR_JOB_LAYOUT_PUBLISH, DSR_JOB_UNBIND, DSR_JOB_AP_SCAN, DSR_JOB_AP_INSPECT, DSR_JOB_AP_PROVISION, DSR_JOB_AP_RESTORE, DSR_JOB_AP_VERIFY,DSR_JOB_OTA_CHECK,DSR_JOB_OTA_INSTALL,DSR_JOB_LAN_STA_VERIFY,DSR_JOB_RESERVED_17,DSR_JOB_RESERVED_18,DSR_JOB_COVER,DSR_JOB_PAIRING_REVOKE,DSR_JOB_LIGHT,DSR_JOB_RGB, DSR_JOB_TRV, DSR_JOB_DEVICE_SETTINGS, DSR_JOB_BATTERY_PROFILE_LOAD, DSR_JOB_BATTERY_PROFILE_SAVE, DSR_JOB_TRV_READ } dsr_job_kind_t;
 typedef struct {
@@ -117,7 +121,7 @@ typedef struct {
     dsr_telemetry_t telemetry;
     union {dsr_wifi_scan_t scan;dsr_ap_identity_t ap_identity;dsr_device_info_t info;dsr_battery_profile_t battery_profile;}; dsr_wifi_status_t wifi_detail;
     dsr_battery_sample_t battery;
-    uint8_t brightness; uint16_t idle_seconds;
+    uint8_t brightness,command_phase; uint16_t idle_seconds;
 } dsr_event_t;
 _Static_assert(sizeof(dsr_event_t)==1192,"Light retains the existing event footprint");
 typedef enum {DSR_BIND_VERIFY,DSR_BIND_WORKSPACE,DSR_BIND_PRIVATE} dsr_bind_stage_t;

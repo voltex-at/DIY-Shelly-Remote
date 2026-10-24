@@ -17,6 +17,20 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#include "esp_timer.h"
+/* Distinguish object construction from software drawing/DMA wait on target.
+ * Slow reports are bounded; no per-frame logs or private screen contents. */
+static void refresh_timing(lv_event_t *event)
+{
+ static int64_t began,last_report;
+ int64_t now=esp_timer_get_time();
+ if(lv_event_get_code(event)==LV_EVENT_REFR_START){began=now;return;}
+ if(began&&now-began>50000&&now-last_report>5000000){last_report=now;ESP_LOGW("dsr_ui","Slow display refresh: %lu ms",(unsigned long)((now-began)/1000));}
+ began=0;
+}
+#endif
 
 static lv_obj_t *touch_status;
 static unsigned touches;
@@ -545,5 +559,10 @@ void dsr_ui_init(void)
     dsr_ui_provision_release(); /* first-format screen, if it was shown */
     dsr_ui_splash_release();    /* boot splash, before any screen clean */
     dsr_ui_apply_theme();
+#ifdef ESP_PLATFORM
+    static lv_display_t *measured;
+    lv_display_t *display=lv_display_get_default();
+    if(display&&measured!=display){lv_display_add_event_cb(display,refresh_timing,LV_EVENT_REFR_START,NULL);lv_display_add_event_cb(display,refresh_timing,LV_EVENT_REFR_READY,NULL);measured=display;}
+#endif
     dsr_network_init();dsr_network_start_view();
 }

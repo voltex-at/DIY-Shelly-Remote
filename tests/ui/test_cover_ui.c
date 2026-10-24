@@ -55,6 +55,22 @@ int main(int argc,char **argv)
  lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&job_counts[DSR_JOB_COVER]==movements);
  cover_response(DSR_COVER_STATE_OPENING,55,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 55%"));
  lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,67,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);CHECK(find_label(lv_screen_active(),"Pozycja 67%")&&job_counts[DSR_JOB_COVER]==movements);screenshot("257-cover-lost-readback-recovered");
+ /* STOP has its own result, not the previous movement's readback phase.
+  * A STOP identity/preflight timeout cannot borrow a prior confirmed write. */
+ click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);
+ response=(dsr_event_t){.device=submitted.connection.device,.command_phase=DSR_COMMAND_CONFIRMED,.telemetry={.cover={.state=DSR_COVER_STATE_STOPPED,.current_pos=67,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL}}};response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(dsr_network_typed_device(id,&typed)&&typed.command_phase==DSR_COMMAND_CONFIRMED);
+ click("Stop");tick();CHECK(stop_pending&&!in_flight);stop_result.result=DSR_OFFLINE;stop_result.device.online=false;stop_ready=true;tick();
+ CHECK(dsr_network_typed_device(id,&typed)&&typed.command_phase==DSR_COMMAND_NONE);
+ CHECK(find_label(lv_screen_active(),"Brak odpowiedzi")&&!find_label(lv_screen_active(),"Odczyt niepotwierdzony"));
+ lv_tick_inc(1000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,67,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);
+ /* A new movement rejected before worker admission is not a lost readback. */
+ click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER);
+ response=(dsr_event_t){.device=submitted.connection.device,.command_phase=DSR_COMMAND_CONFIRMED,.telemetry={.cover={.state=DSR_COVER_STATE_STOPPED,.current_pos=67,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL}}};response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(dsr_network_typed_device(id,&typed)&&typed.command_phase==DSR_COMMAND_CONFIRMED);
+ movements=job_counts[DSR_JOB_COVER];click("Otwórz");wifi.connected=false;tick();
+ CHECK(!in_flight&&job_counts[DSR_JOB_COVER]==movements&&dsr_network_typed_device(id,&typed)&&typed.command_phase==DSR_COMMAND_NONE);
+ wifi.connected=true;tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE);cover_response(DSR_COVER_STATE_STOPPED,67,DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL,0);
  /* Auth errors and invalid position cannot move; STOP can stop a known
   * device while calibrating, without any calibration command in this UI. */
  click("Otwórz");tick();CHECK(in_flight&&submitted.kind==DSR_JOB_COVER&&submitted.cover.command==DSR_COVER_OPEN);cover_response(DSR_COVER_STATE_CALIBRATING,0,DSR_COVER_VALID,0);before=test_cover_requests();click("Zamknij");CHECK(test_cover_requests()==before);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));screenshot("253-cover-calibration-gates");

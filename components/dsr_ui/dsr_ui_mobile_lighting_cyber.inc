@@ -44,7 +44,7 @@ static const char *lighting_light_problem(const dsr_mobile_device_t *d)
 {
  const char *group=group_display_state(d);if(group)return group;
  bool live=d->online&&d->error==DSR_OK,blocked=!(d->endpoint_kind==DSR_ENDPOINT_RGB&&rgb_color_view?d->can_rgb:d->can_light);
- return unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!live?"Brak aktualnego odczytu":d->busy?"Wysyłanie polecenia…":blocked?(d->endpoint_kind==DSR_ENDPOINT_LIGHT&&(d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":"Sterowanie zablokowane"):NULL;
+ return unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_problem(d):!live?"Brak aktualnego odczytu":d->busy?"Wysyłanie polecenia…":blocked?(d->endpoint_kind==DSR_ENDPOINT_LIGHT&&(d->light.conditions||d->light.errors)?"Sterowanie światłem zablokowane":"Sterowanie zablokowane"):NULL;
 }
 /* Problems replace the confirmation age on the last line, in amber. */
 static void lighting_light_footer(lv_obj_t *root,const dsr_mobile_device_t *d,int y)
@@ -64,6 +64,7 @@ static void lighting_light_metrics(lv_obj_t *root,const dsr_mobile_device_t *d)
   center(dsr_sc_text(box,names[i],6,3,84,&dsr_roboto_11,DSR_SC_MUTED));
   if(readable&&present[i]&&isfinite(values[i]))snprintf(text,sizeof(text),i==2?"%.2f %s":"%.1f %s",values[i],units[i]);else snprintf(text,sizeof(text),"— %s",units[i]);
   lv_obj_t *value=dsr_sc_text(box,dsr_sc_user(text),6,17,84,&dsr_roboto_14,DSR_SC_TEXT);center(value);
+  detail_electrical[i]=value;
  }
 }
 static void lighting_light_step(lv_event_t *event)
@@ -238,7 +239,7 @@ static void lighting_rgb_main(lv_obj_t *root,const dsr_mobile_device_t *d)
  dsr_sc_text(panel,"RGB",10,132,70,&dsr_roboto_12,DSR_SC_MUTED);rgb_text=dsr_sc_text(panel,"",10,149,76,&dsr_roboto_12,DSR_SC_TEXT);
  lv_obj_t *label=dsr_sc_text(panel,"Moc",214,132,72,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);
  if(live&&d->has_power&&isfinite(d->power_w))snprintf(text,sizeof(text),"%.1f W",d->power_w);else snprintf(text,sizeof(text),"— W");
- label=dsr_sc_text(panel,dsr_sc_user(text),204,147,82,&dsr_roboto_18,DSR_SC_TEXT);lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);truncate(label,22);
+ label=dsr_sc_text(panel,dsr_sc_user(text),204,147,82,&dsr_roboto_18,DSR_SC_TEXT);detail_electrical[0]=label;lv_obj_set_style_text_align(label,LV_TEXT_ALIGN_RIGHT,0);truncate(label,22);
  rgb_preview();lighting_wheel_show();
  lv_obj_t *level=lighting_box(root,12,274,296,42);dsr_sc_icon(level,DSR_ICON_LIGHT,10,5,16,lighting_accent());
  dsr_sc_text(level,"Jasność",32,6,160,&dsr_roboto_12,DSR_SC_TEXT);

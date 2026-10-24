@@ -7,14 +7,14 @@ static void cyber_relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
  bool valid=d->online&&d->error==DSR_OK&&!unbound(d)&&(group?group_state(selected).power_known:d->has_sample_time);
  bool online=d->online&&d->error==DSR_OK&&!unbound(d);
  dsr_sc_badge(root,online?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,online?"Online":"Offline",8,94,106,online?DSR_SC_GLOW:0xffc65b);
- const char *status=group?group_relay_status(d):unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):!d->online?"Brak aktualnego odczytu":!valid?"Brak potwierdzonego odczytu":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone":"Wyłączone";
+ const char *status=group?group_relay_status(d):unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_problem(d):!d->online?"Brak aktualnego odczytu":!valid?"Brak potwierdzonego odczytu":d->busy?(d->command_pending?"Wysyłanie polecenia…":"Odczyt stanu…"):d->output?"Włączone":"Wyłączone";
  dsr_sc_badge(root,valid?DSR_ICON_POWER:DSR_ICON_WARNING,status,122,94,190,valid?DSR_SC_TEXT:0xffc65b);
  lv_obj_t *panel=dsr_sc_panel(root,8,130,304,192,DSR_SC_CARD,12);edge(panel,0x00cfff,1);
  lv_obj_t *power=dsr_sc_panel(panel,8,8,288,70,DSR_SC_PANEL,8);edge(power,0x00cfff,1);
  dsr_sc_icon(power,DSR_ICON_WATTAGE,12,9,24,DSR_SC_GLOW);
  dsr_sc_text(power,"Moc chwilowa",44,8,230,&dsr_roboto_14,DSR_SC_MUTED);
  char text[40];if(valid&&d->has_power&&isfinite(d->power_w))snprintf(text,sizeof(text),"%.1f W",d->power_w);else snprintf(text,sizeof(text),"— W");
- center(dsr_sc_text(power,text,8,31,270,&dsr_roboto_28,DSR_SC_TEXT));
+ detail_electrical[0]=dsr_sc_text(power,text,8,31,270,&dsr_roboto_28,DSR_SC_TEXT);center(detail_electrical[0]);
  bool enabled=group?d->online&&group_ready(group_state(selected)):valid&&!d->busy&&d->can_switch&&(model.demo||actions.set_output);
  dsr_sc_power_button(root,117,220,86,d->output,enabled,DSR_ICON_POWER,DSR_SC_BLUE,group?group_power:control,(void *)(uintptr_t)selected);
  lv_obj_t *update=dsr_sc_button(root,217,231,84,64,DSR_SC_PANEL,10,refresh,NULL);edge(update,0x00cfff,1);
@@ -28,7 +28,7 @@ static void cyber_relay_details(lv_obj_t *root,const dsr_mobile_device_t *d)
   lv_obj_t *card=dsr_sc_panel(root,i?164:8,364,148,48,DSR_SC_CARD,9);edge(card,0x00cfff,1);
   dsr_sc_icon(card,icons[i],10,4,18,DSR_SC_GLOW);dsr_sc_text(card,labels[i],34,5,108,&dsr_roboto_12,DSR_SC_MUTED);
   if(valid&&(i?d->has_current:d->has_voltage)&&isfinite(i?d->current_a:d->voltage_v))snprintf(text,sizeof(text),i?"%.3f A":"%.1f V",i?d->current_a:d->voltage_v);else snprintf(text,sizeof(text),i?"— A":"— V");
-  center(dsr_sc_text(card,text,4,20,138,&dsr_roboto_18,DSR_SC_TEXT));
+  detail_electrical[i+1]=dsr_sc_text(card,text,4,20,138,&dsr_roboto_18,DSR_SC_TEXT);center(detail_electrical[i+1]);
  }
 }
 static void cyber_overview_row(lv_obj_t *panel,dsr_ui_icon_t icon,const char *label,const char *value,int y,int height,bool wrap)
@@ -46,7 +46,7 @@ static void cyber_action_caption(lv_obj_t *button,const char *text)
 }
 static void cyber_device_settings(lv_obj_t *root,const dsr_mobile_device_t *d)
 {
- const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_error(d->error):d->busy?"Odczyt stanu…":d->online?"Online":not_online(d);
+ const char *state=unbound(d)?"Brak powiązania • dodaj ponownie":d->error!=DSR_OK?device_problem(d):d->busy?"Odczyt stanu…":d->online?"Online":not_online(d);
  bool online=d->online&&d->error==DSR_OK&&!unbound(d);bool extra=strcmp(state,"Online")!=0;int shift=extra?24:0;
  content=dsr_sc_panel(root,8,94,304,256,DSR_SC_BG,0);lv_obj_set_style_bg_opa(content,LV_OPA_TRANSP,0);lv_obj_add_flag(content,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);lv_obj_set_scroll_dir(content,LV_DIR_VER);dsr_sc_scrollbar(content);
  lv_obj_t *panel=dsr_sc_panel(content,0,0,304,256+shift,DSR_SC_CARD,12);edge(panel,0x00cfff,1);

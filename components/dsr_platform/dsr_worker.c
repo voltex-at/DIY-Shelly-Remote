@@ -16,6 +16,8 @@
 #include <string.h>
 
 static QueueHandle_t jobs, events;
+static dsr_command_phase_t observed_command_phase;
+static void observe_command(dsr_command_phase_t phase){observed_command_phase=phase;}
 bool dsr_device_settings_admitted(const dsr_job_t *job);
 void dsr_device_settings_execute(const dsr_job_t *job,dsr_event_t *event);
 #ifndef ESP_PLATFORM
@@ -92,6 +94,7 @@ static bool run_stop(void)
  dsr_http_urgent_hook(NULL);
  dsr_http_job_guard_t previous_guard=dsr_http_job_guard(NULL);
  dsr_http_job_write_hook_t previous_write=dsr_http_job_write_hook(NULL);
+ dsr_http_job_progress_hook_t previous_progress=dsr_http_job_progress_hook(NULL);
 #ifdef DSR_BOARD_ES3C35P
  const dsr_connection_t *previous_connection=actor_connection;uint32_t previous_job=actor_job;
  if(urgent_stop.actor){actor_connection=&urgent_stop.connection;actor_job=urgent_stop.result.operation_id;(void)dsr_http_job_guard(actor_guard);(void)dsr_http_job_write_hook(actor_write);}
@@ -100,6 +103,7 @@ static bool run_stop(void)
  dsr_http_urgent_hook(run_stop);
  (void)dsr_http_job_guard(previous_guard);
  (void)dsr_http_job_write_hook(previous_write);
+ (void)dsr_http_job_progress_hook(previous_progress);
 #ifdef DSR_BOARD_ES3C35P
  actor_connection=previous_connection;actor_job=previous_job;
 #endif
@@ -187,7 +191,12 @@ static void network_task(void *arg)
             dsr_http_job_guard_t previous_guard=NULL;dsr_http_job_write_hook_t previous_write=NULL;bool owned=dsr_actions_job_owned(job.id)||dsr_automation_job_owned(job.id);
             if(owned){actor_connection=&job.connection;actor_job=job.id;previous_guard=dsr_http_job_guard(actor_guard);previous_write=dsr_http_job_write_hook(actor_write);}
 #endif
+            observed_command_phase=DSR_COMMAND_NONE;
+            dsr_http_job_progress_hook_t previous_progress=dsr_http_job_progress_hook(observe_command);
             event.result = job.kind == DSR_JOB_PROBE ? dsr_http_refresh_info(&job.connection,&event.info) :job.kind==DSR_JOB_TRV_READ?dsr_http_trv_read(&job.connection):job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
+            event.command_phase=(uint8_t)observed_command_phase;
+            (void)dsr_http_job_progress_hook(previous_progress);
+            if(job.kind!=DSR_JOB_PROBE&&job.kind!=DSR_JOB_TRV_READ)ESP_LOGI("dsr_network","Control job=%lu layout=%lu kind=%u phase=%u result=%d",(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)job.kind,(unsigned)event.command_phase,(int)event.result);
 #ifdef DSR_BOARD_ES3C35P
             if(owned){(void)dsr_http_job_guard(previous_guard);(void)dsr_http_job_write_hook(previous_write);actor_connection=NULL;actor_job=0;}
 #endif
@@ -201,8 +210,8 @@ static void network_task(void *arg)
             /* Transaction outcomes only: never host, identity or credentials.
              * SET result includes mandatory GetStatus readback; it is not a
              * claim that a timed-out write did or did not reach the relay. */
-            if(event.device.endpoint_kind==DSR_ENDPOINT_COVER)ESP_LOGI("dsr_network","Cover readback result=%d state=%u position_available=%u position=%u",(int)event.result,(unsigned)event.telemetry.cover.state,(unsigned)((event.telemetry.cover.flags&DSR_COVER_POSITION)!=0),(unsigned)event.telemetry.cover.current_pos);
-            else if(event.device.endpoint_kind==DSR_ENDPOINT_BLU)ESP_LOGI("dsr_network","BLU via gateway result=%d online=%u flags=0x%02x errors=0x%02x battery_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.blu.flags,(unsigned)event.telemetry.blu.errors,(unsigned)event.telemetry.has_blu_battery);
+            if(event.device.endpoint_kind==DSR_ENDPOINT_COVER)ESP_LOGI("dsr_network","Cover readback result=%d state=%u position_available=%u position=%u job=%lu layout=%lu phase=%u",(int)event.result,(unsigned)event.telemetry.cover.state,(unsigned)((event.telemetry.cover.flags&DSR_COVER_POSITION)!=0),(unsigned)event.telemetry.cover.current_pos,(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)event.command_phase);
+            else if(event.device.endpoint_kind==DSR_ENDPOINT_BLU)ESP_LOGI("dsr_network","BLU via gateway result=%d online=%u flags=0x%02x errors=0x%02x battery_available=%u job=%lu layout=%lu phase=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.blu.flags,(unsigned)event.telemetry.blu.errors,(unsigned)event.telemetry.has_blu_battery,(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)event.command_phase);
             else if(event.device.endpoint_kind==DSR_ENDPOINT_HT)ESP_LOGI("dsr_network","H&T GetStatus result=%d online=%u temperature_available=%u humidity_available=%u battery_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_temperature,(unsigned)event.telemetry.has_humidity,(unsigned)event.telemetry.has_battery);
             else if(job.kind==DSR_JOB_SET_OUTPUT)ESP_LOGI("dsr_network","Switch.Set/readback result=%d requested=%u confirmed=%u output=%u",(int)event.result,(unsigned)job.on,(unsigned)(event.result==DSR_OK&&event.device.online),(unsigned)event.device.output);
             else ESP_LOGI("dsr_network","Switch.GetStatus result=%d online=%u voltage_available=%u current_available=%u",(int)event.result,(unsigned)event.device.online,(unsigned)event.telemetry.has_voltage,(unsigned)event.telemetry.has_current);

@@ -2,8 +2,11 @@
 static const char cover_ready[]="{\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":38,\"target_pos\":null,\"apower\":3.2,\"voltage\":230,\"current\":0.014}";
 static unsigned urgent_calls,urgent_trigger;
 static bool cover_interrupt(void){return ++urgent_calls==urgent_trigger;}
+static dsr_command_phase_t cover_phase;
+static void cover_progress(dsr_command_phase_t phase){cover_phase=phase;}
 static void test_cover_protocol(void)
 {
+ CHECK(dsr_http_job_progress_hook(cover_progress)==NULL);
  dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.endpoint_kind=DSR_ENDPOINT_COVER;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
  dsr_device_t d;dsr_telemetry_t t;
  step_t probe[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,true}};
@@ -14,8 +17,10 @@ static void test_cover_protocol(void)
   step_t move[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{paths[command-1],"null",200,true,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false}};
   if(command==DSR_COVER_STOP){move[1]=move[2];move[2]=move[3];}
   unsigned length=command==DSR_COVER_STOP?3:4;
-  fixture(move,length,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_OK&&used==length&&c.device.online&&c.telemetry.cover.current_pos==38); /* ACK never invents 67%. */
-  unsigned post=command==DSR_COVER_STOP?1:2;move[post].body=NULL;move[post].status=0;fixture(move,post+1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_OFFLINE&&used==post+1&&!c.device.online); /* no replay/readback on lost ACK */
+  cover_phase=DSR_COMMAND_NONE;fixture(move,length,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_OK&&used==length&&c.device.online&&c.telemetry.cover.current_pos==38); /* ACK never invents 67%. */
+  CHECK(cover_phase==DSR_COMMAND_CONFIRMED);
+  unsigned post=command==DSR_COVER_STOP?1:2;move[post].body=NULL;move[post].status=0;cover_phase=DSR_COMMAND_NONE;fixture(move,post+1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_OFFLINE&&used==post+1&&!c.device.online); /* no replay/readback on lost ACK */
+  CHECK(cover_phase==DSR_COMMAND_WRITE);
   move[post].body="{}";move[post].status=200;fixture(move,post+1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_BAD_RESPONSE&&used==post+1&&!c.device.online);
  }
  cover_payload=NULL;
@@ -25,6 +30,7 @@ static void test_cover_protocol(void)
  step_t recover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.GoToPosition","null",200,true,false},{"/rpc/Cover.GetStatus?id=0",NULL,0,false,false},{"/rpc/Cover.GetStatus?id=0","{\"id\":0,\"state\":\"opening\",\"pos_control\":true,\"current_pos\":45}",200,false,false}};
  fixture(recover,5,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_OK&&used==5&&c.device.online&&c.telemetry.cover.current_pos==45);
  recover[4].body=NULL;recover[4].status=0;fixture(recover,5,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_OFFLINE&&used==5&&!c.device.online);
+ CHECK(cover_phase==DSR_COMMAND_READBACK);
  const unsigned terminal_status[]={401,429,200};const dsr_result_t terminal_result[]={DSR_AUTH_REQUIRED,DSR_RATE_LIMITED,DSR_BAD_RESPONSE};
  for(unsigned i=0;i<3;i++){recover[3].status=(int)terminal_status[i];recover[3].body="{}";fixture(recover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==terminal_result[i]&&used==4&&!c.device.online);}
  recover[3].body=NULL;recover[3].status=0;urgent_calls=0;urgent_trigger=4;dsr_http_urgent_hook(cover_interrupt);fixture(recover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_BUSY&&used==4);dsr_http_urgent_hook(NULL);cover_payload=NULL;
@@ -36,9 +42,10 @@ static void test_cover_protocol(void)
  fixture(stop_cal,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_STOP})==DSR_OK&&used==3&&c.telemetry.cover.state==DSR_COVER_STATE_CALIBRATING&&!(c.telemetry.cover.flags&DSR_COVER_POSITION));cover_payload=NULL;
  const char *blocked[]={"{\"id\":1,\"state\":\"stopped\",\"pos_control\":true}","{\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":101}","{\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":38.5}","{\"id\":0,\"state\":\"calibrating\",\"pos_control\":true,\"current_pos\":38}","{\"id\":0,\"state\":\"stopped\",\"pos_control\":false,\"current_pos\":null}","{\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":38,\"errors\":[\"obstruction\"]}","{\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":38,\"errors\":[\"future_error\"]}","{\"id\":0,\"id\":0,\"state\":\"stopped\",\"pos_control\":true,\"current_pos\":38}"};
  for(unsigned i=0;i<sizeof(blocked)/sizeof(*blocked);i++){probe[1].body=blocked[i];fixture(probe,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=50})!=DSR_OK&&used==2);}
- probe[0].body="{\"gen\":2,\"id\":\"foreign\"}";fixture(probe,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_STOP})==DSR_IDENTITY_MISMATCH&&used==1);
+ cover_phase=DSR_COMMAND_NONE;probe[0].body="{\"gen\":2,\"id\":\"foreign\"}";fixture(probe,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_STOP})==DSR_IDENTITY_MISMATCH&&used==1);CHECK(cover_phase==DSR_COMMAND_NONE);
  c.device.generation=DSR_GEN1;CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_STOP})==DSR_INVALID);c.device.generation=DSR_GEN2_PLUS;
  c.device.endpoint_kind=DSR_ENDPOINT_SWITCH;CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_STOP})==DSR_INVALID);
+ CHECK(dsr_http_job_progress_hook(NULL)==cover_progress);
 }
 static void test_cover_persistence(void)
 {
@@ -81,5 +88,13 @@ static void test_cover_scheduler(void)
  CHECK(dsr_fleet_next(&f,2004,true,&job,&index)&&index==1&&job.kind==DSR_JOB_PROBE);job.id=80;dsr_fleet_started(&f,index,&job);e.id=80;e.telemetry.cover.current_pos=61;e.telemetry.cover.state=DSR_COVER_STATE_STOPPED;
  CHECK(dsr_fleet_complete(&f,index,&e,2005)&&f.slots[1].next_poll==7005);
  job.id=81;dsr_fleet_started(&f,1,&job);e.id=81;e.result=DSR_AUTH_REQUIRED;CHECK(dsr_fleet_complete(&f,1,&e,7005)&&f.slots[1].blocked);f.slots[0].next_poll=9000;CHECK(!dsr_fleet_next(&f,8005,true,&job,&index));
+ /* A new queue has not sent anything. Cancellation must not reuse the
+  * preceding command's phase, while a genuinely attempted write keeps it. */
+ CHECK(dsr_fleet_upsert(&f,&c,9000)==DSR_OK);f.slots[1].command_phase=DSR_COMMAND_WRITE;
+ dsr_fleet_wifi(&f,false,9000);CHECK(f.slots[1].command_phase==DSR_COMMAND_WRITE);
+ CHECK(dsr_fleet_upsert(&f,&c,9000)==DSR_OK);f.slots[1].command_phase=DSR_COMMAND_CONFIRMED;
+ CHECK(dsr_fleet_cover_request(&f,1,(dsr_cover_intent_t){.command=DSR_COVER_OPEN},true,9000)==DSR_OK);
+ CHECK(f.slots[1].command_phase==DSR_COMMAND_NONE);
+ dsr_fleet_wifi(&f,false,9001);CHECK(!f.slots[1].queued&&f.slots[1].result==DSR_OFFLINE&&f.slots[1].command_phase==DSR_COMMAND_NONE);
 
 }

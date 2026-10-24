@@ -54,7 +54,7 @@ static void cyber_trv_details(lv_obj_t *root,const dsr_mobile_device_t *d,bool g
  if(group){group_trv_members(root);group_trv_note(root);return;}
  trv_view.valve=trv_percent_card(root,8,"Zawór",DSR_ICON_TRV_VALVE,known&&d->blu.trv_pos<=100,d->blu.trv_pos,false);
  trv_view.battery=trv_percent_card(root,164,"Bateria",DSR_ICON_BATTERY,live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100,(unsigned)(live&&d->has_battery&&isfinite(d->battery_pct)&&d->battery_pct>=0&&d->battery_pct<=100?d->battery_pct:0),d->battery_pct<=20);
- const char *warning=d->error!=DSR_OK?device_error(d->error):!live?"Bramka nie odpowiada":(d->blu.errors&DSR_BLU_TRV_FAULT)?"Termostat zgłasza błąd (np. brak kalibracji)":(trv_slot(d->id)>=0||d->command_pending)?"Wysyłanie do termostatu przez bramkę…":NULL;
+ const char *warning=d->error!=DSR_OK?device_problem(d):!live?"Bramka nie odpowiada":(d->blu.errors&DSR_BLU_TRV_FAULT)?"Termostat zgłasza błąd (np. brak kalibracji)":(trv_slot(d->id)>=0||d->command_pending)?"Wysyłanie do termostatu przez bramkę…":NULL;
  trv_view.status=dsr_sc_text(root,warning?warning:"",12,403,296,&dsr_roboto_12,0xffbf24);center(trv_view.status);truncate(trv_view.status,20);
  trv_view.clock=dsr_sc_icon(root,DSR_ICON_CLOCK,18,402,22,DSR_SC_MUTED);sample_age=dsr_sc_text(root,"",47,404,260,&dsr_roboto_12,DSR_SC_MUTED);update_sample_age();
  if(warning){lv_obj_add_flag(trv_view.clock,LV_OBJ_FLAG_HIDDEN);lv_obj_add_flag(sample_age,LV_OBJ_FLAG_HIDDEN);}

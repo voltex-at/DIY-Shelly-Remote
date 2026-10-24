@@ -101,6 +101,7 @@ if args.case or args.cases:
         selected=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT/"tests/ui"/(name+".c"))]
         binary=build/name
         counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
+        if name=="test_priority_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_update")
         subprocess.run([cc,*flags,*counter_flags,*map(str,selected),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True)
         execute(binary)
     if failures:
@@ -150,6 +151,7 @@ if not args.review:
         extra=[obj for source,obj in zip(sources,objects) if source.name!="test_ui.c"]+[compile_source(ROOT / "tests/ui" / (name+".c"))]
         binary=build / name
         counter_flags=["-Wl,--wrap=cJSON_Parse", "-Wl,--wrap=calloc", "-Wl,--wrap=free"] if name=="test_layout_cache_ui" else []
+        if name=="test_priority_ui":counter_flags.append("-Wl,--wrap=dsr_mobile_update")
         subprocess.run([cc,*flags,*counter_flags,*map(str,extra),"-lm","-l:libcjson.so.1","-o",str(binary)],check=True,env=dict(os.environ,TMPDIR=str(build)))
         execute(binary)
 

@@ -9,7 +9,7 @@ typedef struct {
  dsr_device_t intent_identity;
  uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
  dsr_result_t maintenance_result;
- uint8_t failures,trv_followups; /* bounded GET-only mirror convergence */
+ uint8_t failures,trv_followups,command_phase; /* transient phase uses padding */
  bool sample_valid,blocked,command_error,queued,in_flight,layout_enabled,urgent_stop;
  uint8_t mailbox_pending; /* LCD accepted intent before shared-mailbox take: move1/STOP2. */
  union {bool on;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_rgb_intent_t rgb;dsr_trv_intent_t trv;};

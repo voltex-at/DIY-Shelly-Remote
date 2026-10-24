@@ -53,13 +53,13 @@ static void native_trv_tick(dsr_fleet_t *f,uint32_t now,bool wifi)
    continue;
   }
   if(!dsr_automation_manual_ready(p->key.layout_id,p->intent)){
-   if(dsr_automation_manual_result(p->key.layout_id,p->intent)==DSR_IO){p->waiting=false;p->failed=true;s->result=DSR_IO;s->command_error=true;dsr_actions_native_release(p->key.layout_id);}
+   if(dsr_automation_manual_result(p->key.layout_id,p->intent)==DSR_IO){p->waiting=false;p->failed=true;s->result=DSR_IO;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;dsr_actions_native_release(p->key.layout_id);}
    continue;
   }
   if(!wifi||s->in_flight||s->queued||s->mailbox_pending||s->urgent_stop||dsr_actions_reserved(&s->connection.device))continue;
   dsr_result_t result=dsr_fleet_trv_request(f,(unsigned)at,(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=p->half},wifi,now);
   if(result==DSR_BUSY)continue;
-  p->waiting=false;if(result!=DSR_OK){p->failed=true;s->result=result;s->command_error=true;dsr_actions_native_release(p->key.layout_id);}
+  p->waiting=false;if(result!=DSR_OK){p->failed=true;s->result=result;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;dsr_actions_native_release(p->key.layout_id);}
  }
 }
 static void native_trv_started(const dsr_job_t *j)

@@ -57,6 +57,8 @@ bool dsr_wifi_temporary_active(void){return false;}
 void dsr_http_urgent_hook(bool(*f)(void)){urgent=f;}
 dsr_http_job_guard_t dsr_http_job_guard(dsr_http_job_guard_t f){dsr_http_job_guard_t old=guard;guard=f;return old;}
 dsr_http_job_write_hook_t dsr_http_job_write_hook(dsr_http_job_write_hook_t f){dsr_http_job_write_hook_t old=write_hook;write_hook=f;return old;}
+static dsr_http_job_progress_hook_t progress_hook;
+dsr_http_job_progress_hook_t dsr_http_job_progress_hook(dsr_http_job_progress_hook_t f){dsr_http_job_progress_hook_t old=progress_hook;progress_hook=f;return old;}
 dsr_result_t dsr_http_trv_read(dsr_connection_t *c){
  CHECK(c->layout_id==3||c->layout_id==4);if(guard){dsr_result_t r=guard();if(r!=DSR_OK)return r;}
  if(!strcmp(current_scenario,"rate-limit")&&c->layout_id==3){if(!limited_at){limited_at=now;return DSR_RATE_LIMITED;}CHECK(now-limited_at>=60000u);}

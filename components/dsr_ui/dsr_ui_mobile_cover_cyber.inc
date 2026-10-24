@@ -69,7 +69,7 @@ static void cover_values(const dsr_mobile_device_t *d)
  cover_confirmed_text(d);
  lv_color_t caption=dsr_sc_text_color(cover_view.historical?warning:known?DSR_SC_GLOW:DSR_SC_MUTED);
  if(!lv_color_eq(lv_obj_get_style_text_color(cover_position_label,0),caption))lv_obj_set_style_text_color(cover_position_label,caption,0);
- const char *state=d->error!=DSR_OK?device_error(d->error):!d->online?"Brak aktualnego odczytu":!d->can_cover?"Brak obsługi Cover RPC":d->cover_errors?cover_fault(d->cover_errors):d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":known&&d->position_pct==0?"Zamknięte":known&&d->position_pct==100?"Otwarte":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
+ const char *state=d->error!=DSR_OK?device_problem(d):!d->online?"Brak aktualnego odczytu":!d->can_cover?"Brak obsługi Cover RPC":d->cover_errors?cover_fault(d->cover_errors):d->command_pending?"Wysyłanie polecenia…":d->cover_state==DSR_COVER_OPENING?"Otwieranie":d->cover_state==DSR_COVER_CLOSING?"Zamykanie":d->cover_state==DSR_COVER_CALIBRATING?"Kalibracja":known&&d->position_pct==0?"Zamknięte":known&&d->position_pct==100?"Otwarte":d->cover_state==DSR_COVER_STOPPED?"Zatrzymano":"Stan nieznany";
  if(group&&live&&!d->cover_errors&&group_state(selected).mixed)state="Różne stany";
  cover_badge(0,live?DSR_ICON_ONLINE:DSR_ICON_OFFLINE,dsr_sc_tr(live?"Online":"Offline"),12,102,104,live?DSR_SC_GLOW:warning);
  char state_text[112];if(live&&d->has_frequency&&isfinite(d->frequency_hz))snprintf(state_text,sizeof(state_text),"%s • %.1f Hz",dsr_sc_tr(state),d->frequency_hz);else snprintf(state_text,sizeof(state_text),"%s",dsr_sc_tr(state));

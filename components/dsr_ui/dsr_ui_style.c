@@ -516,6 +516,8 @@ const char *dsr_sc_tr(const char *text)
  {"Offline • stan niepotwierdzony","Offline • state unconfirmed","Offline • Zustand unbestätigt"},
  {"Włączone • Online","On • Online","Ein • Online"},{"Wyłączone • Online","Off • Online","Aus • Online"},
  {"Oczekiwanie na odczyt…","Waiting for reading…","Messwert wird abgerufen…"},
+ {"Polecenie niepotwierdzone","Command not confirmed","Befehl unbestätigt"},
+ {"Odczyt niepotwierdzony","State not confirmed","Status unbestätigt"},
  {"Brak dodatkowych pomiarów","No additional readings","Keine weiteren Messwerte"},
 #include "dsr_ui_strings.inc"
  };
