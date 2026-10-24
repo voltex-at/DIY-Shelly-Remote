@@ -10,11 +10,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 case_names = ['format','sources','bonds','admission','stage','recovery','api']
-p.add_argument('--case', choices=[*case_names,'source_model','bonds_model','ble_owner','workspace_owner','all'], default='all')
+p.add_argument('--case', choices=[*case_names,'source_model','bonds_model','stage_model','stage_store','ble_owner','workspace_owner','all'], default='all')
 p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'stage_store': ['components/dsr_platform/dsr_maintenance_store.c','components/dsr_platform/dsr_maintenance_model.c',
+                 'components/dsr_config/dsr_photo_name.c','tests/system_data/storage.c','tests/test_system_data_stage_store.c'],
+ 'stage_model': ['components/dsr_platform/dsr_maintenance_model.c','components/dsr_config/dsr_photo_name.c','tests/test_system_data_stage_model.c'],
  'workspace_owner': ['components/dsr_platform/dsr_workspace.c','components/dsr_platform/dsr_activity.c','components/dsr_platform/dsr_config_health.c',
                      'components/dsr_config/dsr_config.c','components/dsr_core/dsr_core.c','tests/restart/workspace.c',
                      'tests/support/automation_store_stub.c','tests/support/automation_runtime_stub.c'],
