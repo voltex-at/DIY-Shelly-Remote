@@ -11,6 +11,8 @@ static void move(int x,int y,bool down)
 {touch=(lv_point_t){x,y};pressed=down;lv_tick_inc(20);lv_indev_read(pointer);lv_timer_handler();lv_refr_now(display);}
 static void snap(const char *name)
 {char text[100];snprintf(text,sizeof(text),"native-quality-%s",name);screenshot(text);}
+static bool has_preview(lv_obj_t *o)
+{if(lv_obj_check_type(o,&lv_label_class)&&strstr(lv_label_get_text(o),dsr_sc_tr("Podgląd")))return true;for(unsigned i=0;i<lv_obj_get_child_count(o);i++)if(has_preview(lv_obj_get_child(o,(int)i)))return true;return false;}
 static dsr_mobile_model_t cover(void)
 {
  dsr_mobile_model_t m={.wifi=true,.device_count=1};
@@ -44,7 +46,7 @@ static void shutter(void)
  move(150,224,false);CHECK(writes==before+2&&last_target==80);
  /* A drag outside, connection loss and device replacement never send a target. */
  move(150,260,true);move(20,260,true);move(20,260,false);CHECK(writes==before+2);
- move(150,260,true);m.devices[0].online=false;m.devices[0].error=DSR_OFFLINE;dsr_mobile_update(&m);move(150,220,false);CHECK(writes==before+2);snap("cover-offline");CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));
+ move(150,260,true);CHECK(has_preview(lv_screen_active()));m.devices[0].online=false;m.devices[0].error=DSR_OFFLINE;dsr_mobile_update(&m);move(150,220,false);CHECK(writes==before+2&&!has_preview(lv_screen_active()));snap("cover-offline");CHECK(find_label(lv_screen_active(),"Ostatnia pozycja: 60%")&&find_label(lv_screen_active(),"Offline")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
  m=cover();m.devices[0].position_pct=50;show(&m);move(150,260,true);strcpy(m.devices[0].identity,"replacement");dsr_mobile_update(&m);move(150,220,false);CHECK(writes==before+2);
  m=cover();m.devices[0].has_position=false;show(&m);move(150,260,true);move(150,220,false);CHECK(writes==before+2);snap("cover-unknown");
  /* Teardown deletes the retained animation state as well as every LVGL object. */

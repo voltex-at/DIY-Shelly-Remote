@@ -15,6 +15,9 @@ static void cover_visual_deleted(lv_event_t *event)
 static void cover_confirmed_text(const dsr_mobile_device_t *d)
 {
  if(!cover_position_label)return;
+ /* A confirmed report can arrive during a held preview. Remember that
+  * readback too; the preview position itself never enters history. */
+ if(cover_position(d)){cover_view.has_position=true;cover_view.last_position=(int)lround(d->position_pct);cover_view.historical=false;}
  char text[64];
  int g=group_display_index(d);
  if(cover_view.historical)snprintf(text,sizeof(text),dsr_sc_tr("Ostatnia pozycja: %u%%"),(unsigned)cover_view.last_position);
@@ -52,6 +55,7 @@ static void cover_controls(const dsr_mobile_device_t *d)
 }
 static void cover_values(const dsr_mobile_device_t *d)
 {
+ if(!cover_drag&&cover_preview_label&&*lv_label_get_text(cover_preview_label))lv_label_set_text(cover_preview_label,"");
  bool group=group_display_index(d)>=0,known=cover_position(d),live=d->online&&d->error==DSR_OK;
  uint32_t warning=dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xb16b00:0xffc65b;
  bool moving=known&&!d->cover_errors&&cover_view.has_position&&((d->cover_state==DSR_COVER_OPENING&&d->position_pct>=cover_view.last_position)||(d->cover_state==DSR_COVER_CLOSING&&d->position_pct<=cover_view.last_position));

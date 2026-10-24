@@ -776,7 +776,11 @@ static void multi_device_regression(void)
  char *json=dsr_workspace_snapshot();dsr_mobile_model_t layout={0};CHECK(json&&dsr_mobile_configure(&layout,json));CHECK(!strstr(json,"first-private")&&!strstr(json,"second-private")&&!strstr(json,"device_id"));free(json);
  CHECK(layout.device_count==2&&find_label(lv_screen_active(),"Relay A")&&find_label(lv_screen_active(),"Relay B"));uint32_t id_a=layout.devices[0].id;
  screenshot("200-two-real-bindings-fixture");click("Relay B");CHECK(find_label(lv_screen_active(),"240.2 V")&&find_label(lv_screen_active(),"44.0 W"));
- lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&!strcmp(submitted.connection.device.device_id,"shelly-A"));dsr_job_t a_poll=submitted;
+ /* The open B page reads first; the overdue A still gets a background turn.
+  * Then queue B's explicit command behind that already-running A exchange. */
+ lv_tick_inc(5000);tick();CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&!strcmp(submitted.connection.device.device_id,"shelly-B"));
+ response=(dsr_event_t){.device=b.device,.telemetry=b.telemetry};deliver(DSR_OK,DSR_WIFI_IDLE);
+ CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&!strcmp(submitted.connection.device.device_id,"shelly-A"));dsr_job_t a_poll=submitted;
  unsigned before=requests;lv_obj_t *power=power_target(lv_screen_active());CHECK(power);lv_obj_send_event(power,LV_EVENT_CLICKED,NULL);CHECK(requests==before&&find_label(lv_screen_active(),"Wysyłanie polecenia…"));
  response=(dsr_event_t){.device=a_poll.connection.device};response.device.online=false;deliver(DSR_OFFLINE,DSR_WIFI_IDLE);
  CHECK(in_flight&&submitted.kind==DSR_JOB_SET_OUTPUT&&!strcmp(submitted.connection.device.device_id,"shelly-B")&&submitted.on&&requests==before+1);

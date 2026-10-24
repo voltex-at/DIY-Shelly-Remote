@@ -39,7 +39,7 @@ static bool sleep_has_text(lv_obj_t *o,const char *text)
 }
 static lv_obj_t *cover_well(lv_obj_t *o)
 {
- if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==142&&!lv_obj_get_child_count(o))return o;
+ if(lv_obj_get_width(o)==176&&lv_obj_get_height(o)==142&&lv_obj_get_child_count(o)==1&&lv_obj_check_type(lv_obj_get_child(o,0),&lv_label_class))return o;
  for(unsigned i=0;i<lv_obj_get_child_count(o);i++){lv_obj_t *well=cover_well(lv_obj_get_child(o,(int)i));if(well)return well;}return NULL;
 }
 static void sleep_repaint_regression(void)

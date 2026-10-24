@@ -74,7 +74,9 @@ static void cover_states(unsigned lang)
  unsigned before=stops;click("Stop");CHECK(stops==before+1);
  d->position_pct=67;d->cover_state=DSR_COVER_STOPPED;dsr_mobile_update(&m);snap("cover-stopped",lang);
  touch=(lv_point_t){160,250};pressed=true;lv_tick_inc(20);lv_indev_read(pointer);touch.y=220;lv_tick_inc(20);lv_indev_read(pointer);unsigned p=positions;CHECK(positions==p);pressed=false;lv_tick_inc(20);lv_indev_read(pointer);CHECK(positions==p+1);
- d->online=false;d->error=DSR_OFFLINE;dsr_mobile_update(&m);snap("cover-offline",lang);CHECK(find_label(lv_screen_active(),"Nieznana pozycja"));
+ d->online=false;d->error=DSR_OFFLINE;dsr_mobile_update(&m);snap("cover-offline",lang);
+ char historical[64];snprintf(historical,sizeof(historical),dsr_sc_tr("Ostatnia pozycja: %u%%"),67u);
+ CHECK(find_label(lv_screen_active(),historical)&&find_label(lv_screen_active(),"Offline")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
 }
 static void finish_settings(void)
 {for(unsigned i=0;i<8;i++){tick();if(!in_flight)return;response=(dsr_event_t){.device=submitted.connection.device,.layout_id=submitted.connection.layout_id};if(submitted.kind==DSR_JOB_DEVICE_SETTINGS)dsr_device_settings_execute(&submitted,&response);else{CHECK(submitted.kind==DSR_JOB_PROBE);response.device.online=response.device.has_switch=true;response.result=DSR_OK;}deliver(response.result,DSR_WIFI_IDLE);}CHECK(false);}
