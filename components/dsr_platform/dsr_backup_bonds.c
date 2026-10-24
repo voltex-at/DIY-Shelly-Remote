@@ -40,14 +40,20 @@ dsr_result_t dsr_backup_bonds_capture(cJSON *manifest)
  if(r==DSR_OK){if(dsr_backup_json_replace(manifest,"bonds",bonds))return DSR_OK;return DSR_FULL;}
  dsr_backup_json_discard(bonds);return r;
 }
+dsr_result_t dsr_backup_bonds_preflight(const cJSON *manifest)
+{
+ const cJSON *bonds=cJSON_GetObjectItemCaseSensitive(manifest,"bonds");dsr_result_t r=dsr_backup_bonds_validate(bonds);if(r!=DSR_OK)return r;
+ const cJSON *records=cJSON_GetObjectItemCaseSensitive(bonds,"records"),*row;uint8_t raw[128]={0};char key[16];size_t size=0;
+ dsr_backup_bond_t b={0};
+ cJSON_ArrayForEach(row,records){r=dsr_backup_bond_decode(row,&b);if(r==DSR_OK)r=dsr_backup_bond_to_sdk(&b,key,raw,sizeof(raw),&size);if(r!=DSR_OK)break;}
+ dsr_backup_wipe(raw,sizeof(raw));dsr_backup_wipe(&b,sizeof(b));return r;
+}
 dsr_result_t dsr_backup_bonds_apply(const cJSON *manifest)
 {
  if(!dsr_maintenance_boot_writes_allowed())return DSR_BUSY;
- const cJSON *bonds=cJSON_GetObjectItemCaseSensitive(manifest,"bonds");dsr_result_t r=dsr_backup_bonds_validate(bonds);if(r!=DSR_OK)return r;
- const cJSON *records=cJSON_GetObjectItemCaseSensitive(bonds,"records"),*row;uint8_t raw[128]={0},check[128]={0};char key[16];size_t size=0;
- dsr_backup_bond_t b={0};
- /* Resolve every enabled SDK type and capacity before the first mutation. */
- cJSON_ArrayForEach(row,records){r=dsr_backup_bond_decode(row,&b);if(r==DSR_OK)r=dsr_backup_bond_to_sdk(&b,key,raw,sizeof(raw),&size);if(r!=DSR_OK)goto done;}
+ dsr_result_t r=dsr_backup_bonds_preflight(manifest);if(r!=DSR_OK)return r;
+ const cJSON *records=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(manifest,"bonds"),"records"),*row;
+ uint8_t raw[128]={0},check[128]={0};char key[16];size_t size=0;dsr_backup_bond_t b={0};
  nvs_handle_t h;esp_err_t e=nvs_open("nimble_bond",NVS_READWRITE,&h);if(e!=ESP_OK){r=DSR_IO;goto done;}
  e=nvs_erase_all(h);if(e==ESP_OK)e=nvs_commit(h);
  cJSON_ArrayForEach(row,records){

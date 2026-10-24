@@ -15,6 +15,13 @@ p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'stage': ['components/dsr_platform/dsr_maintenance_stage.c','components/dsr_platform/dsr_maintenance_crypto.c',
+           'components/dsr_platform/dsr_maintenance_model.c','components/dsr_platform/dsr_maintenance_store.c','components/dsr_platform/dsr_maintenance.c',
+           'components/dsr_platform/dsr_backup_sources_model.c','components/dsr_platform/dsr_backup_bonds_model.c','components/dsr_platform/dsr_backup_json.c',
+           'components/dsr_platform/dsr_backup_format.c','components/dsr_platform/dsr_connection.c','components/dsr_platform/dsr_battery_model.c',
+           'components/dsr_platform/dsr_wifi_policy.c','components/dsr_platform/dsr_automation_model.c','components/dsr_platform/dsr_automation_config.c',
+           'components/dsr_platform/dsr_activity.c','components/dsr_config/dsr_config.c','components/dsr_config/dsr_photo_name.c','components/dsr_core/dsr_core.c',
+           'tests/system_data/crypto.c','tests/system_data/gcm.c','tests/system_data/storage.c','tests/system_data/image.c','tests/test_system_data_stage.c'],
  'style_gate': ['components/dsr_platform/dsr_style_hint.c','components/dsr_platform/dsr_activity.c','tests/test_style_hint.c'],
  'stage_crypto': ['components/dsr_platform/dsr_maintenance_crypto.c','components/dsr_platform/dsr_maintenance_model.c',
                   'components/dsr_config/dsr_photo_name.c','tests/system_data/gcm.c','tests/test_system_data_stage_crypto.c'],
@@ -75,6 +82,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
             sdk_includes = [v for folder in ['include','host/include','host/src'] for v in ['-I',str(nimble / folder)]]
         subprocess.run([os.environ.get('CC','cc'), *flags,
                         *(['-DDSR_BOARD_ES3C35P=1','-DDSR_TEST_SYSTEM_DATA=1'] if case == 'sources' else []),
+                        *(['-DDSR_TEST_REAL_ACTIVITY=1'] if case == 'stage' else []),
                         *(['-DDSR_BOARD_ES3C35P=1'] if case == 'style_gate' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/ble')] if case == 'ble_owner' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/restart')] if case == 'workspace_owner' else []),
@@ -90,3 +98,8 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
         if not result.stdout.startswith('PASS:'):
             raise SystemExit(f'{case}: no success marker')
         print(result.stdout.strip())
+        if case == 'stage':
+            result = subprocess.run([str(target),str(ROOT / 'tests/system_data/manifest-v1.json'),'commit-uncertain'],text=True,capture_output=True)
+            if result.returncode or not result.stdout.startswith('PASS:'):
+                raise SystemExit(result.stderr.strip() or 'stage commit-uncertain: missing success marker')
+            print(result.stdout.strip())

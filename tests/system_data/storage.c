@@ -36,10 +36,14 @@ esp_err_t nvs_set_u8(nvs_handle_t h,const char *key,uint8_t v){return nvs_set_bl
 esp_err_t nvs_commit(nvs_handle_t h){(void)h;test_nvs_calls++;return cut()?ESP_FAIL:ESP_OK;}
 esp_err_t nvs_erase_all(nvs_handle_t h)
 {test_nvs_calls++;test_nvs_writes++;if(strcmp(namespaces[h-1],"dsr_maint"))test_active_writes++;if(cut())return ESP_FAIL;for(unsigned i=0;i<200;i++)if(entries[i].ns==h){memset(entries[i].bytes,0,entries[i].size);free(entries[i].bytes);memset(entries+i,0,sizeof(entries[i]));}return ESP_OK;}
+#ifndef DSR_TEST_REAL_ACTIVITY
 bool dsr_activity_begin(void){return true;}
 void dsr_activity_end(void){}
 void dsr_activity_data_changed(void){}
+#endif
 int64_t esp_timer_get_time(void){return 0;}
+#ifndef DSR_TEST_REAL_ACTIVITY
 bool dsr_maintenance_boot_writes_allowed(void){return test_boot_allowed;}
+#endif
 esp_err_t nvs_erase_key(nvs_handle_t h,const char *key)
 {test_nvs_calls++;test_nvs_writes++;if(strcmp(namespaces[h-1],"dsr_maint"))test_active_writes++;int i=find(h,key);if(i<0)return ESP_ERR_NVS_NOT_FOUND;memset(entries[i].bytes,0,entries[i].size);free(entries[i].bytes);memset(entries+i,0,sizeof(entries[i]));return ESP_OK;}

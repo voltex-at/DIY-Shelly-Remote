@@ -63,8 +63,8 @@ static int text_height(const char *text,const lv_font_t *font,int width)
 static int entry(lv_obj_t *body,const dsr_action_log_entry_t *e,int y)
 {
  char stamp[48],meta[112],detail[160];
- if(e->utc)snprintf(stamp,sizeof(stamp),"%02u:%02u:%02u UTC",(e->utc/3600)%24,(e->utc/60)%60,e->utc%60);
- else snprintf(stamp,sizeof(stamp),dsr_sc_tr("Brak UTC • %u s od startu"),e->monotonic_ms/1000);
+ if(e->utc)snprintf(stamp,sizeof(stamp),"%02u:%02u:%02u UTC",(unsigned)((e->utc/3600)%24),(unsigned)((e->utc/60)%60),(unsigned)(e->utc%60));
+ else snprintf(stamp,sizeof(stamp),dsr_sc_tr("Brak UTC • %u s od startu"),(unsigned)(e->monotonic_ms/1000));
  const char *source=e->kind==2?"Odczyt":e->source==0?"WWW":e->source==1?"LCD":e->source==3?"Automatyzacja":"Źródło nieznane";
  snprintf(meta,sizeof(meta),"%s • %s • #%u",stamp,dsr_sc_tr(source),(unsigned)(e->layout_id?e->layout_id:e->object_id));
  snprintf(detail,sizeof(detail),"%s • %s",dsr_sc_tr(e->kind==2?"Zaobserwowano":command(e->command)),dsr_sc_tr(e->kind==2?(e->command?command(e->command):e->result==DSR_OK?"Online":"Offline"):outcome(e->outcome)));
