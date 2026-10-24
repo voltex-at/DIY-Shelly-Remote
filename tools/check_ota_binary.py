@@ -16,10 +16,13 @@ trust=Path(__file__).resolve().parents[1]/"components/dsr_ota/dsr_ota_trust.c"
 # of this pin, never a silent fixture key.
 APPROVED_KEY_ID=b"voltex-ota-2026-1"
 APPROVED_KEY=bytes.fromhex("23adf99d68e6ce2315a7b0b2b53c5839d9dd15e39ee748a24ec68841861a47fe")
-assert hashlib.sha256(trust.read_bytes()).hexdigest()=="ff62fed25beb9cc2a64a043ee1cd06a8daf46be6c5ca2e5480714289250406ed","unreviewed production trust provider"
+# Hash canonical repository line endings, including a Windows CRLF checkout.
+assert hashlib.sha256(trust.read_bytes().replace(b"\r\n",b"\n")).hexdigest()=="ff62fed25beb9cc2a64a043ee1cd06a8daf46be6c5ca2e5480714289250406ed","unreviewed production trust provider"
 nm=subprocess.check_output(["xtensa-esp32s3-elf-nm","-S","--defined-only",str(args.elf)],text=True)
 symbols={line.split()[-1]:line.split() for line in nm.splitlines() if len(line.split()) in (3,4)}
-required=["dsr_ota_manifest_verify","dsr_ota_trusted_key","crypto_ed25519_check","crypto_eddsa_check_equation","dsr_ota_image_create","dsr_ota_image_create_dev_checksum","dsr_ota_image_update","dsr_ota_image_finish","dsr_ota_image_context_size","dsr_ota_upload_receive","dsr_ota_upload_sha256"]
+# The HTTP endpoint uses the guarded receiver; the compatibility wrapper may
+# correctly disappear under target link-time garbage collection.
+required=["dsr_ota_manifest_verify","dsr_ota_trusted_key","crypto_ed25519_check","crypto_eddsa_check_equation","dsr_ota_image_create","dsr_ota_image_create_dev_checksum","dsr_ota_image_update","dsr_ota_image_finish","dsr_ota_image_context_size","dsr_ota_upload_receive_guarded","dsr_ota_upload_sha256"]
 for name in required:
     assert name in symbols,name
 assert "dsr_ota_fetch_manifest" in symbols,"manifest fetch backend not retained"

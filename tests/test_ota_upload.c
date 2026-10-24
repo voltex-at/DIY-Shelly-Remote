@@ -84,11 +84,28 @@ bool dsr_panel_backup_session_valid(const uint8_t session[32]){CHECK(session);re
 static void run_transport(void){CHECK(transport_held&&transport_run);transport_run(&request,transport_context);transport_clean(transport_context);transport_context=NULL;transport_run=NULL;transport_clean=NULL;transport_held=false;}
 esp_err_t dsr_panel_transport_start(httpd_req_t *r,void (*run)(httpd_req_t *,void *),void *context,void (*cleanup)(void *))
 {CHECK(r==&request&&run&&context&&cleanup);if(transport_held){cleanup(context);return json(r,"409 Conflict","{}");}transport_held=true;transport_run=run;transport_context=context;transport_clean=cleanup;if(!transport_defer)run_transport();return ESP_OK;}
+#ifdef DSR_SOURCE_ALLOCATORS
+/* Track the detached endpoint context on Cygwin too, matching Linux --wrap.
+ * The real allocator adapters above must remain outside these macros. */
+#include "source_allocator_hooks.h"
+#endif
 #include "ota_endpoint.inc"
+#ifdef DSR_SOURCE_ALLOCATORS
+#undef malloc
+#undef calloc
+#undef free
+#endif
 
 dsr_result_t dsr_ota_power_acquire(dsr_ota_power_result_t *out)
 {CHECK(out&&!power_held&&!begins&&!writes);power_checks++;*out=DSR_OTA_POWER_BUSY;if(power_busy)return DSR_BUSY;power_held=true;*out=power_result;return DSR_OK;}
-void dsr_ota_power_release(void){CHECK(power_held&&!owned&&!dsr_test_sha_live()&&!live);power_held=false;power_releases++;}
+void dsr_ota_power_release(void)
+{
+ unsigned transport_owned=0;
+ if(transport_held&&transport_context)for(unsigned i=0;i<16;i++)if(pointers[i]==transport_context)transport_owned++;
+ /* The receiver freed all image workspaces; the async HTTP owner keeps its
+  * exact context until run_transport cleanup. clean()/reset() require zero. */
+ CHECK(transport_owned<=1&&power_held&&owned==transport_owned&&!dsr_test_sha_live()&&!live);power_held=false;power_releases++;
+}
 static esp_err_t receive(httpd_req_t *r,const esp_partition_t *p,const uint8_t hash[32])
 {return dsr_ota_upload_receive(r,p,hash,true,&reported_power);}
 static void clean(void){CHECK(!owned&&!dsr_test_sha_live()&&!live&&!power_held);CHECK(dsr_activity_restart_reserve());dsr_activity_restart_cancel();}

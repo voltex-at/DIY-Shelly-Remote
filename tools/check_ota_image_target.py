@@ -125,14 +125,14 @@ if args.upload:
         require(size <= args.max_frame, f"Receiver frame exceeds budget: {line}")
         require(function not in upload_frames, f"Duplicate receiver stack report for {function}")
         upload_frames[function] = size
-    require({"dsr_ota_upload_receive", "dsr_ota_upload_sha256"} <= set(upload_frames), "Receiver stack reports missing")
+    require({"dsr_ota_upload_receive_guarded", "dsr_ota_upload_sha256"} <= set(upload_frames), "Guarded receiver stack reports missing")
     require("dsr_ota_image_create_dev_checksum" in frames, "Explicit development image factory stack report missing")
     target_nm = subprocess.check_output(
         ["xtensa-esp32s3-elf-nm", "--defined-only", str(args.elf)], text=True
     )
     target_symbols = {line.split()[-1] for line in target_nm.splitlines() if line.split()}
-    require({"dsr_ota_upload_receive", "dsr_ota_upload_sha256", "dsr_ota_image_create_dev_checksum"} <= target_symbols,
-            "Receiver/development factory not retained in real target ELF")
+    require({"dsr_ota_upload_receive_guarded", "dsr_ota_upload_sha256", "dsr_ota_image_create_dev_checksum"} <= target_symbols,
+            "Guarded receiver/development factory not retained in real target ELF")
     source = (Path(__file__).resolve().parents[1] / "components/dsr_platform/dsr_ota_upload.c").read_text()
     require(re.search(r"_Static_assert\s*\(\s*sizeof\s*\(\s*struct\s+upload_buffers\s*\)\s*==\s*4608\s*,", source),
             "Exact target-compiled 4608-byte receiver workspace assertion missing")

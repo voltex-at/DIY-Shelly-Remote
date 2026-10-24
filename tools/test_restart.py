@@ -24,7 +24,9 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
         panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
         for name in ['pair','restart']:
             start=panel.index(f'static esp_err_t {name}(httpd_req_t *r)')
-            end=re.search(r'^static\b',panel[start+1:],re.M)
+            # A following endpoint may introduce a private context typedef.
+            # Keep the extracted handler independent of that unrelated type.
+            end=re.search(r'^(?:static|typedef)\b',panel[start+1:],re.M)
             assert end
             (tmp/f'{name}_endpoint.inc').write_text(panel[start:start+1+end.start()])
         binary=tmp/'panel'
