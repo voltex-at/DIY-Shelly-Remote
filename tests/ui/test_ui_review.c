@@ -197,8 +197,8 @@ static void cover_views(void)
  dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("11-cover-details");
  CHECK(find(lv_screen_active(),"Pozycja 65%"));CHECK(find(lv_screen_active(),"4.1 W"));CHECK(find(lv_screen_active(),"230.4 V"));CHECK(find_part(lv_screen_active(),"50.0 Hz"));
  unsigned middle=outdoor_pixels();CHECK(middle>3000);
- lv_obj_t *open=parent_of("Otwórz"),*close=parent_of("Zamknij"),*stop=parent_of("Stop");lv_area_t a,b;
- CHECK(lv_obj_get_width(open)==144&&lv_obj_get_height(open)==48);CHECK(lv_obj_get_width(close)==144&&lv_obj_get_height(close)==48);CHECK(lv_obj_get_width(stop)>=44&&lv_obj_get_height(stop)>=44);
+ lv_obj_t *open=parent_of("Otwórz"),*close=parent_of("Zamknij");lv_area_t a,b;
+ CHECK(lv_obj_get_width(open)==144&&lv_obj_get_height(open)==48);CHECK(lv_obj_get_width(close)==144&&lv_obj_get_height(close)==48);CHECK(!find(lv_screen_active(),"Stop"));
  lv_obj_get_coords(open,&a);lv_obj_get_coords(close,&b);CHECK(a.x2<b.x1);CHECK(a.y1==364&&a.y2==411&&428-a.y2-1==16);CHECK(b.x2<320&&a.y1==b.y1&&a.y2==b.y2);
  lv_obj_t *metrics=lv_obj_get_parent(find_part(lv_screen_active(),"50.0 Hz"));CHECK(lv_obj_get_width(metrics)==184);
  lv_obj_get_coords(find(lv_screen_active(),"4.1 W"),&a);lv_obj_get_coords(find(lv_screen_active(),"230.4 V"),&b);CHECK(a.x2<b.x1);
@@ -206,7 +206,10 @@ static void cover_views(void)
  d->power_w=4.1;d->voltage_v=230.4;d->frequency_hz=50;dsr_mobile_update(&m);
  tap(75,377);CHECK(find(lv_screen_active(),"Otwarte 100%"));CHECK(cover_commands==0);
  tap(231,377);CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(cover_commands==0);
- tap_stop();CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(stop_commands==0);
+ CHECK(!find(lv_screen_active(),"Stop"));
+ d->position_pct=0;d->cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *stop=parent_of("Stop");CHECK(lv_obj_get_width(stop)>=44&&lv_obj_get_height(stop)>=44);
+ tap_stop();CHECK(find(lv_screen_active(),"Zamknięte 0%"));CHECK(stop_commands==0);d->cover_state=DSR_COVER_STOPPED;
  /* All skins now animate confirmed position changes for 300 ms. These two
   * endpoint snapshots assert the settled state; focused cover tests cover motion. */
  d->position_pct=0;dsr_mobile_update(&m);lv_tick_inc(301);lv_timer_handler();save("60-cover-closed");CHECK(outdoor_pixels()==0);CHECK(find(lv_screen_active(),"Zamknięte 0%"));
@@ -225,16 +228,16 @@ static void cover_views(void)
  dsr_sc_appearance(DSR_SC_BLUE,false,1);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("68-cover-english");CHECK(find(lv_screen_active(),"Open"));CHECK(find(lv_screen_active(),"Close"));
  dsr_sc_appearance(DSR_SC_BLUE,false,2);dsr_mobile_show(DSR_MOBILE_DETAILS,2);save("69-cover-german");CHECK(find(lv_screen_active(),"Öffnen"));CHECK(find(lv_screen_active(),"Schließen"));dsr_sc_appearance(DSR_SC_BLUE,false,0);
  /* Non-demo transport requires an actual callback and explicit capabilities. */
- m.demo=false;d->id=97;d->can_cover=false;d->can_stop_cover=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
+ m.demo=false;d->id=97;d->can_cover=false;d->can_stop_cover=false;d->has_position=false;dsr_mobile_update(&m);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
  tap(75,377);tap(231,377);tap_stop();CHECK(cover_commands==0&&stop_commands==0);CHECK(find(lv_screen_active(),"Brak obsługi Cover RPC"));
  tap(258,74);CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICE_SETTINGS);lv_obj_t *edit=parent_of("Edytuj kartę");lv_obj_get_coords(edit,&a);tap((a.x1+a.x2)/2,(a.y1+a.y2)/2);CHECK(device_edits==1);dsr_mobile_show(DSR_MOBILE_DETAILS,2);
- d->can_cover=true;d->can_stop_cover=true;dsr_mobile_update(&m);tap(75,377);tap(231,377);tap_stop();CHECK(cover_commands==2&&stop_commands==1);CHECK(find(lv_screen_active(),"Pozycja 65%"));
+ d->can_cover=true;d->can_stop_cover=true;d->has_position=true;d->cover_state=DSR_COVER_OPENING;dsr_mobile_update(&m);tap(75,377);tap(231,377);tap_stop();CHECK(cover_commands==2&&stop_commands==1);CHECK(find(lv_screen_active(),"Pozycja 65%"));
  /* Preview cannot leak commands, edits, metrics or fake state into live model. */
- dsr_mobile_cover_preview();tap(75,377);tap(231,377);tap_stop();tap(294,22);CHECK(cover_commands==2&&stop_commands==1&&device_edits==1);
+ dsr_mobile_cover_preview();tap(75,377);tap(231,377);CHECK(!find(lv_screen_active(),"Stop"));tap(294,22);CHECK(cover_commands==2&&stop_commands==1&&device_edits==1);
  strcpy(m.devices[2].name,"Updated cover");dsr_mobile_update(&m);CHECK(!find(lv_screen_active(),"Updated cover"));tap(20,20);dsr_mobile_show(DSR_MOBILE_DETAILS,2);lv_obj_update_layout(lv_screen_active());CHECK(find(lv_screen_active(),"Updated cover"));CHECK(!find(lv_screen_active(),"DEMO • dane przykładowe"));
  dsr_mobile_show(DSR_MOBILE_HOME,0);lv_obj_update_layout(lv_screen_active());
  lv_mem_monitor_t before,after;lv_mem_monitor(&before);
- for(unsigned i=0;i<80;i++){dsr_mobile_cover_preview();tap(75,377);tap(231,377);tap_stop();dsr_mobile_show(DSR_MOBILE_HOME,0);}
+ for(unsigned i=0;i<80;i++){dsr_mobile_cover_preview();tap(75,377);tap(231,377);CHECK(!find(lv_screen_active(),"Stop"));dsr_mobile_show(DSR_MOBILE_HOME,0);}
  lv_mem_monitor(&after);CHECK(after.free_size+1024>=before.free_size);printf("Cover heap before=%u after=%u largest=%u; 80 preview/control/exit cycles\n",(unsigned)before.free_size,(unsigned)after.free_size,(unsigned)after.free_biggest_size);
  dsr_mobile_update(&fixture);
 }

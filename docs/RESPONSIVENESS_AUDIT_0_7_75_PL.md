@@ -59,6 +59,13 @@ pełnego CI ani pełnego atlasu. Jeden niezależny przegląd wskazał brak tekst
 grupy i dwa przypadki dziedziczenia/utraty danych przy STOP; odtworzono je
 regresjami i poprawiono. Szczegółowe logi i rendery są w ignorowanym `.local/`.
 
+Przy przygotowaniu 0.7.76 pełne CI pierwszego commita wydania wykazało stare
+oczekiwanie STOP przy nieruchomej rolecie w podglądzie DEMO. Dostosowano dwa
+fixture podglądu do zaakceptowanego układu: brak STOP w spoczynku, dolny STOP
+podczas ruchu/nieznanej pozycji i zachowana kontrola braku komend z DEMO.
+Lokalnie oba dotknięte podglądy przeszły; firmware nie wymagał kolejnej zmiany.
+Publikację nadal blokuje brak pełnego CI 5/5 końcowego commita.
+
 ## Pozostaje sprzęt
 
 Host i build nie potwierdzają rzeczywistej latencji sieci, silnika ani dotyku.
