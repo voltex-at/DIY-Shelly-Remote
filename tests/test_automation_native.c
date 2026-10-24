@@ -17,10 +17,11 @@ void dsr_mobile_trv_request_state(uint32_t id,uint8_t half,uint32_t intent,bool 
 dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned i,dsr_trv_intent_t intent,bool wifi,uint32_t now){(void)now;CHECK(durable&&wifi&&!f->slots[i].in_flight&&intent.command==DSR_TRV_SET_TARGET);queued++;f->slots[i].queued=true;f->slots[i].trv=intent;return DSR_OK;}
 #include "../components/dsr_ui/dsr_ui_network_automation.inc"
 int main(void){
+ CHECK(!native_trv_waiting());
  dsr_fleet_t f={.count=1};dsr_fleet_slot_t *s=&f.slots[0];s->layout_enabled=true;s->connection=(dsr_connection_t){.layout_id=3,.device={.device_id="TRV-A",.host="192.0.2.1",.generation=2,.endpoint_kind=DSR_ENDPOINT_BLU},.telemetry={.blu={.errors=DSR_BLU_TRV}}};
- CHECK(native_trv_request(&f,0,44)==DSR_OK&&retained==1&&queued==0&&native_trv_busy(3));uint32_t first=last_intent;
- native_trv_tick(&f,1000,true);CHECK(queued==0);durable=true;s->in_flight=true;native_trv_tick(&f,2000,true);CHECK(queued==0);
- s->in_flight=false;native_trv_tick(&f,3000,true);CHECK(queued==1&&s->trv.half_c==44);
+ CHECK(native_trv_request(&f,0,44)==DSR_OK&&retained==1&&queued==0&&native_trv_busy(3)&&native_trv_waiting());uint32_t first=last_intent;
+ native_trv_tick(&f,1000,true);CHECK(queued==0&&native_trv_waiting());durable=true;s->in_flight=true;native_trv_tick(&f,2000,true);CHECK(queued==0&&native_trv_waiting());
+ s->in_flight=false;native_trv_tick(&f,3000,true);CHECK(queued==1&&s->trv.half_c==44&&!native_trv_waiting());
  dsr_job_t j={.id=77,.kind=DSR_JOB_TRV,.connection=s->connection,.trv=s->trv};native_trv_started(&j);native_trv_completed(76,DSR_OK);CHECK(cleared==0);native_trv_completed(77,DSR_IO);CHECK(cleared==0&&!native_trv_busy(3));s->queued=false;
  durable=false;io_failure=true;CHECK(native_trv_request(&f,0,45)==DSR_OK&&last_intent!=first);native_trv_tick(&f,4000,true);CHECK(s->result==DSR_IO&&queued==1&&!native_trv_busy(3)&&cleared==0);
  io_failure=false;CHECK(native_trv_request(&f,0,46)==DSR_OK);strcpy(s->connection.device.device_id,"replacement");native_trv_tick(&f,5000,true);CHECK(cleared==1&&queued==1&&!native_trv_busy(3));
