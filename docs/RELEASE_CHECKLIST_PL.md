@@ -64,6 +64,16 @@ pełny zestaw raz na końcowym commicie przed wydaniem.
   Dotknięcie przycisku podczas odczytu w tle wykorzystuje ten sam pomiar.
   Zaległy odczyt baterii nie może zostać zlecony przez odrysowanie nagłówka
   ani wyprzedzić oczekującego polecenia rolety, STOP lub grupy/sceny.
+- [ ] Termostat: lokalna zmiana pokrętła lub +/− jest widoczna od razu,
+  przed odpowiedzią bramki; nastawa oczekująca jest odróżniona od odczytu.
+  Zablokowane na czas wysyłania sterowanie wraca po zakończeniu operacji.
+  Zmiany temperatury, baterii
+  i zaworu nie przebudowują całego poprawnego widoku. Sprawdzić serię kliknięć,
+  zapis i późniejszy odczyt oraz logowanie/offline i zmianę ekranu w trakcie.
+- [ ] Przy kilku urządzeniach aktualny ekran otrzymuje pierwsze dostępne odczyty,
+  tło dostaje swoje kolejne miejsce, a STOP pozostaje pilne. Zmierzyć osobno
+  reakcję dotyku, czas oczekiwania w kolejce i odpowiedź bramki, także podczas
+  wolnego lub niedostępnego Shelly/BLE. Brak potwierdzenia nie może udawać sukcesu.
 - [ ] Sprawdzić na sprzęcie również lokalną aktualizację przez sparowany panel
   WWW: zgoda LCD, przesłanie tego samego BIN, weryfikacja, zakończenie i restart.
   Zapisać wersję początkową tej próby oddzielnie.

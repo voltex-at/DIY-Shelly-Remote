@@ -13,6 +13,8 @@ static native_trv_t *native_trv_find(uint32_t id)
 {if(native_trvs)for(unsigned i=0;i<DSR_MAX_DEVICES;i++)if(native_trvs[i].retained&&native_trvs[i].key.layout_id==id)return &native_trvs[i];return NULL;}
 static bool native_trv_busy(uint32_t id)
 {native_trv_t *p=native_trv_find(id);return p&&!p->failed;}
+static bool native_trv_waiting(void)
+{if(native_trvs)for(unsigned i=0;i<DSR_MAX_DEVICES;i++)if(native_trvs[i].retained&&native_trvs[i].waiting&&!native_trvs[i].failed)return true;return false;}
 static dsr_result_t native_trv_request(dsr_fleet_t *f,unsigned index,uint8_t half)
 {
  if(!f||index>=f->count||half<DSR_TRV_MIN_HALF||half>DSR_TRV_MAX_HALF)return DSR_INVALID;

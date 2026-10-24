@@ -45,6 +45,9 @@ dsr_result_t dsr_fleet_rgb_request(dsr_fleet_t *fleet,unsigned index,dsr_rgb_int
 dsr_result_t dsr_fleet_light_request(dsr_fleet_t *fleet,unsigned index,dsr_light_intent_t intent,bool wifi,uint32_t now);
 void dsr_fleet_cancel_queued(dsr_fleet_t *fleet,unsigned index);
 bool dsr_fleet_next(dsr_fleet_t *fleet,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index);
+/* Read-only due poll within an owner-selected mask. Never bypass backoff,
+ * STOP, identity gates or an explicit queued intent. No scheduling side effect. */
+bool dsr_fleet_next_poll(dsr_fleet_t *fleet,uint32_t now,uint16_t mask,dsr_job_t *job,unsigned *index);
 void dsr_fleet_started(dsr_fleet_t *fleet,unsigned index,const dsr_job_t *job);
 bool dsr_fleet_complete(dsr_fleet_t *fleet,unsigned index,const dsr_event_t *event,uint32_t now);
 /* Owner proved cancellation before any write, with unchanged private binding.

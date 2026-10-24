@@ -92,6 +92,7 @@ static void charge_frame(lv_timer_t *timer)
 }
 static void label(lv_obj_t *obj,const char *text)
 {if(obj&&strcmp(lv_label_get_text(obj),dsr_sc_tr(text)))dsr_sc_label_set_text(obj,text);}
+bool dsr_ui_battery_active(void){return active;}
 void dsr_ui_battery_hide(void){active=false;value=status=age=measure=memory_detail=percent_value=note_value=NULL;memset(memory_values,0,sizeof(memory_values));memset(memory_bars,0,sizeof(memory_bars));}
 static void memory_free(unsigned index,size_t available,size_t total,bool stack)
 {

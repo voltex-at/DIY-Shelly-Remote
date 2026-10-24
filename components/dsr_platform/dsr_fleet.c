@@ -120,11 +120,23 @@ static bool cover_motion(const dsr_fleet_slot_t *s)
    c->state==DSR_COVER_STATE_CALIBRATING||
    ((c->flags&(DSR_COVER_POSITION|DSR_COVER_TARGET))==(DSR_COVER_POSITION|DSR_COVER_TARGET)&&c->current_pos!=c->target_pos));
 }
+bool dsr_fleet_next_poll(dsr_fleet_t *f,uint32_t now,uint16_t mask,dsr_job_t *job,unsigned *index)
+{
+ if(!f||!job||!index||!mask)return false;
+ bool motion=false;for(size_t i=0;i<f->count;i++)if(cover_motion(&f->slots[i]))motion=true;
+ for(unsigned pass=0;pass<2;pass++)for(size_t n=0;n<f->count;n++){
+  unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;const dsr_fleet_slot_t *s=&f->slots[i];
+  if(!(mask&(1u<<i))||s->queued||!s->layout_enabled||s->urgent_stop||s->in_flight||s->blocked||(int32_t)(now-s->next_poll)<0)continue;
+  if(motion&&s->failures&&!cover_motion(s))continue;
+  if(!pass&&!cover_followup(s))continue;
+  *job=(dsr_job_t){.kind=DSR_JOB_PROBE,.connection=s->connection};*index=i;return true;
+ }
+ return false;
+}
 bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,unsigned *index)
 {
  if(!f||!job||!index)return false;
- int at=-1;bool motion=false;
- for(size_t i=0;i<f->count;i++)if(cover_motion(&f->slots[i]))motion=true;
+ int at=-1;
  for(size_t i=0;i<f->count;i++){
   dsr_fleet_slot_t *s=&f->slots[i];if(!s->queued||s->in_flight)continue;
   bool sensor=DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind);
@@ -135,16 +147,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
  }
  /* Explicit intents stay first. A moving cover's due read then precedes
   * routine round-robin polling; this never repeats a movement POST. */
- if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
-  unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
-  if(motion&&s->failures&&!cover_motion(s))continue; /* failed idle Covers also defer their early retries */
-  if(cover_followup(s)&&s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
- }
- if(at<0&&allow_poll)for(size_t n=0;n<f->count;n++){
-  unsigned i=(f->cursor+(unsigned)n)%(unsigned)f->count;dsr_fleet_slot_t *s=&f->slots[i];
-  if(motion&&s->failures&&!cover_motion(s))continue; /* deferred, never dropped */
-  if(s->layout_enabled&&!s->urgent_stop&&!s->in_flight&&!s->blocked&&(int32_t)(now-s->next_poll)>=0){at=(int)i;break;}
- }
+ if(at<0&&allow_poll)return dsr_fleet_next_poll(f,now,UINT16_MAX,job,index);
  if(at<0)return false;
  dsr_fleet_slot_t *s=&f->slots[at];*job=(dsr_job_t){.kind=s->queued?(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER?DSR_JOB_COVER:s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT?DSR_JOB_LIGHT:s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB?DSR_JOB_RGB:s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU&&s->trv.command?DSR_JOB_TRV:DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)?DSR_JOB_PROBE:DSR_JOB_SET_OUTPUT):DSR_JOB_PROBE,.connection=s->connection};
  if(s->queued){if(s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER)job->cover=s->cover;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_LIGHT)job->light=s->light;else if(s->connection.device.endpoint_kind==DSR_ENDPOINT_RGB)job->rgb=s->rgb;else if(job->kind==DSR_JOB_TRV)job->trv=s->trv;else job->on=s->on;}
@@ -190,6 +193,9 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
  /* BLU values come from an always-on gateway: poll often, back off on errors. */
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}
+ /* The gateway mirror can lag SetTarget. One early GET-only follow-up,
+  * then ordinary cadence/backoff; never repeat a temperature write. */
+ if(s->operation==DSR_JOB_TRV&&result==DSR_OK)delay=1000u;
  if(result==DSR_RATE_LIMITED){uint32_t limited=DSR_FLEET_RATE_LIMIT_MS<<(s->failures>2?2:s->failures-1);if(limited>DSR_FLEET_RATE_LIMIT_MAX_MS)limited=DSR_FLEET_RATE_LIMIT_MAX_MS;if(delay<limited)delay=limited;}
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}

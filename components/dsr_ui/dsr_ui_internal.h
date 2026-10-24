@@ -74,6 +74,7 @@ void dsr_ui_battery_open(lv_event_t *event);
 void dsr_ui_battery_show(void); /* bottom bar: back returns home */
 void dsr_ui_battery_header(lv_obj_t *root);
 void dsr_ui_battery_tick(void);
+bool dsr_ui_battery_active(void);
 void dsr_ui_battery_hide(void);
 void dsr_ui_display_init(uint8_t brightness,uint16_t seconds);
 void dsr_ui_display_open(lv_event_t *event);

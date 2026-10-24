@@ -56,6 +56,21 @@ with an explicit historical caption and the actual error; it never authorizes
 movement. Calibration, invalid data, auth failure or a changed endpoint clears
 that presentation history. Recovery uses GET readback, never a replayed move.
 
+Interaction has priority: touch/display work stays above the network worker
+(existing task priorities 6/5/4). UI callbacks update local feedback immediately;
+RPC remains asynchronous. Explicit STOP keeps its independent urgent lane.
+At a free worker boundary, native user intents precede actor work, followed by
+due reads for the current device/group or cards intersecting the viewport.
+After at most two preferred reads, give automations or other due devices a turn.
+The open battery page's ADC refresh follows manual controls and precedes unrelated
+polling; inactive ADC monitoring runs last. Entering a screen may refresh a healthy sample
+older than two seconds; failed-device/login backoff and direct HT sleep remain.
+Thermostat writes keep the 1.2 s tap coalescing interval and get one GET-only
+follow-up after one second. Pending targets remain separate from reported data.
+The existing serial worker finishes in-flight I/O: queue priority cannot shorten
+an exchange already waiting on Shelly/BLE. Measure touch-to-feedback, queue wait
+and device response separately on hardware; host tests do not prove latency.
+
 ## Local contact/heating rules
 
 The canonical workspace schema is 3. Stored schemas 1 and 2 are validated by

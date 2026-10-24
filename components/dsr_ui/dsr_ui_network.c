@@ -78,8 +78,11 @@ static enum { VIEW_NONE, VIEW_HOME, VIEW_DEVICE } view;
  * next LVGL pass, not after the remainder of the 200 ms poll period. */
 static lv_timer_t *poll_timer;
 static void dispatch_soon(void){if(poll_timer)lv_timer_ready(poll_timer);}
+static uint16_t visible_slots;
+static unsigned visible_reads;
 static const cJSON *layout_snapshot(void);
 static bool native_trv_busy(uint32_t id);
+static bool native_trv_waiting(void);
 static void native_trv_started(const dsr_job_t *job);
 static void native_trv_completed(uint32_t job,dsr_result_t result);
 
@@ -281,14 +284,35 @@ static dsr_result_t submit(dsr_job_kind_t kind,bool on)
  if(result==DSR_OK){busy=true;operation=kind;outstanding=job.id;if(kind==DSR_JOB_BIND){bind_stage=DSR_BIND_VERIFY;bind_lease=dsr_activity_begin();}}
  memset(&job,0,sizeof(job));render();return result;
 }
+static bool dispatch_fleet_job(dsr_job_t *job,unsigned index,uint32_t now,bool visible)
+{
+ job->id=++serial;dsr_result_t result=dsr_worker_submit(job);
+ if(result==DSR_OK){visible_reads=visible?visible_reads+1u:0;busy=true;operation=job->kind;outstanding=job->id;active_slot=index;manual_command=job->kind==DSR_JOB_SET_OUTPUT?(job->on?DSR_ACTION_ON:DSR_ACTION_OFF):job->kind==DSR_JOB_COVER?(job->cover.command==DSR_COVER_OPEN?DSR_ACTION_OPEN:job->cover.command==DSR_COVER_CLOSE?DSR_ACTION_CLOSE:0):0;native_trv_started(job);dsr_fleet_started(&fleet,index,job);render();}
+ memset(job,0,sizeof(*job));(void)now;return true;
+}
 static bool dispatch(uint32_t now,bool allow_poll)
 {
  if(busy||touch_job.id||dsr_worker_stop_pending()||!dsr_wifi_connected())return false;
  dsr_job_t job;unsigned index;
  if(!dsr_fleet_next(&fleet,now,allow_poll,&job,&index))return false;
- job.id=++serial;dsr_result_t result=dsr_worker_submit(&job);
- if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;active_slot=index;manual_command=job.kind==DSR_JOB_SET_OUTPUT?(job.on?DSR_ACTION_ON:DSR_ACTION_OFF):job.kind==DSR_JOB_COVER?(job.cover.command==DSR_COVER_OPEN?DSR_ACTION_OPEN:job.cover.command==DSR_COVER_CLOSE?DSR_ACTION_CLOSE:0):0;native_trv_started(&job);dsr_fleet_started(&fleet,index,&job);render();}
- memset(&job,0,sizeof(job));return true;
+ return dispatch_fleet_job(&job,index,now,false);
+}
+static bool dispatch_visible(uint32_t now,uint16_t mask,bool visible)
+{
+ if(busy||touch_job.id||dsr_worker_stop_pending()||!dsr_wifi_connected()||dsr_wifi_ui_active()||dsr_ui_lan_active()||dsr_ui_ap_active())return false;
+ dsr_job_t job;unsigned index;if(!dsr_fleet_next_poll(&fleet,now,mask,&job,&index))return false;
+ return dispatch_fleet_job(&job,index,now,visible);
+}
+static void update_visible(uint32_t now)
+{
+ uint16_t cards=view==VIEW_HOME?dsr_mobile_visible_devices():0,slots=0;
+ for(unsigned i=0;i<mobile_model.device_count;i++)if(cards&(1u<<i)){int at=card_slot(i);if(at>=0)slots|=(uint16_t)(1u<<at);}
+ /* Entering a screen may request one fresh gateway read, never shorten a
+  * failed-device/login backoff or wake a battery-powered direct HT sensor. */
+ for(unsigned i=0;i<fleet.count;i++)if((slots&~visible_slots)&(1u<<i)){
+  dsr_fleet_slot_t *s=&fleet.slots[i];if(!s->failures&&!s->blocked&&!s->in_flight&&!s->queued&&s->layout_enabled&&s->connection.device.endpoint_kind!=DSR_ENDPOINT_HT&&(!s->sample_valid||now-s->sample_ms>=2000u))s->next_poll=now;
+ }
+ visible_slots=slots;
 }
 static bool dispatch_actions(uint32_t now)
 {
@@ -303,7 +327,7 @@ static bool dispatch_actions(uint32_t now)
  bool fresh=stop||(s->sample_valid&&s->connection.device.online&&now-s->sample_ms<=dsr_fleet_fresh_ms(&s->connection.device));
  if(!dsr_actions_prepare_job(&job,gate,fresh)){memset(&job,0,sizeof(job));return true;}
  dsr_result_t result=stop?dsr_worker_action_stop_request(&job.connection,job.id):dsr_worker_submit(&job);
- if(result==DSR_OK){if(stop){action_stop_id=job.id;s->urgent_stop=true;s->command_id=job.id;}else{busy=true;operation=job.kind;outstanding=job.id;active_slot=(unsigned)at;dsr_fleet_started(&fleet,(unsigned)at,&job);}render();}
+ if(result==DSR_OK){visible_reads=0;if(stop){action_stop_id=job.id;s->urgent_stop=true;s->command_id=job.id;}else{busy=true;operation=job.kind;outstanding=job.id;active_slot=(unsigned)at;dsr_fleet_started(&fleet,(unsigned)at,&job);}render();}
  else if(result==DSR_BUSY)dsr_actions_unqueue(job.id);else dsr_actions_complete(job.id,result);
  memset(&job,0,sizeof(job));return true;
 }
@@ -315,7 +339,7 @@ static bool dispatch_automation_read(uint32_t now)
  if(!dsr_automation_prepare_read(&fleet,id,now,&job))return false;
  serial=id;
  dsr_result_t result=dsr_worker_submit(&job);
- if(result==DSR_OK){busy=true;operation=job.kind;outstanding=job.id;}
+ if(result==DSR_OK){visible_reads=0;busy=true;operation=job.kind;outstanding=job.id;}
  else dsr_automation_read_rejected(job.id,result);
  memset(&job,0,sizeof(job));return true;
 }
@@ -404,7 +428,7 @@ dsr_result_t dsr_network_request_battery_auto(void)
 {
  /* Background measurement yields to every queued touch, actor and radio flow.
   * Never queue it for later or change the current scene/control mode. */
- if(busy||touch_job.id||finishing_bind||dsr_worker_stop_pending()||dsr_actions_active()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_ble_rpc_active())return DSR_BUSY;
+ if(busy||touch_job.id||finishing_bind||native_trv_waiting()||dsr_worker_stop_pending()||dsr_actions_active()||dsr_ui_ap_active()||dsr_ui_ble_rpc_active()||dsr_wifi_temporary_active()||dsr_ble_rpc_active())return DSR_BUSY;
  /* Native device controls enter the workspace mailbox, not touch_job. Let
   * poll() consume and dispatch those intents before an automatic ADC read. */
  for(size_t i=0;i<fleet.count;i++)if(fleet.slots[i].queued||fleet.slots[i].mailbox_pending||fleet.slots[i].urgent_stop)return DSR_BUSY;
@@ -480,6 +504,7 @@ static void mobile_trv(unsigned index,uint8_t half_c)
  int at=card_slot(index);if(at<0)return;dsr_fleet_slot_t *s=&fleet.slots[at];
  if(binding_target(s)||dsr_actions_reserved(&s->connection.device)||s->mailbox_pending||s->urgent_stop)return;
  dsr_result_t result=native_trv_request(&fleet,(unsigned)at,half_c);
+ if(result==DSR_OK)dispatch_soon();
  if(result!=DSR_OK&&result!=DSR_BUSY){s->result=result;s->command_error=true;}
  render();
 }
@@ -944,7 +969,7 @@ static void poll(lv_timer_t *timer)
 #ifdef ESP_PLATFORM
  if(dsr_wifi_connected())(void)dsr_clock_start(); /* idempotent; background SNTP for the status bar clock */
 #endif
- dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_battery_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_usage_tick();dsr_ui_actions_tick();
+ dsr_wifi_ui_tick();dsr_ui_lan_tick();dsr_ui_ap_tick();dsr_ui_ble_tick();dsr_ui_ble_rpc_tick();dsr_ui_settings_tick();dsr_ui_native_ota_tick();dsr_ui_workspace_tick();dsr_ui_onboarding_tick();dsr_panel_tick();dsr_ui_usage_tick();dsr_ui_actions_tick();
  dsr_ui_device_settings_tick();dsr_ui_blu_tick();dsr_ui_automation_tick();dsr_ui_activity_tick();
  dsr_ui_maintenance_tick();
  uint32_t handoff_now=(uint32_t)(esp_timer_get_time()/1000);
@@ -974,12 +999,26 @@ static void poll(lv_timer_t *timer)
  bool home=wifi&&!finishing_bind&&!dsr_ui_blu_active()&&!dsr_ui_device_settings_active()&&!dsr_ui_ap_active()&&!dsr_ui_ble_rpc_active()&&!dsr_ble_rpc_active()&&!dsr_wifi_temporary_active()&&!dsr_wifi_ui_active()&&!dsr_network_ota_busy();
  dsr_automation_tick(&fleet,now,utc,home);native_trv_tick(&fleet,now,home);
  dsr_actions_snapshot_t action_state;dsr_actions_snapshot(&action_state);
- bool attempted=dispatch_touch();if(!attempted&&action_state.active)attempted=dispatch_actions(now);
+ bool attempted=dispatch_touch();
  if(!attempted)attempted=dispatch(now,false);
+ /* Do not let a new background exchange jump ahead of a manual TRV waiting
+  * for its existing persistence/override guard. Running I/O is not replayed. */
+ if(!attempted&&native_trv_waiting())attempted=true;
+ if(!attempted&&action_state.active)attempted=dispatch_actions(now);
+ /* An open battery page owns the foreground ADC refresh. Its admission still
+  * yields to manual commands/STOP; inactive monitoring stays after polling. */
+ bool battery_page=dsr_ui_battery_active()||dsr_ui_battery_calibration_active();
+ if(battery_page){dsr_ui_battery_tick();if(busy||touch_job.id)attempted=true;}
+ update_visible(now);
+ if(!attempted&&visible_reads<2)attempted=dispatch_visible(now,visible_slots,true);
  if(!attempted)attempted=dispatch_actions(now);
  if(!attempted)attempted=dispatch_automation_read(now);
- if(!busy&&!touch_job.id)reconcile_layout(true);
+ /* Two foreground reads at most, then one eligible background opportunity.
+  * Reads still obey each endpoint's due time, failure and login backoff. */
+ if(!attempted&&visible_reads>=2)attempted=dispatch_visible(now,(uint16_t)~visible_slots,false);
+ if(!busy&&!touch_job.id&&!native_trv_waiting()){reconcile_layout(true);if(busy)visible_reads=0;}
  if(!attempted)(void)dispatch(now,!dsr_wifi_ui_active()&&!dsr_ui_lan_active()&&!dsr_ui_ap_active());
+ if(!battery_page)dsr_ui_battery_tick(); /* Inactive ADC monitoring runs last. */
  /* Freshness can expire while the sole transport is still waiting. Update
   * the LCD once at that transition, rather than rebuilding it every tick. */
  if(view==VIEW_HOME)for(unsigned i=0;i<mobile_model.device_count;i++){

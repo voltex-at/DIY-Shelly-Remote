@@ -105,6 +105,8 @@ void dsr_mobile_hide(void);
 void dsr_mobile_cover_preview(void);
 bool dsr_mobile_active(void);
 dsr_mobile_page_t dsr_mobile_page(void);
+/* LVGL owner only: current details/group or cards intersecting the viewport. */
+uint16_t dsr_mobile_visible_devices(void);
 bool dsr_mobile_configure(dsr_mobile_model_t *model,const char *json);
 /* LVGL-owner-only borrowed document, already accepted by dsr_config_validate.
  * No mutation, retained pointers or ownership transfer; raw JSON callers use
