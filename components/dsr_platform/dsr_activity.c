@@ -9,7 +9,8 @@
 #define FAULT UINT32_C(0x20000000)
 #define CONFIRMED UINT32_C(0x10000000)
 #define MAINTENANCE UINT32_C(0x08000000)
-#define COUNT UINT32_C(0x07ffffff)
+#define COMMIT UINT32_C(0x04000000)
+#define COUNT UINT32_C(0x03ffffff)
 static _Atomic uint32_t activity_state;
 static uint64_t data_generation=1,next_reservation,active_reservation;
 static bool generation_exhausted;
@@ -62,7 +63,7 @@ bool dsr_activity_restart_reserve(void)
 bool dsr_activity_restart_confirmed_reserve(void)
 {
  uint32_t old=atomic_load(&activity_state);
- do{if(old&(PENDING|DISPATCHED|MAINTENANCE))return false;}
+ do{if(old&(PENDING|DISPATCHED|MAINTENANCE|COMMIT))return false;}
  while(!atomic_compare_exchange_weak(&activity_state,&old,old|PENDING|CONFIRMED));
  return true;
 }
@@ -90,6 +91,8 @@ uint64_t dsr_activity_data_generation(void)
 {lock();uint64_t g=generation_exhausted?0:data_generation;unlock();return g;}
 bool dsr_activity_maintenance_reserved(void)
 {return (atomic_load(&activity_state)&MAINTENANCE)!=0;}
+bool dsr_activity_maintenance_committed(void)
+{return (atomic_load(&activity_state)&COMMIT)!=0;}
 bool dsr_activity_maintenance_reserve(uint64_t *reservation,uint64_t *generation)
 {
  if(!reservation||!generation)return false;
@@ -101,9 +104,21 @@ bool dsr_activity_maintenance_reserve(uint64_t *reservation,uint64_t *generation
 }
 void dsr_activity_maintenance_release(uint64_t reservation)
 {
- lock();if(reservation&&active_reservation==reservation){active_reservation=0;uint32_t expected=MAINTENANCE;(void)atomic_compare_exchange_strong(&activity_state,&expected,0);}unlock();
+ lock();if(reservation&&active_reservation==reservation&&!(atomic_load(&activity_state)&COMMIT)){active_reservation=0;uint32_t expected=MAINTENANCE;(void)atomic_compare_exchange_strong(&activity_state,&expected,0);}unlock();
 }
 bool dsr_activity_maintenance_valid(uint64_t reservation,uint64_t generation)
 {
  lock();bool ok=reservation&&active_reservation==reservation&&!generation_exhausted&&generation==data_generation&&atomic_load(&activity_state)==MAINTENANCE;unlock();return ok;
 }
+static bool commit_exchange(uint64_t reservation,uint64_t generation,uint32_t from,uint32_t to)
+{
+ lock();uint32_t expected=from;bool ok=reservation&&active_reservation==reservation&&!generation_exhausted&&generation==data_generation&&atomic_compare_exchange_strong(&activity_state,&expected,to);unlock();return ok;
+}
+bool dsr_activity_maintenance_commit_begin(uint64_t reservation,uint64_t generation)
+{return commit_exchange(reservation,generation,MAINTENANCE,COMMIT);}
+bool dsr_activity_maintenance_commit_valid(uint64_t reservation,uint64_t generation)
+{lock();bool ok=reservation&&active_reservation==reservation&&!generation_exhausted&&generation==data_generation&&atomic_load(&activity_state)==COMMIT;unlock();return ok;}
+bool dsr_activity_maintenance_commit_abort(uint64_t reservation,uint64_t generation)
+{return commit_exchange(reservation,generation,COMMIT,MAINTENANCE);}
+bool dsr_activity_maintenance_restart_reserve(uint64_t reservation,uint64_t generation)
+{return commit_exchange(reservation,generation,COMMIT,COMMIT|PENDING|CONFIRMED);}

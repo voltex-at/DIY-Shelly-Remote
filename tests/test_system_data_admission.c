@@ -29,5 +29,11 @@ int main(void)
  CHECK(dsr_activity_begin());dsr_activity_end();CHECK(dsr_activity_restart_confirmed_reserve());CHECK(!dsr_maintenance_acquire(&lease));dsr_activity_restart_cancel();
  dsr_maint_status_t status;memset(&status,0xff,sizeof(status));dsr_maintenance_snapshot(&status);CHECK(status.phase==DSR_MAINT_IDLE&&!status.can_confirm);
  CHECK(!dsr_maintenance_boot_writes_allowed()&&!dsr_maintenance_bonds_snapshot_allowed());
+ CHECK(dsr_maintenance_acquire(&lease));CHECK(!dsr_activity_maintenance_commit_begin(lease.reservation,lease.generation+1));
+ CHECK(dsr_activity_maintenance_commit_begin(lease.reservation,lease.generation));CHECK(!dsr_activity_stop_begin()&&!dsr_activity_begin()&&!dsr_activity_restart_confirmed_reserve());
+ dsr_maintenance_snapshot(&status);CHECK(status.phase==DSR_MAINT_COMMITTED&&!status.can_confirm);
+ dsr_maintenance_release(&lease);CHECK(dsr_activity_maintenance_commit_valid(lease.reservation,lease.generation));CHECK(!dsr_activity_maintenance_commit_abort(lease.reservation+1,lease.generation));
+ CHECK(dsr_activity_maintenance_restart_reserve(lease.reservation,lease.generation));dsr_activity_restart_cancel();CHECK(!dsr_activity_begin()&&dsr_activity_maintenance_commit_valid(lease.reservation,lease.generation));
+ CHECK(dsr_activity_maintenance_commit_abort(lease.reservation,lease.generation));CHECK(dsr_maintenance_lease_valid(&lease));dsr_maintenance_release(&lease);CHECK(dsr_activity_begin());dsr_activity_end();
  printf("PASS: %u maintenance admission checks; real atomic gate, modeled owner attestations\n",checks);return 0;
 }

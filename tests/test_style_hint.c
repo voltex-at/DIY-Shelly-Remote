@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef DSR_BOARD_ES3C35P
+#include "dsr_activity_internal.h"
+#endif
 static uint8_t stored,pending;
 static unsigned commits;
 static bool missing,fail_commit;
@@ -20,6 +23,15 @@ esp_err_t nvs_commit(nvs_handle_t h)
 void nvs_close(nvs_handle_t h){assert(h==1);}
 int main(int argc,char **argv)
 {
+#ifdef DSR_BOARD_ES3C35P
+ if(argc==2&&!strcmp(argv[1],"--maintenance-owner")){
+  assert(dsr_style_hint_get()==0);uint64_t reservation,generation;assert(dsr_activity_maintenance_reserve(&reservation,&generation));
+  dsr_style_hint_set(3);assert(commits==0&&dsr_activity_data_generation()==generation);dsr_activity_maintenance_release(reservation);
+  dsr_style_hint_set(3);assert(commits==1&&stored==3&&dsr_activity_data_generation()==generation+1);
+  assert(dsr_activity_maintenance_reserve(&reservation,&generation)&&dsr_activity_maintenance_commit_begin(reservation,generation));dsr_style_hint_set(2);assert(commits==1&&stored==3);
+  puts("PASS: style writes obey capture/commit admission and invalidate dataset generation; NVS MODEL");return 0;
+ }
+#endif
  /* Modes 0..3 are the four ids a 0.7.67 device may hold (1 = retired
   * midnight); 4 is an invalid byte, 5 a missing key. */
  assert(argc==2);unsigned mode=(unsigned)atoi(argv[1]);stored=(uint8_t)mode;missing=mode==5;

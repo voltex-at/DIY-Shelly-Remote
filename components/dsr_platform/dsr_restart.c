@@ -1,4 +1,5 @@
 #include "dsr_restart.h"
+#include "dsr_restart_internal.h"
 #include "dsr_boot.h"
 #include "dsr_activity_internal.h"
 #include "esp_system.h"
@@ -58,14 +59,17 @@ esp_err_t dsr_restart_start(void)
  atomic_store(&restart_dispatcher.phase,DISPATCH_READY);
  return ESP_OK;
 }
-static dsr_restart_result_t request(bool confirmed)
+static dsr_restart_result_t request(bool confirmed,uint64_t maintenance,uint64_t generation)
 {
  if(!dsr_boot_ready()||atomic_load(&restart_dispatcher.phase)!=DISPATCH_READY)return DSR_RESTART_UNAVAILABLE;
- if(!(confirmed?dsr_activity_restart_confirmed_reserve():dsr_activity_restart_reserve()))return DSR_RESTART_BUSY;
+ bool accepted=maintenance?dsr_activity_maintenance_restart_reserve(maintenance,generation):confirmed?dsr_activity_restart_confirmed_reserve():dsr_activity_restart_reserve();
+ if(!accepted)return DSR_RESTART_BUSY;
  if(xTaskNotifyGive(restart_dispatcher.task)!=pdPASS){
   dsr_activity_restart_cancel();return DSR_RESTART_UNAVAILABLE;
  }
  return DSR_RESTART_ACCEPTED;
 }
-dsr_restart_result_t dsr_restart_request(void){return request(false);}
-dsr_restart_result_t dsr_restart_request_confirmed(void){return request(true);}
+dsr_restart_result_t dsr_restart_request(void){return request(false,0,0);}
+dsr_restart_result_t dsr_restart_request_confirmed(void){return request(true,0,0);}
+dsr_restart_result_t dsr_restart_request_maintenance(uint64_t reservation,uint64_t generation)
+{return reservation&&generation?request(false,reservation,generation):DSR_RESTART_BUSY;}

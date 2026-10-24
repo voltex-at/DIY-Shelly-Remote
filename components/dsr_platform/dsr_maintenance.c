@@ -30,5 +30,5 @@ bool dsr_maintenance_boot_writes_allowed(void){return false;}
 void dsr_maintenance_snapshot(dsr_maint_status_t *out)
 {
  if(!out)return;
- memset(out,0,sizeof(*out));out->phase=dsr_activity_maintenance_reserved()?DSR_MAINT_CAPTURING:DSR_MAINT_IDLE;
+ memset(out,0,sizeof(*out));out->phase=dsr_activity_maintenance_committed()?DSR_MAINT_COMMITTED:dsr_activity_maintenance_reserved()?DSR_MAINT_CAPTURING:DSR_MAINT_IDLE;
 }

@@ -15,11 +15,18 @@ void dsr_style_hint_set(uint8_t style)
 {
  if(style>3||style==DSR_STYLE_HINT_RETIRED)return;
  if(dsr_style_hint_get()==style&&stored==style)return; /* write only on a real change */
+#ifdef DSR_BOARD_ES3C35P
+ if(!dsr_activity_begin())return;
+#endif
  nvs_handle_t handle;
- if(nvs_open("dsr_ui",NVS_READWRITE,&handle)!=ESP_OK)return;
- dsr_activity_persistent_write();
- if(nvs_set_u8(handle,"style",style)==ESP_OK&&nvs_commit(handle)==ESP_OK)cached=stored=style;
- nvs_close(handle);
+ if(nvs_open("dsr_ui",NVS_READWRITE,&handle)==ESP_OK){
+  dsr_activity_persistent_write();
+  if(nvs_set_u8(handle,"style",style)==ESP_OK&&nvs_commit(handle)==ESP_OK)cached=stored=style;
+  nvs_close(handle);
+ }
+#ifdef DSR_BOARD_ES3C35P
+ dsr_activity_end();
+#endif
 }
 #if defined(DSR_BOARD_ES3C35P) && (defined(ESP_PLATFORM) || defined(DSR_TEST_SYSTEM_DATA))
 #include "dsr_backup_storage.h"

@@ -10,11 +10,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 case_names = ['format','sources','bonds','admission','stage','recovery','api']
-p.add_argument('--case', choices=[*case_names,'source_model','bonds_model','stage_model','stage_store','ble_owner','workspace_owner','all'], default='all')
+p.add_argument('--case', choices=[*case_names,'source_model','bonds_model','stage_model','stage_store','stage_crypto','style_gate','ble_owner','workspace_owner','all'], default='all')
 p.add_argument('--sanitize', action='store_true')
 p.add_argument('--ubsan-only', action='store_true')
 a = p.parse_args()
 cases = {
+ 'style_gate': ['components/dsr_platform/dsr_style_hint.c','components/dsr_platform/dsr_activity.c','tests/test_style_hint.c'],
+ 'stage_crypto': ['components/dsr_platform/dsr_maintenance_crypto.c','components/dsr_platform/dsr_maintenance_model.c',
+                  'components/dsr_config/dsr_photo_name.c','tests/system_data/gcm.c','tests/test_system_data_stage_crypto.c'],
  'stage_store': ['components/dsr_platform/dsr_maintenance_store.c','components/dsr_platform/dsr_maintenance_model.c',
                  'components/dsr_config/dsr_photo_name.c','tests/system_data/storage.c','tests/test_system_data_stage_store.c'],
  'stage_model': ['components/dsr_platform/dsr_maintenance_model.c','components/dsr_config/dsr_photo_name.c','tests/test_system_data_stage_model.c'],
@@ -72,6 +75,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
             sdk_includes = [v for folder in ['include','host/include','host/src'] for v in ['-I',str(nimble / folder)]]
         subprocess.run([os.environ.get('CC','cc'), *flags,
                         *(['-DDSR_BOARD_ES3C35P=1','-DDSR_TEST_SYSTEM_DATA=1'] if case == 'sources' else []),
+                        *(['-DDSR_BOARD_ES3C35P=1'] if case == 'style_gate' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/ble')] if case == 'ble_owner' else []),
                         *(['-DDSR_TEST_SYSTEM_DATA=1','-I',str(ROOT / 'tests/restart')] if case == 'workspace_owner' else []),
                         *[v for folder in includes for v in ['-I',str(ROOT / folder) if not folder.startswith('/') else folder]],
@@ -79,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-system-data-') as temp:
                         *[str(ROOT / source) for source in cases[case]],
                         *(['-Wl,--wrap=cJSON_ParseWithLengthOpts'] if case=='format' else []),
                         '-Wl,--gc-sections','-L',str(ROOT / '.test-deps'),'-l:libcjson.so.1','-lcrypto','-lm','-o',str(target)], check=True)
-        result = subprocess.run([str(target),'--maintenance-owner' if case in ('ble_owner','workspace_owner') else str(ROOT / 'tests/system_data/manifest-v1.json')], text=True, capture_output=True)
+        result = subprocess.run([str(target),'--maintenance-owner' if case in ('ble_owner','workspace_owner','style_gate') else str(ROOT / 'tests/system_data/manifest-v1.json')], text=True, capture_output=True)
         if result.returncode:
             print(result.stderr.strip())
             raise SystemExit(result.returncode)

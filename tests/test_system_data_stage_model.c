@@ -10,6 +10,8 @@ int main(void)
  CHECK(dsr_maint_preflight(&l,65536,16,104)==DSR_OK);l.used+=16*115200;CHECK(dsr_maint_preflight(&l,65536,16,104)==DSR_FULL);l.used=65536;
  l.nvs_available=10;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.nvs_available=1800;
  l.psram_largest=4096;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.psram_largest=1024*1024;
+ l.psram_largest=98304;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.psram_largest=1024*1024;
+ l.psram_free=230400;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.psram_free=1024*1024;
  l.internal_largest=4096;CHECK(dsr_maint_preflight(&l,65536,16,16)==DSR_FULL);l.internal_largest=32768;
  CHECK(dsr_maint_preflight(&l,65537,16,16)==DSR_INVALID&&dsr_maint_preflight(&l,1,17,16)==DSR_INVALID);
  dsr_maint_record_t r={.sequence=UINT64_C(0xfedcba9876543210),.generation=UINT64_C(0x1020304050607080),.candidate_bytes=24+500+16*(56+115200),.metadata_bytes=500,.op=DSR_MAINT_IMPORT_COMMIT,.phase=DSR_MAINT_PREPARING,.photos=16,.connections=16,.rules=8,.bonds=104};

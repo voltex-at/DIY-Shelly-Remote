@@ -1,6 +1,7 @@
 /* Actual backend + atomics. FreeRTOS and ESP shutdown are a host MODEL. */
 #define _POSIX_C_SOURCE 200809L
 #include "dsr_restart.h"
+#include "dsr_restart_internal.h"
 #include "dsr_activity.h"
 #include "dsr_activity_internal.h"
 #include "freertos/task.h"
@@ -53,6 +54,14 @@ int main(int argc,char **argv)
   CHECK(dsr_restart_start()==ESP_OK&&creates==1&&task);CHECK(dsr_restart_start()==ESP_ERR_INVALID_STATE&&creates==1);
   if(!strcmp(argv[1],"boot")){
    boot=false;CHECK(dsr_restart_request()==DSR_RESTART_UNAVAILABLE&&!notifies);CHECK(dsr_activity_begin());dsr_activity_end();
+  }else if(!strncmp(argv[1],"maintenance-",12)){
+   uint64_t reservation,generation;CHECK(dsr_activity_maintenance_reserve(&reservation,&generation));CHECK(dsr_activity_maintenance_commit_begin(reservation,generation));
+   CHECK(dsr_restart_request_maintenance(reservation+1,generation)==DSR_RESTART_BUSY&&!notifies);
+   bool failed=!strcmp(argv[1],"maintenance-notify-fail");notify_fail=failed;
+   dsr_restart_result_t result=dsr_restart_request_maintenance(reservation,generation);
+   if(failed){CHECK(result==DSR_RESTART_UNAVAILABLE&&!notifications&&!dsr_activity_begin()&&!dsr_activity_stop_begin());notify_fail=false;CHECK(dsr_restart_request_maintenance(reservation,generation)==DSR_RESTART_ACCEPTED);}
+   else CHECK(result==DSR_RESTART_ACCEPTED&&!restarts&&notifications==1);
+   dispatch();CHECK(restarts==1&&deletes==1&&!dsr_activity_begin());dsr_activity_restart_cancel();CHECK(!dsr_activity_begin());
   }else if(!strcmp(argv[1],"confirmed-busy")){
    CHECK(dsr_activity_begin()&&dsr_activity_begin());
    CHECK(dsr_restart_request_confirmed()==DSR_RESTART_ACCEPTED&&!restarts);

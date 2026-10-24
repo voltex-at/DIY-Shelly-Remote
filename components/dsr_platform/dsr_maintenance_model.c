@@ -11,7 +11,9 @@ dsr_result_t dsr_maint_preflight(const dsr_maint_limits_t *l,uint32_t metadata,u
   * overhead and a separate 64 KiB reserve. No OTA partition is considered. */
  uint64_t stage=(uint64_t)metadata+(uint64_t)photos*115200+(photos+1u)*DSR_MAINT_RECORD_HEADER;
  uint64_t peak=(uint64_t)l->used+stage+115200+(photos+2u)*8192+65536;
- if(peak>(uint64_t)l->total*3/4||l->nvs_available<448u+6u*bonds||l->psram_free<196608||l->psram_largest<65536||l->internal_free<32768||l->internal_largest<8192)return DSR_FULL;
+ /* Two largest record buffers for encryption/readback/authentication plus
+  * JSON/semantic/SDK reserve; refuse fragmentation before creating intent. */
+ if(peak>(uint64_t)l->total*3/4||l->nvs_available<448u+6u*bonds||l->psram_free<327680||l->psram_largest<131072||l->internal_free<32768||l->internal_largest<8192)return DSR_FULL;
  return DSR_OK;
 }
 bool dsr_maint_record_valid(const dsr_maint_record_t *r)

@@ -3,7 +3,7 @@
 import argparse,os,re,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');p.add_argument('--backend-case',choices=['confirmed-busy','confirmed-notify-fail','confirmed-boot-lost']);p.add_argument('--writer-case',choices=['workspace','photos']);args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--sanitize',action='store_true');p.add_argument('--ubsan-only',action='store_true');p.add_argument('--backend-case',choices=['confirmed-busy','confirmed-notify-fail','confirmed-boot-lost','maintenance-once','maintenance-notify-fail']);p.add_argument('--writer-case',choices=['workspace','photos']);args=p.parse_args()
 with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     tmp=Path(directory);flags=['-D_POSIX_C_SOURCE=200809L','-std=c11','-Wall','-Wextra','-Werror','-Wpedantic','-g','-pthread']
     if args.sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='dsr-restart-') as directory:
     flags+=['-I',str(tmp)]
     for folder in ['tests/restart','tests/support','components/dsr_platform/include','components/dsr_platform']:flags+=['-I',str(ROOT/folder)]
     suites=[('activity',['tests/test_restart.c'],['basic','fault','pending-fault','writer-race','restart-race','writers']),
-            ('backend',['components/dsr_platform/dsr_restart.c','tests/restart/backend.c'],['before-start','create-fail','boot','busy','notify-fail','boot-lost','spurious','once','race','confirmed-busy','confirmed-notify-fail','confirmed-boot-lost'])]
+            ('backend',['components/dsr_platform/dsr_restart.c','tests/restart/backend.c'],['before-start','create-fail','boot','busy','notify-fail','boot-lost','spurious','once','race','confirmed-busy','confirmed-notify-fail','confirmed-boot-lost','maintenance-once','maintenance-notify-fail'])]
     if args.backend_case:suites=[(suites[1][0],suites[1][1],[args.backend_case])]
     if args.writer_case:suites=[]
     for name,sources,cases in suites:
