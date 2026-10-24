@@ -17,6 +17,15 @@ static lv_obj_t *rail(lv_obj_t *o)
 }
 static void frame(const char *name,unsigned skin)
 {char text[80];snprintf(text,sizeof(text),"cover-refresh-%u-%s",skin,name);screenshot(text);}
+static void bottom_stop(void)
+{
+ lv_obj_update_layout(lv_screen_active());
+ lv_obj_t *label=find_label(lv_screen_active(),"Stop");
+ if(!label)fprintf(stderr,"Missing bottom STOP: skin=%u language=%u\n",dsr_sc_style(),dsr_sc_language());
+ CHECK(label);
+ lv_area_t box;lv_obj_get_coords(lv_obj_get_parent(label),&box);
+ CHECK(box.y1>=364&&box.y2<428); /* Reachable action row above navigation. */
+}
 static lv_obj_t *position_text(unsigned value,bool historical)
 {char text[64];if(historical)snprintf(text,sizeof(text),dsr_sc_tr("Ostatnia pozycja: %u%%"),value);else snprintf(text,sizeof(text),"%s %u%%",dsr_sc_tr("Pozycja"),value);return find_label(lv_screen_active(),text);}
 static uint32_t visual_hash(void)
@@ -32,16 +41,21 @@ int main(int argc,char **argv)
   dsr_mobile_device_t *d=&view.devices[0];*d=(dsr_mobile_device_t){.id=41,.name="Cover refresh",.identity="cover-test",.host="192.168.1.80",.generation=DSR_GEN2_PLUS,.endpoint_kind=DSR_ENDPOINT_COVER,.kind=DSR_DEVICE_COVER,.online=true,.can_cover=true,.can_stop_cover=true,.can_position=true,.has_position=true,.position_pct=79,.cover_state=DSR_COVER_STOPPED,.has_power=true,.power_w=3.2,.has_voltage=true,.voltage_v=230};
   dsr_mobile_update(&view);dsr_mobile_show(DSR_MOBILE_DETAILS,0);lv_obj_update_layout(lv_screen_active());
   lv_obj_t *title=find_label(lv_screen_active(),"Cover refresh"),*art=rail(lv_screen_active());CHECK(title&&art);
+  CHECK(!find_label(lv_screen_active(),"Stop"));
+  if(!lang)frame("stopped",skins[s]);
   lv_obj_add_event_cb(title,deleted_view,LV_EVENT_DELETE,NULL);lv_obj_add_event_cb(art,deleted_view,LV_EVENT_DELETE,NULL);deleted=0;
   unsigned before=commands;click("Otwórz");CHECK(commands==before+1);
   d->busy=d->command_pending=true;dsr_mobile_update(&view);
   CHECK(!deleted&&rail(lv_screen_active())==art);
   CHECK(position_text(79,false)&&find_label(lv_screen_active(),"Wysyłanie polecenia…"));
+  if(!lang)frame("sending",skins[s]);
+  bottom_stop();
   d->busy=d->command_pending=false;d->online=d->has_position=false;d->can_cover=d->can_position=false;d->has_power=d->has_voltage=false;d->error=DSR_OFFLINE;dsr_mobile_update(&view);
   CHECK(!deleted&&position_text(79,true));
   CHECK(find_label(lv_screen_active(),"Offline")&&!find_label(lv_screen_active(),"Nieznana pozycja"));
   CHECK(lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Otwórz")),LV_STATE_DISABLED));
   CHECK(!lv_obj_has_state(lv_obj_get_parent(find_label(lv_screen_active(),"Stop")),LV_STATE_DISABLED));
+  bottom_stop();
   d->command_phase=DSR_COMMAND_WRITE;dsr_mobile_update(&view);
   CHECK(find_label(lv_screen_active(),"Polecenie niepotwierdzone")&&!find_label(lv_screen_active(),"Brak odpowiedzi"));
   if(!lang)frame("uncertain-command",skins[s]);

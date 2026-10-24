@@ -7,7 +7,7 @@ static struct {
  lv_obj_t *root,*badges[5],*controls[3],*unknown;
  dsr_ui_icon_t icons[5];
  int last_position;
- bool has_position,historical,controls_set,moving,valid,stop_valid;
+ bool has_position,historical,controls_set,stop_shown,valid,stop_valid;
 } cover_view;
 static void cover_view_reset(void){memset(&cover_view,0,sizeof(cover_view));}
 static void cover_visual_deleted(lv_event_t *event)
@@ -38,14 +38,16 @@ static void cover_badge(unsigned index,dsr_ui_icon_t icon,const char *text,int x
 static void cover_controls(const dsr_mobile_device_t *d)
 {
  bool group=group_display_index(d)>=0,hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
- bool stop_valid=d->can_stop_cover&&(group?actions.set_group!=NULL:model.demo||actions.stop_cover),moving=cover_moving(d);
+ bool stop_valid=d->can_stop_cover&&(group?actions.set_group!=NULL:model.demo||actions.stop_cover);
+ /* STOP stays in the bottom row while sending/moving or when readback is
+  * unavailable. Never hide the urgent action after a transport failure. */
+ bool show_stop=cover_moving(d)||d->cover_state==DSR_COVER_CALIBRATING||!cover_position(d);
  bool valid=d->online&&d->error==DSR_OK&&!d->busy&&d->can_cover&&(group?actions.set_group!=NULL:model.demo||actions.set_cover);
- if(cover_view.controls_set&&cover_view.moving==moving&&cover_view.valid==valid&&cover_view.stop_valid==stop_valid)return;
+ if(cover_view.controls_set&&cover_view.stop_shown==show_stop&&cover_view.valid==valid&&cover_view.stop_valid==stop_valid)return;
  for(unsigned i=0;i<3;i++){if(cover_view.controls[i])lv_obj_delete(cover_view.controls[i]);cover_view.controls[i]=NULL;}
- cover_view.controls_set=true;cover_view.moving=moving;cover_view.valid=valid;cover_view.stop_valid=stop_valid;
+ cover_view.controls_set=true;cover_view.stop_shown=show_stop;cover_view.valid=valid;cover_view.stop_valid=stop_valid;
  lv_obj_t *root=cover_view.root;
- if(moving){cover_view.controls[0]=cover_compact(root,12,364,88,48,0,valid);cover_view.controls[1]=stop_button(root,106,364,108,48,stop_valid,cover_stop,NULL);cover_view.controls[2]=cover_compact(root,220,364,88,48,1,valid);return;}
- lv_obj_t *stop=dsr_sc_button(root,250,232,52,64,DSR_SC_PANEL,9,cover_stop,NULL);cover_view.controls[1]=stop;edge(stop,DSR_SC_GLOW,1);dsr_sc_icon(stop,DSR_ICON_STOP,14,7,24,stop_valid?DSR_SC_GLOW:DSR_SC_OFF);center(dsr_sc_text(stop,"Stop",2,38,46,&dsr_roboto_12,DSR_SC_TEXT));if(!stop_valid)lv_obj_add_state(stop,LV_STATE_DISABLED);
+ if(show_stop){cover_view.controls[0]=cover_compact(root,12,364,88,48,0,valid);cover_view.controls[1]=stop_button(root,106,364,108,48,stop_valid,cover_stop,NULL);cover_view.controls[2]=cover_compact(root,220,364,88,48,1,valid);return;}
  for(unsigned i=0;i<2;i++){
   lv_obj_t *button=dsr_sc_button(root,12+(int)i*152,364,144,48,hud?DSR_SC_BLUE:DSR_SC_CARD,10,group?group_cover_pair:cover_control,(void *)(uintptr_t)(selected*2+(i==0)));cover_view.controls[i?2:0]=button;
   if(hud)dsr_ui_cyber_panel(button,true);
@@ -87,7 +89,7 @@ static void shared_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
  bool group=group_display_index(d)>=0,known=cover_position(d);
  cover_view.root=root;
  lv_obj_t *panel=dsr_sc_panel(root,12,170,296,186,DSR_SC_CARD,12);edge(panel,DSR_SC_BLUE,1);
- lv_obj_t *rail=dsr_sc_panel(root,64,180,176,142,DSR_SC_BG,5);lv_obj_set_style_bg_opa(rail,LV_OPA_TRANSP,0);
+ lv_obj_t *rail=dsr_sc_panel(root,72,180,176,142,DSR_SC_BG,5);lv_obj_set_style_bg_opa(rail,LV_OPA_TRANSP,0);
  dsr_sc_border_width(rail,0,0);lv_obj_remove_flag(rail,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_SCROLL_CHAIN_VER);
  lv_obj_t *well=dsr_sc_panel(rail,0,0,176,142,DSR_SC_BG,5);dsr_sc_border_width(well,0,0);
  int pos=known?(int)lround(d->position_pct):0;
@@ -97,11 +99,11 @@ static void shared_cover_details(lv_obj_t *root,dsr_mobile_device_t *d)
  lv_obj_add_event_cb(well,cover_visual_deleted,LV_EVENT_DELETE,NULL);
  /* Capability is checked at event time, including after a failed readback. */
  lv_obj_add_flag(rail,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESSED,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESSING,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_RELEASED,NULL);lv_obj_add_event_cb(rail,cover_drag_event,LV_EVENT_PRESS_LOST,NULL);
- for(unsigned i=0;i<=10;i++){int y=202+(int)i*108/10;dsr_sc_panel(root,i%5?60:56,y,i%5?3:7,1,DSR_SC_MUTED,0);}
- const char *levels[]={"100%","50%","0%"};const int levels_y[]={192,246,300};for(unsigned i=0;i<3;i++){lv_obj_t *level=dsr_sc_text(root,levels[i],16,levels_y[i],36,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_set_style_text_align(level,LV_TEXT_ALIGN_RIGHT,0);}
+ for(unsigned i=0;i<=10;i++){int y=202+(int)i*108/10;dsr_sc_panel(root,i%5?68:64,y,i%5?3:7,1,DSR_SC_MUTED,0);}
+ const char *levels[]={"100%","50%","0%"};const int levels_y[]={192,246,300};for(unsigned i=0;i<3;i++){lv_obj_t *level=dsr_sc_text(root,levels[i],24,levels_y[i],36,&dsr_roboto_14,DSR_SC_MUTED);lv_obj_set_style_text_align(level,LV_TEXT_ALIGN_RIGHT,0);}
  cover_view.unknown=dsr_sc_text(well,"—",8,74,160,&dsr_roboto_28,DSR_SC_MUTED);center(cover_view.unknown);
  cover_position_label=dsr_sc_text(root,"",18,327,284,&dsr_roboto_22,known?DSR_SC_GLOW:DSR_SC_MUTED);center(cover_position_label);
- cover_preview_label=dsr_sc_text(root,"",244,190,62,&dsr_roboto_12,0xffc65b);lv_obj_set_style_text_align(cover_preview_label,LV_TEXT_ALIGN_CENTER,0);
+ cover_preview_label=dsr_sc_text(root,"",252,190,54,&dsr_roboto_12,0xffc65b);lv_obj_set_style_text_align(cover_preview_label,LV_TEXT_ALIGN_CENTER,0);
  cover_values(d);
 }
 static bool refresh_cover_details(const dsr_mobile_model_t *m)
