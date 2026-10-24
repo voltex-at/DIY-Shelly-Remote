@@ -1,3 +1,12 @@
+0.7.76-dev: kandydat do próby na płytce — roleta, ACK i odczyt w tle.
+
+- Komenda rolety kończy się na prawidłowym potwierdzeniu Shelly. UI otrzymuje „Polecenie przyjęte”, a stan pobiera osobne zlecenie w tle. Wynik odczytu pozostaje oddzielony od wyniku komendy, także dla grup, scen i STOP.
+- Jeden chwilowy timeout odczytu po ACK może ponowić GET z zachowaniem ostatnich rzeczywistych danych i ich wieku. Trwała utrata odczytu oraz błędy logowania, tożsamości, danych i limitu zapytań pozostają widoczne. Utrata samego ACK pozostaje wynikiem niepewnym, bez automatycznego ponawiania ruchu.
+- STOP ma własną fazę potwierdzenia. Późny wynik poprzedniego ruchu nie potwierdza STOP, a ruch anulowany przed wysłaniem nie usuwa ostatniej obserwacji. Przyjęcie komendy nie zastępuje rzeczywistej pozycji ani nie uruchamia pozorowanej animacji. Raport: [RESPONSIVENESS_AUDIT_0_7_75_PL.md](RESPONSIVENESS_AUDIT_0_7_75_PL.md).
+- Usunięto boczny STOP i wyśrodkowano grafikę rolety. Dolny STOP pozostaje dostępny podczas akcji oraz po utracie odczytu. Zachowano zaakceptowany układ trzech skórek i sterowanie pozostałymi urządzeniami.
+- Kandydat do odbioru właściciela na ES3C35P: aktualizacja 0.7.75→0.7.76, restart, zachowanie danych, reakcja rolety, odczyty i pilny STOP. Host, CI, podpis i publiczne pobrania są odrębnymi dowodami według [RELEASE_CHECKLIST_PL.md](RELEASE_CHECKLIST_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Partycje, format danych i klucz OTA pozostają zgodne. Wyłącznie DEV, bez scalenia do main.
+
 0.7.75-dev: kandydat do odbioru — mniej przebudów UI i dokładniejsze potwierdzanie poleceń.
 
 - Pomiary W/V/A przekaźnika, dimmera i RGB aktualizują istniejące etykiety zamiast przebudowy szczegółów. Jeden poll sieci publikuje jedną końcową aktualizację modelu; niezwiązane urządzenie nie przebudowuje szczegółów grupy. Dotknięcie aktywnej zakładki nie tworzy jej ponownie. Zachowano zaakceptowane układy trzech skórek i ustawienia dotyku.

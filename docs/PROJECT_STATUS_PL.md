@@ -3,6 +3,15 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
+## Przygotowanie 0.7.76-dev do próby na płytce — 2026-10-24
+
+Właściciel zlecił publikację nowego DEV z poprawkami `83f9fb7` i układem rolety
+`f5c185e`. Docelowy tag to `dev-v0.7.76`. Wymagane są pełne CI 5/5 dokładnego
+commita, podpis chronionego środowiska oraz publiczne pobrania katalogu,
+manifestu i całego BIN z weryfikacją. Właściciel wykona odbiór aktualizacji
+0.7.75→0.7.76 i sterowania na płytce po udostępnieniu kandydata; ten odbiór
+pozostaje otwarty. Wyłącznie DEV, bez main i Stable.
+
 ## Roleta: ACK i odczyt w tle po 0.7.75 — 2026-10-24
 
 Właściciel zatwierdził rozdzielenie przyjęcia komendy i późniejszego odczytu.
