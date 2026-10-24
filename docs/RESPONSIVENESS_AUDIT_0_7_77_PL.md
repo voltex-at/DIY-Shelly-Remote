@@ -51,6 +51,12 @@ Przypadki obejmują PL/EN/DE i trzy skórki tam, gdzie dotyczą wyglądu;
 radio, storage, FreeRTOS i restart w testach hosta są modelowane.
 Niezależny przegląd źródła nie wskazał dalszych konkretnych usterek.
 
+Pierwszy przebieg CI wykrył brak adaptera `dsr_http_refresh` w fixture
+runtime automatyzacji po dodaniu ścieżki telemetrycznej Cover do workera.
+Uzupełniono wyłącznie fixture: nieoczekiwane wywołanie Cover przerywa ten
+test kontakt/TRV. Wszystkie 19 powiązanych scenariuszy runtime przeszło
+lokalnie; wymagane sanitizery pozostają w CI Linux.
+
 Dokładny commit kandydata musi otrzymać pełne CI 5/5 przed utworzeniem tagu.
 Chroniony workflow buduje i podpisuje niezmienne zasoby. Przed przekazaniem
 linku właścicielowi sprawdzane są anonimowe pobrania katalogu, manifestu,

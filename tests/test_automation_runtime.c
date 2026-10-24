@@ -78,6 +78,9 @@ dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t i){
  c->telemetry.trv_target_c=c->layout_id==3?20:22;c->device.online=true;return DSR_OK;
 }
 dsr_result_t dsr_http_refresh_info(dsr_connection_t *c,dsr_device_info_t *info){if(info)memset(info,0,sizeof(*info));c->device.online=true;return DSR_OK;}
+/* This fixture owns contact/TRV endpoints only; Cover telemetry must never
+ * enter it. The production worker also links the typed Cover-only provider. */
+dsr_result_t dsr_http_refresh(dsr_connection_t *c){(void)c;abort();}
 dsr_result_t dsr_http_set_output(dsr_connection_t *c,bool on){(void)c;(void)on;abort();}
 dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t i){(void)c;(void)i;abort();}
 dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t i){(void)c;(void)i;abort();}
