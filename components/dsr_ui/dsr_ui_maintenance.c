@@ -1,3 +1,6 @@
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "dsr_ui_internal.h"
 #include "dsr_ui_brand.h"
 #include "dsr_maintenance_api.h"

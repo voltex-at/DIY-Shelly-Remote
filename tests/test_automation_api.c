@@ -18,6 +18,9 @@ static int pair(httpd_req_t *r){(void)r;CHECK(false);return 0;}
 uint32_t dsr_workspace_revision(void){return revision;}
 void dsr_automation_snapshot(dsr_auto_snapshot_t *out){copies++;memset(out,0,sizeof(*out));out->revision=7;out->count=1;out->rules[0]=(dsr_auto_rule_status_t){.rule_id=3,.state=DSR_AUTO_MANUAL,.cycle=2,.missing_id=1};out->target_count=1;out->targets[0].layout_id=2;out->targets[0].baseline=40;out->targets[0].requested=16;out->targets[0].read_half=44;out->targets[0].overridden=true;if(failed_read){out->rules[0].state=DSR_AUTO_ERROR;out->rules[0].result=DSR_UNSUPPORTED;out->targets[0].result=DSR_UNSUPPORTED;}}
 size_t dsr_workspace_runtime_snapshot(dsr_runtime_device_t *out,size_t cap){CHECK(cap==DSR_MAX_DEVICES);memset(out,0,4*sizeof(*out));for(unsigned i=0;i<4;i++){out[i].layout_id=i+1;out[i].device.generation=DSR_GEN2_PLUS;out[i].device.endpoint_kind=DSR_ENDPOINT_BLU;strcpy(out[i].device.device_id,"PRIVATE_ID");strcpy(out[i].device.host,"192.0.2.99");out[i].telemetry.blu.flags=DSR_BLU_VALID;}out[0].telemetry.blu.flags|=DSR_BLU_HAS_OPEN;out[1].telemetry.blu.errors=DSR_BLU_TRV;out[2].telemetry.blu.flags|=DSR_BLU_HAS_MOTION;out[3].device.device_id[0]=0;out[3].telemetry.blu.flags|=DSR_BLU_HAS_OPEN;return 4;}
+/* The adjacent backup endpoint is separately compiled and exercised by the
+ * system-data suite; this fixture asserts only automation routing/auth. */
+static esp_err_t maintenance_api(httpd_req_t *r){(void)r;CHECK(false);return ESP_FAIL;}
 #include "automation_endpoint.inc"
 #include "automation_route.inc"
 int main(void){

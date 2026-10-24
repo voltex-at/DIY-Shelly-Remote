@@ -74,9 +74,9 @@ with tempfile.TemporaryDirectory(prefix='dsr-automation-') as tmp:
    Path(tmp,'automation_rate.inc').write_text(key+runtime[start:end])
   if name=='api':
    panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
-   start=panel.index('static esp_err_t automation_api(');end=panel.index('static esp_err_t api(',start)
+   start=panel.index('static esp_err_t automation_api(');end=panel.index('\nstatic ',start+1)
    Path(tmp,'automation_endpoint.inc').write_text(panel[start:end])
-   end=panel.index(' if(!strcmp(r->uri,"/api/v1/ap")',end)
+   end=panel.index(' if(!strcmp(r->uri,"/api/v1/ap")',panel.index('static esp_err_t api(',end))
    start=panel.index('static esp_err_t api(')
    Path(tmp,'automation_route.inc').write_text(panel[start:end]+' return json(r,"404 Not Found","{}");\n}\n')
   build(binary, sources, [tmp,'components/dsr_core/include', 'components/dsr_platform/include',

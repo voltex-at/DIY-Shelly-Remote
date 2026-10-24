@@ -1,6 +1,9 @@
 name: Firmware checks
 on:
   push:
+    # Signed release requires this exact commit's successful branch CI 5/5.
+    # A release tag reuses that evidence instead of duplicating the full matrix.
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 permissions:
