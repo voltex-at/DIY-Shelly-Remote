@@ -3,7 +3,19 @@
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
 
-## Bieżący etap: responsywność 0.7.73-dev — 2026-10-24
+## Przegląd wszystkich funkcji po 0.7.73 — 2026-10-24
+
+Po dalszych zgłoszeniach właściciela rozszerzono analizę na wszystkie rodziny
+funkcji. [Raport przeglądu i napraw](RESPONSIVENESS_AUDIT_0_7_73_PL.md)
+zawiera tabelę niespójności, pokryte moduły, walidację oraz odbiór sprzętowy.
+Poprawiono odczyty Cover/TRV, STOP grup, ręczne nadpisanie tej samej nastawy,
+blokady kart WWW, ochronę edycji przy wejściu do baterii, odliczanie OTA,
+świeżość podglądu LCD oraz zajmowanie serwera przez lokalny upload OTA.
+Są to zmiany robocze po opublikowanym tagu; wymagają próby na płytce i nie
+zmieniają plików wydania 0.7.73. Wybrane regresje, LVGL, Chromium, pełny build
+ESP32-S3 i związane audyty pamięci przeszły.
+
+## Opublikowany etap: responsywność 0.7.73-dev — 2026-10-24
 
 Właściciel zlecił publikację DEV do sprawdzenia na płytce. Wersja 0.7.73-dev
 zachowuje dotychczasowe dane i poprawkę pobierania OTA z 0.7.72. Szczegóły

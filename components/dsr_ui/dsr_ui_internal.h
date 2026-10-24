@@ -19,6 +19,7 @@ void dsr_ui_keyboard_editor(lv_obj_t *keyboard,lv_obj_t *viewport);
 void dsr_ui_home(lv_event_t *event);
 void dsr_ui_open_settings(void);
 bool dsr_ui_settings_can_open(void);
+bool dsr_ui_workspace_can_leave(lv_event_cb_t destination);
 void dsr_ui_settings_network(lv_event_t *event);
 void dsr_ui_settings_hide(void);
 void dsr_ui_settings_tick(void);

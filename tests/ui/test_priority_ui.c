@@ -28,6 +28,10 @@ static void thermostat(void)
   d->temperature_c=22;d->battery_pct=89;d->blu.trv_pos=45;dsr_mobile_update(&priority_view);CHECK(!deleted&&find_label(lv_screen_active(),"22.0 °C"));
   d->busy=d->command_pending=false;d->trv_target_c=21;dsr_mobile_update(&priority_view);dsr_mobile_trv_request_state(41,42,1,false);
   CHECK(!deleted&&find_label(lv_screen_active(),"21.0 °C"));
+  /* Returning to the reported value is still an explicit manual override. */
+  before=sent;click("+");click("-");CHECK(sent==before);
+  lv_tick_inc(1300);lv_timer_handler();CHECK(sent==before+1&&target_half==42);
+  dsr_mobile_trv_request_state(41,42,1,false);
   if(!lang){char text[64];snprintf(text,sizeof(text),"priority-trv-skin%u",skins[skin]);screenshot(text);}
   /* A screen opened while the worker is busy initially has a disabled dial.
    * Completion must restore that retained input widget, not only +/- buttons. */
@@ -56,8 +60,13 @@ static void scheduling(void)
  /* A successful TRV write gets one early read, while a later GET returns to
   * normal cadence and HTTP 429 retains its long backoff. */
  dsr_fleet_slot_t *s=&f.slots[2];s->queued=false;s->connection.device.endpoint_kind=DSR_ENDPOINT_BLU;s->in_flight=true;s->operation=DSR_JOB_TRV;s->request_id=9;
- dsr_event_t e={.id=9,.result=DSR_OK,.device=s->connection.device};CHECK(dsr_fleet_complete(&f,2,&e,5000)&&s->next_poll==6000);
+ s->trv=(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=40};dsr_event_t e={.id=9,.result=DSR_OK,.device=s->connection.device,.telemetry={.blu={.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET},.trv_target_c=20}};CHECK(dsr_fleet_complete(&f,2,&e,5000)&&s->next_poll==6000);
  s->in_flight=true;s->operation=DSR_JOB_PROBE;s->request_id=10;e.id=10;CHECK(dsr_fleet_complete(&f,2,&e,6000)&&s->next_poll==21000);
+ /* A delayed mirror gets at most three early GETs; it is never replaced by
+  * the requested target and never causes another temperature write. */
+ s->trv=(dsr_trv_intent_t){.command=DSR_TRV_SET_TARGET,.half_c=43};s->in_flight=true;s->operation=DSR_JOB_TRV;s->request_id=20;e.id=20;e.telemetry.blu.errors=DSR_BLU_TRV|DSR_BLU_TRV_TARGET;e.telemetry.trv_target_c=20;
+ CHECK(dsr_fleet_complete(&f,2,&e,10000)&&s->next_poll==11000&&s->connection.telemetry.trv_target_c==20);
+ for(unsigned n=0;n<3;n++){CHECK(dsr_fleet_next_poll(&f,11000+n*1000,4,&job,&at)&&job.kind==DSR_JOB_PROBE);job.id=21+n;dsr_fleet_started(&f,at,&job);e.id=job.id;CHECK(dsr_fleet_complete(&f,at,&e,11000+n*1000)&&s->next_poll==(n==2?28000:12000+n*1000));}
  s->in_flight=true;s->operation=DSR_JOB_TRV;s->request_id=11;e.id=11;e.result=DSR_RATE_LIMITED;CHECK(dsr_fleet_complete(&f,2,&e,7000)&&s->next_poll>=67000);
 }
 static void network_priority(void)

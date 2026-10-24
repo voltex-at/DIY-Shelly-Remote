@@ -957,7 +957,7 @@ static void trv_send(lv_timer_t *timer)
   if(index>=model.device_count)continue;
   dsr_mobile_device_t *d=&model.devices[index];
   if(model.demo){d->trv_target_c=trv_local[i].half/2.0;d->has_trv_target=true;render();}
-  else if(trv_can(d)&&trv_local[i].half!=trv_reported(d))actions.set_trv(index,trv_local[i].half);
+  else if(trv_can(d))actions.set_trv(index,trv_local[i].half);
   else render();
  }
 }

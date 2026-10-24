@@ -6,7 +6,7 @@ uint8_t dsr_mobile_control_family(const dsr_mobile_device_t *d)
  if(d->endpoint_kind<=DSR_ENDPOINT_RGB)return d->endpoint_kind;
  return d->endpoint_kind==DSR_ENDPOINT_BLU&&(d->blu.errors&DSR_BLU_TRV)?DSR_ENDPOINT_BLU:255;
 }
-typedef struct {uint8_t family,value,rgb[3],cover_motion;bool known,mixed,power_known,power_mixed,on,busy;unsigned live,total;} group_state_t;
+typedef struct {uint8_t family,value,rgb[3],cover_motion;bool known,mixed,power_known,power_mixed,on,busy,can_stop;unsigned live,total;} group_state_t;
 static group_state_t group_state_of(const dsr_mobile_model_t *view,unsigned index)
 {
  group_state_t s={.family=255};if(index>=view->group_count)return s;
@@ -14,6 +14,7 @@ static group_state_t group_state_of(const dsr_mobile_model_t *view,unsigned inde
  for(unsigned i=0;i<view->device_count;i++)if(mask&(1u<<i)){
   const dsr_mobile_device_t *d=&view->devices[i];uint8_t family=dsr_mobile_control_family(d);s.total++;s.busy|=d->busy;
   if(family==255){unbound=true;continue;}
+  s.can_stop|=family==DSR_ENDPOINT_COVER&&d->can_stop_cover;
   if(s.family==255)s.family=family;else if(s.family!=family)s.family=254;
   bool live=d->online&&d->error==DSR_OK;s.live+=live;
   if(family==DSR_ENDPOINT_COVER)s.cover_motion|=d->cover_state==DSR_COVER_OPENING?1:d->cover_state==DSR_COVER_CLOSING?2:0;
@@ -31,8 +32,10 @@ static group_state_t group_state(unsigned index)
 {return group_state_of(&model,index);}
 static bool group_ready(group_state_t s)
 {return !model.demo&&model.wifi&&actions.set_group&&s.family<=DSR_ENDPOINT_BLU&&s.family!=DSR_ENDPOINT_HT&&s.total&&!s.busy;}
+static bool group_stop_ready(group_state_t s)
+{return !model.demo&&model.wifi&&actions.set_group&&s.family==DSR_ENDPOINT_COVER&&s.can_stop;}
 static void group_send(unsigned i,dsr_group_intent_t intent)
-{if(i<model.group_count&&group_ready(group_state(i)))actions.set_group(model.groups[i].id,intent);}
+{if(i<model.group_count&&(intent.command==DSR_ACTION_STOP?group_stop_ready(group_state(i)):group_ready(group_state(i))))actions.set_group(model.groups[i].id,intent);}
 static void group_open(lv_event_t *e)
 {dsr_mobile_show(DSR_MOBILE_GROUP_CONTROL,(unsigned)(uintptr_t)lv_event_get_user_data(e));}
 static void group_power(lv_event_t *e)
@@ -66,7 +69,7 @@ static dsr_mobile_device_t *group_model(unsigned index)
  dsr_mobile_device_t *d=&group_views[index];memset(d,0,sizeof(*d));const dsr_mobile_group_t *g=&model.groups[index];group_state_t s=group_state(index);
  snprintf(d->name,sizeof(d->name),"%s",g->name);d->room=g->room;d->endpoint_kind=s.family<=DSR_ENDPOINT_BLU?s.family:DSR_ENDPOINT_SWITCH;
  d->kind=s.family==DSR_ENDPOINT_COVER?DSR_DEVICE_COVER:s.family==DSR_ENDPOINT_BLU?DSR_DEVICE_SENSOR:s.family==DSR_ENDPOINT_RGB?DSR_DEVICE_RGB:s.family==DSR_ENDPOINT_LIGHT?DSR_DEVICE_LIGHT:DSR_DEVICE_RELAY;
- d->online=model.wifi&&s.live>0;d->error=s.family>=254?DSR_UNSUPPORTED:DSR_OK;d->busy=s.busy;d->output=s.power_known&&!s.power_mixed&&s.on;d->can_switch=group_ready(s);d->can_cover=d->can_stop_cover=d->can_position=group_ready(s);d->can_light=group_ready(s);
+ d->online=model.wifi&&s.live>0;d->error=s.family>=254?DSR_UNSUPPORTED:DSR_OK;d->busy=s.busy;d->output=s.power_known&&!s.power_mixed&&s.on;d->can_switch=group_ready(s);d->can_cover=d->can_position=group_ready(s);d->can_stop_cover=group_stop_ready(s);d->can_light=group_ready(s);
  bool all_power=s.total!=0,all_temp=s.total!=0,all_battery=s.total!=0,all_position=s.total!=0,first=true;double temp=0,battery=0;
  for(unsigned i=0;i<model.device_count;i++)if(g->member_mask&(1u<<i)){
   const dsr_mobile_device_t *member=&model.devices[i];bool live=member->online&&member->error==DSR_OK;

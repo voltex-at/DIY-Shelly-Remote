@@ -19,6 +19,15 @@ static void test_cover_protocol(void)
   move[post].body="{}";move[post].status=200;fixture(move,post+1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,intent)==DSR_BAD_RESPONSE&&used==post+1&&!c.device.online);
  }
  cover_payload=NULL;
+ /* A valid movement ACK followed by one failed GET must recover with GET,
+  * without publishing an intermediate command failure or replaying the POST. */
+ cover_payload="{\"id\":0,\"pos\":67}";
+ step_t recover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.GoToPosition","null",200,true,false},{"/rpc/Cover.GetStatus?id=0",NULL,0,false,false},{"/rpc/Cover.GetStatus?id=0","{\"id\":0,\"state\":\"opening\",\"pos_control\":true,\"current_pos\":45}",200,false,false}};
+ fixture(recover,5,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_OK&&used==5&&c.device.online&&c.telemetry.cover.current_pos==45);
+ recover[4].body=NULL;recover[4].status=0;fixture(recover,5,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_OFFLINE&&used==5&&!c.device.online);
+ const unsigned terminal_status[]={401,429,200};const dsr_result_t terminal_result[]={DSR_AUTH_REQUIRED,DSR_RATE_LIMITED,DSR_BAD_RESPONSE};
+ for(unsigned i=0;i<3;i++){recover[3].status=(int)terminal_status[i];recover[3].body="{}";fixture(recover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==terminal_result[i]&&used==4&&!c.device.online);}
+ recover[3].body=NULL;recover[3].status=0;urgent_calls=0;urgent_trigger=4;dsr_http_urgent_hook(cover_interrupt);fixture(recover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==DSR_BUSY&&used==4);dsr_http_urgent_hook(NULL);cover_payload=NULL;
  for(unsigned boundary=1;boundary<=3;boundary++){
   cover_payload="{\"id\":0,\"pos\":67}";step_t move[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.GoToPosition","null",200,true,false}};
   urgent_calls=0;urgent_trigger=boundary;dsr_http_urgent_hook(cover_interrupt);fixture(move,boundary,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=67})==(boundary<3?DSR_BUSY:DSR_BAD_RESPONSE)&&used==boundary);dsr_http_urgent_hook(NULL);

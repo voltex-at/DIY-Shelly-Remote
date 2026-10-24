@@ -143,31 +143,42 @@ done:
  * short-lived transport task may wait on the config owner or a slow socket;
  * STOP/status/cancel remain serviceable on the server task. It is not an RPC
  * worker and never accesses persistent sources itself. */
-typedef struct {httpd_req_t *request;uint8_t session[32];bool upload;} async_transfer_t;
+typedef struct {httpd_req_t *request;void *context;void (*run)(httpd_req_t *,void *);void (*cleanup)(void *);} async_transfer_t;
 static atomic_bool transport_busy;
 static void transfer_task(void *owned)
 {
  async_transfer_t *a=owned;httpd_req_t *r=a->request;
  httpd_handle_t server=r->handle;int fd=httpd_req_to_sockfd(r);
  httpd_resp_set_hdr(r,"Connection","close");
- (void)transfer_response(r,a->session,a->upload);
+ a->run(r,a->context);
  (void)httpd_req_async_handler_complete(r);
  (void)httpd_sess_trigger_close(server,fd);
- dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);vTaskDelete(NULL);
+ a->cleanup(a->context);dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);vTaskDelete(NULL);
 }
-static esp_err_t transfer_async(httpd_req_t *r,const uint8_t session[32],bool upload)
+esp_err_t dsr_panel_transport_start(httpd_req_t *r,void (*run)(httpd_req_t *,void *),void *context,void (*cleanup)(void *))
 {
- bool expected=false;if(!atomic_compare_exchange_strong(&transport_busy,&expected,true))return failure(r,DSR_BUSY);
+ bool expected=false;if(!atomic_compare_exchange_strong(&transport_busy,&expected,true)){cleanup(context);return failure(r,DSR_BUSY);}
  async_transfer_t *a=calloc(1,sizeof(*a));
- if(!a){atomic_store(&transport_busy,false);return failure(r,DSR_FULL);}
- memcpy(a->session,session,32);a->upload=upload;
- if(httpd_req_async_handler_begin(r,&a->request)!=ESP_OK){free(a);atomic_store(&transport_busy,false);return failure(r,DSR_BUSY);}
+ if(!a){cleanup(context);atomic_store(&transport_busy,false);return failure(r,DSR_FULL);}
+ a->context=context;a->run=run;a->cleanup=cleanup;
+ if(httpd_req_async_handler_begin(r,&a->request)!=ESP_OK){cleanup(context);free(a);atomic_store(&transport_busy,false);return failure(r,DSR_BUSY);}
  if(xTaskCreate(transfer_task,"dsr_backup_http",16384,a,3,NULL)==pdPASS)return ESP_OK;
  /* The original body was detached: respond using its owned async copy. */
  httpd_handle_t server=a->request->handle;int fd=httpd_req_to_sockfd(a->request);
  httpd_resp_set_hdr(a->request,"Connection","close");esp_err_t result=failure(a->request,DSR_BUSY);
  (void)httpd_req_async_handler_complete(a->request);(void)httpd_sess_trigger_close(server,fd);
- dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);return result;
+ cleanup(context);dsr_backup_wipe(a,sizeof(*a));free(a);atomic_store(&transport_busy,false);return result;
+}
+typedef struct {uint8_t session[32];bool upload;} backup_transfer_t;
+static void backup_transfer_run(httpd_req_t *r,void *context)
+{backup_transfer_t *a=context;(void)transfer_response(r,a->session,a->upload);}
+static void backup_transfer_free(void *context)
+{dsr_backup_wipe(context,sizeof(backup_transfer_t));free(context);}
+static esp_err_t transfer_async(httpd_req_t *r,const uint8_t session[32],bool upload)
+{
+ backup_transfer_t *a=calloc(1,sizeof(*a));if(!a)return failure(r,DSR_FULL);
+ memcpy(a->session,session,32);a->upload=upload;
+ return dsr_panel_transport_start(r,backup_transfer_run,a,backup_transfer_free);
 }
 esp_err_t dsr_backup_api(httpd_req_t *r,const uint8_t session[32])
 {

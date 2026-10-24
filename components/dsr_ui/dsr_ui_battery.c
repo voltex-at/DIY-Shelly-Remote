@@ -189,7 +189,7 @@ void dsr_ui_battery_result(const dsr_event_t *event)
 }
 static void show(void);
 void dsr_ui_battery_return(void){show();}
-void dsr_ui_battery_open(lv_event_t *event){(void)event;if(dsr_ui_battery_calibration_back())return;from_home=false;show();}
+void dsr_ui_battery_open(lv_event_t *event){(void)event;if(dsr_ui_battery_calibration_back()||!dsr_ui_workspace_can_leave(dsr_ui_battery_open))return;from_home=false;show();}
 /* Bottom bar entry (former "Energia", 0.7.51): back returns to the dashboard. */
 void dsr_ui_battery_show(void){from_home=true;show();}
 static void memory_card(lv_obj_t *body,int y)

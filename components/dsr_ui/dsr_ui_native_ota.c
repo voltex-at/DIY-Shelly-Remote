@@ -223,7 +223,7 @@ static void show(void)
   }
   lv_obj_update_layout(code);lv_obj_set_height(notice_box,after(code,12));y=after(notice_box,12);
  }
- if(snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
+ if(snapshot.state==DSR_NATIVE_STAGED){
   if(!restart_accepted&&armed_operation!=snapshot.operation_id){armed_operation=snapshot.operation_id;auto_restart_armed=true;auto_restart_at=lv_tick_get()+DSR_OTA_AUTO_RESTART_MS;}
   if(auto_restart_armed){
    countdown_label=dsr_sc_text(notice_box,"",12,after(local_notice,8),272,&dsr_roboto_14,DSR_SC_GLOW);countdown();lv_obj_update_layout(countdown_label);lv_obj_set_height(notice_box,after(countdown_label,12));
@@ -256,7 +256,7 @@ void dsr_ui_native_ota_tick(void)
  dsr_native_ota_snapshot(&snapshot);
  if(snapshot.state!=shown.state||snapshot.error!=shown.error||snapshot.operation_id!=shown.operation_id){show();return;}
  if(install_prompt){bool known,low=battery_low(&known);if(known!=prompt_known||low!=prompt_low||(checking_battery&&!dsr_network_busy())){prompt(NULL);return;}}
- if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED&&!snapshot.boot_selection_attempted){
+ if(auto_restart_armed&&!restart_accepted&&snapshot.state==DSR_NATIVE_STAGED){
   countdown(); /* Paint zero too before dispatching the restart. */
   if((int32_t)(lv_tick_get()-auto_restart_at)>=0){
    restart(NULL);

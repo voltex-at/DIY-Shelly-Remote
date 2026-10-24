@@ -6,10 +6,10 @@
 #include "dsr_maintenance_io.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-static void (*async_fn)(void *);static void *async_arg;static bool async_pump=true,task_fail;static unsigned async_open;
+static void (*async_fn)(void *);static void *async_arg;static bool async_pump=true,task_fail,async_begin_fail;static unsigned async_open;
 int xTaskCreate(void (*fn)(void *),const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *out){CHECK(!strcmp(name,"dsr_backup_http")&&stack==16384&&priority==3&&!out);if(task_fail)return pdFALSE;CHECK(!async_fn);async_fn=fn;async_arg=arg;return pdPASS;}
 void vTaskDelete(TaskHandle_t task){CHECK(!task);}
-esp_err_t httpd_req_async_handler_begin(httpd_req_t *r,httpd_req_t **out){*out=malloc(sizeof(**out));CHECK(*out);**out=*r;async_open++;return ESP_OK;}
+esp_err_t httpd_req_async_handler_begin(httpd_req_t *r,httpd_req_t **out){if(async_begin_fail)return ESP_FAIL;*out=malloc(sizeof(**out));CHECK(*out);**out=*r;async_open++;return ESP_OK;}
 esp_err_t httpd_req_async_handler_complete(httpd_req_t *r){CHECK(async_open);async_open--;free(r);return ESP_OK;}
 int httpd_req_to_sockfd(httpd_req_t *r){(void)r;return 7;}
 esp_err_t httpd_sess_trigger_close(httpd_handle_t h,int fd){(void)h;CHECK(fd==7);return ESP_OK;}
@@ -41,6 +41,9 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *r,const char *p,size_t n){(void)r;(
 static void call_api(const char *uri,int method,size_t n,const uint8_t *session){httpd_req_t r={.uri=uri,.method=method,.content_len=n};no_store=false;response[0]=status_code[0]=0;input_at=0;(void)dsr_backup_api(&r,session);CHECK(no_store);if(async_pump&&async_fn)run_async();}
 static void request_id(char out[33]){cJSON *root=cJSON_Parse(response);const cJSON *id=cJSON_GetObjectItemCaseSensitive(root,"request_id");CHECK(cJSON_IsString(id)&&strlen(id->valuestring)==32);strcpy(out,id->valuestring);cJSON_Delete(root);}
 static void grant(const char *op,char out[33]){char body[32];snprintf(body,sizeof(body),"{\"op\":\"%s\"}",op);input=body;now+=1001;call_api("/api/v1/backup/request",HTTP_POST,strlen(input),(uint8_t[32]){2});CHECK(!strncmp(status_code,"202",3));request_id(out);uint8_t id[16];for(unsigned i=0;i<16;i++){unsigned v;CHECK(sscanf(out+2*i,"%2x",&v)==1);id[i]=(uint8_t)v;}CHECK(dsr_maintenance_confirm(id,false)==DSR_OK);input="";id_header=out;}
+static unsigned custom_runs,custom_cleanups;
+static void custom_run(httpd_req_t *r,void *context){CHECK(r&&context==(void*)7);custom_runs++;}
+static void custom_cleanup(void *context){CHECK(context==(void*)7);custom_cleanups++;}
 int main(void)
 {
  uint8_t session[32]={2},other[32]={9};char id[33];
@@ -71,5 +74,13 @@ int main(void)
  call_api("/api/v1/maintenance/status",HTTP_GET,0,session);CHECK(strstr(response,"0.7.70-dev")&&strstr(response,"1792800000"));
  call_api("/api/v1/maintenance/cancel",HTTP_POST,0,session);CHECK(!strncmp(status_code,"200",3));dsr_maintenance_poll();
  grant("upload",id);input="abcdefghijklmnopqrstuvwx";cancel_after_adoption=true;call_api("/api/v1/backup/import",HTTP_POST,24,session);CHECK(!strncmp(status_code,"409",3));dsr_maint_status_t s;dsr_maintenance_status(&s);CHECK(!s.can_confirm);dsr_maintenance_poll();
+ /* Local OTA and backup share this same transport owner, not two tasks.
+  * URI status remains serviceable while the detached body is waiting. */
+ httpd_req_t other_transfer={0};CHECK(dsr_panel_transport_start(&other_transfer,custom_run,(void*)7,custom_cleanup)==ESP_OK&&async_fn&&!custom_runs);
+ CHECK(dsr_panel_transport_start(&other_transfer,custom_run,(void*)7,custom_cleanup)==ESP_OK&&custom_cleanups==1&&async_open==1);
+ async_pump=false;call_api("/api/v1/maintenance/status",HTTP_GET,0,session);CHECK(!strncmp(status_code,"200",3)&&!custom_runs);run_async();CHECK(custom_runs==1&&custom_cleanups==2);
+ task_fail=true;CHECK(dsr_panel_transport_start(&other_transfer,custom_run,(void*)7,custom_cleanup)==ESP_OK&&!async_open&&!async_fn&&custom_cleanups==3);task_fail=false;
+ async_begin_fail=true;CHECK(dsr_panel_transport_start(&other_transfer,custom_run,(void*)7,custom_cleanup)==ESP_OK&&!async_open&&!async_fn&&custom_cleanups==4);async_begin_fail=false;
+ CHECK(dsr_panel_transport_start(&other_transfer,custom_run,(void*)7,custom_cleanup)==ESP_OK&&async_fn);run_async();CHECK(custom_runs==2&&custom_cleanups==5);
  CHECK(!power_reads&&!writes&&!restarts);printf("PASS: %u paired backup API checks; real grants/control, serialized-server/async transport MODEL\n",checks);return 0;
 }

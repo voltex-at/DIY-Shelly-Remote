@@ -345,6 +345,20 @@ static bool rgb_parse(const cJSON *r,uint8_t channel,dsr_rgb_status_t *out,const
 }
 /* BLU TRV classification carried in the caller's telemetry (see DSR_BLU_TRV_CHECKED). */
 static uint8_t trv_hint(const dsr_connection_t *c){return c->device.endpoint_kind==DSR_ENDPOINT_BLU?(uint8_t)(c->telemetry.blu.errors&(DSR_BLU_TRV|DSR_BLU_TRV_CHECKED)):0u;}
+/* A proven BluTrv publishes the displayed temperature, valve, battery and RSSI
+ * in one typed status. Gateway + BTHome MAC identity is still verified by the
+ * caller; discovery of unknown BLU families keeps the full path below. */
+static dsr_result_t trv_status(dsr_connection_t *c)
+{
+ unsigned cid=DSR_BLU_FIRST_CID+c->device.channel;dsr_request_t request={0};cJSON *root=NULL;
+ snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetStatus?id=%u",cid);
+ dsr_result_t result=fetch_json(c,&request,false,&root);
+ if(result==DSR_OK)result=dsr_blu_parse_device(root,cid,&c->telemetry);
+ if(result==DSR_OK)result=dsr_blu_parse_trv(root,cid,&c->telemetry);
+ cJSON_Delete(root);
+ if(result==DSR_OK)c->telemetry.blu.errors|=DSR_BLU_TRV_CHECKED;else memset(&c->telemetry,0,sizeof(c->telemetry));
+ c->device.has_switch=c->device.has_power=c->device.output=false;c->device.power_w=0;c->device.online=result==DSR_OK;return result;
+}
 static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_intent_t *expected)
 {
     dsr_device_t *device = &connection->device;
@@ -355,6 +369,7 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     dsr_result_t result;
     if(device->endpoint_kind==DSR_ENDPOINT_BLU){
         if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
+        if(hint==(DSR_BLU_TRV|DSR_BLU_TRV_CHECKED))return trv_status(connection);
         unsigned cid=DSR_BLU_FIRST_CID+device->channel;cJSON *root=NULL;
         memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetStatus?id=%u",cid);
         result=fetch_json(connection,&request,false,&root);
@@ -448,6 +463,17 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
 }
 
 static dsr_result_t status(dsr_connection_t *c){return status_expected(c,NULL);}
+/* Only after a valid write ACK: recover one lost read, never repeat a write.
+ * Authentication, rate limits, malformed data and cancellation stay terminal. */
+static dsr_result_t command_readback(dsr_connection_t *c)
+{
+ uint8_t hint=trv_hint(c);dsr_result_t result=status(c);
+ if(result!=DSR_OFFLINE)return result;
+ if(urgent())return DSR_BUSY;
+ result=allowed();if(result!=DSR_OK)return result;
+ if(c->device.endpoint_kind==DSR_ENDPOINT_BLU)c->telemetry.blu.errors=hint;
+ return status(c);
+}
 
 /* Read-only advisory name, after identity and status succeeded. A failed or
  * malformed optional response does not turn valid control telemetry into an
@@ -566,7 +592,7 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result;
  result=allowed();if(result!=DSR_OK)return result;
- return status(c);
+ return command_readback(c);
 }
 
 dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
@@ -591,7 +617,7 @@ dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
  result=allowed();if(result!=DSR_OK)return result;
- result=status(c);if(result!=DSR_OK)return result;
+ result=command_readback(c);if(result!=DSR_OK)return result;
  /* The gateway acknowledged the TRV call. Its mirrored target_C can lag the
   * BLE write by a poll; the LCD shows what the gateway reports, never the request. */
  return DSR_OK;

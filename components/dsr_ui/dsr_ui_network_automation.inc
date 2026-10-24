@@ -1,5 +1,5 @@
 /* Sole LVGL/network owner. Requested values never replace device telemetry. */
-typedef struct {dsr_auto_key_t key;uint32_t intent,job;uint8_t half;bool retained,waiting,failed;} native_trv_t;
+typedef struct {dsr_auto_key_t key;uint32_t intent,job;uint8_t half;bool retained,waiting,failed,awaiting;} native_trv_t;
 static native_trv_t *native_trvs;
 static uint32_t native_trv_serial;
 static dsr_auto_key_t native_trv_key(const dsr_connection_t *c)
@@ -36,12 +36,22 @@ static void native_trv_tick(dsr_fleet_t *f,uint32_t now,bool wifi)
 {
  if(!native_trvs)return;
  for(unsigned i=0;i<DSR_MAX_DEVICES;i++){
-  native_trv_t *p=&native_trvs[i];if(!p->waiting)continue;
+  native_trv_t *p=&native_trvs[i];if(!p->waiting&&!p->awaiting&&!p->failed)continue;
   int at=-1;for(unsigned j=0;j<f->count;j++)if(f->slots[j].connection.layout_id==p->key.layout_id){at=(int)j;break;}
   if(at<0||!f->slots[at].layout_enabled||!native_trv_same(&p->key,&f->slots[at].connection)){
-   dsr_actions_native_release(p->key.layout_id);dsr_mobile_trv_request_state(p->key.layout_id,p->half,p->intent,false);memset(p,0,sizeof(*p));continue;
+   if(p->waiting)dsr_actions_native_release(p->key.layout_id);
+   dsr_mobile_trv_request_state(p->key.layout_id,p->half,p->intent,false);memset(p,0,sizeof(*p));continue;
   }
   dsr_fleet_slot_t *s=&f->slots[at];
+  if(p->failed){
+   if(wifi&&s->result==DSR_OK&&s->connection.device.online&&!s->in_flight&&!s->queued){dsr_mobile_trv_request_state(p->key.layout_id,p->half,p->intent,false);memset(p,0,sizeof(*p));}
+   continue;
+  }
+  if(p->awaiting){
+   if(!wifi)continue; /* mode pause is not a failed transport or new write */
+   if(s->result!=DSR_OK||!s->trv_followups){dsr_mobile_trv_request_state(p->key.layout_id,p->half,p->intent,false);memset(p,0,sizeof(*p));}
+   continue;
+  }
   if(!dsr_automation_manual_ready(p->key.layout_id,p->intent)){
    if(dsr_automation_manual_result(p->key.layout_id,p->intent)==DSR_IO){p->waiting=false;p->failed=true;s->result=DSR_IO;s->command_error=true;dsr_actions_native_release(p->key.layout_id);}
    continue;
@@ -58,12 +68,14 @@ static void native_trv_started(const dsr_job_t *j)
  native_trv_t *p=native_trv_find(j->connection.layout_id);
  if(p&&!p->waiting&&!p->failed&&!p->job&&p->half==j->trv.half_c&&native_trv_same(&p->key,&j->connection))p->job=j->id;
 }
-static void native_trv_completed(uint32_t job,dsr_result_t result)
+static void native_trv_completed(dsr_fleet_t *f,uint32_t job,dsr_result_t result)
 {
  if(!native_trvs)return;
  for(unsigned i=0;i<DSR_MAX_DEVICES;i++){
   native_trv_t *p=&native_trvs[i];if(!p->retained||p->job!=job)continue;p->job=0;
   dsr_actions_native_release(p->key.layout_id);
+  if(result==DSR_OK)for(unsigned j=0;j<f->count;j++)if(native_trv_same(&p->key,&f->slots[j].connection)&&f->slots[j].trv_followups){p->awaiting=true;break;}
+  if(p->awaiting)continue;
   if(result==DSR_OK){dsr_mobile_trv_request_state(p->key.layout_id,p->half,p->intent,false);memset(p,0,sizeof(*p));}
   else{p->failed=true;p->waiting=false;}
  }

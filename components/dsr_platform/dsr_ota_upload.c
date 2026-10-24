@@ -20,12 +20,13 @@ bool dsr_ota_upload_sha256(const char *text,size_t length,uint8_t out[32])
  }
  return true;
 }
-esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,const uint8_t expected[32],bool stable_usb,dsr_ota_power_result_t *power)
+esp_err_t dsr_ota_upload_receive_guarded(httpd_req_t *r,const esp_partition_t *slot,const uint8_t expected[32],bool stable_usb,dsr_ota_power_result_t *power,bool (*current)(void *),void *context)
 {
  if(power)*power=DSR_OTA_POWER_UNCHECKED;
  if(!r||!slot||!expected||r->content_len<512||r->content_len>slot->size
     ||r->content_len>DSR_OTA_IMAGE_MAX_SIZE)return ESP_ERR_INVALID_ARG;
  if(!stable_usb){if(power)*power=DSR_OTA_POWER_USB_REQUIRED;return ESP_ERR_INVALID_STATE;}
+ if(current&&!current(context))return ESP_ERR_INVALID_STATE;
  if(!dsr_activity_begin())return ESP_ERR_INVALID_STATE;
  struct upload_buffers *buffers=malloc(sizeof(*buffers));
  if(!buffers){dsr_activity_end();return ESP_ERR_NO_MEM;}
@@ -35,10 +36,12 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
  size_t received=0,first_size=0;esp_ota_handle_t handle=0;bool live=false,power_held=false;
  esp_err_t error=ESP_OK;
  while(received<r->content_len){
+  if(current&&!current(context)){error=ESP_ERR_INVALID_STATE;break;}
   size_t want=r->content_len-received;if(want>sizeof(buffers->chunk))want=sizeof(buffers->chunk);
   int n=httpd_req_recv(r,(char *)buffers->chunk,want);
   /* Preserve timeout policy; refuse impossible return before inspecting data. */
   if(n<=0||(size_t)n>want){error=ESP_FAIL;break;}
+  if(current&&!current(context)){error=ESP_ERR_INVALID_STATE;break;}
   if(dsr_ota_image_update(image,buffers->chunk,(size_t)n)!=DSR_IMAGE_OK){error=ESP_FAIL;break;}
   received+=(size_t)n;
   if(!live){
@@ -60,6 +63,7 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
   }
  }
  if(error==ESP_OK&&dsr_ota_image_finish(image)!=DSR_IMAGE_OK)error=ESP_FAIL;
+ if(error==ESP_OK&&current&&!current(context))error=ESP_ERR_INVALID_STATE;
  if(error==ESP_OK){
   error=esp_ota_end(handle);
   /* IDF v5.5.4 invalidates/frees the handle even when end fails. */
@@ -70,3 +74,5 @@ esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,cons
  if(power_held)dsr_ota_power_release();
  dsr_activity_end();return error;
 }
+esp_err_t dsr_ota_upload_receive(httpd_req_t *r,const esp_partition_t *slot,const uint8_t expected[32],bool stable_usb,dsr_ota_power_result_t *power)
+{return dsr_ota_upload_receive_guarded(r,slot,expected,stable_usb,power,NULL,NULL);}

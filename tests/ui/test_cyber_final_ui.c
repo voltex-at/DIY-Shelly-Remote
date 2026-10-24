@@ -51,6 +51,12 @@ static void deletion(unsigned lang)
  CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(doc,"scenes")->child,"actions"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(doc,"groups")->child,"members"))==1);CHECK(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(doc,"rooms"))>0);cJSON_Delete(doc);
  final_press("Wstecz");CHECK(dsr_mobile_page()==DSR_MOBILE_DEVICES);
  dsr_ui_edit_local_device(2);lv_obj_t *field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,"Niezapisana zmiana");lv_obj_update_layout(lv_screen_active());tap(26,22);CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));final_press("Zostań");CHECK(!strcmp(lv_textarea_get_text(field),"Niezapisana zmiana"));tap(26,22);final_press("Odrzuć");
+ /* Header battery navigation uses the same dirty/save admission, retaining
+  * its own destination after Discard rather than opening Settings. */
+ dsr_ui_edit_local_device(2);field=find_type(lv_screen_active(),&lv_textarea_class);CHECK(field);lv_textarea_set_text(field,"Battery guard");
+ tap(288,22);CHECK(find_label(lv_screen_active(),"Odrzucić zmiany?"));final_press("Zostań");CHECK(!strcmp(lv_textarea_get_text(field),"Battery guard"));
+ tap(288,22);final_press("Odrzuć");CHECK(find_label(lv_screen_active(),"Bateria i zasilanie"));
+ dsr_ui_edit_local_device(2);field=find_type(lv_screen_active(),&lv_textarea_class);lv_textarea_set_text(field,"Pending guard");test_workspace_defer(true);final_press("Zapisz");tap(288,22);CHECK(!dsr_ui_battery_active()&&find_label(lv_screen_active(),"Poczekaj na zakończenie zapisu."));test_workspace_finish(false);dsr_ui_workspace_tick();test_workspace_defer(false);
 }
 static void dashboard_rows(unsigned lang)
 {

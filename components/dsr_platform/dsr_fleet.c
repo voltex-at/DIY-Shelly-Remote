@@ -81,7 +81,7 @@ dsr_result_t dsr_fleet_ht_refresh(dsr_fleet_t *f,unsigned index,bool wifi,uint32
  if(!s->layout_enabled)return DSR_IDENTITY_MISMATCH;
  if(!wifi)return DSR_OFFLINE;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->blocked=false;s->queued=true;s->trv=(dsr_trv_intent_t){0};s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->blocked=false;s->queued=true;s->trv_followups=0;s->trv=(dsr_trv_intent_t){0};s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
 }
 dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_t intent,bool wifi,uint32_t now)
 {
@@ -94,7 +94,7 @@ dsr_result_t dsr_fleet_trv_request(dsr_fleet_t *f,unsigned index,dsr_trv_intent_
  if(s->blocked)return s->result;
  if(!(s->connection.telemetry.blu.errors&DSR_BLU_TRV))return DSR_UNSUPPORTED;
  if(!dsr_activity_begin())return DSR_BUSY;
- s->queued=true;s->trv=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
+ s->queued=true;s->trv_followups=0;s->trv=intent;s->intent_identity=s->connection.device;s->intent_order=++f->order;s->result=DSR_OK;s->command_error=false;return DSR_OK;
 }
 void dsr_fleet_cancel_queued(dsr_fleet_t *f,unsigned index)
 {if(f&&index<f->count)discard(&f->slots[index]);}
@@ -156,6 +156,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
+ if(job->kind==DSR_JOB_TRV){s->trv=job->trv;s->trv_followups=0;}
  if(job->kind==DSR_JOB_SET_OUTPUT||job->kind==DSR_JOB_COVER||job->kind==DSR_JOB_LIGHT||job->kind==DSR_JOB_RGB||job->kind==DSR_JOB_TRV||(job->kind==DSR_JOB_PROBE&&DSR_ENDPOINT_IS_SENSOR(s->connection.device.endpoint_kind)))discard(s);
  f->cursor=(index+1)%(unsigned)f->count;
 }
@@ -193,9 +194,16 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_HT){delay=60000u<<s->failures;if(delay>900000u)delay=900000u;}
  /* BLU values come from an always-on gateway: poll often, back off on errors. */
  if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){delay=15000u<<s->failures;if(delay>240000u)delay=240000u;}
- /* The gateway mirror can lag SetTarget. One early GET-only follow-up,
-  * then ordinary cadence/backoff; never repeat a temperature write. */
- if(s->operation==DSR_JOB_TRV&&result==DSR_OK)delay=1000u;
+ /* A successful write may precede the mirror. At most three early GETs,
+  * ending immediately on target convergence or error. Never replay POST. */
+ if(s->connection.device.endpoint_kind==DSR_ENDPOINT_BLU){
+  if(s->operation==DSR_JOB_TRV)s->trv_followups=result==DSR_OK?3:0;
+  else if(s->trv_followups)s->trv_followups--;
+  bool matched=(s->connection.telemetry.blu.errors&DSR_BLU_TRV_TARGET)&&
+   s->connection.telemetry.trv_target_c==s->trv.half_c*.5f;
+  if(result!=DSR_OK||matched)s->trv_followups=0;
+  if(s->trv_followups||(s->operation==DSR_JOB_TRV&&result==DSR_OK))delay=1000u;
+ }
  if(result==DSR_RATE_LIMITED){uint32_t limited=DSR_FLEET_RATE_LIMIT_MS<<(s->failures>2?2:s->failures-1);if(limited>DSR_FLEET_RATE_LIMIT_MAX_MS)limited=DSR_FLEET_RATE_LIMIT_MAX_MS;if(delay<limited)delay=limited;}
  s->next_poll=now+delay;
  if(result!=DSR_OK&&s->queued){s->result=result;s->command_error=true;discard(s);}

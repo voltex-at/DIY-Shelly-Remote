@@ -21,6 +21,9 @@ with tempfile.TemporaryDirectory(prefix='dsr-preview-privacy-') as temporary:
     start=source.index('bool dsr_panel_preview_requested(void)')
     end=source.index('static esp_err_t json(',start)
     (folder/'preview.inc').write_text(source[start:end])
+    start=source.index(' if(!strcmp(r->uri,"/api/v1/preview.raw")')
+    end=source.index(' if(!strncmp(r->uri,"/api/v1/photos/"',start)
+    (folder/'preview_api.inc').write_text('static int preview_get(httpd_req_t *r) {\n'+source[start:end]+'return -1;\n}\n')
     binary=folder/'preview'
     if args.case in ('privacy','all'):
       build(binary,['tests/test_preview_privacy.c'],[str(folder),'tests/actor','tests/support'],args=args)

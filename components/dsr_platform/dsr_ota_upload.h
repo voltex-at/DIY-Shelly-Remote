@@ -12,6 +12,9 @@
  * Never selects boot or reboots. */
 esp_err_t dsr_ota_upload_receive(httpd_req_t *request,const esp_partition_t *slot,
  const uint8_t expected[32],bool stable_usb_confirmed,dsr_ota_power_result_t *power);
+esp_err_t dsr_ota_upload_receive_guarded(httpd_req_t *,const esp_partition_t *,
+ const uint8_t expected[32],bool stable_usb_confirmed,dsr_ota_power_result_t *,
+ bool (*current)(void *),void *context);
 /* Preserve prior successful-upload contract: exactly 64 lowercase hex bytes.
  * Uppercase previously failed final comparison; now fails BEFORE Flash. */
 bool dsr_ota_upload_sha256(const char *text,size_t length,uint8_t out[32]);

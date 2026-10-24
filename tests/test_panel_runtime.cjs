@@ -57,8 +57,10 @@ const device=(id,ch,name)=>({device_id:id,generation:2,channel:ch,name,host:'192
  // External wall-switch state changes arrive by readback, with no POST.
  state.devices[1].output=false;state.devices[1].power_w=0;await page.evaluate(()=>dsrRuntimeRefresh());ok((await cards.nth(1).innerText()).includes('WYŁ. — potwierdzone'));eq(state.posts.length,2);
  // A dropped POST response may still mean acceptance: never auto replay.
- state.stale=structuredClone(state.devices);state.dropPost=true;await cards.nth(1).locator('button').first().click();await page.waitForTimeout(80);eq(state.posts.length,3);ok(await cards.nth(1).locator('button').first().isDisabled());ok((await cards.nth(1).innerText()).includes('Nie potwierdzono przyjęcia'));
- await cards.nth(1).locator('button').first().dispatchEvent('click');eq(state.posts.length,3);state.stale=null;
+ state.stale=structuredClone(state.devices);state.dropPost=true;await cards.nth(1).locator('button').first().click();await page.waitForTimeout(80);eq(state.posts.length,3);ok(await cards.nth(1).locator('button').first().isEnabled());ok((await cards.nth(1).innerText()).includes('Nie potwierdzono przyjęcia'));
+ // A subsequent successful GET may permit a NEW explicit intent even if its
+ // serial is unchanged; uncertainty stays visible and no POST is automatic.
+ await page.waitForTimeout(80);eq(state.posts.length,3);state.stale=null;
  state.dropPost=false;state.devices[1].pending=false;state.devices[1].output=true;await page.evaluate(()=>dsrRuntimeRefresh());eq(state.posts.length,3);ok(await cards.nth(1).locator('button').first().isEnabled());
  // Locale changes update text in place, preserve focus and generate no I/O.
  await cards.nth(1).locator('button').first().focus();const before=state.gets;await page.evaluate(()=>{window.kept=document.activeElement;const picker=document.querySelector('#web-locale');picker.value='de';picker.dispatchEvent(new Event('change',{bubbles:true}));});await page.waitForTimeout(30);eq(state.gets,before);eq(await page.evaluate(()=>document.activeElement===window.kept),true);ok((await cards.nth(1).innerText()).includes('EIN — durch Abfrage bestätigt'));await page.locator('#web-locale').selectOption('en');await page.waitForTimeout(30);ok((await cards.nth(1).innerText()).includes('ON — confirmed by readback'));

@@ -65,8 +65,12 @@ After at most two preferred reads, give automations or other due devices a turn.
 The open battery page's ADC refresh follows manual controls and precedes unrelated
 polling; inactive ADC monitoring runs last. Entering a screen may refresh a healthy sample
 older than two seconds; failed-device/login backoff and direct HT sleep remain.
-Thermostat writes keep the 1.2 s tap coalescing interval and get one GET-only
-follow-up after one second. Pending targets remain separate from reported data.
+Thermostat writes keep the 1.2 s tap coalescing interval. Known TRVs use typed
+status after gateway/MAC verification (three requests per refresh, five per
+successful write/readback). An acknowledged Cover/TRV write may recover one
+lost status GET; uncertain writes are never replayed. A delayed TRV mirror gets
+at most three early GET-only follow-ups, ending on convergence or error before
+normal cadence/backoff resumes. Pending targets remain separate from reported data.
 The existing serial worker finishes in-flight I/O: queue priority cannot shorten
 an exchange already waiting on Shelly/BLE. Measure touch-to-feedback, queue wait
 and device response separately on hardware; host tests do not prove latency.
@@ -118,6 +122,13 @@ The upload ID remains a cancellation alias until candidate commit. Boot recovery
 precedes ordinary services; ambiguous journals fail closed with local recovery UI.
 Full reset erases only the explicit user namespaces and data filesystem, preserving
 firmware and OTA trust. Never exercise reset/restore on hardware without approval.
+
+Local web OTA uses the same temporary HTTPS transport reservation as backup;
+the server remains available for status and STOP. It consumes the LCD consent
+once, bounds the transfer to 180 seconds and checks the authenticated session
+between chunks and before boot selection. Explicit LCD preview refresh requests
+a new capture generation; browser polling waits for that capture for at most
+eight seconds and does not schedule further captures in the background.
 
 Focused checks: `python3 tools/test_system_data.py --case all`,
 `python3 tools/test_ui.py --case test_system_data_ui`,

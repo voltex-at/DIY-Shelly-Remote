@@ -1,5 +1,6 @@
 #include "dsr_system_info.h"
 #include "dsr_workspace.h"
+#include "dsr_actions.h"
 #include "dsr_activity.h"
 #include "dsr_discovery.h"
 #include "dsr_ble.h"
@@ -117,9 +118,10 @@ size_t test_runtime_count(void){return runtime_size;}
 const dsr_runtime_device_t *test_runtime_at(size_t index){return index<runtime_size?runtime_values+index:NULL;}
 void dsr_workspace_runtime_publish_at(size_t index,size_t count,const dsr_runtime_device_t *device){if(runtime_capture){if(index>=count||count!=runtime_size)abort();runtime_values[index]=*device;}}
 static bool cover_waiting;static unsigned cover_requests;static uint32_t cover_serial=1000;static dsr_output_request_t cover_request;
+static dsr_output_request_t cover_stops[DSR_MAX_DEVICES];static unsigned cover_stop_count;
 unsigned test_cover_requests(void){return cover_requests;}
 dsr_result_t dsr_workspace_cover_request(const dsr_device_t *device,dsr_cover_intent_t intent,uint32_t *id)
-{if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.cover=intent,.operation_id=++cover_serial};*id=cover_serial;cover_requests++;cover_waiting=true;return DSR_OK;}
+{if(intent.command==DSR_COVER_STOP){if(cover_stop_count==DSR_MAX_DEVICES||!dsr_activity_begin())return DSR_BUSY;dsr_actions_mode_block();cover_stops[cover_stop_count++]=(dsr_output_request_t){.device=*device,.cover=intent,.operation_id=++cover_serial};*id=cover_serial;cover_requests++;return DSR_OK;}if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.cover=intent,.operation_id=++cover_serial};*id=cover_serial;cover_requests++;cover_waiting=true;return DSR_OK;}
 static unsigned light_requests;
 unsigned test_light_requests(void){return light_requests;}
 dsr_result_t dsr_workspace_light_request(const dsr_device_t *device,dsr_light_intent_t intent,uint32_t *id)
@@ -132,7 +134,7 @@ static unsigned ht_requests;
 unsigned test_ht_requests(void){return ht_requests;}
 dsr_result_t dsr_workspace_ht_refresh(const dsr_device_t *device,uint32_t *id)
 {if(cover_waiting||!dsr_activity_begin())return DSR_BUSY;cover_request=(dsr_output_request_t){.device=*device,.operation_id=++cover_serial};*id=cover_serial;ht_requests++;cover_waiting=true;return DSR_OK;}
-bool dsr_workspace_take_output(dsr_output_request_t *request){if(!cover_waiting)return false;*request=cover_request;cover_waiting=false;memset(&cover_request,0,sizeof(cover_request));dsr_activity_end();return true;}
+bool dsr_workspace_take_output(dsr_output_request_t *request){if(cover_stop_count){*request=cover_stops[0];memmove(cover_stops,cover_stops+1,--cover_stop_count*sizeof(*cover_stops));dsr_activity_end();return true;}if(!cover_waiting)return false;*request=cover_request;cover_waiting=false;memset(&cover_request,0,sizeof(cover_request));dsr_activity_end();return true;}
 
 bool dsr_workspace_runtime_publish_begin(size_t count){if(!runtime_capture)return false;if(count>DSR_MAX_DEVICES)abort();runtime_size=count;return true;}
 void dsr_workspace_runtime_publish_end(void){}

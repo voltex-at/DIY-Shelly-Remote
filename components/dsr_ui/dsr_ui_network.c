@@ -84,7 +84,7 @@ static const cJSON *layout_snapshot(void);
 static bool native_trv_busy(uint32_t id);
 static bool native_trv_waiting(void);
 static void native_trv_started(const dsr_job_t *job);
-static void native_trv_completed(uint32_t job,dsr_result_t result);
+static void native_trv_completed(dsr_fleet_t *f,uint32_t job,dsr_result_t result);
 
 static dsr_result_t submit_touch(const dsr_job_t *job)
 {
@@ -547,6 +547,18 @@ static void mobile_cover_send(unsigned index,dsr_cover_intent_t intent)
 static void mobile_cover(unsigned index,int direction){mobile_cover_send(index,(dsr_cover_intent_t){.command=direction>0?DSR_COVER_OPEN:DSR_COVER_CLOSE});}
 static void mobile_stop(unsigned index){mobile_cover_send(index,(dsr_cover_intent_t){.command=DSR_COVER_STOP});}
 static void mobile_position(unsigned index,uint8_t position){mobile_cover_send(index,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=position});}
+static void mobile_group_intent(uint32_t id,dsr_group_intent_t intent)
+{
+ if(intent.command!=DSR_ACTION_STOP){dsr_ui_actions_group_execute(id,intent);return;}
+ render();uint32_t ids[DSR_UI_MAX_DEVICES];unsigned count=0;
+ for(unsigned g=0;g<mobile_model.group_count;g++)if(mobile_model.groups[g].id==id){
+  for(unsigned i=0;i<mobile_model.device_count;i++)if((mobile_model.groups[g].member_mask&(1u<<i))&&mobile_model.devices[i].endpoint_kind==DSR_ENDPOINT_COVER&&mobile_model.devices[i].can_stop_cover)ids[count++]=mobile_model.devices[i].id;
+  break;
+ }
+ /* Copy stable IDs before callbacks publish another model. STOP uses the
+  * existing mailboxes/urgent lane, independent of a running group actor. */
+ for(unsigned n=0;n<count;n++)for(unsigned i=0;i<mobile_model.device_count;i++)if(mobile_model.devices[i].id==ids[n]){mobile_stop(i);break;}
+}
 static void mobile_scene(uint32_t id){dsr_ui_actions_execute(1,id,false);}
 static void mobile_group(uint32_t id,bool on){dsr_ui_actions_execute(0,id,on);}
 static void mobile_add(void){dsr_network_device(NULL);}
@@ -852,7 +864,7 @@ static void __attribute__((noinline)) consume_stop(uint32_t now,bool outer_pendi
 static bool __attribute__((noinline)) take_outputs(uint32_t now,bool wifi)
 {
  dsr_output_request_t request;bool intent_changed=false;
- while(dsr_workspace_take_output(&request)){
+ while(!dsr_worker_stop_pending()&&dsr_workspace_take_output(&request)){
   int at=dsr_fleet_find(&fleet,&request.device);
   if(at>=0){dsr_fleet_slot_t *s=&fleet.slots[at];s->mailbox_pending=0;dsr_result_t result;
    if(binding_target(s)||!s->layout_enabled||strcmp(request.device.host,s->connection.device.host))result=DSR_IDENTITY_MISMATCH;
@@ -939,7 +951,7 @@ static void __attribute__((noinline)) consume_worker_event(uint32_t now)
    /* A Wi-Fi drop during the request cannot publish a late ONLINE sample. */
    if(!dsr_wifi_connected())dsr_fleet_wifi(&fleet,false,now);
    if(actor_event)dsr_actions_complete(event.id,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
-   else if(operation==DSR_JOB_TRV)native_trv_completed(event.id,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
+   else if(operation==DSR_JOB_TRV)native_trv_completed(&fleet,event.id,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
    else if(manual_command&&(operation==DSR_JOB_SET_OUTPUT||operation==DSR_JOB_COVER))dsr_actions_observe(fleet.slots[active_slot].connection.layout_id,manual_command,accepted&&same?event.result:DSR_IDENTITY_MISMATCH);
   }
   render();
@@ -1039,7 +1051,7 @@ void dsr_network_init(void)
 {
     (void)dsr_actions_init();
     (void)dsr_automation_init();
-    const dsr_mobile_actions_t actions = {.set_group=dsr_ui_actions_group_execute,.open_actions=dsr_ui_actions_open,.leave_actions=dsr_ui_actions_hide,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_layout,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
+    const dsr_mobile_actions_t actions = {.set_group=mobile_group_intent,.open_actions=dsr_ui_actions_open,.leave_actions=dsr_ui_actions_hide,.edit_action=dsr_ui_edit_action,.run_scene=mobile_scene,.run_group=mobile_group,.set_cover=mobile_cover,.stop_cover=mobile_stop,.set_position=mobile_position,.set_output = mobile_output, .open_settings = dsr_ui_open_settings, .add_device = mobile_add,.edit_dashboard=dsr_ui_edit_layout,.select_dashboard=dsr_ui_select_dashboard,.refresh=mobile_refresh,.edit_device=mobile_edit_device,.add_room=dsr_ui_add_room,.edit_room=dsr_ui_edit_room,.open_usage=dsr_ui_usage_open,.open_battery=dsr_ui_battery_show,.set_brightness=mobile_brightness,.set_rgb=mobile_rgb,.set_trv=mobile_trv,.device_settings=mobile_remote_settings};
     dsr_mobile_bind(&actions);
     storage_error = dsr_settings_load(&settings) != ESP_OK;
     dsr_ui_display_init(settings.brightness,settings.idle_seconds);

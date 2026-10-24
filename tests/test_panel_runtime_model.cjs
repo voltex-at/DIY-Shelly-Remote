@@ -33,6 +33,8 @@ async function fixture(cover=false){
   request:async(route,options)=>{
    if(options?.method==='POST'){
     const body=JSON.parse(options.body);state.posts.push(body);
+    if(state.dropBeforePost)throw Error('request not delivered');
+    if(state.rejectPost){const e=Error('busy');e.httpStatus=409;throw e;}
     const d=state.devices.find(item=>item.device_id===body.device_id&&item.generation===body.generation&&item.channel===body.channel&&(item.endpoint_kind??0)===(body.endpoint_kind??0));assert(d);
     eq(route,body.endpoint_kind===1?'devices/cover':body.endpoint_kind===2?'devices/light':body.endpoint_kind===3?'devices/rgb':body.endpoint_kind===4?'devices/refresh':'devices/output');d.operation_id=(d.operation_id+1)>>>0;if(!d.operation_id)d.operation_id=1;d.pending=true;if(state.dropPost)throw Error('accepted but response lost');
     return{json:async()=>({accepted:true,operation_id:d.operation_id,boot_id:state.boot})};
@@ -134,7 +136,8 @@ async function fixture(cover=false){
  {
   const f=await fixture(true),actions=f.cards()[0].children[5].children;await actions[0].listeners.click();eq(f.state.posts[0].command,'open');ok(actions[0].disabled&&!actions[2].disabled);
   f.state.dropPost=true;await actions[2].listeners.click();eq(f.state.posts.length,2);ok(actions[2].disabled);
-  f.state.devices[0].pending=false;await f.refresh();ok(actions[2].disabled);await actions[2].listeners.click();eq(f.state.posts.length,2); /* Unknown STOP cannot be cleared by a delayed older command. */
+  f.state.devices[0].pending=false;f.state.devices[0].operation_id=1;await f.refresh();ok(!actions[2].disabled);eq(f.state.posts.length,2); /* Fresh GET permits a new explicit STOP; it never confirms/replays the lost one. */
+  f.state.devices[0].operation_id=2;await f.refresh();ok(!actions[2].disabled); /* terminal STOP readback releases only the lock, not uncertainty */
   f.state.boot++;f.state.devices[0].operation_id=0;await f.refresh();ok(!actions[2].disabled);
   f.state.devices[0].sample_age_ms=14950;await f.refresh();f.advance(60);ok(actions[0].disabled&&!actions[2].disabled);await actions[0].listeners.click();eq(f.state.posts.length,2);
  }
@@ -172,6 +175,18 @@ async function fixture(cover=false){
  }
  for(const blocked of [{has_brightness:false},{light_errors:1},{light_conditions:2}]){
   const f=await fixture(2),actions=f.cards()[0].children[5].children;Object.assign(f.state.devices[0],blocked);await f.refresh();for(const control of actions)ok(control.disabled);await actions[0].listeners.click();eq(f.state.posts.length,0);
+ }
+ for(const family of [0,1,2,3]){
+  const f=await fixture(family),card=f.cards()[0],on=card.children[5].children[0];f.state.dropPost=true;
+  await on.listeners.click();eq(f.state.posts.length,1);ok(on.disabled);
+  f.state.devices[0].pending=false;await f.refresh();ok(!on.disabled);eq(f.state.posts.length,1);
+  ok(card.children[4].textContent.includes('not retried')||card.children[4].textContent.includes('uncertain')||card.children[4].textContent.length>0);
+ }
+ for(const family of [0,1,2,3]){
+  const f=await fixture(family),on=f.cards()[0].children[5].children[0];f.state.dropBeforePost=true;
+  f.state.hold=true;const older=f.refresh();await flush();await on.listeners.click();ok(on.disabled);f.state.hold=false;f.state.release();await older;ok(on.disabled); /* pre-failure GET is not new evidence */
+  await f.refresh();ok(!on.disabled);eq(f.state.posts.length,1);eq(f.state.devices[0].operation_id,0);
+  f.state.dropBeforePost=false;f.state.rejectPost=true;await on.listeners.click();ok(!on.disabled);eq(f.state.posts.length,2);
  }
  console.log(`PASS: ${checks} deterministic actual-runtime checks; delayed GET/POST loss, independent controls, freshness, epoch, locale; DOM/HTTP MODEL`);
 })().catch(error=>{console.error(error);process.exitCode=1;});

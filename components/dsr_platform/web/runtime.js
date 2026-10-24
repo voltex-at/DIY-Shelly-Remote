@@ -147,14 +147,14 @@
   }
   on.addEventListener('click',()=>command(card,true));off.addEventListener('click',()=>command(card,false));return card;
  }
- function apply(snapshot,started){
+ function apply(snapshot,started,serial){
   if(!Number.isInteger(snapshot.boot_id)||snapshot.boot_id<=0||snapshot.boot_id>0xffffffff||!Array.isArray(snapshot.devices)||snapshot.devices.length>16||snapshot.devices.some(d=>!valid(d))||new Set(snapshot.devices.map(key)).size!==snapshot.devices.length){fail();return;}
   // A firmware restart ends the old command epoch. Read the new process state;
   // it is no acknowledgement that a command in the previous process succeeded.
   if(boot!==null&&boot!==snapshot.boot_id){local.clear();stops.clear();for(const c of cards.values())cancelRange(c);}boot=snapshot.boot_id;
   const keep=new Set();
   for(const d of snapshot.devices){const k=key(d);keep.add(k);let c=cards.get(k);if(!c){c=create(d);cards.set(k,c);holder.append(c.root);}else if(c.data.host!==d.host||c.data.has_target!==d.has_target||c.data.target!==d.target||c.data.brightness_target!==d.brightness_target||c.data.transitioning!==d.transitioning||(kind(d)===3&&(c.data.brightness!==d.brightness||c.data.rgb.some((v,i)=>v!==d.rgb[i]))))cancelRange(c);c.data=d;c.received=started;
-   for(const map of [local,stops]){const l=map.get(k);if(l?.waiting&&!d.pending&&((l.operation>0&&serialReached(d.operation_id,l.operation))||(l.unknown&&kind(d)===0&&d.operation_id!==l.baseline&&serialReached(d.operation_id,l.baseline)))){l.waiting=false;if(!l.unknown)l.message='';}}paint(c);
+   for(const map of [local,stops]){const l=map.get(k);if(l?.waiting&&!d.pending&&((l.operation>0&&serialReached(d.operation_id,l.operation))||(l.unknown&&serial>l.afterSerial&&serialReached(d.operation_id,l.baseline)))){l.waiting=false;if(!l.unknown)l.message='';}}paint(c);
   }
   for(const [k,c]of cards)if(!keep.has(k)){c.root.remove();cards.delete(k);local.delete(k);stops.delete(k);}
   status.dataset.message=snapshot.devices.length?'':'empty';status.textContent=snapshot.devices.length?'':text('empty');
@@ -162,7 +162,7 @@
  }
  async function refresh(){
   if(!current()||fetching)return;fetching=true;const serial=++fetchSerial,started=performance.now();
-  try{const r=await request('devices/runtime');const snapshot=await r.json();if(current()&&serial===fetchSerial)apply(snapshot,started);}
+  try{const r=await request('devices/runtime');const snapshot=await r.json();if(current()&&serial===fetchSerial)apply(snapshot,started,serial);}
   catch{if(serial===fetchSerial)fail();}finally{fetching=false;}
  }
  async function command(card,on,intent){
@@ -180,10 +180,12 @@
    const r=await request(sensor?'devices/refresh':cover?'devices/cover':light?'devices/light':rgb?'devices/rgb':'devices/output',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
    const result=await r.json();if(result.accepted!==true||result.boot_id!==boot||!Number.isInteger(result.operation_id)||result.operation_id<=0||result.operation_id>0xffffffff)throw Error('invalid acknowledgement');
    l.operation=result.operation_id;await refresh();
-  }catch{
+  }catch(e){
    // A transport failure may follow acceptance. Never replay POST. Fetch only
    // readback, keep a visible uncertainty message until an explicit next try.
-   l.unknown=true;l.message='uncertain';await refresh();
+   if([400,401,403,404,409,422,429].includes(e.httpStatus)){l.waiting=false;l.message='rejected';}
+   else{l.unknown=true;l.afterSerial=fetchSerial;l.message='uncertain';}
+   await refresh();
   }finally{if(card.root.isConnected)paint(card);}
  }
  window.dsrRuntimeMount=parent=>{

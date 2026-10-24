@@ -56,6 +56,7 @@ static char pairing[17];static int64_t pair_until,ota_until;static unsigned atte
 static unsigned char token_hash[32];static bool has_token,need_preview;
 static bool revocation_unconfirmed;
 static unsigned char *preview;static bool preview_ready;
+static uint32_t preview_generation,preview_capture_generation;
 static httpd_handle_t server;
 static httpd_handle_t redirect_server;
 static bool panel_ready;
@@ -112,9 +113,9 @@ void dsr_panel_pair_begin(char code[17])
 bool dsr_panel_allow_ota(bool stable_usb)
 {return dsr_panel_ota_enable(lock,panel_ready,&ota_until,stable_usb);}
 bool dsr_panel_preview_requested(void)
-{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool wanted=need_preview&&!(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive());if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive()))preview_ready=false;need_preview=false;xSemaphoreGive(lock);return wanted;}
+{if(!lock)return false;if(xSemaphoreTake(lock,0)!=pdTRUE)return false;bool blocked=esp_timer_get_time()<pair_until||dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive();bool wanted=need_preview&&!blocked;if(blocked)preview_ready=false;if(wanted)preview_capture_generation=preview_generation;need_preview=false;xSemaphoreGive(lock);return wanted;}
 void dsr_panel_preview_publish(const void *data,size_t size)
-{if((dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive())||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;memcpy(preview,data,size);preview_ready=true;xSemaphoreGive(lock);}
+{if(esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive())||!lock||size!=320*480*2||!preview||xSemaphoreTake(lock,0)!=pdTRUE)return;if(preview_capture_generation==preview_generation){memcpy(preview,data,size);preview_ready=true;}xSemaphoreGive(lock);}
 static esp_err_t json(httpd_req_t *r,const char *status,const char *body)
 {httpd_resp_set_status(r,status);httpd_resp_set_type(r,"application/json");httpd_resp_set_hdr(r,"Cache-Control","no-store");return httpd_resp_sendstr(r,body);}
 static bool local_request(httpd_req_t *r)
@@ -188,6 +189,28 @@ static esp_err_t pair(httpd_req_t *r)
  char cookie[160];snprintf(cookie,sizeof(cookie),"dsr_session=%s; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000",token);memset(token,0,sizeof(token));
  httpd_resp_set_hdr(r,"Set-Cookie",cookie);return json(r,"200 OK","{\"paired\":true}");
 }
+/* Local OTA transport owns its consumed consent and stage until cleanup. */
+typedef struct {const esp_partition_t *slot;dsr_ota_stage_t *stage;uint8_t digest[32],session[32];int64_t deadline;} ota_transfer_t;
+static bool ota_current(void *context)
+{ota_transfer_t *a=context;return esp_timer_get_time()<a->deadline&&dsr_panel_backup_session_valid(a->session);}
+static void ota_transfer_free(void *context)
+{ota_transfer_t *a=context;if(a->stage)dsr_ota_stage_release(a->stage);memset(a,0,sizeof(*a));free(a);}
+static void ota_transfer_run(httpd_req_t *r,void *context)
+{
+ ota_transfer_t *a=context;dsr_ota_power_result_t power=DSR_OTA_POWER_UNCHECKED;
+ if(!ota_current(a)){(void)json(r,"403 Forbidden","{\"error\":\"OTA session expired or revoked; renew consent\"}");return;}
+ esp_err_t error=dsr_ota_upload_receive_guarded(r,a->slot,a->digest,true,&power,ota_current,a);
+ if(error!=ESP_OK){
+  if(power==DSR_OTA_POWER_LOW){(void)json(r,"422 Unprocessable Entity","{\"error\":\"Battery below 20%; recharge the remote and renew OTA consent\"}");return;}
+  if(power==DSR_OTA_POWER_BUSY){(void)json(r,"409 Conflict","{\"error\":\"Battery check unavailable; renew OTA consent and retry\"}");return;}
+  (void)json(r,"400 Bad Request","{\"error\":\"Image, board marker, checksum or transfer lifetime rejected; boot slot unchanged\"}");return;
+ }
+ /* Revocation/expiry after the last chunk or esp_ota_end cannot select boot. */
+ if(!ota_current(a)){(void)json(r,"403 Forbidden","{\"error\":\"OTA session expired or revoked; boot slot unchanged\"}");return;}
+ error=esp_ota_set_boot_partition(a->slot);
+ if(error!=ESP_OK){dsr_ota_stage_uncertain(a->stage);a->stage=NULL;(void)json(r,"500 Internal Server Error","{\"error\":\"Boot selection unconfirmed; OTA blocked until restart\",\"restart_required\":true}");return;}
+ dsr_ota_stage_commit(a->stage);a->stage=NULL;(void)json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");
+}
 static esp_err_t ota(httpd_req_t *r)
 {
  xSemaphoreTake(lock,portMAX_DELAY);bool allowed=esp_timer_get_time()<ota_until;ota_until=0;xSemaphoreGive(lock);
@@ -196,20 +219,19 @@ static esp_err_t ota(httpd_req_t *r)
  if(!slot||r->content_len<512||r->content_len>slot->size)return json(r,"400 Bad Request","{\"error\":\"Upload the application BIN, not a merged USB image\"}");
  char expected[65]={0};if(httpd_req_get_hdr_value_str(r,"X-SHA256",expected,sizeof(expected))!=ESP_OK||strlen(expected)!=64)return json(r,"400 Bad Request","{\"error\":\"SHA256 required\"}");
  uint8_t digest[32];if(!dsr_ota_upload_sha256(expected,64,digest))return json(r,"400 Bad Request","{}");
+ char cookie[160]={0};uint8_t session[32];
+ if(httpd_req_get_hdr_value_str(r,"Cookie",cookie,sizeof(cookie))!=ESP_OK)return json(r,"401 Unauthorized","{}");
+ const char *token=strstr(cookie,"dsr_session=");if(!token)return json(r,"401 Unauthorized","{}");token+=12;
+ if(strlen(token)<64)return json(r,"401 Unauthorized","{}");
+ for(unsigned i=0;i<64;i++)if(!isxdigit((unsigned char)token[i]))return json(r,"401 Unauthorized","{}");
+ if(token[64]&&token[64]!=';')return json(r,"401 Unauthorized","{}");
+ int hashed=mbedtls_sha256((const unsigned char *)token,64,session,0);memset(cookie,0,sizeof(cookie));
+ if(hashed||!dsr_panel_backup_session_valid(session)){memset(session,0,sizeof(session));return json(r,"401 Unauthorized","{}");}
  dsr_ota_stage_t *stage=dsr_ota_stage_acquire();
- if(!stage)return json(r,"409 Conflict","{\"error\":\"OTA staging or restart busy; upload not started\"}");
- dsr_ota_power_result_t power=DSR_OTA_POWER_UNCHECKED;
- esp_err_t error=dsr_ota_upload_receive(r,slot,digest,true,&power);
- if(error!=ESP_OK){
-  dsr_ota_stage_release(stage);
-  if(power==DSR_OTA_POWER_LOW)return json(r,"422 Unprocessable Entity","{\"error\":\"Battery below 20%; recharge the remote and renew OTA consent\"}");
-  if(power==DSR_OTA_POWER_BUSY)return json(r,"409 Conflict","{\"error\":\"Battery check unavailable; renew OTA consent and retry\"}");
-  return json(r,"400 Bad Request","{\"error\":\"Image, board marker or checksum rejected; boot slot unchanged\"}");
- }
- error=esp_ota_set_boot_partition(slot);
- if(error!=ESP_OK){dsr_ota_stage_uncertain(stage);return json(r,"500 Internal Server Error","{\"error\":\"Boot selection unconfirmed; OTA blocked until restart\",\"restart_required\":true}");}
- dsr_ota_stage_commit(stage);
- return json(r,"200 OK","{\"installed\":true,\"restart_required\":true}");
+ if(!stage){memset(session,0,sizeof(session));return json(r,"409 Conflict","{\"error\":\"OTA staging or restart busy; upload not started\"}");}
+ ota_transfer_t *a=calloc(1,sizeof(*a));if(!a){memset(session,0,sizeof(session));dsr_ota_stage_release(stage);return json(r,"503 Service Unavailable","{}");}
+ a->slot=slot;a->stage=stage;a->deadline=esp_timer_get_time()+180000000;memcpy(a->digest,digest,32);memcpy(a->session,session,32);memset(session,0,sizeof(session));
+ return dsr_panel_transport_start(r,ota_transfer_run,a,ota_transfer_free);
 }
 static esp_err_t restart(httpd_req_t *r)
 {
@@ -365,7 +387,10 @@ static esp_err_t api(httpd_req_t *r)
  }
  if(!strcmp(r->uri,"/api/v1/preview.raw")&&r->method==HTTP_GET){
   unsigned char *copy=malloc(320*480*2);if(!copy)return json(r,"503 Service Unavailable","{}");
-  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive());need_preview=!pairing_active;bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
+  char mode[8]={0};bool fresh=httpd_req_get_hdr_value_str(r,"X-DSR-Preview",mode,sizeof(mode))==ESP_OK&&!strcmp(mode,"fresh");
+  xSemaphoreTake(lock,portMAX_DELAY);bool pairing_active=esp_timer_get_time()<pair_until||(dsr_ap_sensitive()||dsr_ble_rpc_sensitive()||dsr_device_settings_sensitive()||dsr_maintenance_sensitive());
+  if(fresh){preview_ready=false;need_preview=!pairing_active;if(!++preview_generation)++preview_generation;}if(pairing_active){preview_ready=false;need_preview=false;}
+  bool ready=preview_ready&&!pairing_active;if(ready)memcpy(copy,preview,320*480*2);xSemaphoreGive(lock);
   esp_err_t e;if(ready){httpd_resp_set_type(r,"application/octet-stream");httpd_resp_set_hdr(r,"Cache-Control","no-store");e=httpd_resp_send(r,(const char *)copy,320*480*2);}else e=json(r,"202 Accepted","{\"waiting\":true}");free(copy);return e;
  }
  if(!strncmp(r->uri,"/api/v1/photos/",15)&&r->method==HTTP_POST){

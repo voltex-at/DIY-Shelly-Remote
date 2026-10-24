@@ -749,10 +749,15 @@ async function refreshPreview(){
  if(!config||$('#workspace').hidden||document.hidden||previewBusy)return;
  const owner=configReadOwner(),current=()=>!document.hidden&&configReadCurrent(owner);
  previewBusy=true;$('#preview-refresh').disabled=true;
+ const controller=new AbortController(),deadline=setTimeout(()=>controller.abort(),8000);
  previewMessage(m('Pobieranie obrazu z pilota…'));
  try{
   const ctx=$('#preview').getContext('2d');ctx.clearRect(0,0,320,480);
-  const r=await request('preview.raw');if(!current())return;
+  let r;for(let attempt=0;attempt<40;attempt++){
+   if(!current()||controller.signal.aborted)return;
+   r=await request('preview.raw',{signal:controller.signal,headers:attempt===0?{'X-DSR-Preview':'fresh'}:{}});if(!current())return;
+   if(r.status!==202)break;await new Promise(resolve=>setTimeout(resolve,100));
+  }
   if(r.status===202){previewMessage(m('Pilot jeszcze nie udostępnił nowej klatki. Odśwież podgląd ponownie.'),true);return;}
   if(r.status!==200){previewMessage(m('Nieprawidłowy obraz z pilota. Odśwież podgląd ponownie.'),true);return;}
   const bytes=new Uint8Array(await r.arrayBuffer());if(!current())return;
@@ -761,7 +766,7 @@ async function refreshPreview(){
   for(let i=0;i<320*480;i++){const v=bytes[i*2]|bytes[i*2+1]<<8;im.data[i*4]=(v>>11)*255/31;im.data[i*4+1]=((v>>5)&63)*255/63;im.data[i*4+2]=(v&31)*255/31;im.data[i*4+3]=255;}
   ctx.putImageData(im,0,0);previewMessage(m('Obraz pobrany z zadania LVGL pilota.'));
  }catch(e){if(current())previewMessage(m('Nie udało się pobrać obrazu. Sprawdź połączenie i odśwież podgląd.'),true);}
- finally{previewBusy=false;$('#preview-refresh').disabled=false;if(!current())previewMessage(m('Oczekiwanie na klatkę z pilota…'));}
+ finally{clearTimeout(deadline);previewBusy=false;$('#preview-refresh').disabled=false;if(!current())previewMessage(m('Oczekiwanie na klatkę z pilota…'));}
 }
 async function poll(){if(!config||$('#workspace').hidden||document.hidden||statusPollBusy)return;statusPollBusy=true;const serial=++statusReadSerial,owner=configReadOwner();const current=()=>!document.hidden&&serial===statusReadSerial&&configReadCurrent(owner);try{const response=await request('status');if(!current())return;const s=await response.json();if(!current())return;remoteReachable=true;updateOnboardingChoice();setText($('#connection'),m('● Połączono lokalnie'));setText($('#firmware'),s.firmware||'');if(!saving&&s.revision!==config.revision){if(dirty){conflict=true;$('#save').disabled=true;notice(m('Konfiguracja zmieniła się na pilocie. Wczytaj aktualną wersję, aby uniknąć nadpisania.'));}else{await load();return;}}}catch(e){if(!current())return;remoteReachable=false;updateOnboardingChoice();setText($('#connection'),m('Brak połączenia'));}finally{statusPollBusy=false;if(current()){if(window.dsrRuntimeRefresh)window.dsrRuntimeRefresh();if(window.dsrActionsRefresh)window.dsrActionsRefresh();}}}
 async function uploadPhoto(file,room,current=()=>true){

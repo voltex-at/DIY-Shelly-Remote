@@ -125,13 +125,15 @@ static void clear_draft(void)
 void dsr_ui_workspace_hide(void){editor_active=false;room_editor=room_new=room_deleted=device_editor=false;context_device_id=0;room_return_detail=false;room_return_id=0;room_dialog=settings_dialog=NULL;body=keyboard=status_label=NULL;settings_context=appearance_editor=false;fields_tile=NULL;tile_focus=-1;device_order_focus=0;clear_draft();}
 static void settings_stay(lv_event_t *event)
 {(void)event;if(settings_dialog){lv_obj_delete(settings_dialog);settings_dialog=NULL;}}
+static lv_event_cb_t leave_destination;
 static void settings_discard(lv_event_t *event)
-{(void)event;dsr_ui_workspace_hide();dsr_ui_open_settings();}
-bool dsr_ui_settings_can_open(void)
+{(void)event;lv_event_cb_t destination=leave_destination;leave_destination=NULL;dsr_ui_workspace_hide();if(destination)destination(NULL);else dsr_ui_open_settings();}
+bool dsr_ui_workspace_can_leave(lv_event_cb_t destination)
 {
  if(own_save){if(status_label)config_status("Poczekaj na zakończenie zapisu.",true);return false;}
  if(!editor_active||!draft||(saved_baseline&&cJSON_Compare(draft,saved_baseline,true)))return true;
  if(settings_dialog)return false;
+ leave_destination=destination;
  if(keyboard)lv_obj_add_flag(keyboard,LV_OBJ_FLAG_HIDDEN);
  if(body)lv_obj_set_height(body,292);
  settings_dialog=dsr_sc_panel(lv_screen_active(),0,0,320,480,0x000000,0);
@@ -142,6 +144,7 @@ bool dsr_ui_settings_can_open(void)
  dsr_ui_button(panel,"Zostań",12,188,130,settings_stay,NULL);
  dsr_ui_button(panel,"Odrzuć",154,188,130,settings_discard,NULL);return false;
 }
+bool dsr_ui_settings_can_open(void){return dsr_ui_workspace_can_leave(NULL);}
 static void return_settings(lv_event_t *event)
 {(void)event;if(dsr_ui_settings_can_open()){dsr_ui_workspace_hide();dsr_ui_open_settings();}}
 static void show_menu(void);

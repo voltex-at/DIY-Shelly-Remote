@@ -27,6 +27,13 @@ for name,expected in auth_blocks.items():
     assert end,f'Missing end of authentication block: {name}'
     block=panel_bytes[start.start():start.end()+end.start()]
     if name=='api':
+        # Explicit fresh capture scheduling only; retain the full original
+        # authorization/Origin/privacy block for the historical hash below.
+        fresh=b'  char mode[8]={0};bool fresh=httpd_req_get_hdr_value_str(r,"X-DSR-Preview",mode,sizeof(mode))==ESP_OK&&!strcmp(mode,"fresh");\n'
+        scheduling=b'\n  if(fresh){preview_ready=false;need_preview=!pairing_active;if(!++preview_generation)++preview_generation;}if(pairing_active){preview_ready=false;need_preview=false;}\n  bool ready='
+        assert block.count(fresh)==1 and block.index(fresh)>block.index(b'if(!authorized(r))')
+        assert block.count(scheduling)==1,'Unexpected preview scheduling change'
+        block=block.replace(fresh,b'').replace(scheduling,b'need_preview=!pairing_active;bool ready=')
         maintenance=b' if(!strncmp(r->uri,"/api/v1/backup/",15)||!strncmp(r->uri,"/api/v1/maintenance/",20)||!strcmp(r->uri,"/api/v1/reset/request"))return maintenance_api(r);\n'
         assert block.count(maintenance)==1 and block.index(maintenance)>block.index(b'if(!authorized(r))'),'Maintenance must stay behind unchanged authentication'
         block=block.replace(maintenance,b'')
@@ -66,7 +73,7 @@ print('PASS: local_request/authorized unchanged; full API unchanged after exact 
 with tempfile.TemporaryDirectory(prefix='dsr-upload-') as tmp:
     tmp=Path(tmp)
     panel=(ROOT/'components/dsr_platform/dsr_panel.c').read_text()
-    start=panel.index('static esp_err_t ota(httpd_req_t *r)')
+    start=panel.index('/* Local OTA transport owns')
     end=panel.index('static esp_err_t restart',start)
     endpoint=panel[start:end]
     assert 'dsr_ota_upload_receive' in endpoint,'Endpoint not integrated with production receiver'
