@@ -18,7 +18,7 @@ struct test_event_group {EventBits_t bits;};
 struct test_semaphore {bool locked;};
 struct test_timer {void (*callback)(void *);bool armed;uint64_t delay;};
 static struct test_event_group group;
-static struct test_semaphore semaphores[2];static unsigned semaphore_count;
+static struct test_semaphore semaphores[3];static unsigned semaphore_count;
 static struct test_timer timer;
 static esp_netif_t netif;
 static esp_event_handler_t handler;
@@ -50,7 +50,7 @@ EventBits_t xEventGroupWaitBits(EventGroupHandle_t g,EventBits_t b,int clear,int
     }
     EventBits_t result=g->bits;if(clear)g->bits&=~b;return result;
 }
-SemaphoreHandle_t xSemaphoreCreateMutex(void) {CHECK(semaphore_count<2);return &semaphores[semaphore_count++];}
+SemaphoreHandle_t xSemaphoreCreateMutex(void) {CHECK(semaphore_count<3);return &semaphores[semaphore_count++];}
 int xSemaphoreTake(SemaphoreHandle_t s,TickType_t timeout)
 {if(s->locked){CHECK(timeout==0);return pdFALSE;}s->locked=true;return pdTRUE;}
 int xSemaphoreGive(SemaphoreHandle_t s) {CHECK(s->locked);s->locked=false;return pdTRUE;}
@@ -76,6 +76,8 @@ esp_err_t esp_wifi_scan_start(const wifi_scan_config_t *scan,bool block)
 esp_err_t esp_wifi_scan_get_ap_records(uint16_t *count,wifi_ap_record_t *records)
 {if(records_error)return ESP_FAIL;CHECK(*count>=ap_count);*count=ap_count;memcpy(records,aps,ap_count*sizeof(*aps));driver_memory=false;return ESP_OK;}
 esp_err_t esp_wifi_clear_ap_list(void) {driver_memory=false;clears++;return ESP_OK;}
+static int power_mode=-1;static unsigned power_sets;static bool fail_power;
+esp_err_t esp_wifi_set_ps(wifi_ps_type_t type) {power_sets++;if(fail_power)return ESP_FAIL;power_mode=(int)type;return ESP_OK;}
 esp_err_t dsr_settings_save(const dsr_settings_t *s) {saves++;if(save_error)return ESP_FAIL;persisted=*s;return ESP_OK;}
 
 static dsr_settings_t candidate(const char *name)
@@ -174,6 +176,18 @@ int main(void)
     CHECK(stops==old_stops+1&&starts==old_starts+1&&configs==old_configs+1&&connects==old_connects+1&&!config.sta.bssid_set);
     ap.security=DSR_WIFI_WPA2;CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_INVALID);ap.security=DSR_WIFI_OPEN;memset(ap.bssid,0,6);CHECK(dsr_wifi_temporary_connect(&ap,&detail)==DSR_INVALID);
     CHECK(saves==saves_before&&!memcmp(&persisted,&home_before,sizeof(persisted)));
-    puts("Wi-Fi fixture: real lifecycle, scan cap/dedupe, old-event fence, credentials saved only after IP, rollback/cancel, security and reconnect");
+    /* Power save follows the lit screen; any BLE host session restores modem
+     * sleep first. The SDK is called only on a change; a failure is retried. */
+    CHECK(power_mode==WIFI_PS_MIN_MODEM&&power_sets==1); /* explicit at start */
+    dsr_wifi_power_display(true);CHECK(power_mode==WIFI_PS_NONE&&power_sets==2);
+    for(unsigned i=0;i<5;i++){dsr_wifi_power_display(true);}
+    CHECK(power_sets==2);
+    dsr_wifi_power_ble(true);CHECK(power_mode==WIFI_PS_MIN_MODEM&&power_sets==3);
+    dsr_wifi_power_display(true);dsr_wifi_power_display(false);dsr_wifi_power_display(true);CHECK(power_mode==WIFI_PS_MIN_MODEM&&power_sets==3);
+    dsr_wifi_power_ble(false);CHECK(power_mode==WIFI_PS_NONE&&power_sets==4);
+    fail_power=true;dsr_wifi_power_display(false);CHECK(power_mode==WIFI_PS_NONE&&power_sets==5);
+    fail_power=false;dsr_wifi_power_display(false);CHECK(power_mode==WIFI_PS_MIN_MODEM&&power_sets==6);
+    CHECK(!semaphores[2].locked);
+    puts("Wi-Fi fixture: real lifecycle, scan cap/dedupe, old-event fence, credentials saved only after IP, rollback/cancel, security, reconnect and power save");
     printf("PASS: %u Wi-Fi lifecycle checks\n",checks);return 0;
 }

@@ -53,13 +53,14 @@ int main(void)
             {"/rpc/Cover.Open","null",200,true,false},
             {"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
         cover_payload=cover ? "{\"id\":0}" : NULL;
-        fixture(cover ? covering : relay, cover ? 4 : 3, HTTP_AUTH_TYPE_DIGEST);
+        /* Cover: one proven status frame + POST; relay: /shelly, POST, readback frame. */
+        fixture_rpc(cover ? covering : relay, cover ? 4 : 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id);
         dsr_result_t result=cover
             ? dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})
             : dsr_http_set_output(&c,true);
         CHECK(dsr_http_job_guard(NULL)==actor_permission);
         CHECK(dsr_http_job_write_hook(NULL)==actor_write);
-        CHECK(used==(cover ? 3u : 3u-(mode%2))); /* POST ACK occurred once */
+        CHECK(used==(cover ? 2u : 3u-(mode%2))); /* POST ACK occurred once */
         CHECK(result==(cover ? DSR_OK : mode%2 ? DSR_IDENTITY_MISMATCH : DSR_AUTH_REQUIRED));
         CHECK(dsr_actions_model_complete(&actor,101,result,12));
         int next=dsr_actions_model_current(&actor,12);
@@ -72,9 +73,9 @@ int main(void)
             permissions=0;deny_after_ack=mode%2?1:0;
             CHECK(dsr_http_job_guard(actor_permission)==NULL);
             step_t read[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
-            fixture(read,2,HTTP_AUTH_TYPE_DIGEST);
+            fixture_rpc(read,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);
             dsr_result_t gate=dsr_http_refresh(&c);
-            CHECK(gate==(mode%2?DSR_IDENTITY_MISMATCH:DSR_AUTH_REQUIRED)&&used==(mode%2?0u:2u));
+            CHECK(gate==(mode%2?DSR_IDENTITY_MISMATCH:DSR_AUTH_REQUIRED)&&used==(mode%2?0u:1u));
             CHECK(dsr_http_job_guard(NULL)==actor_permission);
             CHECK(dsr_actions_model_complete(&actor,102,gate,12));
             CHECK(actor.steps[0].outcome==DSR_ACTION_SUCCESS&&actor.steps[1].outcome==DSR_ACTION_FAILED&&dsr_actions_model_current(&actor,12)==2);

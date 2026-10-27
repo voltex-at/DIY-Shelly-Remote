@@ -7,6 +7,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#endif
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +38,31 @@ static unsigned retry_seconds = 1;
 static bool auth_failing;
 static atomic_bool temporary;
 bool dsr_wifi_temporary_active(void){return atomic_load(&temporary);}
+
+/* Requested by the UI poll (screen) and the BLE host lifecycle. The lock only
+ * orders recompute+set; a failed set keeps the previous mode for a retry. */
+static atomic_bool power_display, power_ble;
+static atomic_int power_applied = -1;
+static SemaphoreHandle_t power_lock;
+static wifi_ps_type_t power_wanted(void)
+{return atomic_load(&power_display) && !atomic_load(&power_ble) ? WIFI_PS_NONE : WIFI_PS_MIN_MODEM;}
+static void power_apply(void)
+{
+    if (!power_lock || atomic_load(&power_applied) == (int)power_wanted()) return;
+    xSemaphoreTake(power_lock, portMAX_DELAY);
+    wifi_ps_type_t wanted = power_wanted();
+    if (atomic_load(&power_applied) != (int)wanted && esp_wifi_set_ps(wanted) == ESP_OK) {
+        atomic_store(&power_applied, (int)wanted);
+#ifdef ESP_PLATFORM
+        ESP_LOGI("dsr_wifi", "power save=%s display=%u ble=%u", wanted == WIFI_PS_NONE ? "none" : "min_modem",
+                 (unsigned)atomic_load(&power_display), (unsigned)atomic_load(&power_ble));
+#endif
+    }
+    xSemaphoreGive(power_lock);
+}
+void dsr_wifi_power_display(bool awake) { atomic_store(&power_display, awake); power_apply(); }
+/* Called before the NimBLE host starts and after it is released. */
+void dsr_wifi_power_ble(bool active) { atomic_store(&power_ble, active); power_apply(); }
 
 void dsr_wifi_get_info(dsr_wifi_info_t *out)
 {
@@ -185,6 +213,9 @@ esp_err_t dsr_wifi_start(const dsr_settings_t *settings)
         (error = esp_event_handler_register(IP_EVENT, IP_EVENT_STA_LOST_IP, on_event, NULL)) != ESP_OK ||
         (error = esp_wifi_set_storage(WIFI_STORAGE_RAM)) != ESP_OK ||
         (error = esp_wifi_set_mode(WIFI_MODE_STA)) != ESP_OK) return error;
+    power_lock = xSemaphoreCreateMutex();
+    if (!power_lock) return ESP_ERR_NO_MEM;
+    power_apply();
     if (settings) current = *settings;
     auto_connect = settings && settings->ssid[0];
     return start_station(auto_connect ? settings : NULL, auto_connect);

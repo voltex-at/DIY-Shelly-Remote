@@ -196,7 +196,7 @@ static void network_task(void *arg)
 #endif
             observed_command_phase=DSR_COMMAND_NONE;
             dsr_http_job_progress_hook_t previous_progress=dsr_http_job_progress_hook(observe_command);
-            event.result = job.kind == DSR_JOB_PROBE ? (job.connection.device.endpoint_kind==DSR_ENDPOINT_COVER&&job.telemetry_only?dsr_http_refresh(&job.connection):dsr_http_refresh_info(&job.connection,&event.info)) :job.kind==DSR_JOB_TRV_READ?dsr_http_trv_read(&job.connection):job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
+            event.result = job.kind == DSR_JOB_PROBE ? (job.telemetry_only&&dsr_http_rpc_status_endpoint(&job.connection.device)?dsr_http_refresh(&job.connection):dsr_http_refresh_info(&job.connection,&event.info)) :job.kind==DSR_JOB_TRV_READ?dsr_http_trv_read(&job.connection):job.kind==DSR_JOB_COVER?dsr_http_cover(&job.connection,job.cover):job.kind==DSR_JOB_LIGHT?dsr_http_light(&job.connection,job.light):job.kind==DSR_JOB_TRV?dsr_http_trv(&job.connection,job.trv):job.kind==DSR_JOB_RGB?dsr_http_rgb(&job.connection,job.rgb):dsr_http_set_output(&job.connection, job.on);
             event.command_phase=(uint8_t)observed_command_phase;
             (void)dsr_http_job_progress_hook(previous_progress);
             if(job.kind!=DSR_JOB_PROBE&&job.kind!=DSR_JOB_TRV_READ)ESP_LOGI("dsr_network","Control job=%lu layout=%lu kind=%u phase=%u result=%d",(unsigned long)job.id,(unsigned long)job.connection.layout_id,(unsigned)job.kind,(unsigned)event.command_phase,(int)event.result);

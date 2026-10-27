@@ -69,10 +69,13 @@ void dsr_ble_manager_quarantine(void)
  ble_hs_sched_reset(BLE_HS_EUNKNOWN);
  memory_log("quarantined");
 }
+/* dsr_wifi.c: coexistence needs modem sleep before the controller starts. */
+void dsr_wifi_power_ble(bool active);
 static bool prepare_host(void)
 {
  if(!initialized){
-  if(nimble_port_init()!=ESP_OK){memory_log("init_failed");return false;}
+  dsr_wifi_power_ble(true);
+  if(nimble_port_init()!=ESP_OK){dsr_wifi_power_ble(false);memory_log("init_failed");return false;}
   initialized=true;atomic_store(&host_on,true);ble_hs_cfg.reset_cb=reset;ble_hs_cfg.sync_cb=sync_host;
   #ifdef ESP_PLATFORM
   dsr_blu_host_setup();
@@ -122,6 +125,7 @@ static bool release_host(bool reserved)
  if(nimble_port_stop()!=0){memory_log("stop_failed");return false;}
  if(nimble_port_deinit()!=ESP_OK){atomic_store(&quarantined,true);memory_log("deinit_failed");return false;}
  initialized=false;atomic_store(&host_on,false);atomic_store(&synced,false);atomic_store(&host_failed,false);atomic_store(&quarantined,false);memory_log("released");
+ dsr_wifi_power_ble(false);
  return true;
 }
 static void scanner_task(void *arg)

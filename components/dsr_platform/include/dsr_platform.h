@@ -42,6 +42,11 @@ bool dsr_workspace_mapping_matches(const dsr_connection_t *connection);
 /* Initialize once, even without credentials, so scanning is available. */
 esp_err_t dsr_wifi_start(const dsr_settings_t *settings);
 bool dsr_wifi_connected(void);
+/* Modem sleep delays every received Shelly frame until the next DTIM wake.
+ * The radio stays awake only while the screen is on and no BLE host runs
+ * (coexistence); otherwise WIFI_PS_MIN_MODEM. Applied only on change. */
+void dsr_wifi_power_display(bool awake);
+void dsr_wifi_power_ble(bool active);
 #define DSR_WIFI_MAX_NETWORKS 20
 typedef struct {
     char ssid[33]; uint8_t bssid[6]; int8_t rssi; uint8_t channel; dsr_wifi_security_t security;
@@ -65,9 +70,15 @@ dsr_result_t dsr_wifi_restore_home(dsr_wifi_status_t *detail);
 void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation before queueing. */
 
 /* Worker only. No redirects; Basic Gen1 / SHA-256 Digest Gen2+ via IDF.
- * Refresh and write verify the saved identity before using an endpoint. */
+ * Refresh and write verify the saved identity before using an endpoint.
+ * One SDK client per call keeps the Digest nonce for same-method requests. */
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
+/* Gen2+ relay/cover/dimmer/RGB read status with one JSON-RPC POST /rpc whose
+ * response src must equal the saved id; an unproven src falls back to /shelly. */
+static inline bool dsr_http_rpc_status_endpoint(const dsr_device_t *d)
+{return d&&d->generation==DSR_GEN2_PLUS&&d->device_id[0]&&(d->endpoint_kind==DSR_ENDPOINT_SWITCH||d->endpoint_kind==DSR_ENDPOINT_COVER||d->endpoint_kind==DSR_ENDPOINT_LIGHT||d->endpoint_kind==DSR_ENDPOINT_RGB);}
+/* Telemetry only: no /shelly metadata or name. Writes always verify first. */
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection);
 /* Advisory model/version from verified /shelly, plus one bounded read-only
  * Sys.GetConfig request for the name after a successful status. Metadata never
@@ -111,8 +122,9 @@ typedef struct {
     dsr_connection_t connection;
     dsr_settings_t settings;
     /* Different job kinds reuse the two existing public-intent bytes.
-     * telemetry_only is valid for Cover PROBE; converting a typed command
-     * to a normal PROBE must clear both bytes (including invalid bool data). */
+     * telemetry_only is valid for PROBE of a dsr_http_rpc_status_endpoint();
+     * converting a typed command to a normal PROBE must clear both bytes
+     * (including invalid bool data). */
     union {struct {bool on,ap_confirmed;};bool telemetry_only;dsr_cover_intent_t cover;dsr_light_intent_t light;dsr_trv_intent_t trv;};
     union {dsr_wifi_ap_t ap;dsr_ap_identity_t ap_identity;dsr_rgb_intent_t rgb;dsr_battery_profile_t battery_profile;};
 } dsr_job_t;

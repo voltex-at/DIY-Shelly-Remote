@@ -994,6 +994,10 @@ static bool __attribute__((noinline)) dispatch_touch(void)
 static void poll(lv_timer_t *timer)
 {
  (void)timer;
+#ifdef ESP_PLATFORM
+ /* Radio wake follows the lit screen before this poll admits any exchange. */
+ dsr_wifi_power_display(!dsr_board_display_sleeping());
+#endif
  if(!dsr_activity_begin())return;
  uint32_t now=lv_tick_get();
  render_batch=true;

@@ -2,6 +2,23 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Etap 2: transport Shelly i kandydat 0.7.78-dev — 2026-10-27
+
+Właściciel wybrał Etap 2 z audytu oraz dwie decyzje: modem-sleep Wi-Fi
+wyłączony tylko przy świecącym ekranie i nieaktywnym BLE, a tożsamość Gen2+
+z pola `src` ramki JSON-RPC. Status przekaźnika, rolety, dimmera i RGB to jedna
+ramka `POST /rpc`; nieudowodnione `src` wraca do `/shelly`. Klient SDK na
+wywołanie zachowuje nonce Digest tylko dla tej samej metody HTTP; spóźnione
+bajty zakończonej wymiany nie są odrzucane. Zwykłe odczyty są telemetryczne,
+pełne metadane co 5 min i po błędach. Testy hosta i UI przeszły.
+[Szczegóły, dowody i odbiór](TRANSPORT_STAGE2_PL.md).
+
+Właściciel zlecił publikację DEV przed własnym testem na płytce. `0.7.78-dev`
+jest kandydatem do odbioru, z wymaganym pełnym CI dokładnego commita, podpisem
+i publicznymi pobraniami. Fizyczna aktualizacja, komendy rolety, tryb Wi-Fi
+i zużycie baterii pozostają do odbioru. Bez Stable, main, flashowania i zmian
+klucza OTA.
+
 
 ## Przygotowanie 0.7.77-dev do odbioru — 2026-10-25
 

@@ -22,4 +22,11 @@ esp_err_t esp_http_client_set_post_field(esp_http_client_handle_t c, const char 
 esp_err_t esp_http_client_perform(esp_http_client_handle_t c);
 int esp_http_client_get_status_code(esp_http_client_handle_t c);
 esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c);
+/* Reuse of one client between requests (IDF 5.5.4 public API). */
+esp_err_t esp_http_client_set_url(esp_http_client_handle_t c, const char *url);
+esp_err_t esp_http_client_set_user_data(esp_http_client_handle_t c, void *data);
+esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t c, int timeout_ms);
+esp_err_t esp_http_client_set_authtype(esp_http_client_handle_t c, esp_http_client_auth_type_t auth_type);
+esp_err_t esp_http_client_delete_header(esp_http_client_handle_t c, const char *key);
+esp_err_t esp_http_client_prepare(esp_http_client_handle_t c);
 #endif

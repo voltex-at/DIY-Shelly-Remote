@@ -16,7 +16,7 @@ dsr_result_t dsr_fleet_upsert(dsr_fleet_t *f,const dsr_connection_t *c,uint32_t 
  int at=dsr_fleet_find(f,&c->device);if(at<0){if(f->count>=DSR_MAX_DEVICES)return DSR_FULL;at=(int)f->count++;}
  for(size_t i=0;i<f->count;i++)if((int)i!=at&&f->slots[i].connection.device.generation==c->device.generation&&!strcmp(f->slots[i].connection.device.device_id,c->device.device_id)){
   dsr_fleet_slot_t *other=&f->slots[i];
-  if(strcmp(other->connection.device.host,c->device.host)){discard(other);other->connection.device.online=false;other->next_poll=now;}
+  if(strcmp(other->connection.device.host,c->device.host)){discard(other);other->connection.device.online=false;other->next_poll=now;other->meta_polls=0;}
   memcpy(other->connection.device.host,c->device.host,sizeof(c->device.host));other->connection.credentials=c->credentials;
  }
  dsr_fleet_slot_t *s=&f->slots[at];uint32_t command_id=s->command_id;discard(s);memset(s,0,sizeof(*s));s->command_id=command_id;s->connection=*c;s->layout_enabled=c->layout_id!=0||c->legacy_fallback;
@@ -132,8 +132,9 @@ bool dsr_fleet_next_poll(dsr_fleet_t *f,uint32_t now,uint16_t mask,dsr_job_t *jo
   if(motion&&s->failures&&!cover_motion(s))continue;
   if(!pass&&!cover_followup(s))continue;
   /* Movement/recovery needs the verified observation now. Advisory name
-   * refresh belongs to an ordinary poll, not the motor readback path. */
-  *job=(dsr_job_t){.kind=DSR_JOB_PROBE,.connection=s->connection,.telemetry_only=cover_followup(s)};*index=i;return true;
+   * refresh belongs to a periodic full poll, not the motor readback path. */
+  bool telemetry=cover_followup(s)||(dsr_http_rpc_status_endpoint(&s->connection.device)&&s->meta_polls&&s->meta_polls<DSR_FLEET_META_POLLS);
+  *job=(dsr_job_t){.kind=DSR_JOB_PROBE,.connection=s->connection,.telemetry_only=telemetry};*index=i;return true;
  }
  return false;
 }
@@ -160,6 +161,7 @@ bool dsr_fleet_next(dsr_fleet_t *f,uint32_t now,bool allow_poll,dsr_job_t *job,u
 void dsr_fleet_started(dsr_fleet_t *f,unsigned index,const dsr_job_t *job)
 {
  dsr_fleet_slot_t *s=&f->slots[index];s->in_flight=true;s->operation=job->kind;s->request_id=job->id;
+ if(job->kind==DSR_JOB_PROBE)s->meta_polls=job->telemetry_only&&dsr_http_rpc_status_endpoint(&s->connection.device)?(uint8_t)(s->meta_polls<UINT8_MAX?s->meta_polls+1:UINT8_MAX):1u;
  if(control_job(job->kind))s->command_phase=DSR_COMMAND_NONE;
  if(job->kind==DSR_JOB_COVER)s->cover=job->cover;
  if(job->kind==DSR_JOB_TRV){s->trv=job->trv;s->trv_followups=0;}
@@ -179,6 +181,8 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  if(!s->in_flight||s->request_id!=event->id)return false;
  s->in_flight=false;dsr_result_t result=event->result;
  if(!dsr_endpoint_equal(&s->connection.device,&event->device)||strcmp(s->connection.device.host,event->device.host))result=DSR_IDENTITY_MISMATCH;
+ /* Any failed exchange re-reads /shelly metadata and the name next time. */
+ if(result!=DSR_OK)s->meta_polls=0;
  bool cover=s->connection.device.endpoint_kind==DSR_ENDPOINT_COVER;
  bool awaiting=cover&&s->operation==DSR_JOB_PROBE&&s->command_phase==DSR_COMMAND_ACK&&s->command_result==DSR_OK;
  if(control_job(s->operation))s->command_result=(uint8_t)result;
@@ -244,6 +248,6 @@ bool dsr_fleet_complete(dsr_fleet_t *f,unsigned index,const dsr_event_t *event,u
  return true;
 }
 void dsr_fleet_wifi(dsr_fleet_t *f,bool online,uint32_t now)
-{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->connection.device.online=false;if(!online&&s->queued){discard(s);s->result=DSR_OFFLINE;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;}if(online)s->next_poll=now;}}
+{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->connection.device.online=false;s->meta_polls=0;if(!online&&s->queued){discard(s);s->result=DSR_OFFLINE;s->command_error=true;s->command_phase=DSR_COMMAND_NONE;}if(online)s->next_poll=now;}}
 void dsr_fleet_refresh(dsr_fleet_t *f,uint32_t now)
-{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->blocked=false;s->command_error=false;s->result=DSR_OK;s->failures=0;s->next_poll=now;}}
+{for(size_t i=0;i<f->count;i++){dsr_fleet_slot_t *s=&f->slots[i];s->blocked=false;s->command_error=false;s->result=DSR_OK;s->failures=0;s->next_poll=now;s->meta_polls=0;}}

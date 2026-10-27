@@ -1,3 +1,13 @@
+0.7.78-dev: kandydat do próby na płytce — transport Shelly: JSON-RPC, Digest i Wi-Fi.
+
+- Status przekaźnika, rolety, dimmera i RGB Gen2+ to jedna ramka `POST /rpc`. Pole `src` musi być równe zapisanemu ID urządzenia przed każdym zapisem; brak lub inna postać `src` wraca do dotychczasowego `/shelly`. Przekaźnik zachowuje wstępne `/shelly`, STOP rolety działa bez zmian. Niepewna komenda nie jest ponawiana ani oznaczana jako sukces.
+- Jeden klient HTTP na zadanie zachowuje nonce Digest wyłącznie dla tej samej metody HTTP, więc odpada część rund 401 (np. komenda rolety z hasłem: 5 → 3 wymiany). Odpowiedź inna niż 200 zwalnia klienta.
+- Bajty zakończonej wymiany, które przyszły po terminie, nie są już odrzucane: spóźnione, prawidłowe potwierdzenie rolety jest ACK, a nie błędną odpowiedzią.
+- Zwykłe odczyty w tle Gen2+ to jedna ramka telemetrii. Pełne metadane i nazwa: pierwszy odczyt, co 60 odczytów (~5 min), po błędzie, zmianie Wi-Fi i ręcznym odświeżeniu. Zmiana nazwy w aplikacji Shelly może pojawić się na pilocie do ~5 min później. Gen1, BLU i H&T bez zmian.
+- Modem-sleep Wi-Fi jest wyłączony tylko przy świecącym ekranie i nieaktywnym BLE; po wygaszeniu i przed startem BLE wraca `MIN_MODEM`. Log `Cover HTTP` ma pola `auth=`/`reuse=` i etap `rpc`; zmiany trybu oszczędzania są logowane bez hostów, ID i haseł.
+- Kandydat DEV do odbioru właściciela: aktualizacja 0.7.77→0.7.78, restart, zachowanie danych, komendy rolety (`leg=rpc`, `auth=pre`), tryb Wi-Fi oraz bateria przy włączonym ekranie. Testy hosta, CI, podpis i publiczne pobrania nie potwierdzają działania na płytce. [Raport](TRANSPORT_STAGE2_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.77-dev: kandydat do próby na płytce — responsywność ekranów i restart OTA.
 
 - Otwieranie Zużycia, ustawień Shelly i konfiguracji BLU pomija pośrednią budowę całego Dashboardu. Nawigacja do Pomieszczeń otwiera od razu właściwą stronę.

@@ -11,6 +11,7 @@
 #include "nvs.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static unsigned checks;
@@ -31,55 +32,126 @@ void dsr_lan_resume(void){}
 static int64_t name_clock;
 int64_t esp_timer_get_time(void){return name_clock;}
 #define CHECK(expr) do { checks++; if (!(expr)) { fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); assert(expr); } } while (0)
+/* challenge: the device requires Digest/Basic auth (it answers an unauthenticated
+ * request with 401, unless a valid kept-nonce digest is already offered). */
 typedef struct { const char *path, *body; int status; bool post, challenge; } step_t;
+/* Optional per-step overlay: expected POST body and timeout when the path rule
+ * below does not apply; late: the second half arrives after the deadline. */
+typedef struct { const char *request; int timeout; bool late; } step_expect_t;
 static step_t steps[24];
-static unsigned count, used;
+static step_expect_t expects[24];
+static unsigned count, used, preemptive, challenges;
 static esp_http_client_auth_type_t expected_auth;
-struct test_client { esp_http_client_config_t cfg; bool post; const char *body; };
-static struct test_client client;
+/* IDF 5.5.4 model: Shelly closes every exchange, so each perform reconnects and
+ * runs prepare(); a kept Digest nonce is used with the method it was issued for.
+ * A header for another method/URI would be a failed Shelly login: CHECK fails. */
+struct test_client { esp_http_client_config_t cfg; char url[160], user[33], pass[65]; void *user_data; const char *body;
+    int timeout, status, nonce_method, header_method; esp_http_client_auth_type_t auth; bool post, used, pending, header, user_set; };
+static struct test_client clients[4];
 static char posted[256]; /* last POST body, copied: callers pass stack buffers */
 static void fixture(const step_t *data, unsigned length, esp_http_client_auth_type_t auth)
-{ memcpy(steps, data, length * sizeof(*data)); count = length; used = 0; expected_auth = auth; }
+{ for(unsigned i=0;i<4;i++)CHECK(!clients[i].used);CHECK(length<=24);memcpy(steps, data, length * sizeof(*data));memset(expects,0,sizeof(expects)); count = length; used = 0; expected_auth = auth; preemptive = challenges = 0; }
+/* Fast-path fixture: the same device answers one JSON-RPC POST /rpc frame. A
+ * /shelly + GET <Component>.GetStatus pair becomes one frame whose src is the
+ * identity id; a lone status GET (post-write readback) uses saved_id. A failed
+ * identity fails the frame the same way. An identity other than saved_id keeps
+ * its /shelly step: the unproven src falls back to it and is rejected there. */
+static char rpc_bodies[24][1200],rpc_requests[24][96];
+static bool rpc_status_path(const char *path,char *request,size_t size)
+{
+    const char *components[]={"Switch","Cover","Light","RGB"};
+    for(unsigned i=0;i<4;i++){
+        char prefix[40];snprintf(prefix,sizeof(prefix),"/rpc/%s.GetStatus?id=",components[i]);size_t n=strlen(prefix);
+        if(!strncmp(path,prefix,n)){snprintf(request,size,"{\"id\":1,\"method\":\"%s.GetStatus\",\"params\":{\"id\":%u}}",components[i],(unsigned)atoi(path+n));return true;}
+    }
+    return false;
+}
+static void fixture_rpc(const step_t *data,unsigned length,esp_http_client_auth_type_t auth,const char *saved_id)
+{
+    step_t out[24];step_expect_t x[24];unsigned n=0;memset(x,0,sizeof(x));
+    for(unsigned i=0;i<length;i++){
+        char request[96];
+        bool pair=!strcmp(data[i].path,"/shelly")&&i+1<length&&!data[i+1].post&&rpc_status_path(data[i+1].path,request,sizeof(request));
+        if(!pair&&(data[i].post||!rpc_status_path(data[i].path,request,sizeof(request)))){CHECK(n<24);out[n++]=data[i];continue;}
+        const step_t *st=pair?&data[i+1]:&data[i];char id[64];snprintf(id,sizeof(id),"%s",saved_id);
+        CHECK(n<24);snprintf(rpc_requests[n],sizeof(rpc_requests[n]),"%s",request);x[n]=(step_expect_t){rpc_requests[n],3000,false};
+        if(pair&&(!data[i].body||data[i].status!=200)){out[n++]=(step_t){"/rpc",data[i].body,data[i].status,true,data[i+1].challenge};i++;continue;}
+        if(pair){cJSON *identity=cJSON_Parse(data[i].body);const cJSON *v=cJSON_GetObjectItemCaseSensitive(identity,"id");if(cJSON_IsString(v))snprintf(id,sizeof(id),"%s",v->valuestring);cJSON_Delete(identity);}
+        bool framed=st->body&&st->status==200;
+        if(framed)snprintf(rpc_bodies[n],sizeof(rpc_bodies[n]),"{\"id\":1,\"src\":\"%s\",\"result\":%s}",id,st->body);
+        out[n]=(step_t){"/rpc",framed?rpc_bodies[n]:st->body,st->status,true,st->challenge};n++;
+        if(pair&&strcmp(id,saved_id)){CHECK(n<24);out[n++]=data[i];}
+        if(pair)i++;
+    }
+    fixture(out,n,auth);memcpy(expects,x,sizeof(x));
+}
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg)
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
-    bool identity = strcmp(steps[used].path, "/shelly") == 0;
-    CHECK(cfg->timeout_ms == (lan_mode&&identity?650:!strcmp(steps[used].path,"/rpc/Sys.GetConfig")?650:!strcmp(steps[used].path,"/rpc/BluTrv.Call")?15000:!strcmp(steps[used].path,"/rpc")?4000:3000));
-    CHECK(cfg->auth_type == (identity ? HTTP_AUTH_TYPE_NONE : expected_auth));
-    if (identity) CHECK(!cfg->username && !cfg->password);
-    else if (expected_auth != HTTP_AUTH_TYPE_NONE) CHECK(!strcmp(cfg->username, "admin") && !strcmp(cfg->password, "test-password"));
-    char url[160]; snprintf(url, sizeof(url), "http://%s%s",transport_host, steps[used].path);
-    CHECK(!strcmp(cfg->url, url));
-    client = (struct test_client){.cfg = *cfg}; return &client;
+    struct test_client *c=NULL;for(unsigned i=0;i<4&&!c;i++)if(!clients[i].used)c=&clients[i];
+    CHECK(c);*c=(struct test_client){.cfg=*cfg,.user_data=cfg->user_data,.timeout=cfg->timeout_ms,.auth=cfg->auth_type,.used=true,.pending=true,.nonce_method=-1,.header_method=-1};
+    snprintf(c->url,sizeof(c->url),"%s",cfg->url);
+    if(cfg->username){c->user_set=true;snprintf(c->user,sizeof(c->user),"%s",cfg->username);snprintf(c->pass,sizeof(c->pass),"%s",cfg->password?cfg->password:"");}
+    return c;
 }
+esp_err_t esp_http_client_set_url(esp_http_client_handle_t c, const char *url)
+{ CHECK(c->used&&!c->pending&&used<count); snprintf(c->url,sizeof(c->url),"%s",url); c->pending=true; return ESP_OK; }
+esp_err_t esp_http_client_set_user_data(esp_http_client_handle_t c, void *data){ c->user_data=data; return ESP_OK; }
+esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t c, int timeout_ms){ c->timeout=timeout_ms; return ESP_OK; }
+esp_err_t esp_http_client_set_authtype(esp_http_client_handle_t c, esp_http_client_auth_type_t type){ c->auth=type; return ESP_OK; }
+esp_err_t esp_http_client_delete_header(esp_http_client_handle_t c, const char *key){ CHECK(!strcmp(key,"Authorization")); c->header=false; return ESP_OK; }
+static void sdk_prepare(esp_http_client_handle_t c)
+{ if(c->user_set&&c->auth==HTTP_AUTH_TYPE_DIGEST&&c->nonce_method>=0){c->header=true;c->header_method=c->nonce_method;} }
+esp_err_t esp_http_client_prepare(esp_http_client_handle_t c){ sdk_prepare(c); return ESP_OK; }
 esp_err_t esp_http_client_set_method(esp_http_client_handle_t c, esp_http_client_method_t m)
 { c->post = m == HTTP_METHOD_POST; return ESP_OK; }
 esp_err_t esp_http_client_set_header(esp_http_client_handle_t c, const char *key, const char *value)
 { (void)c; CHECK(!strcmp(key, "Content-Type") && !strcmp(value, ap_protocol?ap_content_type:"application/json")); return ESP_OK; }
 esp_err_t esp_http_client_set_post_field(esp_http_client_handle_t c, const char *body, int length)
-{ CHECK(length == (int)strlen(body)); c->body = body; snprintf(posted,sizeof(posted),"%s",body); return ESP_OK; }
+{ if(!body){CHECK(!length);c->body=NULL;return ESP_OK;} CHECK(length == (int)strlen(body)); c->body = body; snprintf(posted,sizeof(posted),"%s",body); return ESP_OK; }
 static esp_err_t emit(esp_http_client_handle_t c, esp_http_client_event_id_t id, const char *data, int length)
 {
-    esp_http_client_event_t event = {.event_id = id, .user_data = c->cfg.user_data, .data = (void *)data, .data_len = length};
+    esp_http_client_event_t event = {.event_id = id, .user_data = c->user_data, .data = (void *)data, .data_len = length};
     return c->cfg.event_handler(&event);
 }
 esp_err_t esp_http_client_perform(esp_http_client_handle_t c)
 {
-    const step_t *s = &steps[used]; CHECK(c->post == s->post);
-    if (c->post) CHECK(!strcmp(c->body, ap_protocol?ap_payload:cover_payload?cover_payload:"{\"id\":0,\"on\":true}"));
+    CHECK(c->used && c->pending && used < count);
+    const step_t *s = &steps[used]; const step_expect_t *x = &expects[used];
+    bool identity = strcmp(s->path, "/shelly") == 0;
+    int timeout = x->timeout ? x->timeout : lan_mode&&identity?650:!strcmp(s->path,"/rpc/Sys.GetConfig")?650:!strcmp(s->path,"/rpc/BluTrv.Call")?15000:!strcmp(s->path,"/rpc")?4000:3000;
+    char url[160]; snprintf(url, sizeof(url), "http://%s%s",transport_host, s->path);
+    if (strcmp(c->url, url) || c->post != s->post) fprintf(stderr, "step %u/%u: expected %s %s, got %s %s\n", used, count, s->post?"POST":"GET", url, c->post?"POST":"GET", c->url);
+    CHECK(!strcmp(c->url, url)); CHECK(c->post == s->post);
+    CHECK(c->timeout == timeout);
+    if (identity) CHECK(!c->user_set && c->auth == HTTP_AUTH_TYPE_NONE);
+    else if (expected_auth != HTTP_AUTH_TYPE_NONE) {
+        CHECK(c->user_set && !strcmp(c->user, "admin") && !strcmp(c->pass, "test-password"));
+        CHECK(c->auth == expected_auth || (expected_auth == HTTP_AUTH_TYPE_DIGEST && c->auth == HTTP_AUTH_TYPE_NONE));
+    } else CHECK(!c->user_set && c->auth == HTTP_AUTH_TYPE_NONE);
+    if (c->post) CHECK(!strcmp(c->body, x->request?x->request:ap_protocol?ap_payload:cover_payload?cover_payload:"{\"id\":0,\"on\":true}"));
+    int method = c->post ? HTTP_METHOD_POST : HTTP_METHOD_GET;
+    sdk_prepare(c); /* reconnect after Shelly's Connection: close */
+    if (c->header) CHECK(c->auth == HTTP_AUTH_TYPE_DIGEST && c->header_method == method);
     emit(c, HTTP_EVENT_HEADERS_SENT, NULL, 0);
-    if (s->challenge) {
+    if (s->challenge && c->header) preemptive++;
+    else if (s->challenge) {
+        challenges++;
         emit(c, HTTP_EVENT_ON_DATA, "{\"error\":401}", 13);
+        /* IDF add_auth: Digest, nonce bound to this request's method. */
+        if (c->user_set && c->auth != HTTP_AUTH_TYPE_BASIC) {c->auth = HTTP_AUTH_TYPE_DIGEST; c->nonce_method = method; c->header = true; c->header_method = method;}
         emit(c, HTTP_EVENT_HEADERS_SENT, NULL, 0);
     }
+    c->status = s->status; c->pending = false; used++;
     if (!s->body) return ESP_FAIL;
     size_t length = strlen(s->body), half = length / 2;
     esp_err_t result = emit(c, HTTP_EVENT_ON_DATA, s->body, (int)half);
+    if (x->late) name_clock += (int64_t)(timeout + 1000) * 1000;
     if (result == ESP_OK) result = emit(c, HTTP_EVENT_ON_DATA, s->body + half, (int)(length - half));
     return result;
 }
-int esp_http_client_get_status_code(esp_http_client_handle_t c) { (void)c; return steps[used].status; }
-esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { (void)c; used++; return ESP_OK; }
+int esp_http_client_get_status_code(esp_http_client_handle_t c) { return c->pending ? steps[used].status : c->status; }
+esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { CHECK(c->used); if (c->pending) used++; c->used = false; return ESP_OK; }
 
 static unsigned char blobs[3][8192];
 static size_t sizes[3]; static uint32_t schemas[3];
@@ -194,19 +266,23 @@ static void test_control(void)
     strcpy(c.device.device_id, "shellyplus1-AABBCCDDEEFF");
     step_t data[] = {{"/shelly", gen2, 200, false, false}, {"/rpc/Switch.Set", "{\"was_on\":false}", 200, true, true},
         {"/rpc/Switch.GetStatus?id=0", "{\"output\":true}", 200, false, true}};
-    fixture(data, 3, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_OK && c.device.output && used == 3);
+    /* Identity first, then the write; the readback frame re-proves the id and
+     * reuses the write's Digest nonce (same POST method): one 401, not two. */
+    fixture_rpc(data, 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_set_output(&c, true) == DSR_OK && c.device.output && used == 3 && challenges == 1 && preemptive == 1);
     data[2].body = "{\"output\":false}";
-    fixture(data, 3, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_BAD_RESPONSE && !c.device.online);
+    fixture_rpc(data, 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_set_output(&c, true) == DSR_BAD_RESPONSE && !c.device.online);
     data[0].body = "{\"gen\":2,\"id\":\"shellyplus1-OTHER\"}";
     fixture(data, 1, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_IDENTITY_MISMATCH && used == 1);
-    fixture(data, 1, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_refresh(&c) == DSR_IDENTITY_MISMATCH && used == 1);
+    /* Telemetry-only: the frame's foreign src is unproven, /shelly rejects it. */
+    step_t foreign[] = {{"/shelly", "{\"gen\":2,\"id\":\"shellyplus1-OTHER\"}", 200, false, false}, {"/rpc/Switch.GetStatus?id=0", "{\"output\":true}", 200, false, true}};
+    fixture_rpc(foreign, 2, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_refresh(&c) == DSR_IDENTITY_MISMATCH && used == 2 && !c.device.online);
     data[0].body = gen2; data[1].body = NULL; data[1].status = 0;
     fixture(data, 2, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_OFFLINE && used == 2);
     CHECK(!c.device.online); /* no automatic second write or optimistic state */
     data[1].body="{\"error\":{\"code\":-104}}";data[1].status=200;
     fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BAD_RESPONSE&&used==2&&!c.device.online);
     data[1].body="{}";data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_AUTH_REQUIRED&&used==2&&!c.device.online);
-    data[1].status=200;data[2].body=NULL;data[2].status=0;fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_OFFLINE&&used==3&&!c.device.online);
+    data[1].status=200;data[2].body=NULL;data[2].status=0;fixture_rpc(data,3,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_set_output(&c,true)==DSR_OFFLINE&&used==3&&!c.device.online);
 }
 static void test_telemetry(void)
 {
@@ -215,17 +291,19 @@ static void test_telemetry(void)
  step_t data[]={{"/shelly",gen3,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true,\"apower\":4.1,\"voltage\":230.4,\"current\":0.018}",200,false,true}};
  fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&device,&telemetry)==DSR_OK);CHECK(device.has_power&&device.power_w==4.1);CHECK(telemetry.has_voltage&&telemetry.voltage_v==230.4);CHECK(telemetry.has_current&&telemetry.current_a==0.018);
  c.device=device;c.telemetry=telemetry;
- data[1].body="{\"output\":false}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(!c.device.has_power&&!c.telemetry.has_voltage&&!c.telemetry.has_current);
- data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
+ /* Telemetry-only refresh: one POST /rpc frame, no /shelly or name request. */
+ data[1].body="{\"output\":false}";fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK&&used==1);CHECK(!c.device.has_power&&!c.telemetry.has_voltage&&!c.telemetry.has_current);
+ data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
  const char *bad[]={"{\"output\":true,\"voltage\":\"230.4\"}","{\"output\":true,\"current\":null}","{\"output\":true,\"voltage\":false}","{\"output\":true,\"current\":[]}","{\"output\":true,\"voltage\":-1}","{\"output\":true,\"current\":-0.1}","{\"output\":true,\"current\":1e999}","{\"output\":true,\"voltage\":1e100}","{\"output\":true,\"apower\":\"4.1\"}"};
- for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
  /* Gen2 aenergy.total is Wh; by_minute values are mWh and are never used
   * as a cumulative total. Missing/null differs from a real zero. */
  const char *energies[]={"{\"output\":false,\"aenergy\":{\"total\":0}}","{\"output\":false,\"aenergy\":{\"total\":123.5,\"by_minute\":[999999]}}","{\"output\":false,\"aenergy\":null}","{\"output\":false,\"aenergy\":{\"total\":null}}","{\"output\":false,\"aenergy\":{\"by_minute\":[1]}}"};
- for(unsigned i=0;i<5;i++){data[1].body=energies[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.telemetry.has_energy==(i<2));if(i<2)CHECK(c.telemetry.energy_wh==(i?123.5:0));}
+ for(unsigned i=0;i<5;i++){data[1].body=energies[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.telemetry.has_energy==(i<2));if(i<2)CHECK(c.telemetry.energy_wh==(i?123.5:0));}
  const char *bad_energy[]={"{\"output\":false,\"aenergy\":3}","{\"output\":false,\"aenergy\":{\"total\":-1}}","{\"output\":false,\"aenergy\":{\"total\":\"0\"}}","{\"output\":false,\"aenergy\":{\"total\":1e999}}"};
- for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
- data[0].status=401;fixture(data,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
+ for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
+ /* The authenticated frame meets the login failure /shelly used to report. */
+ data[0].status=401;fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED&&used==1);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
 }
 static void test_storage(void)
 {
@@ -494,12 +572,13 @@ static void test_registered_guard(void)
  step_t relay[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.Set","{\"was_on\":false}",200,true,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
  for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(relay,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  c.device.endpoint_kind=DSR_ENDPOINT_COVER;cover_payload="{\"id\":0}";step_t cover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open","null",200,true,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false}};
- for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(cover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==(boundary==4?DSR_OK:DSR_BUSY)&&used==(boundary==4?3:boundary-1));CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ /* Proven status frame: guard before it and before the POST (no /shelly leg). */
+ for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(cover,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==(boundary==3?DSR_OK:DSR_BUSY)&&used==(boundary==3?2:boundary-1));CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  c=light_connection();cover_payload="{\"id\":0,\"on\":true}";
  step_t light[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false},{"/rpc/Light.Set","null",200,true,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false}};
- for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(light,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_light(&c,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(light,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_light(&c,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  c=rgb_connection();cover_payload="{\"id\":0,\"on\":true}";step_t rgb[]={{"/shelly",rgb_identity,200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false},{"/rpc/RGB.Set","null",200,true,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false}};
- for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(rgb,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(rgb,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  cover_payload=NULL;
  /* Gen1 changes a relay with GET: method alone must not define the boundary. */
  c=connection();c.device.generation=DSR_GEN1;c.device.has_switch=true;strcpy(c.device.device_id,"AABBCCDDEEFF");
@@ -518,10 +597,88 @@ static void test_device_settings_http(void)
  data[0].body="{\"gen\":3,\"id\":\"shelly-other-112233445566\",\"mac\":\"112233445566\",\"model\":\"SNSW-001P16EU\",\"auth_en\":true}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_IDENTITY_MISMATCH&&!attempted&&used==1);
  cJSON_Delete(params);cover_payload=NULL;lan_mode=false;
 }
+/* Stage 2 transport: proven JSON-RPC frames, the kept Digest nonce, late answers. */
+static void test_rpc_transport(void)
+{
+ dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.has_switch=true;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
+ const char *request="{\"id\":1,\"method\":\"Switch.GetStatus\",\"params\":{\"id\":0}}";
+ /* A frame needs id 1, an object result and unique keys. These are data
+  * errors, not identity questions: no /shelly fallback, no second request. */
+ const char *bad[]={"{\"id\":2,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":{\"output\":true}}",
+  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\"}","{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":[]}",
+  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"src\":\"x\",\"result\":{\"output\":true}}",
+  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"error\":{\"code\":-105,\"message\":\"x\"}}"};
+ for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){
+  step_t s[]={{"/rpc",bad[i],200,true,false}};fixture(s,1,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,false};
+  CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&used==1&&!c.device.online);
+ }
+ /* A missing, non-string or differently spelled src is unproven: /shelly
+  * decides, and the POST challenge's nonce is never offered to the GET. */
+ const char *unproven[]={"{\"id\":1,\"result\":{\"output\":true}}","{\"id\":1,\"src\":7,\"result\":{\"output\":true}}",
+  "{\"id\":1,\"src\":\"SHELLYPLUS1-AABBCCDDEEFF\",\"result\":{\"output\":true}}"};
+ for(unsigned i=0;i<sizeof(unproven)/sizeof(*unproven);i++){
+  step_t s[]={{"/rpc",unproven[i],200,true,true},{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":false,\"apower\":1.5}",200,false,true}};
+  fixture(s,3,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,false};
+  CHECK(dsr_http_refresh(&c)==DSR_OK&&used==3&&c.device.online&&!c.device.output&&c.device.power_w==1.5&&challenges==2&&!preemptive);
+ }
+ /* Kept nonce: the full refresh's GET status is challenged once and the GET
+  * name request reuses it; a Light command's POST frame nonce covers SET and readback. */
+ step_t full[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,true},{"/rpc/Sys.GetConfig","{\"device\":{\"name\":\"Kitchen\"}}",200,false,true}};
+ dsr_device_info_t info;fixture(full,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&used==3&&info.name_read&&challenges==1&&preemptive==1);
+ dsr_connection_t l=light_connection();cover_payload="{\"id\":0,\"on\":true}";
+ step_t lit[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true},{"/rpc/Light.Set","null",200,true,true},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true}};
+ fixture_rpc(lit,4,HTTP_AUTH_TYPE_DIGEST,l.device.device_id);CHECK(dsr_http_light(&l,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_OK&&used==3&&challenges==1&&preemptive==2);
+ /* Without stored credentials nothing is authenticated or kept. */
+ dsr_connection_t open=c;memset(&open.credentials,0,sizeof(open.credentials));
+ step_t plain[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
+ fixture_rpc(plain,2,HTTP_AUTH_TYPE_NONE,open.device.device_id);CHECK(dsr_http_refresh(&open)==DSR_OK&&used==1&&!challenges&&!preemptive);
+ /* IDF 5.5.4 cannot abort a slow exchange from its event handler. A response
+  * the SDK completes after the deadline is still the device's answer. */
+ int64_t clock=name_clock;
+ step_t slow[]={{"/rpc","{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":{\"output\":true,\"apower\":2.5}}",200,true,false}};
+ fixture(slow,1,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,true};
+ CHECK(dsr_http_refresh(&c)==DSR_OK&&c.device.online&&c.device.output&&c.device.power_w==2.5);name_clock=clock;
+ /* A late null ACK is an ACK: accepted once, never replayed or invented. */
+ dsr_connection_t cv=c;cv.device.endpoint_kind=DSR_ENDPOINT_COVER;cover_payload="{\"id\":0}";
+ step_t ack[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open","null",200,true,false}};
+ fixture_rpc(ack,3,HTTP_AUTH_TYPE_DIGEST,cv.device.device_id);expects[1].late=true;
+ CHECK(dsr_http_cover(&cv,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==DSR_OK&&used==2&&!cv.device.online);name_clock=clock;
+ cover_payload=NULL;admission_open();
+}
+/* Telemetry-only JSON-RPC polls; /shelly metadata and name every
+ * DSR_FLEET_META_POLLS, after a failure, a Wi-Fi change or a manual refresh. */
+static void test_fleet_metadata_schedule(void)
+{
+ dsr_fleet_t f={0};dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.has_switch=true;c.device.online=true;c.layout_id=51;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
+ CHECK(dsr_fleet_upsert(&f,&c,0)==DSR_OK);
+ dsr_connection_t legacy=c;legacy.device.generation=DSR_GEN1;strcpy(legacy.device.device_id,"AABBCCDDEEFF");strcpy(legacy.device.host,"192.168.1.11");legacy.layout_id=52;CHECK(dsr_fleet_upsert(&f,&legacy,0)==DSR_OK&&f.count==2);
+ dsr_job_t job;unsigned at;uint32_t now=5000;
+ for(unsigned poll=0;poll<2*DSR_FLEET_META_POLLS+1;poll++){
+  for(unsigned slot=0;slot<2;slot++){
+   CHECK(dsr_fleet_next_poll(&f,now,(uint16_t)(1u<<slot),&job,&at)&&at==slot&&job.kind==DSR_JOB_PROBE);
+   CHECK(job.telemetry_only==(slot==0&&poll%DSR_FLEET_META_POLLS!=0)); /* Gen1 always reads /shelly */
+   job.id=1000+poll*2+slot;dsr_fleet_started(&f,slot,&job);
+   dsr_event_t e={.id=job.id,.result=DSR_OK,.device=f.slots[slot].connection.device,.telemetry=f.slots[slot].connection.telemetry};e.device.online=true;
+   CHECK(dsr_fleet_complete(&f,slot,&e,now));
+  }
+  now+=5000;
+ }
+ CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&job.telemetry_only);job.id=3000;dsr_fleet_started(&f,0,&job);
+ dsr_event_t failed={.id=3000,.result=DSR_OFFLINE,.device=c.device};CHECK(dsr_fleet_complete(&f,0,&failed,now));
+ now=f.slots[0].next_poll;CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&!job.telemetry_only);job.id=3001;dsr_fleet_started(&f,0,&job);
+ dsr_event_t ok={.id=3001,.result=DSR_OK,.device=c.device,.telemetry=c.telemetry};CHECK(dsr_fleet_complete(&f,0,&ok,now));
+ now+=5000;CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&job.telemetry_only);
+ dsr_fleet_wifi(&f,true,now);f.slots[0].connection.device.online=true;CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&!job.telemetry_only);
+ job.id=3002;dsr_fleet_started(&f,0,&job);ok.id=3002;CHECK(dsr_fleet_complete(&f,0,&ok,now));now+=5000;
+ CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&job.telemetry_only);
+ dsr_fleet_refresh(&f,now);CHECK(dsr_fleet_next_poll(&f,now,1,&job,&at)&&!job.telemetry_only);
+ CHECK(sizeof(dsr_fleet_t)==8080); /* the counter uses existing padding */
+}
 int main(void)
 {
     test_device_settings_http();test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_command_rate_limit_recovery();test_cover_stop_poll_priority();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
+    test_rpc_transport();test_fleet_metadata_schedule();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
 }

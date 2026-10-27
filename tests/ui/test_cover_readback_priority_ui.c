@@ -27,7 +27,9 @@ int main(int argc,char **argv)
  response=(dsr_event_t){.device=submitted.connection.device,.command_phase=DSR_COMMAND_WRITE};deliver(DSR_OFFLINE,DSR_WIFI_IDLE);
  CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.layout_id==2&&submitted.telemetry_only);
  response=(dsr_event_t){.device=submitted.connection.device,.telemetry={.cover={.state=DSR_COVER_STATE_OPENING,.current_pos=45,.flags=DSR_COVER_VALID|DSR_COVER_POSITION|DSR_COVER_POSITION_CONTROL}}};response.device.online=true;deliver(DSR_OK,DSR_WIFI_IDLE);
- CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.layout_id==1&&!submitted.telemetry_only);observed(false);
+ /* Background resumes with the relay; its metadata was read by the first poll,
+  * so this ordinary poll is a telemetry-only JSON-RPC read (DSR_FLEET_META_POLLS). */
+ CHECK(in_flight&&submitted.kind==DSR_JOB_PROBE&&submitted.connection.layout_id==1&&submitted.telemetry_only);observed(false);
  CHECK(job_counts[DSR_JOB_COVER]==moves);
  dsr_network_device_control(2);CHECK(find_label(lv_screen_active(),"Pozycja 45%")&&!find_label(lv_screen_active(),"Polecenie przyjęte"));
  /* An urgent STOP has no ordinary Cover job in the owner. Its ACK must

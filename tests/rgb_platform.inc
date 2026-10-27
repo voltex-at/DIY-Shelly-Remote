@@ -9,18 +9,25 @@ static void test_rgb_protocol(void)
  step_t data[]={{"/shelly",rgb_identity,200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,true},{"/rpc/RGB.Set","null",200,true,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false}};
  fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&d,&t)==DSR_OK&&d.online&&!d.has_switch&&d.output&&t.rgb.r==12&&t.rgb.g==34&&t.rgb.b==56&&t.rgb.brightness==38&&!t.has_voltage&&t.has_current&&t.current_a==0&&t.has_energy&&t.energy_wh==0);
  const char *bad_identity[]={"{\"gen\":2,\"id\":\"shellyplusrgbwpm-AABBCCDDEEFF\",\"model\":\"SNDC-0D4P10WW\",\"profile\":\"rgbw\"}","{\"gen\":2,\"id\":\"shellyplusrgbwpm-AABBCCDDEEFF\",\"model\":\"SNDC-0D4P10WW\",\"profile\":\"light\"}","{\"gen\":2,\"id\":\"shellyplusrgbwpm-AABBCCDDEEFF\",\"model\":\"other\",\"profile\":\"rgb\"}","{\"gen\":2,\"id\":\"shellyplusrgbwpm-AABBCCDDEEFF\",\"model\":\"SNDC-0D4P10WW\"}","{\"gen\":2,\"id\":\"foreign\",\"model\":\"SNDC-0D4P10WW\",\"profile\":\"rgb\"}"};
- for(unsigned i=0;i<sizeof(bad_identity)/sizeof(*bad_identity);i++){data[0].body=bad_identity[i];fixture(data,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})!=DSR_OK&&used==1);}
+ /* The full metadata refresh still enforces model, generation and profile. */
+ for(unsigned i=0;i<sizeof(bad_identity)/sizeof(*bad_identity);i++){data[0].body=bad_identity[i];fixture(data,1,HTTP_AUTH_TYPE_DIGEST);dsr_device_info_t info;CHECK(dsr_http_refresh_info(&c,&info)!=DSR_OK&&used==1&&!c.device.online);}
+ /* A command's proven frame: another profile has no RGB component (RPC error),
+  * a foreign src falls back to /shelly, which rejects it. Neither sends RGB.Set. */
+ step_t gone[]={{"/rpc","{\"id\":1,\"src\":\"shellyplusrgbwpm-AABBCCDDEEFF\",\"error\":{\"code\":-105,\"message\":\"Argument 'id', value 0 not found!\"}}",200,true,true}};
+ fixture(gone,1,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){"{\"id\":1,\"method\":\"RGB.GetStatus\",\"params\":{\"id\":0}}",3000,false};
+ CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BAD_RESPONSE&&used==1&&!c.device.online);
+ data[0].body=bad_identity[4];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_IDENTITY_MISMATCH&&used==2);
  data[0].body=rgb_identity;
  /* Full one-byte range in every color channel, including zeros. The only
   * payload is RGB.Set; color never changes on/off or brightness implicitly. */
  for(unsigned channel=0;channel<3;channel++)for(unsigned value=0;value<=255;value++){
   dsr_rgb_intent_t intent={.command=DSR_RGB_SET_COLOR,.rgb={12,34,56}};intent.rgb[channel]=(uint8_t)value;
   char payload[64],readback[120];snprintf(payload,sizeof(payload),"{\"id\":0,\"rgb\":[%u,%u,%u]}",intent.rgb[0],intent.rgb[1],intent.rgb[2]);snprintf(readback,sizeof(readback),"{\"id\":0,\"output\":false,\"brightness\":0,\"rgb\":[%u,%u,%u]}",intent.rgb[0],intent.rgb[1],intent.rgb[2]);cover_payload=payload;data[3].body=readback;
-  fixture(data,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,intent)==DSR_OK&&used==4&&c.device.online&&!c.device.output&&c.telemetry.rgb.brightness==0&&c.telemetry.rgb.r==intent.rgb[0]&&c.telemetry.rgb.g==intent.rgb[1]&&c.telemetry.rgb.b==intent.rgb[2]);
+  fixture_rpc(data,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,intent)==DSR_OK&&used==3&&c.device.online&&!c.device.output&&c.telemetry.rgb.brightness==0&&c.telemetry.rgb.r==intent.rgb[0]&&c.telemetry.rgb.g==intent.rgb[1]&&c.telemetry.rgb.b==intent.rgb[2]);
  }
  for(unsigned value=0;value<=100;value++){
   char payload[64],readback[120];snprintf(payload,sizeof(payload),"{\"id\":0,\"brightness\":%u}",value);snprintf(readback,sizeof(readback),"{\"id\":0,\"output\":true,\"brightness\":%u,\"rgb\":[0,0,0]}",value);cover_payload=payload;data[3].body=readback;
-  fixture(data,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_SET_BRIGHTNESS,.brightness=(uint8_t)value})==DSR_OK&&used==4&&c.device.output&&c.telemetry.rgb.brightness==value); /* zero is not OFF */
+  fixture_rpc(data,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_SET_BRIGHTNESS,.brightness=(uint8_t)value})==DSR_OK&&used==3&&c.device.output&&c.telemetry.rgb.brightness==value); /* zero is not OFF */
  }
  /* Transition target always decides; current may be old or deceptively match. */
  for(unsigned command=DSR_RGB_ON;command<=DSR_RGB_SET_COLOR;command++)for(unsigned correct=0;correct<2;correct++){
@@ -28,15 +35,15 @@ static void test_rgb_protocol(void)
   dsr_request_t request;CHECK(dsr_rgb_request_build(0,intent,&request)==DSR_OK);cover_payload=request.body;
   bool target_on=command==DSR_RGB_ON?correct!=0:command==DSR_RGB_OFF?correct==0:true;
   char readback[256];snprintf(readback,sizeof(readback),"{\"id\":0,\"output\":%s,\"brightness\":38,\"rgb\":[12,34,56],\"transition\":{\"target\":{\"output\":%s,\"brightness\":%u,\"rgb\":[12,34,%u]}}}",command==DSR_RGB_OFF?"false":"true",target_on?"true":"false",command==DSR_RGB_SET_BRIGHTNESS&&!correct?39:38,command==DSR_RGB_SET_COLOR&&!correct?57:56);data[3].body=readback;
-  fixture(data,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,intent)==(correct?DSR_OK:DSR_BAD_RESPONSE)&&used==4&&c.device.online==(bool)correct);if(correct)CHECK(c.telemetry.rgb.brightness==38&&c.telemetry.rgb.b==56&&(c.telemetry.rgb.flags&DSR_RGB_TRANSITION));
+  fixture_rpc(data,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,intent)==(correct?DSR_OK:DSR_BAD_RESPONSE)&&used==3&&c.device.online==(bool)correct);if(correct)CHECK(c.telemetry.rgb.brightness==38&&c.telemetry.rgb.b==56&&(c.telemetry.rgb.flags&DSR_RGB_TRANSITION));
  }
  cover_payload="{\"id\":0,\"on\":true}";
  const char *bad_status[]={"null","{}","{\"id\":0,\"output\":true,\"brightness\":null,\"rgb\":[1,2,3]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":null}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3,4]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,256]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,-1]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,1.5]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,true]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"rgb\":[1,2,3]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"transition\":null}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"transition\":{\"target\":{\"output\":true,\"brightness\":38}}}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"errors\":null}"};
- for(unsigned i=0;i<sizeof(bad_status)/sizeof(*bad_status);i++){data[1].body=bad_status[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})!=DSR_OK&&used==2&&!c.device.online);}
+ for(unsigned i=0;i<sizeof(bad_status)/sizeof(*bad_status);i++){data[1].body=bad_status[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})!=DSR_OK&&used==1&&!c.device.online);}
  const char *blocked[]={"{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"errors\":[\"future_fault\"]}","{\"id\":0,\"output\":true,\"brightness\":38,\"rgb\":[1,2,3],\"transition\":{\"target\":{\"output\":true,\"brightness\":38,\"rgb\":[1,2,3]}}}"};
- for(unsigned i=0;i<2;i++){data[1].body=blocked[i];fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_UNSUPPORTED&&used==2);}
+ for(unsigned i=0;i<2;i++){data[1].body=blocked[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_UNSUPPORTED&&used==1);}
  data[1].body=rgb_ready;data[3].body=rgb_ready;cover_payload="{\"id\":0,\"on\":false}";
- for(unsigned failure=0;failure<5;failure++){data[2].body=failure==0?NULL:failure==1?"{}":"null";data[2].status=failure==2?401:failure==3?429:200;fixture(data,failure==4?4:3,HTTP_AUTH_TYPE_DIGEST);dsr_result_t result=dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_OFF});CHECK(result!=DSR_OK&&used==(failure==4?4:3)&&!c.device.online);}
+ for(unsigned failure=0;failure<5;failure++){data[2].body=failure==0?NULL:failure==1?"{}":"null";data[2].status=failure==2?401:failure==3?429:200;fixture_rpc(data,failure==4?4:3,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);dsr_result_t result=dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_OFF});CHECK(result!=DSR_OK&&used==(failure==4?3:2)&&!c.device.online);}
  cover_payload=NULL;admission_open();
 }
 static void test_rgb_capabilities(void)

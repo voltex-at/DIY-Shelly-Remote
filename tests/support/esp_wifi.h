@@ -28,4 +28,6 @@ esp_err_t esp_wifi_connect(void);
 esp_err_t esp_wifi_scan_start(const wifi_scan_config_t *config,bool block);
 esp_err_t esp_wifi_scan_get_ap_records(uint16_t *count,wifi_ap_record_t *records);
 esp_err_t esp_wifi_clear_ap_list(void);
+typedef enum {WIFI_PS_NONE,WIFI_PS_MIN_MODEM,WIFI_PS_MAX_MODEM} wifi_ps_type_t;
+esp_err_t esp_wifi_set_ps(wifi_ps_type_t type);
 #endif

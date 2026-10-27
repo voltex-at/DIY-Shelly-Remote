@@ -39,7 +39,10 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
     response_t *response = event->user_data;
     if(event->event_id==HTTP_EVENT_HEADERS_SENT)response->sends++;
     if(event->event_id==HTTP_EVENT_ON_DATA&&event->data_len>0){response->chunks++;response->received+=(size_t)event->data_len;}
-    if(esp_timer_get_time()>response->deadline){response->late=true;return ESP_FAIL;}
+    /* IDF 5.5.4 ignores this handler's result, so a slow exchange cannot be
+     * aborted here. Record lateness, but keep the bytes of an exchange the
+     * SDK completes: a late ACK is still the device's acceptance. */
+    if(esp_timer_get_time()>response->deadline)response->late=true;
     /* A Digest challenge can have a body. Discard it before the retry. */
     if (event->event_id == HTTP_EVENT_HEADERS_SENT) {
         response->used = 0; response->overflow = false; response->text[0] = '\0';
@@ -57,7 +60,20 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
     return ESP_OK;
 }
 
-static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const dsr_request_t *request,
+/* One SDK client for the authenticated Gen2+ legs of one worker call to one
+ * host. Shelly closes every HTTP exchange, so no TCP connection is reused;
+ * the client keeps IDF's Digest nonce. Shelly 2.x accepts a nonce for many
+ * requests with a rising nc, but counts a wrong digest as a failed login, and
+ * IDF stores the challenged request's method with the nonce. It is therefore
+ * offered only to a request with that method; any other request starts
+ * without credentials and takes a fresh challenge. A non-200 leg drops it.
+ * Stack-local per call: the LAN task never shares the worker's client. */
+typedef struct {esp_http_client_handle_t client;char host[16];int nonce_method;} http_session_t;
+#define HTTP_SESSION {NULL,"",-1}
+static void session_end(http_session_t *session)
+{if(session->client)esp_http_client_cleanup(session->client);session->client=NULL;session->host[0]=0;session->nonce_method=-1;}
+
+static dsr_result_t fetch_json_payload(http_session_t *session,const dsr_connection_t *connection, const dsr_request_t *request,
                                bool identity_request, cJSON **out,int timeout_ms,const char *payload,const char *content_type,bool control_write)
 {
     *out = NULL;
@@ -68,27 +84,47 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     response_t response = {.text = calloc(RESPONSE_LIMIT + 1, 1),.deadline=esp_timer_get_time()+(int64_t)timeout_ms*1000};
     if (!response.text) return DSR_IO;
     bool authenticated = connection->credentials.username[0] != '\0' && !identity_request;
-    esp_http_client_config_t config = {
-        .url = url, .timeout_ms = timeout_ms, .event_handler = on_http_event,
-        .user_data = &response, .disable_auto_redirect = true,
-        .username = authenticated ? connection->credentials.username : NULL,
-        .password = authenticated ? connection->credentials.password : NULL,
-        .auth_type = !authenticated ? HTTP_AUTH_TYPE_NONE :
-            (connection->device.generation == DSR_GEN1 ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_DIGEST),
-        /* AP provisioning never resends its secret-bearing body; device commands may answer a digest challenge. */
-        .max_authorization_retries = payload&&!control_write&&strcmp(request->path,"/rpc")&&strcmp(request->path,"/rpc/BluTrv.Call")?-1:1,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    if (!client) { free(response.text); return DSR_IO; }
+    /* AP provisioning never resends its secret-bearing body; device commands may answer a digest challenge. */
+    int retries=payload&&!control_write&&strcmp(request->path,"/rpc")&&strcmp(request->path,"/rpc/BluTrv.Call")?-1:1;
+    esp_http_client_method_t method=request->post?HTTP_METHOD_POST:HTTP_METHOD_GET;
+    bool shared=session&&authenticated&&connection->device.generation!=DSR_GEN1&&retries==1;
+    if(shared&&session->client&&strcmp(session->host,connection->device.host))session_end(session);
+    esp_http_client_handle_t client=NULL;bool reused=shared&&session->client,offered=false;
     esp_err_t error = ESP_OK;
-    if (request->post) {
+    if(reused){
+        client=session->client;
+        error=esp_http_client_set_url(client,url);
+        if(error==ESP_OK)error=esp_http_client_set_user_data(client,&response);
+        if(error==ESP_OK)error=esp_http_client_set_timeout_ms(client,timeout_ms);
+        if(error==ESP_OK)error=esp_http_client_set_method(client,method);
+        if(error==ESP_OK&&!request->post)error=esp_http_client_set_post_field(client,NULL,0);
+        offered=session->nonce_method==(int)method;
+        if(error==ESP_OK&&!offered)(void)esp_http_client_delete_header(client,"Authorization");
+        if(error==ESP_OK)error=esp_http_client_set_authtype(client,offered?HTTP_AUTH_TYPE_DIGEST:HTTP_AUTH_TYPE_NONE);
+    }else{
+        esp_http_client_config_t config = {
+            .url = url, .timeout_ms = timeout_ms, .event_handler = on_http_event,
+            .user_data = &response, .disable_auto_redirect = true,
+            .username = authenticated ? connection->credentials.username : NULL,
+            .password = authenticated ? connection->credentials.password : NULL,
+            .auth_type = !authenticated ? HTTP_AUTH_TYPE_NONE :
+                (connection->device.generation == DSR_GEN1 ? HTTP_AUTH_TYPE_BASIC : HTTP_AUTH_TYPE_DIGEST),
+            .max_authorization_retries = retries,
+        };
+        client = esp_http_client_init(&config);
+        if (!client) { free(response.text); return DSR_IO; }
+    }
+    if (error == ESP_OK && request->post) {
         error = esp_http_client_set_method(client, HTTP_METHOD_POST);
         if (error == ESP_OK) error = esp_http_client_set_header(client, "Content-Type", content_type?content_type:"application/json");
         if (error == ESP_OK) error = esp_http_client_set_post_field(client, payload?payload:request->body, (int)strlen(payload?payload:request->body));
     }
+    /* Digest for this URI with the kept nonce; a connected client would
+     * otherwise resend the previous request's Authorization header. */
+    if (error == ESP_OK && offered) error = esp_http_client_prepare(client);
     if (error == ESP_OK) {
         dsr_result_t admission=control_write&&!strcmp(request->path,"/rpc")?allowed():DSR_OK;
-        if(admission!=DSR_OK){esp_http_client_cleanup(client);wipe(response.text,RESPONSE_LIMIT+1);free(response.text);return admission;}
+        if(admission!=DSR_OK){if(reused)session_end(session);else esp_http_client_cleanup(client);wipe(response.text,RESPONSE_LIMIT+1);free(response.text);return admission;}
         if(control_write&&write_hook)write_hook();
         if(control_write)command_progress(DSR_COMMAND_WRITE);
         error = esp_http_client_perform(client);
@@ -113,29 +149,37 @@ static dsr_result_t fetch_json_payload(const dsr_connection_t *connection, const
     if(connection->device.endpoint_kind==DSR_ENDPOINT_COVER){
         int64_t elapsed=esp_timer_get_time()-(response.deadline-(int64_t)timeout_ms*1000);
         if(control_write||result!=DSR_OK||elapsed>=500000){
-            const char *leg=identity_request?"identity":control_write?"command":!strcmp(request->path,"/rpc/Sys.GetConfig")?"name":"status";
-            ESP_LOGI("dsr_http","Cover HTTP leg=%s sdk=0x%x status=%d errno=%d complete=%u hdr_sends=%u chunks=%u bytes=%u kept=%u late=%u ms=%lu",leg,(unsigned)error,status,esp_http_client_get_errno(client),(unsigned)esp_http_client_is_complete_data_received(client),response.sends,response.chunks,(unsigned)response.received,(unsigned)response.used,(unsigned)response.late,(unsigned long)(elapsed/1000));
+            const char *leg=identity_request?"identity":control_write?"command":!strcmp(request->path,"/rpc/Sys.GetConfig")?"name":!strcmp(request->path,"/rpc")?"rpc":"status";
+            /* auth: none=no credentials, open=no challenge, pre=kept nonce accepted, chal=401 answered. */
+            const char *auth=!authenticated?"none":response.sends>=2?"chal":offered?"pre":"open";
+            ESP_LOGI("dsr_http","Cover HTTP leg=%s sdk=0x%x status=%d errno=%d complete=%u hdr_sends=%u chunks=%u bytes=%u kept=%u late=%u ms=%lu auth=%s reuse=%u",leg,(unsigned)error,status,esp_http_client_get_errno(client),(unsigned)esp_http_client_is_complete_data_received(client),response.sends,response.chunks,(unsigned)response.received,(unsigned)response.used,(unsigned)response.late,(unsigned long)(elapsed/1000),auth,(unsigned)reused);
         }
     }
 #endif
-    esp_http_client_cleanup(client);
+    /* Keep the nonce only after a clean answer, so a later challenge starts
+     * from IDF's reset retry counter rather than an error or timeout state. */
+    if(shared&&status==200&&error==ESP_OK){
+        if(response.sends>=2)session->nonce_method=(int)method;
+        if(!reused){session->client=client;snprintf(session->host,sizeof(session->host),"%s",connection->device.host);}
+    }else if(reused)session_end(session);
+    else esp_http_client_cleanup(client);
     if(payload)wipe(response.text,RESPONSE_LIMIT+1);
     free(response.text);
     return result;
 }
-static dsr_result_t fetch_json_timeout(const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out,int timeout_ms)
-{return fetch_json_payload(c,r,identity_request,out,timeout_ms,NULL,NULL,false);}
-static dsr_result_t fetch_command(const dsr_connection_t *c,const dsr_request_t *r,cJSON **out)
-{return fetch_json_payload(c,r,false,out,3000,NULL,NULL,true);}
-static dsr_result_t fetch_json(const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out)
-{return fetch_json_timeout(c,r,identity_request,out,3000);}
+static dsr_result_t fetch_json_timeout(http_session_t *s,const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out,int timeout_ms)
+{return fetch_json_payload(s,c,r,identity_request,out,timeout_ms,NULL,NULL,false);}
+static dsr_result_t fetch_command(http_session_t *s,const dsr_connection_t *c,const dsr_request_t *r,cJSON **out)
+{return fetch_json_payload(s,c,r,false,out,3000,NULL,NULL,true);}
+static dsr_result_t fetch_json(http_session_t *s,const dsr_connection_t *c,const dsr_request_t *r,bool identity_request,cJSON **out)
+{return fetch_json_timeout(s,c,r,identity_request,out,3000);}
 
 dsr_result_t dsr_http_lan_identity(const char *host,dsr_lan_device_t *out)
 {
     if(!host||!out||!dsr_ipv4_valid(host))return DSR_INVALID;
     dsr_connection_t c={0};snprintf(c.device.host,sizeof(c.device.host),"%s",host);
     dsr_request_t request={.path="/shelly"};cJSON *json=NULL;
-    dsr_result_t result=fetch_json_timeout(&c,&request,true,&json,650);
+    dsr_result_t result=fetch_json_timeout(NULL,&c,&request,true,&json,650);
     if(result==DSR_OK)result=dsr_lan_parse_identity(json,host,out);
     cJSON_Delete(json);return result;
 }
@@ -149,7 +193,8 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
     dsr_connection_t c={.credentials=*credentials};snprintf(c.device.host,sizeof(c.device.host),"%s",expected->host);
     c.device.generation=expected->generation==1?DSR_GEN1:DSR_GEN2_PLUS;
     dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/Shelly.GetStatus");cJSON *json=NULL;
-    result=fetch_json(&c,&request,false,&json);
+    http_session_t session=HTTP_SESSION; /* LAN task: its own client, same-method pages */
+    result=fetch_json(&session,&c,&request,false,&json);
     if(result==DSR_OK)result=dsr_lan_parse_capabilities(json,expected->generation,out);
     if(result==DSR_OK&&observed.profile){
         if(observed.profile!=1)out->switches=0;
@@ -165,12 +210,12 @@ dsr_result_t dsr_http_lan_inspect(const dsr_lan_device_t *expected,const dsr_cre
         unsigned offset=0;
         for(unsigned page=0;page<12;page++){
             dsr_request_t list={0};snprintf(list.path,sizeof(list.path),"/rpc/Shelly.GetComponents?dynamic_only=true&offset=%u",offset);cJSON *body=NULL;
-            unsigned next=0,total=0;dsr_result_t listed=fetch_json(&c,&list,false,&body);
+            unsigned next=0,total=0;dsr_result_t listed=fetch_json(&session,&c,&list,false,&body);
             if(listed==DSR_OK)listed=dsr_lan_parse_components(body,offset,&out->blu,labels,&next,&total);
             cJSON_Delete(body);if(listed!=DSR_OK||next>=total)break;offset=next;
         }
     }
-    memset(&c,0,sizeof(c));
+    session_end(&session);memset(&c,0,sizeof(c));
     if(result==DSR_OK&&out->rgbs&&strcmp(observed.model,DSR_RGB_MODEL))result=DSR_UNSUPPORTED;
     if(result==DSR_OK&&out->ht&&(observed.generation!=3||strcmp(observed.model,DSR_HT_MODEL)))out->ht=false;
     cJSON_Delete(json);return result;
@@ -195,11 +240,11 @@ static void info_text(const cJSON *item,char *out,size_t size)
     for(const unsigned char *p=(const unsigned char *)item->valuestring;*p;p++)if(*p<0x20||*p>0x7e)return;
     strcpy(out,item->valuestring);
 }
-static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *out, dsr_device_info_t *info)
+static dsr_result_t identity(http_session_t *s,const dsr_connection_t *connection, dsr_device_t *out, dsr_device_info_t *info)
 {
     dsr_request_t request = {.path = "/shelly"};
     cJSON *root = NULL;
-    dsr_result_t result = fetch_json(connection, &request, true, &root);
+    dsr_result_t result = fetch_json(s,connection, &request, true, &root);
     if (result != DSR_OK) return result;
     if(!light_unique(root)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
     /* BLU Gateway Gen3 has no Switch component. Never route its manual bind
@@ -257,7 +302,7 @@ static dsr_result_t identity(const dsr_connection_t *connection, dsr_device_t *o
         if(generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
         unsigned cid=DSR_BLU_FIRST_CID+out->channel;dsr_request_t blu={0};cJSON *config=NULL;char mac[13];
         snprintf(blu.path,sizeof(blu.path),"/rpc/BTHomeDevice.GetConfig?id=%u",cid);
-        dsr_result_t r=fetch_json(connection,&blu,false,&config);
+        dsr_result_t r=fetch_json(s,connection,&blu,false,&config);
         if(r==DSR_OK)r=dsr_blu_parse_address(config,cid,mac);
         if(r==DSR_OK&&strlen(out->device_id)+1+12>=sizeof(out->device_id))r=DSR_BAD_RESPONSE;
         if(r==DSR_OK){strcat(out->device_id,"_");strcat(out->device_id,mac);}
@@ -367,18 +412,19 @@ static uint8_t trv_hint(const dsr_connection_t *c){return c->device.endpoint_kin
 /* A proven BluTrv publishes the displayed temperature, valve, battery and RSSI
  * in one typed status. Gateway + BTHome MAC identity is still verified by the
  * caller; discovery of unknown BLU families keeps the full path below. */
-static dsr_result_t trv_status(dsr_connection_t *c)
+static dsr_result_t trv_status(http_session_t *s,dsr_connection_t *c)
 {
  unsigned cid=DSR_BLU_FIRST_CID+c->device.channel;dsr_request_t request={0};cJSON *root=NULL;
  snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetStatus?id=%u",cid);
- dsr_result_t result=fetch_json(c,&request,false,&root);
+ dsr_result_t result=fetch_json(s,c,&request,false,&root);
  if(result==DSR_OK)result=dsr_blu_parse_device(root,cid,&c->telemetry);
  if(result==DSR_OK)result=dsr_blu_parse_trv(root,cid,&c->telemetry);
  cJSON_Delete(root);
  if(result==DSR_OK)c->telemetry.blu.errors|=DSR_BLU_TRV_CHECKED;else memset(&c->telemetry,0,sizeof(c->telemetry));
  c->device.has_switch=c->device.has_power=c->device.output=false;c->device.power_w=0;c->device.online=result==DSR_OK;return result;
 }
-static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_intent_t *expected)
+static dsr_result_t parse_status(dsr_connection_t *connection,const cJSON *root,const dsr_rgb_intent_t *expected);
+static dsr_result_t status_expected(http_session_t *s,dsr_connection_t *connection,const dsr_rgb_intent_t *expected)
 {
     dsr_device_t *device = &connection->device;
     device->online = false; device->has_power = false;
@@ -388,21 +434,21 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     dsr_result_t result;
     if(device->endpoint_kind==DSR_ENDPOINT_BLU){
         if(device->generation!=DSR_GEN2_PLUS)return DSR_UNSUPPORTED;
-        if(hint==(DSR_BLU_TRV|DSR_BLU_TRV_CHECKED))return trv_status(connection);
+        if(hint==(DSR_BLU_TRV|DSR_BLU_TRV_CHECKED))return trv_status(s,connection);
         unsigned cid=DSR_BLU_FIRST_CID+device->channel;cJSON *root=NULL;
         memset(&request,0,sizeof(request));snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetStatus?id=%u",cid);
-        result=fetch_json(connection,&request,false,&root);
+        result=fetch_json(s,connection,&request,false,&root);
         if(result==DSR_OK){result=dsr_blu_parse_device(root,cid,&connection->telemetry);}
         cJSON_Delete(root);root=NULL;
         dsr_blu_object_t objects[DSR_BLU_MAX_OBJECTS];unsigned count=0;
-        if(result==DSR_OK){snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetKnownObjects?id=%u",cid);result=fetch_json(connection,&request,false,&root);
+        if(result==DSR_OK){snprintf(request.path,sizeof(request.path),"/rpc/BTHomeDevice.GetKnownObjects?id=%u",cid);result=fetch_json(s,connection,&request,false,&root);
             if(result==DSR_OK){result=dsr_blu_parse_known(root,cid,objects,DSR_BLU_MAX_OBJECTS,&count);}
             cJSON_Delete(root);root=NULL;}
         bool contact_unknown=false;
         for(unsigned i=0;result==DSR_OK&&i<count;i++){
             if(!dsr_blu_sensor_shown(objects[i].obj_id))continue;
             snprintf(request.path,sizeof(request.path),"/rpc/BTHomeSensor.GetStatus?id=%u",(unsigned)objects[i].sensor);
-            result=fetch_json(connection,&request,false,&root);
+            result=fetch_json(s,connection,&request,false,&root);
             if(result==DSR_OK){result=dsr_blu_apply_sensor(root,objects[i].sensor,objects[i].obj_id,&connection->telemetry);}
             if((objects[i].obj_id==0x1A||objects[i].obj_id==0x2D)&&
                (!(connection->telemetry.blu.flags&DSR_BLU_HAS_OPEN)||!connection->telemetry.blu_updated_s))contact_unknown=true;
@@ -412,7 +458,7 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
         if(result==DSR_OK){
             int trv=(hint&DSR_BLU_TRV_CHECKED)?((hint&DSR_BLU_TRV)?1:0):-1;
             if(trv<0){
-                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetConfig?id=%u",cid);dsr_result_t asked=fetch_json(connection,&request,false,&root);
+                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetConfig?id=%u",cid);dsr_result_t asked=fetch_json(s,connection,&request,false,&root);
                 /* An error answer means "no such BluTrv". Transport failures
                  * stay unknown and are asked again next poll. */
                 if(asked==DSR_OK||asked==DSR_BAD_RESPONSE)trv=asked==DSR_OK&&dsr_blu_trv_linked(root,cid,cid);
@@ -420,7 +466,7 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
             }
             if(trv>=0)connection->telemetry.blu.errors|=DSR_BLU_TRV_CHECKED;
             if(trv==1){
-                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetStatus?id=%u",cid);result=fetch_json(connection,&request,false,&root);
+                snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetStatus?id=%u",cid);result=fetch_json(s,connection,&request,false,&root);
                 if(result==DSR_OK)result=dsr_blu_parse_trv(root,cid,&connection->telemetry);
                 cJSON_Delete(root);root=NULL;
             }
@@ -431,7 +477,7 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     if(device->endpoint_kind==DSR_ENDPOINT_HT){
         if(device->generation!=DSR_GEN2_PLUS||device->channel!=0)return DSR_UNSUPPORTED;
         memset(&request,0,sizeof(request));strcpy(request.path,"/rpc/Shelly.GetStatus");cJSON *root=NULL;
-        result=fetch_json(connection,&request,false,&root);if(result==DSR_OK)result=dsr_ht_parse(root,&connection->telemetry);cJSON_Delete(root);
+        result=fetch_json(s,connection,&request,false,&root);if(result==DSR_OK)result=dsr_ht_parse(root,&connection->telemetry);cJSON_Delete(root);
         device->has_switch=device->has_power=device->output=false;device->power_w=0;device->online=result==DSR_OK;return result;
     }
     if(device->endpoint_kind==DSR_ENDPOINT_COVER||device->endpoint_kind==DSR_ENDPOINT_LIGHT||device->endpoint_kind==DSR_ENDPOINT_RGB){
@@ -440,22 +486,30 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     }else result = dsr_request_build(device->generation, device->channel, DSR_GET_STATUS, false, &request);
     if (result != DSR_OK) return result;
     cJSON *root = NULL;
-    result = fetch_json(connection, &request, false, &root);
+    result = fetch_json(s,connection, &request, false, &root);
     if (result != DSR_OK) return result;
-    cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
+    result=parse_status(connection,root,expected);
+    cJSON_Delete(root);
+    return result;
+}
+/* Relay, cover, dimmer or RGB status object of an already identified endpoint. */
+static dsr_result_t parse_status(dsr_connection_t *connection,const cJSON *root,const dsr_rgb_intent_t *expected)
+{
+    dsr_device_t *device = &connection->device;
+    const cJSON *output = cJSON_GetObjectItemCaseSensitive(root, device->generation == DSR_GEN1 ? "ison" : "output");
     bool matches=true;
     bool parsed=device->endpoint_kind==DSR_ENDPOINT_COVER?cover_parse(root,device->channel,&connection->telemetry.cover):device->endpoint_kind==DSR_ENDPOINT_LIGHT?light_parse(root,device->channel,&connection->telemetry.light):device->endpoint_kind==DSR_ENDPOINT_RGB?rgb_parse(root,device->channel,&connection->telemetry.rgb,expected,&matches):cJSON_IsBool(output);
     /* This endpoint was already identified. Invalid telemetry is a transient
      * response failure, not evidence that the channel is unsupported. */
-    if(!parsed||!matches){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
-    cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
-    cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
+    if(!parsed||!matches)return DSR_BAD_RESPONSE;
+    const cJSON *power = cJSON_GetObjectItemCaseSensitive(root, "apower");
+    const cJSON *voltage=cJSON_GetObjectItemCaseSensitive(root,"voltage"),*current=cJSON_GetObjectItemCaseSensitive(root,"current");
     if(device->generation==DSR_GEN2_PLUS){
         /* Dimmer without neutral may omit measurements. Explicit null is
          * absence for Light, never a fabricated zero W/V/A. */
         if(device->endpoint_kind==DSR_ENDPOINT_LIGHT||device->endpoint_kind==DSR_ENDPOINT_RGB){if(cJSON_IsNull(power))power=NULL;if(cJSON_IsNull(voltage))voltage=NULL;if(cJSON_IsNull(current))current=NULL;}
         const cJSON *optional[]={power,voltage,current};
-        for(unsigned i=0;i<3;i++)if(optional[i]&&(!cJSON_IsNumber(optional[i])||!isfinite(optional[i]->valuedouble)||fabs(optional[i]->valuedouble)>1e9||(i&&optional[i]->valuedouble<0))){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+        for(unsigned i=0;i<3;i++)if(optional[i]&&(!cJSON_IsNumber(optional[i])||!isfinite(optional[i]->valuedouble)||fabs(optional[i]->valuedouble)>1e9||(i&&optional[i]->valuedouble<0)))return DSR_BAD_RESPONSE;
         if(voltage){connection->telemetry.has_voltage=true;connection->telemetry.voltage_v=voltage->valuedouble;}
         if(current){connection->telemetry.has_current=true;connection->telemetry.current_a=current->valuedouble;}
         /* Switch.GetStatus aenergy.total is Wh, not by_minute's mWh. Gen1
@@ -463,10 +517,10 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
          * fabricated or fetched by this relay adapter. Optional null is absent. */
         const cJSON *energy=cJSON_GetObjectItemCaseSensitive(root,"aenergy");
         if(energy&&!cJSON_IsNull(energy)){
-            if(!cJSON_IsObject(energy)){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+            if(!cJSON_IsObject(energy))return DSR_BAD_RESPONSE;
             const cJSON *total=cJSON_GetObjectItemCaseSensitive(energy,"total");
             if(total&&!cJSON_IsNull(total)){
-                if(!cJSON_IsNumber(total)||!isfinite(total->valuedouble)||total->valuedouble<0||total->valuedouble>1e12){cJSON_Delete(root);return DSR_BAD_RESPONSE;}
+                if(!cJSON_IsNumber(total)||!isfinite(total->valuedouble)||total->valuedouble<0||total->valuedouble>1e12)return DSR_BAD_RESPONSE;
                 connection->telemetry.has_energy=true;connection->telemetry.energy_wh=total->valuedouble;
             }
         }
@@ -477,22 +531,46 @@ static dsr_result_t status_expected(dsr_connection_t *connection,const dsr_rgb_i
     if (device->generation == DSR_GEN2_PLUS && cJSON_IsNumber(power) && isfinite(power->valuedouble)) {
         device->has_power = true; device->power_w = power->valuedouble;
     }
-    cJSON_Delete(root);
     return DSR_OK;
 }
+/* One JSON-RPC POST /rpc reads telemetry and proves the endpoint: the response
+ * frame's src is the responding device id, which must equal the saved id.
+ * *proven is false only for a well-formed answer without that id; the caller
+ * then asks /shelly as before. Never used for Gen1, BLU or H&T. */
+static dsr_result_t rpc_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected,bool *proven)
+{
+    *proven=true;
+    dsr_device_t *device=&c->device;
+    device->online=false;device->has_power=false;memset(&c->telemetry,0,sizeof(c->telemetry));
+    const char *component=device->endpoint_kind==DSR_ENDPOINT_COVER?"Cover":device->endpoint_kind==DSR_ENDPOINT_LIGHT?"Light":device->endpoint_kind==DSR_ENDPOINT_RGB?"RGB":"Switch";
+    dsr_request_t request={.post=true,.path="/rpc"};
+    int length=snprintf(request.body,sizeof(request.body),"{\"id\":1,\"method\":\"%s.GetStatus\",\"params\":{\"id\":%u}}",component,(unsigned)device->channel);
+    if(length<0||(size_t)length>=sizeof(request.body))return DSR_INVALID;
+    cJSON *frame=NULL;dsr_result_t result=fetch_json(s,c,&request,false,&frame);
+    if(result!=DSR_OK)return result;
+    const cJSON *id=cJSON_GetObjectItemCaseSensitive(frame,"id"),*src=cJSON_GetObjectItemCaseSensitive(frame,"src"),*body=cJSON_GetObjectItemCaseSensitive(frame,"result");
+    if(!light_unique(frame)||!cJSON_IsNumber(id)||id->valuedouble!=1||!cJSON_IsObject(body))result=DSR_BAD_RESPONSE;
+    else if(!cJSON_IsString(src)||strcmp(src->valuestring,device->device_id)){*proven=false;result=DSR_IDENTITY_MISMATCH;}
+    else result=parse_status(c,body,expected);
+    cJSON_Delete(frame);
+#ifdef ESP_PLATFORM
+    if(!*proven)ESP_LOGW("dsr_http","rpc status kind=%u: response src unproven, verifying with /shelly",(unsigned)device->endpoint_kind);
+#endif
+    return result;
+}
 
-static dsr_result_t status(dsr_connection_t *c){return status_expected(c,NULL);}
+static dsr_result_t status(http_session_t *s,dsr_connection_t *c){return status_expected(s,c,NULL);}
 /* Only after a valid write ACK: recover one lost read, never repeat a write.
  * Authentication, rate limits, malformed data and cancellation stay terminal. */
-static dsr_result_t command_readback(dsr_connection_t *c)
+static dsr_result_t command_readback(http_session_t *s,dsr_connection_t *c)
 {
  command_progress(DSR_COMMAND_READBACK);
- uint8_t hint=trv_hint(c);dsr_result_t result=status(c);
+ uint8_t hint=trv_hint(c);dsr_result_t result=status(s,c);
  if(result==DSR_OFFLINE){
   if(urgent())return DSR_BUSY;
   result=allowed();if(result!=DSR_OK)return result;
   if(c->device.endpoint_kind==DSR_ENDPOINT_BLU)c->telemetry.blu.errors=hint;
-  result=status(c);
+  result=status(s,c);
  }
  if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
  return result;
@@ -501,12 +579,12 @@ static dsr_result_t command_readback(dsr_connection_t *c)
 /* Read-only advisory name, after identity and status succeeded. A failed or
  * malformed optional response does not turn valid control telemetry into an
  * error, or erase the last name. Never read another device's protected config. */
-static void read_name(dsr_connection_t *c,dsr_device_info_t *info)
+static void read_name(http_session_t *s,dsr_connection_t *c,dsr_device_info_t *info)
 {
  if(!info||c->device.generation!=DSR_GEN2_PLUS||c->device.endpoint_kind==DSR_ENDPOINT_BLU)return;
  if(urgent()||allowed()!=DSR_OK)return;
  dsr_request_t request={.path="/rpc/Sys.GetConfig"};cJSON *root=NULL;
- dsr_result_t result=fetch_json_timeout(c,&request,false,&root,650);
+ dsr_result_t result=fetch_json_timeout(s,c,&request,false,&root,650);
  const cJSON *device=cJSON_GetObjectItemCaseSensitive(root,"device"),*name=cJSON_GetObjectItemCaseSensitive(device,"name");
  char next[48];
  if(result==DSR_OK&&light_unique(root)&&cJSON_IsObject(device)&&(cJSON_IsNull(name)||cJSON_IsString(name))){
@@ -517,7 +595,7 @@ static void read_name(dsr_connection_t *c,dsr_device_info_t *info)
  cJSON_Delete(root);
 }
 
-dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry,dsr_device_info_t *info)
+static dsr_result_t probe_in(http_session_t *s,const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry,dsr_device_info_t *info)
 {
     if(info)memset(info,0,sizeof(*info));
     if (!out || !dsr_connection_valid(connection, false)) return DSR_INVALID;
@@ -525,7 +603,7 @@ dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t
     probed.device.online=probed.device.has_power=false;
     uint8_t hint=trv_hint(connection);
     memset(&probed.telemetry,0,sizeof(probed.telemetry));probed.telemetry.blu.errors=hint;
-    dsr_result_t result = identity(connection, &probed.device, info);
+    dsr_result_t result = identity(s,connection, &probed.device, info);
     if(result==DSR_OK&&connection->device.device_id[0]&&strcmp(connection->device.device_id,probed.device.device_id)){
         /* BLU bind from the LAN wizard knows only the gateway id; the probe
          * appends the sensor MAC. Any other difference is a mismatch. */
@@ -533,49 +611,83 @@ dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t
         bool gateway_only=connection->device.endpoint_kind==DSR_ENDPOINT_BLU&&!strchr(connection->device.device_id,'_')&&!strncmp(connection->device.device_id,probed.device.device_id,n)&&probed.device.device_id[n]=='_';
         if(!gateway_only)result=DSR_IDENTITY_MISMATCH;
     }
-    if (result == DSR_OK){(void)urgent();result = status(&probed);}
-    if(result==DSR_OK)read_name(&probed,info);
+    if (result == DSR_OK){(void)urgent();result = status(s,&probed);}
+    if(result==DSR_OK)read_name(s,&probed,info);
     else if(info)memset(info,0,sizeof(*info));
     *out = probed.device;
     if(telemetry)*telemetry=probed.telemetry;
     return result;
 }
+dsr_result_t dsr_http_probe_info(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry,dsr_device_info_t *info)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=probe_in(&s,connection,out,telemetry,info);session_end(&s);return result;}
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry)
 {return dsr_http_probe_info(connection,out,telemetry,NULL);}
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection,dsr_device_t *out)
 {return dsr_http_probe_telemetry(connection,out,NULL);}
 
-static dsr_result_t verify_info(dsr_connection_t *connection, dsr_device_info_t *info)
+static dsr_result_t verify_info(http_session_t *s,dsr_connection_t *connection, dsr_device_info_t *info)
 {
     if (!dsr_connection_valid(connection, true)) return DSR_INVALID;
     dsr_result_t permission=allowed();if(permission!=DSR_OK)return permission;
     connection->device.online = false;
     connection->device.has_power=false;memset(&connection->telemetry,0,sizeof(connection->telemetry));
     dsr_device_t observed = {0};
-    dsr_result_t result = identity(connection, &observed, info);
+    dsr_result_t result = identity(s,connection, &observed, info);
     if (result != DSR_OK) return result;
     if (strcmp(observed.device_id, connection->device.device_id) ||
         observed.generation != connection->device.generation) { if (info) memset(info, 0, sizeof(*info)); return DSR_IDENTITY_MISMATCH; }
     return DSR_OK;
 }
-static dsr_result_t verify(dsr_connection_t *connection){return verify_info(connection, NULL);}
+static dsr_result_t verify(http_session_t *s,dsr_connection_t *connection){return verify_info(s,connection, NULL);}
+/* Proven identity plus current status before a write or a telemetry-only
+ * read: one JSON-RPC frame, else /shelly then GET. A command treats an urgent
+ * STOP between the fallback legs as BUSY, as the separate legs always did. */
+static dsr_result_t verified_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected,bool command)
+{
+    if(!dsr_connection_valid(c,true))return DSR_INVALID;
+    dsr_result_t result;
+    if(dsr_http_rpc_status_endpoint(&c->device)){
+        result=allowed();if(result!=DSR_OK)return result;
+        bool proven;result=rpc_status(s,c,expected,&proven);
+        if(proven)return result;
+    }
+    result=verify(s,c);if(result!=DSR_OK)return result;
+    if(command){if(urgent())return DSR_BUSY;}else (void)urgent();
+    result=allowed();if(result!=DSR_OK)return result;
+    return status_expected(s,c,expected);
+}
+/* Post-write observation; the frame's src re-proves the endpoint. A frame
+ * without the saved id falls back to the plain GET, as before this path. */
+static dsr_result_t readback_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected)
+{
+    if(dsr_http_rpc_status_endpoint(&c->device)){bool proven;dsr_result_t result=rpc_status(s,c,expected,&proven);if(proven)return result;}
+    return status_expected(s,c,expected);
+}
 
-dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection, dsr_device_info_t *info)
+static dsr_result_t refresh_in(http_session_t *s,dsr_connection_t *connection, dsr_device_info_t *info)
 {
     if (info) memset(info, 0, sizeof(*info));
     if(!dsr_connection_valid(connection,true))return DSR_INVALID;
     uint8_t hint=trv_hint(connection);
-    dsr_result_t result = verify_info(connection, info);connection->telemetry.blu.errors=hint;
-    (void)urgent();if(result==DSR_OK)result=allowed();if(result==DSR_OK)result=status(connection);
-    if(result==DSR_OK)read_name(connection,info);else if(info)memset(info,0,sizeof(*info));
+    dsr_result_t result = verify_info(s,connection, info);connection->telemetry.blu.errors=hint;
+    (void)urgent();if(result==DSR_OK)result=allowed();if(result==DSR_OK)result=status(s,connection);
+    if(result==DSR_OK)read_name(s,connection,info);else if(info)memset(info,0,sizeof(*info));
     return result;
 }
-dsr_result_t dsr_http_refresh(dsr_connection_t *connection){return dsr_http_refresh_info(connection, NULL);}
+/* Ordinary refresh: verified /shelly metadata, status and advisory name. */
+dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection, dsr_device_info_t *info)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=refresh_in(&s,connection,info);session_end(&s);return result;}
+dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
+{
+    http_session_t s=HTTP_SESSION;
+    dsr_result_t result=connection&&dsr_http_rpc_status_endpoint(&connection->device)?verified_status(&s,connection,NULL,false):refresh_in(&s,connection,NULL);
+    session_end(&s);return result;
+}
 
-dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
+static dsr_result_t set_output_in(http_session_t *session,dsr_connection_t *connection, bool on)
 {
     if(connection&&DSR_ENDPOINT_IS_SENSOR(connection->device.endpoint_kind))return DSR_UNSUPPORTED;
-    dsr_result_t result = verify(connection);
+    dsr_result_t result = verify(session,connection);
     if (result != DSR_OK) return result;
     if (connection->device.endpoint_kind!=DSR_ENDPOINT_SWITCH||!connection->device.has_switch) return DSR_UNSUPPORTED;
     if(urgent())return DSR_BUSY;
@@ -584,14 +696,14 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
     result = dsr_request_build(connection->device.generation, connection->device.channel, DSR_SET_OUTPUT, on, &request);
     if (result != DSR_OK) return result;
     cJSON *root = NULL;
-    result = fetch_command(connection, &request, &root);
+    result = fetch_command(session,connection, &request, &root);
     cJSON_Delete(root);
     if (result != DSR_OK) return result;
     command_progress(DSR_COMMAND_ACK);
     if(urgent())return DSR_BAD_RESPONSE;
     result=allowed();if(result!=DSR_OK)return result;
     /* Never display an optimistic position; don't replay after a timeout. */
-    command_progress(DSR_COMMAND_READBACK);result = status(connection);
+    command_progress(DSR_COMMAND_READBACK);result = readback_status(session,connection,NULL);
     if (result == DSR_OK && connection->device.output != on) {
         connection->device.online = false;
         return DSR_BAD_RESPONSE;
@@ -599,18 +711,20 @@ dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
     if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
     return result;
 }
+dsr_result_t dsr_http_set_output(dsr_connection_t *connection, bool on)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=set_output_in(&s,connection,on);session_end(&s);return result;}
 
-dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
+static dsr_result_t cover_in(http_session_t *session,dsr_connection_t *c,dsr_cover_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_COVER||c->device.generation!=DSR_GEN2_PLUS||!dsr_cover_intent_valid(intent))return DSR_INVALID;
- dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
- if(urgent())return DSR_BUSY;
+ dsr_result_t result;
  /* STOP verifies identity/auth at its own POST; it may stop calibration or
   * unknown position. Every other move requires a fresh typed status. */
- if(intent.command!=DSR_COVER_STOP){result=allowed();if(result!=DSR_OK)return result;result=status(c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
+ if(intent.command==DSR_COVER_STOP){result=verify(session,c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;}
+ else {result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
  result=allowed();if(result!=DSR_OK)return result;
  dsr_request_t request;result=dsr_cover_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
- cJSON *ack=NULL;result=fetch_command(c,&request,&ack);
+ cJSON *ack=NULL;result=fetch_command(session,c,&request,&ack);
  /* Only the documented null ACK confirms acceptance, never position. */
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
@@ -620,16 +734,18 @@ dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
   * pre-write sample is not a post-write observation and stays offline here. */
  return result;
 }
+dsr_result_t dsr_http_cover(dsr_connection_t *c,dsr_cover_intent_t intent)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=cover_in(&s,c,intent);session_end(&s);return result;}
 
-dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
+static dsr_result_t trv_in(http_session_t *session,dsr_connection_t *c,dsr_trv_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_BLU||c->device.generation!=DSR_GEN2_PLUS||!dsr_trv_intent_valid(intent))return DSR_INVALID;
  uint8_t hint=trv_hint(c);
- dsr_result_t result=verify(c);if(result!=DSR_OK)return result; /* gateway id + sensor MAC */
+ dsr_result_t result=verify(session,c);if(result!=DSR_OK)return result; /* gateway id + sensor MAC */
  c->telemetry.blu.errors=hint;
  if(urgent())return DSR_BUSY;
  result=allowed();if(result!=DSR_OK)return result;
- result=status(c);if(result!=DSR_OK)return result;
+ result=status(session,c);if(result!=DSR_OK)return result;
  if(!(c->telemetry.blu.errors&DSR_BLU_TRV))return DSR_UNSUPPORTED;
  if(urgent())return DSR_BUSY;
  result=allowed();if(result!=DSR_OK)return result;
@@ -637,31 +753,33 @@ dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
  snprintf(payload,sizeof(payload),"{\"id\":%u,\"method\":\"TRV.SetTarget\",\"params\":{\"id\":0,\"target_C\":%u.%u}}",cid,(unsigned)intent.half_c/2u,(unsigned)(intent.half_c%2u)*5u);
  dsr_request_t request={.post=true};strcpy(request.path,"/rpc/BluTrv.Call");cJSON *ack=NULL;
  /* The gateway relays over BLE: "normally within 10 seconds". */
- result=fetch_json_payload(c,&request,false,&ack,15000,payload,"application/json",true);
+ result=fetch_json_payload(session,c,&request,false,&ack,15000,payload,"application/json",true);
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
  if(result==DSR_OK)command_progress(DSR_COMMAND_ACK);
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
  result=allowed();if(result!=DSR_OK)return result;
- result=command_readback(c);if(result!=DSR_OK)return result;
+ result=command_readback(session,c);if(result!=DSR_OK)return result;
  /* The gateway acknowledged the TRV call. Its mirrored target_C can lag the
   * BLE write by a poll; the LCD shows what the gateway reports, never the request. */
  return DSR_OK;
 }
-dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
+dsr_result_t dsr_http_trv(dsr_connection_t *c,dsr_trv_intent_t intent)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=trv_in(&s,c,intent);session_end(&s);return result;}
+static dsr_result_t trv_read_in(http_session_t *session,dsr_connection_t *c)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_BLU||c->device.generation!=DSR_GEN2_PLUS)return DSR_INVALID;
  c->device.online=false;
  /* Only the documented Gateway Gen3 forwarding contract is enabled. Other
   * gateway families need their own physical readback acceptance. */
  if(strncmp(c->device.device_id,"shellyblugwg3-",sizeof("shellyblugwg3-")-1))return DSR_UNSUPPORTED;
- dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
+ dsr_result_t result=verify(session,c);if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
  result=allowed();if(result!=DSR_OK)return result;
  unsigned cid=DSR_BLU_FIRST_CID+c->device.channel;dsr_request_t request={0};cJSON *root=NULL;
  snprintf(request.path,sizeof(request.path),"/rpc/BluTrv.GetConfig?id=%u",cid);
- result=fetch_json(c,&request,false,&root);
+ result=fetch_json(session,c,&request,false,&root);
  if(result==DSR_OK&&!dsr_blu_trv_linked(root,cid,cid))result=DSR_UNSUPPORTED;
  cJSON_Delete(root);root=NULL;if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
@@ -669,7 +787,7 @@ dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
  char payload[80];snprintf(payload,sizeof(payload),"{\"id\":%u,\"method\":\"TRV.GetStatus\",\"params\":{\"id\":0}}",cid);
  request=(dsr_request_t){.post=true};strcpy(request.path,"/rpc/BluTrv.Call");
  /* POST is only an RPC envelope. Never classify it as a write attempt. */
- result=fetch_json_payload(c,&request,false,&root,15000,payload,"application/json",false);
+ result=fetch_json_payload(session,c,&request,false,&root,15000,payload,"application/json",false);
  dsr_telemetry_t sample={0};
  if(result==DSR_OK){
   result=dsr_blu_parse_trv(root,0,&sample);
@@ -686,25 +804,24 @@ dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
  if(result==DSR_OK){sample.blu.flags|=DSR_BLU_VALID;sample.blu.errors|=DSR_BLU_TRV_CHECKED;c->telemetry=sample;c->device.online=true;}
  return result;
 }
-dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
+dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=trv_read_in(&s,c);session_end(&s);return result;}
+static dsr_result_t light_in(http_session_t *session,dsr_connection_t *c,dsr_light_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_LIGHT||c->device.generation!=DSR_GEN2_PLUS||!dsr_light_intent_valid(intent))return DSR_INVALID;
- dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
- if(urgent())return DSR_BUSY;
- result=allowed();if(result!=DSR_OK)return result;
- result=status(c);if(result!=DSR_OK)return result;
+ dsr_result_t result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
  if(!dsr_light_can_set(&c->telemetry.light,intent))return DSR_UNSUPPORTED;
  result=allowed();if(result!=DSR_OK)return result;
  dsr_request_t request;result=dsr_light_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
- cJSON *ack=NULL;result=fetch_command(c,&request,&ack);
+ cJSON *ack=NULL;result=fetch_command(session,c,&request,&ack);
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
  command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- command_progress(DSR_COMMAND_READBACK);result=status(c);if(result!=DSR_OK)return result;
+ command_progress(DSR_COMMAND_READBACK);result=readback_status(session,c,NULL);if(result!=DSR_OK)return result;
  const dsr_light_status_t *s=&c->telemetry.light;
  /* During a transition the current output may still match the previous
   * state. The target decides whether this particular intent was confirmed. */
@@ -716,29 +833,30 @@ dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
  command_progress(DSR_COMMAND_CONFIRMED);
  return DSR_OK;
 }
+dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=light_in(&s,c,intent);session_end(&s);return result;}
 
-dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent)
+static dsr_result_t rgb_in(http_session_t *session,dsr_connection_t *c,dsr_rgb_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_RGB||c->device.generation!=DSR_GEN2_PLUS||c->device.channel!=0||!dsr_rgb_intent_valid(intent))return DSR_INVALID;
- dsr_result_t result=verify(c);if(result!=DSR_OK)return result;
- if(urgent())return DSR_BUSY;
- result=allowed();if(result!=DSR_OK)return result;
- result=status(c);if(result!=DSR_OK)return result;
+ dsr_result_t result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
  if(!dsr_rgb_can_set(&c->telemetry.rgb,intent))return DSR_UNSUPPORTED;
  result=allowed();if(result!=DSR_OK)return result;
  dsr_request_t request;result=dsr_rgb_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
- cJSON *ack=NULL;result=fetch_command(c,&request,&ack);
+ cJSON *ack=NULL;result=fetch_command(session,c,&request,&ack);
  if(result==DSR_OK&&!cJSON_IsNull(ack))result=DSR_BAD_RESPONSE;
  cJSON_Delete(ack);c->device.online=false;
  if(urgent())return DSR_BAD_RESPONSE;
  if(result!=DSR_OK)return result; /* Never replay an uncertain SET. */
  command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- command_progress(DSR_COMMAND_READBACK);result=status_expected(c,&intent);
+ command_progress(DSR_COMMAND_READBACK);result=readback_status(session,c,&intent);
  if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
  return result;
 }
+dsr_result_t dsr_http_rgb(dsr_connection_t *c,dsr_rgb_intent_t intent)
+{http_session_t s=HTTP_SESSION;dsr_result_t result=rgb_in(&s,c,intent);session_end(&s);return result;}
 
 static void ap_identity(const dsr_lan_device_t *source,const char *ssid,dsr_ap_identity_t *out)
 {
@@ -789,7 +907,7 @@ dsr_result_t dsr_http_ap_provision(const dsr_ap_identity_t *expected,const dsr_s
  }
  dsr_connection_t c={0};strcpy(c.device.host,"192.168.33.1");dsr_request_t request={.post=true};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/settings/sta":"/rpc/WiFi.SetConfig");cJSON *response=NULL;
  if(dsr_ap_cancelled())result=DSR_BUSY;
- else result=fetch_json_payload(&c,&request,true,&response,3000,payload,expected->generation==1?"application/x-www-form-urlencoded":"application/json",false);
+ else result=fetch_json_payload(NULL,&c,&request,true,&response,3000,payload,expected->generation==1?"application/x-www-form-urlencoded":"application/json",false);
  if(result==DSR_OK){
   if(expected->generation==1){const cJSON *enabled=cJSON_GetObjectItemCaseSensitive(response,"enabled"),*ssid=cJSON_GetObjectItemCaseSensitive(response,"ssid");if(!cJSON_IsTrue(enabled)||!cJSON_IsString(ssid)||strcmp(ssid->valuestring,home->ssid))result=DSR_BAD_RESPONSE;}
   else {const cJSON *restart=cJSON_GetObjectItemCaseSensitive(response,"restart_required");if(!cJSON_IsBool(restart)||cJSON_IsTrue(restart))result=DSR_UNSUPPORTED;}
@@ -802,7 +920,7 @@ dsr_result_t dsr_http_lan_verify_station(const dsr_ap_identity_t *expected,const
  dsr_lan_device_t identity;dsr_result_t result=dsr_http_lan_identity(host,&identity);if(result!=DSR_OK)return result;
  dsr_ap_identity_t observed;ap_identity(&identity,expected->ssid,&observed);if(!ap_same(expected,&observed)||observed.auth_required)return DSR_IDENTITY_MISMATCH;
  dsr_connection_t c={0};snprintf(c.device.host,sizeof(c.device.host),"%s",host);dsr_request_t request={0};snprintf(request.path,sizeof(request.path),"%s",expected->generation==1?"/status":"/rpc/WiFi.GetStatus");cJSON *response=NULL;
- result=fetch_json(&c,&request,true,&response);
+ result=fetch_json(NULL,&c,&request,true,&response);
  if(result==DSR_OK){const cJSON *wifi=expected->generation==1?cJSON_GetObjectItemCaseSensitive(response,"wifi_sta"):response,*ssid=cJSON_GetObjectItemCaseSensitive(wifi,"ssid"),*ip=cJSON_GetObjectItemCaseSensitive(wifi,expected->generation==1?"ip":"sta_ip"),*connected=cJSON_GetObjectItemCaseSensitive(wifi,expected->generation==1?"connected":"status");
   bool ready=expected->generation==1?cJSON_IsTrue(connected):cJSON_IsString(connected)&&!strcmp(connected->valuestring,"got ip");
   if(!ready||!cJSON_IsString(ssid)||strcmp(ssid->valuestring,home->ssid)||!cJSON_IsString(ip)||strcmp(ip->valuestring,host))result=DSR_BAD_RESPONSE;
@@ -839,7 +957,7 @@ dsr_result_t dsr_http_settings_rpc(const dsr_connection_t *c,const char *method,
  if(strlen(payload)>2048){wipe(payload,strlen(payload));free(payload);return DSR_INVALID;}
  dsr_request_t request={.post=true,.path="/rpc"};cJSON *response=NULL;
  if(mutating&&attempted)*attempted=true; /* Conservative: never replay after entering transport. */
- r=fetch_json_payload(c,&request,false,&response,4000,payload,"application/json",mutating);
+ r=fetch_json_payload(NULL,c,&request,false,&response,4000,payload,"application/json",mutating);
  wipe(payload,strlen(payload));free(payload);
  if(r==DSR_OK){
   const cJSON *id=cJSON_GetObjectItemCaseSensitive(response,"id"),*result=cJSON_GetObjectItemCaseSensitive(response,"result");

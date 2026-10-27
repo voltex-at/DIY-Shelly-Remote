@@ -6,6 +6,9 @@
 typedef struct {
  dsr_connection_t connection;
  dsr_result_t result;
+ /* Telemetry-only polls since the last full metadata poll (0: next is full).
+  * Uses the existing alignment padding before intent_identity. */
+ uint8_t meta_polls;
  dsr_device_t intent_identity;
  uint32_t sample_ms,next_poll,intent_order,request_id,command_id,next_maintenance;
  dsr_result_t maintenance_result;
@@ -36,6 +39,10 @@ bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b);
  * 240 s per consecutive limit; never more often, never stopped for good. */
 #define DSR_FLEET_RATE_LIMIT_MS 60000u
 #define DSR_FLEET_RATE_LIMIT_MAX_MS 300000u
+/* Gen2+ relay/cover/dimmer/RGB polls are telemetry-only JSON-RPC reads; every
+ * this many polls (5 min at the 5 s cadence), after a failure, Wi-Fi change,
+ * new binding or manual refresh, one poll re-reads /shelly metadata and name. */
+#define DSR_FLEET_META_POLLS 60u
 static inline uint32_t dsr_fleet_fresh_ms(const dsr_device_t *d){return d&&d->endpoint_kind==DSR_ENDPOINT_BLU?DSR_FLEET_BLU_FRESH_MS:DSR_FLEET_FRESH_MS;}
 int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);
 dsr_result_t dsr_fleet_upsert(dsr_fleet_t *fleet,const dsr_connection_t *connection,uint32_t now);

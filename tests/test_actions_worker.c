@@ -142,6 +142,16 @@ int main(void)
  CHECK(e.result==DSR_OK&&e.device.online&&metadata_reads==names_before);idle_admission();
  expect_telemetry_only=false;j.id++;j.on=false;
  CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
+ CHECK(e.result==DSR_OK&&metadata_reads==names_before+1);idle_admission();
+ /* Every Gen2+ JSON-RPC status endpoint honours a telemetry-only poll; a Gen1
+  * relay has no such frame, so the same flag keeps its verified full read. */
+ dsr_connection_t relay=a;relay.device.endpoint_kind=DSR_ENDPOINT_SWITCH;memset(&relay.telemetry,0,sizeof(relay.telemetry));names_before=metadata_reads;expect_telemetry_only=true;
+ j=(dsr_job_t){.id=1450,.kind=DSR_JOB_PROBE,.connection=relay,.telemetry_only=true};
+ CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
+ CHECK(e.result==DSR_OK&&metadata_reads==names_before);idle_admission();
+ expect_telemetry_only=false;relay.device.generation=DSR_GEN1;strcpy(relay.device.device_id,"AABBCCDDEEFF");
+ j=(dsr_job_t){.id=1451,.kind=DSR_JOB_PROBE,.connection=relay,.telemetry_only=true};
+ CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
  CHECK(e.result==DSR_OK&&metadata_reads==names_before+1);native_probe=false;idle_admission();
  /* A stale scene/group CLOSE first needs a normal probe. Its command byte
   * (2) must not survive as the PROBE boolean payload. Inspect raw bytes,

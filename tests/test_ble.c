@@ -52,7 +52,9 @@ void vQueueDelete(QueueHandle_t q){(void)q;}
 int xTaskCreatePinnedToCore(void (*fn)(void *),const char *n,unsigned stack,void *a,unsigned p,void *h,int core)
 {(void)n;(void)a;(void)p;CHECK(stack==4096&&core==1);worker=fn;if(h)*(void **)h=&worker;return 1;}
 int64_t esp_timer_get_time(void){return (int64_t)clock_ms*1000;}
-esp_err_t nimble_port_init(void){init_calls++;return init_failure?ESP_FAIL:ESP_OK;}
+static bool wifi_ble_power;
+void dsr_wifi_power_ble(bool active){wifi_ble_power=active;}
+esp_err_t nimble_port_init(void){CHECK(wifi_ble_power);init_calls++;return init_failure?ESP_FAIL:ESP_OK;}
 void nimble_port_freertos_init(void (*fn)(void *)){(void)fn;host_calls++;ble_hs_cfg.sync_cb();}
 void nimble_port_run(void){}
 void nimble_port_freertos_deinit(void){}
@@ -184,8 +186,10 @@ int main(int argc,char **argv)
   * the next job; a failed stop keeps it; never released while a job is queued. */
  CHECK(dsr_ble_host_active());unsigned inits=init_calls;idle_release=true;
  stop_failure=true;mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(stop_calls==1&&!deinit_calls&&dsr_ble_host_active());stop_failure=false;
+ CHECK(wifi_ble_power); /* a failed stop keeps modem sleep for the live host */
  mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(stop_calls==2&&deinit_calls==1&&!dsr_ble_host_active()&&!dsr_ble_host_healthy()&&init_calls==inits);
- mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(init_calls==inits+1&&deinit_calls==2&&!dsr_ble_host_active());
+ CHECK(!wifi_ble_power);
+ mode=3;CHECK(dsr_ble_scan());run_worker();CHECK(init_calls==inits+1&&deinit_calls==2&&!dsr_ble_host_active()&&!wifi_ble_power);
  CHECK(dsr_ble_manager_rpc(rpc_operation));run_worker();CHECK(rpc_calls==2&&init_calls==inits+2&&deinit_calls==3);
  dsr_ble_snapshot(&s);CHECK(!s.busy);idle_release=false;
  /* A missing disconnect must block only the old BLE host, not restart or
