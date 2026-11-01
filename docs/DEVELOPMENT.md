@@ -1,4 +1,4 @@
-# Development — 0.7.78-dev
+# Development — 0.7.79-dev
 
 Current code is on `work/dev-0.7.70`; `main` is an older baseline. Read
 [PROJECT_STATUS_PL.md](PROJECT_STATUS_PL.md) and [issue #74](https://github.com/voltex-at/DIY-Shelly-Remote/issues/74)
@@ -103,18 +103,21 @@ Movement/recovery PROBE jobs omit advisory name/config I/O so verified telemetry
 can be delivered promptly. When the actor converts a typed intent to a normal
 PROBE, clear both reused intent bytes.
 
-Shelly transport (Stage 2). Gen2+ relay/cover/dimmer/RGB status uses one
-JSON-RPC `POST /rpc` frame; its `src` must equal the saved device id before any
-write. A well-formed frame without that id falls back to `/shelly` plus the old
-GET, which still decides. Relay writes keep their `/shelly` pre-check; Cover
-STOP keeps `/shelly` + POST. Fleet polls of these endpoints are telemetry-only;
-the full `/shelly` + status + `Sys.GetConfig` poll runs on the first poll, every
+Shelly transport (Stage 2, revised to GET after the 0.7.78 board log). Gen2+ relay/cover/dimmer/RGB
+status and commands are body-less `GET /rpc/<Method>?<params>` requests
+(`rgb=[r,g,b]` as documented by Shelly). IDF sends a POST body as a second TCP
+write; an owner Shelly answered GET but left such POSTs unanswered (0.7.76
+commands, 0.7.78 `POST /rpc` status). Every write verifies `/shelly` first,
+then reads status; Cover STOP is `/shelly` + the command. Fleet polls of these
+endpoints are telemetry-only (one status GET, no identity leg); the full
+`/shelly` + status + `Sys.GetConfig` poll runs on the first poll, every
 `DSR_FLEET_META_POLLS` polls, after any failure, Wi-Fi change or manual refresh.
-Gen1, BLU and H&T keep their verified full path. Each worker call owns one
+Gen1, BLU and H&T keep their verified full path; settings RPC, AP provisioning
+(secrets never in a URL) and BluTrv calls stay POST. Each worker call owns one
 stack-local SDK client for its authenticated Gen2+ legs (Shelly closes every
 HTTP exchange; no TCP reuse). The kept Digest nonce is offered only to a request
-with the HTTP method it was issued for: a wrong digest counts as a failed Shelly
-login. IDF 5.5.4 ignores the event handler's result, so late bytes of a completed
+with the HTTP method it was issued for (a wrong digest counts as a failed Shelly
+login); with all legs GET one challenge serves the call. IDF 5.5.4 ignores the event handler's result, so late bytes of a completed
 exchange are kept; `late` is diagnostic. Wi-Fi modem sleep is off only while the
 screen is lit and no NimBLE host runs (`dsr_wifi_power_display/_ble`).
 `dsr_http` logs failed/slow Cover legs and command responses without hosts,

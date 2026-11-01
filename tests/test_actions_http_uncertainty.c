@@ -46,21 +46,19 @@ int main(void)
         CHECK(dsr_http_job_guard(actor_permission)==NULL);
         CHECK(dsr_http_job_write_hook(actor_write)==NULL);
         step_t relay[]={{"/shelly",gen2,200,false,false},
-            {"/rpc/Switch.Set","{\"was_on\":false}",200,true,false},
+            {"/rpc/Switch.Set?id=0&on=true","{\"was_on\":false}",200,false,false},
             {"/rpc/Switch.GetStatus?id=0","{}",401,false,false}};
         step_t covering[]={{"/shelly",gen2,200,false,false},
             {"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},
-            {"/rpc/Cover.Open","null",200,true,false},
+            {"/rpc/Cover.Open?id=0","null",200,false,false},
             {"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
-        cover_payload=cover ? "{\"id\":0}" : NULL;
-        /* Cover: one proven status frame + POST; relay: /shelly, POST, readback frame. */
-        fixture_rpc(cover ? covering : relay, cover ? 4 : 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id);
+        fixture(cover ? covering : relay, cover ? 4 : 3, HTTP_AUTH_TYPE_DIGEST);
         dsr_result_t result=cover
             ? dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})
             : dsr_http_set_output(&c,true);
         CHECK(dsr_http_job_guard(NULL)==actor_permission);
         CHECK(dsr_http_job_write_hook(NULL)==actor_write);
-        CHECK(used==(cover ? 2u : 3u-(mode%2))); /* POST ACK occurred once */
+        CHECK(used==(cover ? 3u : 3u-(mode%2))); /* write ACK occurred once */
         CHECK(result==(cover ? DSR_OK : mode%2 ? DSR_IDENTITY_MISMATCH : DSR_AUTH_REQUIRED));
         CHECK(dsr_actions_model_complete(&actor,101,result,12));
         int next=dsr_actions_model_current(&actor,12);
@@ -72,8 +70,9 @@ int main(void)
             CHECK(dsr_actions_model_queued(&actor,1,102,12));actor_request=102;
             permissions=0;deny_after_ack=mode%2?1:0;
             CHECK(dsr_http_job_guard(actor_permission)==NULL);
-            step_t read[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
-            fixture_rpc(read,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);
+            /* Telemetry-only read: one GET, no /shelly leg. */
+            step_t read[]={{"/rpc/Cover.GetStatus?id=0","{}",401,false,false}};
+            fixture(read,1,HTTP_AUTH_TYPE_DIGEST);
             dsr_result_t gate=dsr_http_refresh(&c);
             CHECK(gate==(mode%2?DSR_IDENTITY_MISMATCH:DSR_AUTH_REQUIRED)&&used==(mode%2?0u:1u));
             CHECK(dsr_http_job_guard(NULL)==actor_permission);
@@ -81,13 +80,12 @@ int main(void)
             CHECK(actor.steps[0].outcome==DSR_ACTION_SUCCESS&&actor.steps[1].outcome==DSR_ACTION_FAILED&&dsr_actions_model_current(&actor,12)==2);
             continue;
         }
-        fprintf(stderr,"%s POST ACK -> %s: result=%u outcome=%u same-endpoint=%u next=%d\n",
+        fprintf(stderr,"%s write ACK -> %s: result=%u outcome=%u same-endpoint=%u next=%d\n",
             cover?"Cover":"Switch",mode%2?"mapping guard":"readback401",result,
             actor.steps[0].outcome,actor.steps[1].outcome,next);
         if(actor.steps[0].outcome!=DSR_ACTION_UNCERTAIN ||
            actor.steps[1].outcome!=DSR_ACTION_CANCELLED || next!=2)wrong++;
     }
-    cover_payload=NULL;
     CHECK(wrong==0);
     printf("PASS: %u genuine HTTP/model checks; relay uncertainty, independent Cover ACK and later read gate\n",checks);
     return 0;

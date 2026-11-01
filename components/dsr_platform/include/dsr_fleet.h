@@ -39,9 +39,10 @@ bool dsr_endpoint_equal(const dsr_device_t *a,const dsr_device_t *b);
  * 240 s per consecutive limit; never more often, never stopped for good. */
 #define DSR_FLEET_RATE_LIMIT_MS 60000u
 #define DSR_FLEET_RATE_LIMIT_MAX_MS 300000u
-/* Gen2+ relay/cover/dimmer/RGB polls are telemetry-only JSON-RPC reads; every
+/* Gen2+ relay/cover/dimmer/RGB polls are telemetry-only status GETs; every
  * this many polls (5 min at the 5 s cadence), after a failure, Wi-Fi change,
- * new binding or manual refresh, one poll re-reads /shelly metadata and name. */
+ * new binding or manual refresh, one poll re-proves identity with /shelly and
+ * re-reads metadata and name. */
 #define DSR_FLEET_META_POLLS 60u
 static inline uint32_t dsr_fleet_fresh_ms(const dsr_device_t *d){return d&&d->endpoint_kind==DSR_ENDPOINT_BLU?DSR_FLEET_BLU_FRESH_MS:DSR_FLEET_FRESH_MS;}
 int dsr_fleet_find(const dsr_fleet_t *fleet,const dsr_device_t *device);

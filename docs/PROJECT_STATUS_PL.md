@@ -2,6 +2,21 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Korekta transportu po logu 0.7.78: GET dla Gen2+, kandydat 0.7.79-dev — 2026-11-01
+
+Log właściciela z 0.7.78: jedna roleta nie odpowiada na żądania POST (także
+nowy `POST /rpc` statusu, więc w 0.7.78 wyglądała na offline), a na GET tak;
+te same trzy „WRITE, OFFLINE” z 0.7.76 dotyczyły tej rolety i komend POST.
+Changelog Shelly: pasujący wpis „HTTP: Fix timeouts on incoming connection”
+jest tylko w 2.2.0-beta1. Decyzja właściciela: status i komendy przekaźnika,
+rolety, dimmera i RGB jako GET, tożsamość z `/shelly` przed zapisem, zwykłe
+odczyty bez `/shelly`. [Szczegóły i odbiór](TRANSPORT_STAGE2_PL.md).
+
+Właściciel zlecił publikację DEV przed własnym testem na płytce. `0.7.79-dev`
+jest kandydatem do odbioru, z wymaganym pełnym CI dokładnego commita, podpisem
+i publicznymi pobraniami. Fizyczna aktualizacja oraz odczyty i komendy rolety
+pozostają do odbioru. Bez Stable, main, flashowania i zmian klucza OTA.
+
 ## Etap 2: transport Shelly i kandydat 0.7.78-dev — 2026-10-27
 
 Właściciel wybrał Etap 2 z audytu oraz dwie decyzje: modem-sleep Wi-Fi

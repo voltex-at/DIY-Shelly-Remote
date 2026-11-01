@@ -143,8 +143,8 @@ int main(void)
  expect_telemetry_only=false;j.id++;j.on=false;
  CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);
  CHECK(e.result==DSR_OK&&metadata_reads==names_before+1);idle_admission();
- /* Every Gen2+ JSON-RPC status endpoint honours a telemetry-only poll; a Gen1
-  * relay has no such frame, so the same flag keeps its verified full read. */
+ /* Every Gen2+ RPC status endpoint honours a telemetry-only poll (one status
+  * GET); a Gen1 relay keeps its verified full read under the same flag. */
  dsr_connection_t relay=a;relay.device.endpoint_kind=DSR_ENDPOINT_SWITCH;memset(&relay.telemetry,0,sizeof(relay.telemetry));names_before=metadata_reads;expect_telemetry_only=true;
  j=(dsr_job_t){.id=1450,.kind=DSR_JOB_PROBE,.connection=relay,.telemetry_only=true};
  CHECK(dsr_worker_submit(&j)==DSR_OK);execute();e=complete(j.id);

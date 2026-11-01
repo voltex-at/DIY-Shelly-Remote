@@ -1,5 +1,50 @@
 # Etap 2: transport Shelly — 2026-10-27
 
+## Korekta po logu z płytki 0.7.78 — 2026-11-01 (obowiązuje, kandydat 0.7.79-dev)
+
+Log właściciela z 0.7.78: roleta „layout 4” nie odpowiedziała na żaden
+`POST /rpc` (3/3, nagłówki wysłane, 0 bajtów przez 3 s, `sdk=0x7007`), a na
+GET przy pełnym odczycie odpowiedziała. Te same trzy „WRITE, OFFLINE” z 0.7.76
+dotyczyły tej rolety i komend POST `/rpc/Cover.*`, podczas gdy GET chwilę
+później działał. Druga roleta i przekaźniki odpowiadają na POST. IDF 5.5.4
+wysyła treść POST drugim zapisem TCP (`esp_http_client.c`), GET to jedno
+zapytanie. W changelogu Shelly jedyny pasujący wpis to 2.2.0-beta1 (15.10,
+tylko beta): „HTTP: Fix timeouts on incoming connection”; stabilne 2.1.1/2.0.3
+zmieniają tylko certyfikaty CA. Związek jest prawdopodobny, nie potwierdzony.
+
+Decyzja właściciela: GET dla Gen2+. Status i komendy przekaźnika, rolety,
+dimmera i RGB to `GET /rpc/<Metoda>?<parametry>` (`rgb=[r,g,b]` w formie
+z dokumentacji Shelly; parser URL IDF przepuszcza `[`, `]`, `,`). Usunięto
+ramkę `rpc_status()` i dowód tożsamości przez `src`. Przed każdym zapisem
+`/shelly`, potem GET statusu; STOP: `/shelly` + komenda. Zwykły odczyt w tle
+to jeden GET statusu bez `/shelly`; pełny odczyt z tożsamością co
+`DSR_FLEET_META_POLLS` i po każdym błędzie. Ustawienia urządzenia, provisioning
+AP (hasło nigdy w URL) i BluTrv pozostają POST. Potwierdzenie `null` jest
+przyjmowane tylko dla komend. Sesja Digest, spóźnione dane i polityka Wi-Fi
+z tego dokumentu bez zmian; przy samych GET jedno wyzwanie 401 obsługuje całe
+wywołanie.
+
+| Operacja (z hasłem, 401 = 2 wymiany) | 0.7.77 | 0.7.78 | GET |
+| --- | --- | --- | --- |
+| Komenda rolety/dimmera/RGB bez odczytu | 5 | 3 | `/shelly` 1 + status 2 + komenda 1 = 4 |
+| Light/RGB z odczytem | 7 | 4 | 1 + 2 + 1 + 1 = 5 |
+| Przekaźnik z odczytem | 5 | 4 | 1 + 2 + 1 = 4 |
+| Zwykły odczyt / pełny co 5 min | 5 | 2 / 4 | 2 / 4 |
+| Bez hasła: zwykły odczyt / komenda rolety | 3 / 3 | 1 / 2 | 1 / 3 |
+
+Testy: oczekiwania hosta wróciły do przepływu GET; kroki atrapy mają
+`post=false`, więc każdy POST dla tych urządzeń przerywa test. Nowe kontrole:
+kształt żądań w `test_core`, `test_get_transport` (nonce dla całego
+wywołania, odczyt bez `/shelly`, spóźniona odpowiedź i ACK, `null` tylko dla
+komendy). Poniższe opisy `rpc_status()`, `fixture_rpc()` i tabela wymian
+dotyczą wydanego 0.7.78 i są historyczne.
+
+Odbiór na płytce: roleta 4 bez `sdk=0x7007` przy odczytach i komendach;
+w logu `leg=status`/`leg=command`, bez `leg=rpc`. Zmiana nazwy w aplikacji
+Shelly jest widoczna do ok. 5 min później. Gdyby pod adresem IP urządzenia
+pojawił się inny Shelly tego samego typu, zwykłe odczyty mogą do ok. 5 min
+pokazywać jego stan; każdy zapis najpierw sprawdza `/shelly`.
+
 Baza: `dev-v0.7.77` / `ee1a8ba`. Wydanie: kandydat `0.7.78-dev` (tag
 `dev-v0.7.78`) na polecenie właściciela, przed odbiorem na płytce; bez
 flashowania. Host i kompilacja nie potwierdzają działania na ES3C35P; odbiór

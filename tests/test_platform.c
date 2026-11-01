@@ -51,40 +51,6 @@ static struct test_client clients[4];
 static char posted[256]; /* last POST body, copied: callers pass stack buffers */
 static void fixture(const step_t *data, unsigned length, esp_http_client_auth_type_t auth)
 { for(unsigned i=0;i<4;i++)CHECK(!clients[i].used);CHECK(length<=24);memcpy(steps, data, length * sizeof(*data));memset(expects,0,sizeof(expects)); count = length; used = 0; expected_auth = auth; preemptive = challenges = 0; }
-/* Fast-path fixture: the same device answers one JSON-RPC POST /rpc frame. A
- * /shelly + GET <Component>.GetStatus pair becomes one frame whose src is the
- * identity id; a lone status GET (post-write readback) uses saved_id. A failed
- * identity fails the frame the same way. An identity other than saved_id keeps
- * its /shelly step: the unproven src falls back to it and is rejected there. */
-static char rpc_bodies[24][1200],rpc_requests[24][96];
-static bool rpc_status_path(const char *path,char *request,size_t size)
-{
-    const char *components[]={"Switch","Cover","Light","RGB"};
-    for(unsigned i=0;i<4;i++){
-        char prefix[40];snprintf(prefix,sizeof(prefix),"/rpc/%s.GetStatus?id=",components[i]);size_t n=strlen(prefix);
-        if(!strncmp(path,prefix,n)){snprintf(request,size,"{\"id\":1,\"method\":\"%s.GetStatus\",\"params\":{\"id\":%u}}",components[i],(unsigned)atoi(path+n));return true;}
-    }
-    return false;
-}
-static void fixture_rpc(const step_t *data,unsigned length,esp_http_client_auth_type_t auth,const char *saved_id)
-{
-    step_t out[24];step_expect_t x[24];unsigned n=0;memset(x,0,sizeof(x));
-    for(unsigned i=0;i<length;i++){
-        char request[96];
-        bool pair=!strcmp(data[i].path,"/shelly")&&i+1<length&&!data[i+1].post&&rpc_status_path(data[i+1].path,request,sizeof(request));
-        if(!pair&&(data[i].post||!rpc_status_path(data[i].path,request,sizeof(request)))){CHECK(n<24);out[n++]=data[i];continue;}
-        const step_t *st=pair?&data[i+1]:&data[i];char id[64];snprintf(id,sizeof(id),"%s",saved_id);
-        CHECK(n<24);snprintf(rpc_requests[n],sizeof(rpc_requests[n]),"%s",request);x[n]=(step_expect_t){rpc_requests[n],3000,false};
-        if(pair&&(!data[i].body||data[i].status!=200)){out[n++]=(step_t){"/rpc",data[i].body,data[i].status,true,data[i+1].challenge};i++;continue;}
-        if(pair){cJSON *identity=cJSON_Parse(data[i].body);const cJSON *v=cJSON_GetObjectItemCaseSensitive(identity,"id");if(cJSON_IsString(v))snprintf(id,sizeof(id),"%s",v->valuestring);cJSON_Delete(identity);}
-        bool framed=st->body&&st->status==200;
-        if(framed)snprintf(rpc_bodies[n],sizeof(rpc_bodies[n]),"{\"id\":1,\"src\":\"%s\",\"result\":%s}",id,st->body);
-        out[n]=(step_t){"/rpc",framed?rpc_bodies[n]:st->body,st->status,true,st->challenge};n++;
-        if(pair&&strcmp(id,saved_id)){CHECK(n<24);out[n++]=data[i];}
-        if(pair)i++;
-    }
-    fixture(out,n,auth);memcpy(expects,x,sizeof(x));
-}
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *cfg)
 {
     CHECK(used < count); CHECK(cfg->disable_auto_redirect); CHECK(cfg->max_authorization_retries == (ap_protocol&&steps[used].post?-1:1));
@@ -264,25 +230,27 @@ static void test_control(void)
     dsr_connection_t c = connection();
     c.device.generation = DSR_GEN2_PLUS; c.device.has_switch = true;
     strcpy(c.device.device_id, "shellyplus1-AABBCCDDEEFF");
-    step_t data[] = {{"/shelly", gen2, 200, false, false}, {"/rpc/Switch.Set", "{\"was_on\":false}", 200, true, true},
+    step_t data[] = {{"/shelly", gen2, 200, false, false}, {"/rpc/Switch.Set?id=0&on=true", "{\"was_on\":false}", 200, false, true},
         {"/rpc/Switch.GetStatus?id=0", "{\"output\":true}", 200, false, true}};
-    /* Identity first, then the write; the readback frame re-proves the id and
-     * reuses the write's Digest nonce (same POST method): one 401, not two. */
-    fixture_rpc(data, 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_set_output(&c, true) == DSR_OK && c.device.output && used == 3 && challenges == 1 && preemptive == 1);
+    /* Identity first, then the body-less GET write; the readback GET reuses
+     * the write's Digest nonce (same method): one 401, not two. */
+    fixture(data, 3, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_OK && c.device.output && used == 3 && challenges == 1 && preemptive == 1);
     data[2].body = "{\"output\":false}";
-    fixture_rpc(data, 3, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_set_output(&c, true) == DSR_BAD_RESPONSE && !c.device.online);
+    fixture(data, 3, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_BAD_RESPONSE && !c.device.online);
     data[0].body = "{\"gen\":2,\"id\":\"shellyplus1-OTHER\"}";
     fixture(data, 1, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_IDENTITY_MISMATCH && used == 1);
-    /* Telemetry-only: the frame's foreign src is unproven, /shelly rejects it. */
-    step_t foreign[] = {{"/shelly", "{\"gen\":2,\"id\":\"shellyplus1-OTHER\"}", 200, false, false}, {"/rpc/Switch.GetStatus?id=0", "{\"output\":true}", 200, false, true}};
-    fixture_rpc(foreign, 2, HTTP_AUTH_TYPE_DIGEST, c.device.device_id); CHECK(dsr_http_refresh(&c) == DSR_IDENTITY_MISMATCH && used == 2 && !c.device.online);
+    /* Telemetry-only reads are one GET without /shelly; the fleet's periodic
+     * full read is the one that rejects a foreign device at that address. */
+    step_t poll[] = {{"/rpc/Switch.GetStatus?id=0", "{\"output\":true}", 200, false, true}};
+    fixture(poll, 1, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_refresh(&c) == DSR_OK && used == 1 && c.device.online && c.device.output);
+    dsr_device_info_t info; fixture(data, 1, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_refresh_info(&c, &info) == DSR_IDENTITY_MISMATCH && used == 1 && !c.device.online);
     data[0].body = gen2; data[1].body = NULL; data[1].status = 0;
     fixture(data, 2, HTTP_AUTH_TYPE_DIGEST); CHECK(dsr_http_set_output(&c, true) == DSR_OFFLINE && used == 2);
     CHECK(!c.device.online); /* no automatic second write or optimistic state */
     data[1].body="{\"error\":{\"code\":-104}}";data[1].status=200;
     fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BAD_RESPONSE&&used==2&&!c.device.online);
     data[1].body="{}";data[1].status=401;fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_AUTH_REQUIRED&&used==2&&!c.device.online);
-    data[1].status=200;data[2].body=NULL;data[2].status=0;fixture_rpc(data,3,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_set_output(&c,true)==DSR_OFFLINE&&used==3&&!c.device.online);
+    data[1].status=200;data[2].body=NULL;data[2].status=0;fixture(data,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_OFFLINE&&used==3&&!c.device.online);
 }
 static void test_telemetry(void)
 {
@@ -291,19 +259,19 @@ static void test_telemetry(void)
  step_t data[]={{"/shelly",gen3,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true,\"apower\":4.1,\"voltage\":230.4,\"current\":0.018}",200,false,true}};
  fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_probe_telemetry(&c,&device,&telemetry)==DSR_OK);CHECK(device.has_power&&device.power_w==4.1);CHECK(telemetry.has_voltage&&telemetry.voltage_v==230.4);CHECK(telemetry.has_current&&telemetry.current_a==0.018);
  c.device=device;c.telemetry=telemetry;
- /* Telemetry-only refresh: one POST /rpc frame, no /shelly or name request. */
- data[1].body="{\"output\":false}";fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK&&used==1);CHECK(!c.device.has_power&&!c.telemetry.has_voltage&&!c.telemetry.has_current);
- data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
+ /* Telemetry-only refresh: one status GET, no /shelly or name request. */
+ data[1].body="{\"output\":false}";fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK&&used==1);CHECK(!c.device.has_power&&!c.telemetry.has_voltage&&!c.telemetry.has_current);
+ data[1].body="{\"output\":false,\"apower\":0,\"voltage\":0,\"current\":0}";fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.device.has_power&&c.device.power_w==0&&c.telemetry.has_voltage&&c.telemetry.has_current&&c.telemetry.current_a==0);
  const char *bad[]={"{\"output\":true,\"voltage\":\"230.4\"}","{\"output\":true,\"current\":null}","{\"output\":true,\"voltage\":false}","{\"output\":true,\"current\":[]}","{\"output\":true,\"voltage\":-1}","{\"output\":true,\"current\":-0.1}","{\"output\":true,\"current\":1e999}","{\"output\":true,\"voltage\":1e100}","{\"output\":true,\"apower\":\"4.1\"}"};
- for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
+ for(unsigned i=0;i<sizeof(bad)/sizeof(bad[0]);i++){data[1].body=bad[i];fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE);CHECK(!c.device.online&&!c.device.has_power&&!c.telemetry.has_current&&!c.telemetry.has_voltage);}
  /* Gen2 aenergy.total is Wh; by_minute values are mWh and are never used
   * as a cumulative total. Missing/null differs from a real zero. */
  const char *energies[]={"{\"output\":false,\"aenergy\":{\"total\":0}}","{\"output\":false,\"aenergy\":{\"total\":123.5,\"by_minute\":[999999]}}","{\"output\":false,\"aenergy\":null}","{\"output\":false,\"aenergy\":{\"total\":null}}","{\"output\":false,\"aenergy\":{\"by_minute\":[1]}}"};
- for(unsigned i=0;i<5;i++){data[1].body=energies[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.telemetry.has_energy==(i<2));if(i<2)CHECK(c.telemetry.energy_wh==(i?123.5:0));}
+ for(unsigned i=0;i<5;i++){data[1].body=energies[i];fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_OK);CHECK(c.telemetry.has_energy==(i<2));if(i<2)CHECK(c.telemetry.energy_wh==(i?123.5:0));}
  const char *bad_energy[]={"{\"output\":false,\"aenergy\":3}","{\"output\":false,\"aenergy\":{\"total\":-1}}","{\"output\":false,\"aenergy\":{\"total\":\"0\"}}","{\"output\":false,\"aenergy\":{\"total\":1e999}}"};
- for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
- /* The authenticated frame meets the login failure /shelly used to report. */
- data[0].status=401;fixture_rpc(data,2,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED&&used==1);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
+ for(unsigned i=0;i<4;i++){data[1].body=bad_energy[i];fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&!c.telemetry.has_energy);}
+ /* The authenticated status GET meets the login failure /shelly used to report. */
+ data[1].status=401;data[1].body="{}";fixture(data+1,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&c)==DSR_AUTH_REQUIRED&&used==1);CHECK(!c.telemetry.has_voltage&&!c.telemetry.has_current);
 }
 static void test_storage(void)
 {
@@ -569,17 +537,16 @@ static dsr_result_t test_guard(void){return ++guard_calls>=guard_block?DSR_BUSY:
 static void test_registered_guard(void)
 {
  dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.has_switch=true;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
- step_t relay[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.Set","{\"was_on\":false}",200,true,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
+ step_t relay[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.Set?id=0&on=true","{\"was_on\":false}",200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
  for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(relay,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_set_output(&c,true)==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
- c.device.endpoint_kind=DSR_ENDPOINT_COVER;cover_payload="{\"id\":0}";step_t cover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open","null",200,true,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false}};
- /* Proven status frame: guard before it and before the POST (no /shelly leg). */
- for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(cover,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==(boundary==3?DSR_OK:DSR_BUSY)&&used==(boundary==3?2:boundary-1));CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
- c=light_connection();cover_payload="{\"id\":0,\"on\":true}";
- step_t light[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false},{"/rpc/Light.Set","null",200,true,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false}};
- for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(light,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_light(&c,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
- c=rgb_connection();cover_payload="{\"id\":0,\"on\":true}";step_t rgb[]={{"/shelly",rgb_identity,200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false},{"/rpc/RGB.Set","null",200,true,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false}};
- for(unsigned boundary=1;boundary<=3;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture_rpc(rgb,4,HTTP_AUTH_TYPE_DIGEST,c.device.device_id);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==3?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
- cover_payload=NULL;
+ c.device.endpoint_kind=DSR_ENDPOINT_COVER;step_t cover[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open?id=0","null",200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false}};
+ /* Guard before /shelly, before the status GET and before the command GET. */
+ for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(cover,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&c,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==(boundary==4?DSR_OK:DSR_BUSY)&&used==(boundary==4?3:boundary-1));CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ c=light_connection();
+ step_t light[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false},{"/rpc/Light.Set?id=0&on=true","null",200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,false}};
+ for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(light,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_light(&c,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
+ c=rgb_connection();step_t rgb[]={{"/shelly",rgb_identity,200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false},{"/rpc/RGB.Set?id=0&on=true","null",200,false,false},{"/rpc/RGB.GetStatus?id=0",rgb_ready,200,false,false}};
+ for(unsigned boundary=1;boundary<=4;boundary++){write_attempts=0;CHECK(dsr_http_job_write_hook(test_write_attempt)==NULL);guard_calls=0;guard_block=boundary;CHECK(dsr_http_job_guard(test_guard)==NULL);fixture(rgb,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_rgb(&c,(dsr_rgb_intent_t){.command=DSR_RGB_ON})==DSR_BUSY&&used==boundary-1);CHECK(dsr_http_job_guard(NULL)==test_guard);CHECK(write_attempts==(boundary==4?1u:0u));CHECK(dsr_http_job_write_hook(NULL)==test_write_attempt);}
  /* Gen1 changes a relay with GET: method alone must not define the boundary. */
  c=connection();c.device.generation=DSR_GEN1;c.device.has_switch=true;strcpy(c.device.device_id,"AABBCCDDEEFF");
  step_t legacy[]={{"/shelly",gen1,200,false,false},{"/relay/0?turn=on","{\"ison\":true}",200,false,false},{"/relay/0","{\"ison\":true}",200,false,false}};
@@ -597,55 +564,44 @@ static void test_device_settings_http(void)
  data[0].body="{\"gen\":3,\"id\":\"shelly-other-112233445566\",\"mac\":\"112233445566\",\"model\":\"SNSW-001P16EU\",\"auth_en\":true}";fixture(data,2,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_settings_rpc(&c,"Switch.SetConfig",params,&response,true,&attempted)==DSR_IDENTITY_MISMATCH&&!attempted&&used==1);
  cJSON_Delete(params);cover_payload=NULL;lan_mode=false;
 }
-/* Stage 2 transport: proven JSON-RPC frames, the kept Digest nonce, late answers. */
-static void test_rpc_transport(void)
+/* Gen2+ transport: every relay/cover/dimmer/RGB leg is a body-less GET (an
+ * owner Shelly answered GET but left POST unanswered); the kept Digest nonce
+ * covers the whole call; late answers. A step's post=false fails any POST. */
+static void test_get_transport(void)
 {
  dsr_connection_t c=connection();c.device.generation=DSR_GEN2_PLUS;c.device.has_switch=true;strcpy(c.device.device_id,"shellyplus1-AABBCCDDEEFF");
- const char *request="{\"id\":1,\"method\":\"Switch.GetStatus\",\"params\":{\"id\":0}}";
- /* A frame needs id 1, an object result and unique keys. These are data
-  * errors, not identity questions: no /shelly fallback, no second request. */
- const char *bad[]={"{\"id\":2,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":{\"output\":true}}",
-  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\"}","{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":[]}",
-  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"src\":\"x\",\"result\":{\"output\":true}}",
-  "{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"error\":{\"code\":-105,\"message\":\"x\"}}"};
- for(unsigned i=0;i<sizeof(bad)/sizeof(*bad);i++){
-  step_t s[]={{"/rpc",bad[i],200,true,false}};fixture(s,1,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,false};
-  CHECK(dsr_http_refresh(&c)==DSR_BAD_RESPONSE&&used==1&&!c.device.online);
- }
- /* A missing, non-string or differently spelled src is unproven: /shelly
-  * decides, and the POST challenge's nonce is never offered to the GET. */
- const char *unproven[]={"{\"id\":1,\"result\":{\"output\":true}}","{\"id\":1,\"src\":7,\"result\":{\"output\":true}}",
-  "{\"id\":1,\"src\":\"SHELLYPLUS1-AABBCCDDEEFF\",\"result\":{\"output\":true}}"};
- for(unsigned i=0;i<sizeof(unproven)/sizeof(*unproven);i++){
-  step_t s[]={{"/rpc",unproven[i],200,true,true},{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":false,\"apower\":1.5}",200,false,true}};
-  fixture(s,3,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,false};
-  CHECK(dsr_http_refresh(&c)==DSR_OK&&used==3&&c.device.online&&!c.device.output&&c.device.power_w==1.5&&challenges==2&&!preemptive);
- }
- /* Kept nonce: the full refresh's GET status is challenged once and the GET
-  * name request reuses it; a Light command's POST frame nonce covers SET and readback. */
+ /* Kept nonce: the full refresh's status GET is challenged once and the name
+  * GET reuses it. A command's status challenge covers the SET and readback. */
  step_t full[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,true},{"/rpc/Sys.GetConfig","{\"device\":{\"name\":\"Kitchen\"}}",200,false,true}};
  dsr_device_info_t info;fixture(full,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh_info(&c,&info)==DSR_OK&&used==3&&info.name_read&&challenges==1&&preemptive==1);
- dsr_connection_t l=light_connection();cover_payload="{\"id\":0,\"on\":true}";
- step_t lit[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true},{"/rpc/Light.Set","null",200,true,true},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true}};
- fixture_rpc(lit,4,HTTP_AUTH_TYPE_DIGEST,l.device.device_id);CHECK(dsr_http_light(&l,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_OK&&used==3&&challenges==1&&preemptive==2);
- /* Without stored credentials nothing is authenticated or kept. */
+ dsr_connection_t l=light_connection();
+ step_t lit[]={{"/shelly",gen2,200,false,false},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true},{"/rpc/Light.Set?id=0&on=true","null",200,false,true},{"/rpc/Light.GetStatus?id=0",light_ready,200,false,true}};
+ fixture(lit,4,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_light(&l,(dsr_light_intent_t){.command=DSR_LIGHT_ON})==DSR_OK&&used==4&&challenges==1&&preemptive==2);
+ dsr_connection_t cv=c;cv.device.endpoint_kind=DSR_ENDPOINT_COVER;
+ step_t move[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,true},{"/rpc/Cover.GoToPosition?id=0&pos=20","null",200,false,true}};
+ fixture(move,3,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_cover(&cv,(dsr_cover_intent_t){.command=DSR_COVER_GOTO,.position=20})==DSR_OK&&used==3&&challenges==1&&preemptive==1&&!cv.device.online);
+ /* Telemetry-only poll: one GET; without stored credentials nothing is kept. */
+ step_t poll[]={{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,true}};
+ fixture(poll,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&cv)==DSR_OK&&used==1&&challenges==1&&cv.device.online&&cv.telemetry.cover.current_pos==38);
  dsr_connection_t open=c;memset(&open.credentials,0,sizeof(open.credentials));
- step_t plain[]={{"/shelly",gen2,200,false,false},{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
- fixture_rpc(plain,2,HTTP_AUTH_TYPE_NONE,open.device.device_id);CHECK(dsr_http_refresh(&open)==DSR_OK&&used==1&&!challenges&&!preemptive);
+ step_t plain[]={{"/rpc/Switch.GetStatus?id=0","{\"output\":true}",200,false,false}};
+ fixture(plain,1,HTTP_AUTH_TYPE_NONE);CHECK(dsr_http_refresh(&open)==DSR_OK&&used==1&&!challenges&&!preemptive);
  /* IDF 5.5.4 cannot abort a slow exchange from its event handler. A response
   * the SDK completes after the deadline is still the device's answer. */
  int64_t clock=name_clock;
- step_t slow[]={{"/rpc","{\"id\":1,\"src\":\"shellyplus1-AABBCCDDEEFF\",\"result\":{\"output\":true,\"apower\":2.5}}",200,true,false}};
- fixture(slow,1,HTTP_AUTH_TYPE_DIGEST);expects[0]=(step_expect_t){request,3000,true};
+ step_t slow[]={{"/rpc/Switch.GetStatus?id=0","{\"output\":true,\"apower\":2.5}",200,false,false}};
+ fixture(slow,1,HTTP_AUTH_TYPE_DIGEST);expects[0].late=true;
  CHECK(dsr_http_refresh(&c)==DSR_OK&&c.device.online&&c.device.output&&c.device.power_w==2.5);name_clock=clock;
  /* A late null ACK is an ACK: accepted once, never replayed or invented. */
- dsr_connection_t cv=c;cv.device.endpoint_kind=DSR_ENDPOINT_COVER;cover_payload="{\"id\":0}";
- step_t ack[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open","null",200,true,false}};
- fixture_rpc(ack,3,HTTP_AUTH_TYPE_DIGEST,cv.device.device_id);expects[1].late=true;
- CHECK(dsr_http_cover(&cv,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==DSR_OK&&used==2&&!cv.device.online);name_clock=clock;
- cover_payload=NULL;admission_open();
+ step_t ack[]={{"/shelly",gen2,200,false,false},{"/rpc/Cover.GetStatus?id=0",cover_ready,200,false,false},{"/rpc/Cover.Open?id=0","null",200,false,false}};
+ fixture(ack,3,HTTP_AUTH_TYPE_DIGEST);expects[2].late=true;
+ CHECK(dsr_http_cover(&cv,(dsr_cover_intent_t){.command=DSR_COVER_OPEN})==DSR_OK&&used==3&&!cv.device.online);name_clock=clock;
+ /* A null answer is an ACK only for a command, never a status read. */
+ step_t null_status[]={{"/rpc/Cover.GetStatus?id=0","null",200,false,false}};
+ fixture(null_status,1,HTTP_AUTH_TYPE_DIGEST);CHECK(dsr_http_refresh(&cv)==DSR_BAD_RESPONSE&&used==1&&!cv.device.online);
+ admission_open();
 }
-/* Telemetry-only JSON-RPC polls; /shelly metadata and name every
+/* Telemetry-only status GET polls; /shelly identity, metadata and name every
  * DSR_FLEET_META_POLLS, after a failure, a Wi-Fi change or a manual refresh. */
 static void test_fleet_metadata_schedule(void)
 {
@@ -678,7 +634,7 @@ int main(void)
 {
     test_device_settings_http();test_probe();test_device_info();test_name_persistence(); test_control(); test_telemetry(); test_discovery(); test_storage();test_multi_registry();test_multi_scheduler();test_command_rate_limit_recovery();test_cover_stop_poll_priority();test_ap_protocol();test_cover_protocol();test_cover_persistence();test_cover_scheduler();test_registered_guard();test_light_protocol();test_light_persistence_scheduler();
     test_light_opposite_transition();test_rgb_protocol();test_rgb_registry_scheduler();test_rgb_capabilities();test_ht_protocol();test_ht_registry_fleet();test_blu_protocol();test_blu_registry_fleet();test_blu_gateway_components();test_blu_trv();
-    test_rpc_transport();test_fleet_metadata_schedule();
+    test_get_transport();test_fleet_metadata_schedule();
     printf("PASS: %u platform checks (real cJSON, HTTP fixtures, identity, NVS adapters)\n", checks);
     return 0;
 }

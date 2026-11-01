@@ -74,8 +74,8 @@ void dsr_wifi_prepare_connect(void); /* Worker submit clears stale cancellation 
  * One SDK client per call keeps the Digest nonce for same-method requests. */
 dsr_result_t dsr_http_probe(const dsr_connection_t *connection, dsr_device_t *out);
 dsr_result_t dsr_http_probe_telemetry(const dsr_connection_t *connection,dsr_device_t *out,dsr_telemetry_t *telemetry);
-/* Gen2+ relay/cover/dimmer/RGB read status with one JSON-RPC POST /rpc whose
- * response src must equal the saved id; an unproven src falls back to /shelly. */
+/* Gen2+ relay/cover/dimmer/RGB: status and commands are GET /rpc/<Method>?...
+ * A telemetry-only read is one GET <Component>.GetStatus without /shelly. */
 static inline bool dsr_http_rpc_status_endpoint(const dsr_device_t *d)
 {return d&&d->generation==DSR_GEN2_PLUS&&d->device_id[0]&&(d->endpoint_kind==DSR_ENDPOINT_SWITCH||d->endpoint_kind==DSR_ENDPOINT_COVER||d->endpoint_kind==DSR_ENDPOINT_LIGHT||d->endpoint_kind==DSR_ENDPOINT_RGB);}
 /* Telemetry only: no /shelly metadata or name. Writes always verify first. */

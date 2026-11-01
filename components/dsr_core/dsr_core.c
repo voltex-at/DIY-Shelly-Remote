@@ -49,10 +49,12 @@ bool dsr_rgb_can_set(const dsr_rgb_status_t *s,dsr_rgb_intent_t i)
 dsr_result_t dsr_rgb_request_build(uint8_t channel,dsr_rgb_intent_t i,dsr_request_t *out)
 {
  if(!out||channel!=0||!dsr_rgb_intent_valid(i))return DSR_INVALID;
- memset(out,0,sizeof(*out));out->post=true;strcpy(out->path,"/rpc/RGB.Set");
- if(i.command==DSR_RGB_SET_COLOR)snprintf(out->body,sizeof(out->body),"{\"id\":0,\"rgb\":[%u,%u,%u]}",i.rgb[0],i.rgb[1],i.rgb[2]);
- else if(i.command==DSR_RGB_SET_BRIGHTNESS)snprintf(out->body,sizeof(out->body),"{\"id\":0,\"brightness\":%u}",i.brightness);
- else snprintf(out->body,sizeof(out->body),"{\"id\":0,\"on\":%s}",i.command==DSR_RGB_ON?"true":"false");
+ /* Gen2+ commands are GET /rpc/<Method>?<params>: one request without a body
+  * (Shelly's documented form, including rgb=[r,g,b]); the answer is `result`. */
+ memset(out,0,sizeof(*out));
+ if(i.command==DSR_RGB_SET_COLOR)snprintf(out->path,sizeof(out->path),"/rpc/RGB.Set?id=0&rgb=[%u,%u,%u]",i.rgb[0],i.rgb[1],i.rgb[2]);
+ else if(i.command==DSR_RGB_SET_BRIGHTNESS)snprintf(out->path,sizeof(out->path),"/rpc/RGB.Set?id=0&brightness=%u",i.brightness);
+ else snprintf(out->path,sizeof(out->path),"/rpc/RGB.Set?id=0&on=%s",i.command==DSR_RGB_ON?"true":"false");
  return DSR_OK;
 }
 bool dsr_light_intent_valid(dsr_light_intent_t i)
@@ -62,9 +64,9 @@ bool dsr_light_can_set(const dsr_light_status_t *s,dsr_light_intent_t i)
 dsr_result_t dsr_light_request_build(uint8_t channel,dsr_light_intent_t i,dsr_request_t *out)
 {
  if(!out||channel>DSR_MAX_CHANNEL||!dsr_light_intent_valid(i))return DSR_INVALID;
- memset(out,0,sizeof(*out));out->post=true;strcpy(out->path,"/rpc/Light.Set");
- if(i.command==DSR_LIGHT_SET_BRIGHTNESS)snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"brightness\":%u}",channel,i.brightness);
- else snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"on\":%s}",channel,i.command==DSR_LIGHT_ON?"true":"false");
+ memset(out,0,sizeof(*out));
+ if(i.command==DSR_LIGHT_SET_BRIGHTNESS)snprintf(out->path,sizeof(out->path),"/rpc/Light.Set?id=%u&brightness=%u",channel,i.brightness);
+ else snprintf(out->path,sizeof(out->path),"/rpc/Light.Set?id=%u&on=%s",channel,i.command==DSR_LIGHT_ON?"true":"false");
  return DSR_OK;
 }
 bool dsr_cover_intent_valid(dsr_cover_intent_t i)
@@ -80,9 +82,8 @@ dsr_result_t dsr_cover_request_build(uint8_t channel,dsr_cover_intent_t i,dsr_re
 {
  if(!out||channel>DSR_MAX_CHANNEL||!dsr_cover_intent_valid(i))return DSR_INVALID;
  memset(out,0,sizeof(*out));const char *method=i.command==DSR_COVER_OPEN?"Open":i.command==DSR_COVER_CLOSE?"Close":i.command==DSR_COVER_STOP?"Stop":"GoToPosition";
- out->post=true;snprintf(out->path,sizeof(out->path),"/rpc/Cover.%s",method);
- if(i.command==DSR_COVER_GOTO)snprintf(out->body,sizeof(out->body),"{\"id\":%u,\"pos\":%u}",channel,i.position);
- else snprintf(out->body,sizeof(out->body),"{\"id\":%u}",channel);
+ if(i.command==DSR_COVER_GOTO)snprintf(out->path,sizeof(out->path),"/rpc/Cover.%s?id=%u&pos=%u",method,channel,i.position);
+ else snprintf(out->path,sizeof(out->path),"/rpc/Cover.%s?id=%u",method,channel);
  return DSR_OK;
 }
 
@@ -121,9 +122,7 @@ dsr_result_t dsr_request_build(dsr_generation_t gen, uint8_t channel,
         if (cmd == DSR_GET_STATUS) {
             snprintf(out->path, sizeof(out->path), "/rpc/Switch.GetStatus?id=%u", (unsigned)channel);
         } else {
-            out->post = true;
-            snprintf(out->path, sizeof(out->path), "/rpc/Switch.Set");
-            snprintf(out->body, sizeof(out->body), "{\"id\":%u,\"on\":%s}",
+            snprintf(out->path, sizeof(out->path), "/rpc/Switch.Set?id=%u&on=%s",
                      (unsigned)channel, on ? "true" : "false");
         }
     } else return DSR_UNSUPPORTED;

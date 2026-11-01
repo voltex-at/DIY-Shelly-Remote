@@ -1,3 +1,13 @@
+0.7.79-dev: kandydat do próby na płytce — komendy i odczyty Shelly przez GET.
+
+- Log z 0.7.78: jedna roleta nie odpowiadała na żądania POST (także nowy odczyt `POST /rpc`, więc wyglądała na offline), a na GET odpowiadała. Te same błędy „WRITE, OFFLINE” z 0.7.76 dotyczyły tej rolety i komend POST.
+- Status i komendy przekaźnika, rolety, dimmera i RGB Gen2+ to teraz pojedyncze `GET /rpc/<Metoda>?…` bez treści, np. `Cover.GoToPosition?id=0&pos=67`, `RGB.Set?id=0&rgb=[r,g,b]`. Usunięto ramkę `POST /rpc` i sprawdzanie tożsamości przez `src`.
+- Przed każdym zapisem `/shelly`, potem odczyt statusu; STOP rolety: `/shelly` i komenda. Niepewna komenda nie jest ponawiana ani oznaczana jako sukces. Potwierdzenie `null` jest przyjmowane tylko dla komend.
+- Zwykły odczyt w tle to jeden GET statusu bez `/shelly`; pełny odczyt z tożsamością i nazwą co ok. 5 min i po każdym błędzie. Ustawienia urządzenia, konfiguracja Wi-Fi przez AP i TRV pozostają POST (hasło nigdy w adresie URL).
+- Bez zmian z 0.7.78: wspólne logowanie Digest w zadaniu (przy samych GET jedno wyzwanie 401), przyjmowanie spóźnionych odpowiedzi, modem-sleep Wi-Fi wyłączony tylko przy świecącym ekranie.
+- Kandydat DEV do odbioru właściciela: aktualizacja 0.7.78→0.7.79, odczyty i komendy rolety bez `sdk=0x7007`, w logu `leg=status`/`leg=command` bez `leg=rpc`. Testy hosta, CI, podpis i publiczne pobrania nie potwierdzają działania na płytce. [Raport](TRANSPORT_STAGE2_PL.md).
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.78-dev: kandydat do próby na płytce — transport Shelly: JSON-RPC, Digest i Wi-Fi.
 
 - Status przekaźnika, rolety, dimmera i RGB Gen2+ to jedna ramka `POST /rpc`. Pole `src` musi być równe zapisanemu ID urządzenia przed każdym zapisem; brak lub inna postać `src` wraca do dotychczasowego `/shelly`. Przekaźnik zachowuje wstępne `/shelly`, STOP rolety działa bez zmian. Niepewna komenda nie jest ponawiana ani oznaczana jako sukces.

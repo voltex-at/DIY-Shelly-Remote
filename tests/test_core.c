@@ -28,11 +28,27 @@ static void test_protocol(void)
     CHECK(strcmp(request.path, "/relay/1?turn=off") == 0);
     CHECK(dsr_request_build(DSR_GEN2_PLUS, 3, DSR_GET_STATUS, false, &request) == DSR_OK);
     CHECK(strcmp(request.path, "/rpc/Switch.GetStatus?id=3") == 0 && !request.post);
+    /* Gen2+ commands are body-less GETs: a POST body is a second TCP write that
+     * an owner Shelly left unanswered while it answered GET. */
     CHECK(dsr_request_build(DSR_GEN2_PLUS, 3, DSR_SET_OUTPUT, true, &request) == DSR_OK);
-    CHECK(request.post && strcmp(request.path, "/rpc/Switch.Set") == 0);
-    CHECK(strcmp(request.body, "{\"id\":3,\"on\":true}") == 0);
+    CHECK(!request.post && strcmp(request.path, "/rpc/Switch.Set?id=3&on=true") == 0 && !request.body[0]);
     CHECK(dsr_request_build(DSR_GEN2_PLUS, 0, DSR_SET_OUTPUT, false, &request) == DSR_OK);
-    CHECK(strcmp(request.body, "{\"id\":0,\"on\":false}") == 0);
+    CHECK(!request.post && strcmp(request.path, "/rpc/Switch.Set?id=0&on=false") == 0 && !request.body[0]);
+    const struct {dsr_cover_intent_t intent;const char *path;} covers[]={
+        {{.command=DSR_COVER_OPEN},"/rpc/Cover.Open?id=1"},{{.command=DSR_COVER_CLOSE},"/rpc/Cover.Close?id=1"},
+        {{.command=DSR_COVER_STOP},"/rpc/Cover.Stop?id=1"},{{.command=DSR_COVER_GOTO,.position=100},"/rpc/Cover.GoToPosition?id=1&pos=100"}};
+    for (unsigned i = 0; i < sizeof(covers) / sizeof(covers[0]); i++) {
+        CHECK(dsr_cover_request_build(1, covers[i].intent, &request) == DSR_OK);
+        CHECK(!request.post && strcmp(request.path, covers[i].path) == 0 && !request.body[0]);
+    }
+    CHECK(dsr_light_request_build(2, (dsr_light_intent_t){.command=DSR_LIGHT_ON}, &request) == DSR_OK);
+    CHECK(!request.post && strcmp(request.path, "/rpc/Light.Set?id=2&on=true") == 0 && !request.body[0]);
+    CHECK(dsr_light_request_build(2, (dsr_light_intent_t){.command=DSR_LIGHT_SET_BRIGHTNESS,.brightness=55}, &request) == DSR_OK);
+    CHECK(!request.post && strcmp(request.path, "/rpc/Light.Set?id=2&brightness=55") == 0);
+    CHECK(dsr_rgb_request_build(0, (dsr_rgb_intent_t){.command=DSR_RGB_SET_COLOR,.rgb={255,128,0}}, &request) == DSR_OK);
+    CHECK(!request.post && strcmp(request.path, "/rpc/RGB.Set?id=0&rgb=[255,128,0]") == 0 && !request.body[0]);
+    CHECK(dsr_rgb_request_build(0, (dsr_rgb_intent_t){.command=DSR_RGB_OFF}, &request) == DSR_OK);
+    CHECK(!request.post && strcmp(request.path, "/rpc/RGB.Set?id=0&on=false") == 0);
     CHECK(dsr_request_build(99, 0, DSR_GET_STATUS, false, &request) == DSR_UNSUPPORTED);
     CHECK(dsr_request_build(DSR_GEN1, 16, DSR_GET_STATUS, false, &request) == DSR_INVALID);
     CHECK(dsr_request_build(DSR_GEN1, 0, 99, false, &request) == DSR_INVALID);

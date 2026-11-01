@@ -67,6 +67,9 @@ static esp_err_t on_http_event(esp_http_client_event_t *event)
  * IDF stores the challenged request's method with the nonce. It is therefore
  * offered only to a request with that method; any other request starts
  * without credentials and takes a fresh challenge. A non-200 leg drops it.
+ * Relay/cover/dimmer/RGB status and commands are all GET, so one challenge
+ * serves the whole call. IDF sends a POST body as a second TCP write; an owner
+ * Shelly answered GET but left such POSTs unanswered (logs 0.7.76-0.7.78).
  * Stack-local per call: the LAN task never shares the worker's client. */
 typedef struct {esp_http_client_handle_t client;char host[16];int nonce_method;} http_session_t;
 #define HTTP_SESSION {NULL,"",-1}
@@ -138,7 +141,7 @@ static dsr_result_t fetch_json_payload(http_session_t *session,const dsr_connect
     else if (status != 200) result = DSR_BAD_RESPONSE;
     else {
         *out = dsr_config_json_depth(response.text)?cJSON_ParseWithLengthOpts(response.text, response.used + 1, NULL, true):NULL;
-        bool null_ack=request->post&&(!strncmp(request->path,"/rpc/Cover.",11)||!strcmp(request->path,"/rpc/Light.Set")||!strcmp(request->path,"/rpc/RGB.Set")||!strcmp(request->path,"/rpc/BluTrv.Call"))&&cJSON_IsNull(*out);
+        bool null_ack=control_write&&(!strncmp(request->path,"/rpc/Cover.",11)||!strncmp(request->path,"/rpc/Light.Set?",15)||!strncmp(request->path,"/rpc/RGB.Set?",13)||!strcmp(request->path,"/rpc/BluTrv.Call"))&&cJSON_IsNull(*out);
         result = (cJSON_IsObject(*out)||null_ack)&&!strstr(response.text,"\\u0000") ? DSR_OK : DSR_BAD_RESPONSE;
         if (result != DSR_OK) { cJSON_Delete(*out); *out = NULL; }
         if (*out && cJSON_GetObjectItemCaseSensitive(*out, "error")) {
@@ -533,32 +536,6 @@ static dsr_result_t parse_status(dsr_connection_t *connection,const cJSON *root,
     }
     return DSR_OK;
 }
-/* One JSON-RPC POST /rpc reads telemetry and proves the endpoint: the response
- * frame's src is the responding device id, which must equal the saved id.
- * *proven is false only for a well-formed answer without that id; the caller
- * then asks /shelly as before. Never used for Gen1, BLU or H&T. */
-static dsr_result_t rpc_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected,bool *proven)
-{
-    *proven=true;
-    dsr_device_t *device=&c->device;
-    device->online=false;device->has_power=false;memset(&c->telemetry,0,sizeof(c->telemetry));
-    const char *component=device->endpoint_kind==DSR_ENDPOINT_COVER?"Cover":device->endpoint_kind==DSR_ENDPOINT_LIGHT?"Light":device->endpoint_kind==DSR_ENDPOINT_RGB?"RGB":"Switch";
-    dsr_request_t request={.post=true,.path="/rpc"};
-    int length=snprintf(request.body,sizeof(request.body),"{\"id\":1,\"method\":\"%s.GetStatus\",\"params\":{\"id\":%u}}",component,(unsigned)device->channel);
-    if(length<0||(size_t)length>=sizeof(request.body))return DSR_INVALID;
-    cJSON *frame=NULL;dsr_result_t result=fetch_json(s,c,&request,false,&frame);
-    if(result!=DSR_OK)return result;
-    const cJSON *id=cJSON_GetObjectItemCaseSensitive(frame,"id"),*src=cJSON_GetObjectItemCaseSensitive(frame,"src"),*body=cJSON_GetObjectItemCaseSensitive(frame,"result");
-    if(!light_unique(frame)||!cJSON_IsNumber(id)||id->valuedouble!=1||!cJSON_IsObject(body))result=DSR_BAD_RESPONSE;
-    else if(!cJSON_IsString(src)||strcmp(src->valuestring,device->device_id)){*proven=false;result=DSR_IDENTITY_MISMATCH;}
-    else result=parse_status(c,body,expected);
-    cJSON_Delete(frame);
-#ifdef ESP_PLATFORM
-    if(!*proven)ESP_LOGW("dsr_http","rpc status kind=%u: response src unproven, verifying with /shelly",(unsigned)device->endpoint_kind);
-#endif
-    return result;
-}
-
 static dsr_result_t status(http_session_t *s,dsr_connection_t *c){return status_expected(s,c,NULL);}
 /* Only after a valid write ACK: recover one lost read, never repeat a write.
  * Authentication, rate limits, malformed data and cancellation stay terminal. */
@@ -639,29 +616,14 @@ static dsr_result_t verify_info(http_session_t *s,dsr_connection_t *connection, 
     return DSR_OK;
 }
 static dsr_result_t verify(http_session_t *s,dsr_connection_t *connection){return verify_info(s,connection, NULL);}
-/* Proven identity plus current status before a write or a telemetry-only
- * read: one JSON-RPC frame, else /shelly then GET. A command treats an urgent
- * STOP between the fallback legs as BUSY, as the separate legs always did. */
-static dsr_result_t verified_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected,bool command)
+/* Before a write: /shelly proves the endpoint, then a GET reads its status.
+ * An urgent STOP between the two legs makes the command BUSY. */
+static dsr_result_t verified_status(http_session_t *s,dsr_connection_t *c)
 {
-    if(!dsr_connection_valid(c,true))return DSR_INVALID;
-    dsr_result_t result;
-    if(dsr_http_rpc_status_endpoint(&c->device)){
-        result=allowed();if(result!=DSR_OK)return result;
-        bool proven;result=rpc_status(s,c,expected,&proven);
-        if(proven)return result;
-    }
-    result=verify(s,c);if(result!=DSR_OK)return result;
-    if(command){if(urgent())return DSR_BUSY;}else (void)urgent();
+    dsr_result_t result=verify(s,c);if(result!=DSR_OK)return result;
+    if(urgent())return DSR_BUSY;
     result=allowed();if(result!=DSR_OK)return result;
-    return status_expected(s,c,expected);
-}
-/* Post-write observation; the frame's src re-proves the endpoint. A frame
- * without the saved id falls back to the plain GET, as before this path. */
-static dsr_result_t readback_status(http_session_t *s,dsr_connection_t *c,const dsr_rgb_intent_t *expected)
-{
-    if(dsr_http_rpc_status_endpoint(&c->device)){bool proven;dsr_result_t result=rpc_status(s,c,expected,&proven);if(proven)return result;}
-    return status_expected(s,c,expected);
+    return status(s,c);
 }
 
 static dsr_result_t refresh_in(http_session_t *s,dsr_connection_t *connection, dsr_device_info_t *info)
@@ -677,10 +639,19 @@ static dsr_result_t refresh_in(http_session_t *s,dsr_connection_t *connection, d
 /* Ordinary refresh: verified /shelly metadata, status and advisory name. */
 dsr_result_t dsr_http_refresh_info(dsr_connection_t *connection, dsr_device_info_t *info)
 {http_session_t s=HTTP_SESSION;dsr_result_t result=refresh_in(&s,connection,info);session_end(&s);return result;}
+/* Telemetry only: one GET <Component>.GetStatus of an endpoint whose identity
+ * the fleet's full read proved (first poll, every DSR_FLEET_META_POLLS and
+ * after any failure). No /shelly leg here; every write still verifies first. */
+static dsr_result_t telemetry_in(http_session_t *s,dsr_connection_t *c)
+{
+    if(!dsr_connection_valid(c,true))return DSR_INVALID;
+    dsr_result_t result=allowed();if(result!=DSR_OK)return result;
+    return status(s,c);
+}
 dsr_result_t dsr_http_refresh(dsr_connection_t *connection)
 {
     http_session_t s=HTTP_SESSION;
-    dsr_result_t result=connection&&dsr_http_rpc_status_endpoint(&connection->device)?verified_status(&s,connection,NULL,false):refresh_in(&s,connection,NULL);
+    dsr_result_t result=connection&&dsr_http_rpc_status_endpoint(&connection->device)?telemetry_in(&s,connection):refresh_in(&s,connection,NULL);
     session_end(&s);return result;
 }
 
@@ -703,7 +674,7 @@ static dsr_result_t set_output_in(http_session_t *session,dsr_connection_t *conn
     if(urgent())return DSR_BAD_RESPONSE;
     result=allowed();if(result!=DSR_OK)return result;
     /* Never display an optimistic position; don't replay after a timeout. */
-    command_progress(DSR_COMMAND_READBACK);result = readback_status(session,connection,NULL);
+    command_progress(DSR_COMMAND_READBACK);result = status(session,connection);
     if (result == DSR_OK && connection->device.output != on) {
         connection->device.online = false;
         return DSR_BAD_RESPONSE;
@@ -721,7 +692,7 @@ static dsr_result_t cover_in(http_session_t *session,dsr_connection_t *c,dsr_cov
  /* STOP verifies identity/auth at its own POST; it may stop calibration or
   * unknown position. Every other move requires a fresh typed status. */
  if(intent.command==DSR_COVER_STOP){result=verify(session,c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;}
- else {result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
+ else {result=verified_status(session,c);if(result!=DSR_OK)return result;if(urgent())return DSR_BUSY;if(!dsr_cover_can_move(&c->telemetry.cover,intent))return DSR_UNSUPPORTED;}
  result=allowed();if(result!=DSR_OK)return result;
  dsr_request_t request;result=dsr_cover_request_build(c->device.channel,intent,&request);if(result!=DSR_OK)return result;
  cJSON *ack=NULL;result=fetch_command(session,c,&request,&ack);
@@ -809,7 +780,7 @@ dsr_result_t dsr_http_trv_read(dsr_connection_t *c)
 static dsr_result_t light_in(http_session_t *session,dsr_connection_t *c,dsr_light_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_LIGHT||c->device.generation!=DSR_GEN2_PLUS||!dsr_light_intent_valid(intent))return DSR_INVALID;
- dsr_result_t result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;
+ dsr_result_t result=verified_status(session,c);if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
  if(!dsr_light_can_set(&c->telemetry.light,intent))return DSR_UNSUPPORTED;
  result=allowed();if(result!=DSR_OK)return result;
@@ -821,7 +792,7 @@ static dsr_result_t light_in(http_session_t *session,dsr_connection_t *c,dsr_lig
  if(result!=DSR_OK)return result; /* No replay after an uncertain write. */
  command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- command_progress(DSR_COMMAND_READBACK);result=readback_status(session,c,NULL);if(result!=DSR_OK)return result;
+ command_progress(DSR_COMMAND_READBACK);result=status(session,c);if(result!=DSR_OK)return result;
  const dsr_light_status_t *s=&c->telemetry.light;
  /* During a transition the current output may still match the previous
   * state. The target decides whether this particular intent was confirmed. */
@@ -839,7 +810,7 @@ dsr_result_t dsr_http_light(dsr_connection_t *c,dsr_light_intent_t intent)
 static dsr_result_t rgb_in(http_session_t *session,dsr_connection_t *c,dsr_rgb_intent_t intent)
 {
  if(!c||c->device.endpoint_kind!=DSR_ENDPOINT_RGB||c->device.generation!=DSR_GEN2_PLUS||c->device.channel!=0||!dsr_rgb_intent_valid(intent))return DSR_INVALID;
- dsr_result_t result=verified_status(session,c,NULL,true);if(result!=DSR_OK)return result;
+ dsr_result_t result=verified_status(session,c);if(result!=DSR_OK)return result;
  if(urgent())return DSR_BUSY;
  if(!dsr_rgb_can_set(&c->telemetry.rgb,intent))return DSR_UNSUPPORTED;
  result=allowed();if(result!=DSR_OK)return result;
@@ -851,7 +822,7 @@ static dsr_result_t rgb_in(http_session_t *session,dsr_connection_t *c,dsr_rgb_i
  if(result!=DSR_OK)return result; /* Never replay an uncertain SET. */
  command_progress(DSR_COMMAND_ACK);
  result=allowed();if(result!=DSR_OK)return result;
- command_progress(DSR_COMMAND_READBACK);result=readback_status(session,c,&intent);
+ command_progress(DSR_COMMAND_READBACK);result=status_expected(session,c,&intent);
  if(result==DSR_OK)command_progress(DSR_COMMAND_CONFIRMED);
  return result;
 }
