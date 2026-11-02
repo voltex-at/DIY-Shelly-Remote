@@ -16,6 +16,10 @@ Published tags and OTA release assets are retained.
 - The host LVGL commit is `c033a98afddd65aaafeebea625382a94020fe4a7`.
 - Three skins: Cyber Blue (`cyber_blue`, 3), Grafit (`graphite`, 0), Jasny (`light`, 2).
   Midnight/1 is migration compatibility, not a selectable fourth skin.
+  Grafit and Jasny follow classic iOS dark/light (`ios_color()` in
+  `dsr_ui_style.c`): system fills, no neutral outlines or halos, a nested fill
+  steps one level (`ios_nested()`), segmented tabs, flat tab bar. Cyber Blue
+  keeps its HUD; device state on cards is gold.
 
 Check Git status, branch and component manifests before editing. Preserve
 uncommitted work, device data, the OTA trust key and partition compatibility.

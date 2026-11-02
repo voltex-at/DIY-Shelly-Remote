@@ -31,9 +31,13 @@ static void lighting_light_tabs(lv_obj_t *root)
  const dsr_mobile_device_t *d=lighting_device();bool rgb=d->endpoint_kind==DSR_ENDPOINT_RGB;
  const char *names[]={"Sterowanie",rgb?"Sceny":"Zużycie","Ustawienia"};const uintptr_t targets[]={15,rgb?19:16,14};
  const bool enabled[]={true,!cover_preview&&!model.demo&&(rgb?actions.open_actions!=NULL:page!=DSR_MOBILE_GROUP_CONTROL&&actions.open_usage!=NULL),!cover_preview&&!model.demo&&(page==DSR_MOBILE_GROUP_CONTROL?actions.edit_action!=NULL:d->id!=0)};
+ /* iOS: the same segmented control as the other tab rows. */
+ bool ios=dsr_sc_ios(),light=dsr_sc_style()==DSR_SC_STYLE_LIGHT;
+ if(ios)dsr_sc_panel(root,12,44,296,42,light?0xe3e3e8:0x2c2c2e,10);
  for(unsigned i=0;i<3;i++){
   bool chosen=i==0,back=chosen&&rgb_color_view;
-  lv_obj_t *b=dsr_sc_button(root,12+(int)i*100,46,96,38,chosen?DSR_SC_BLUE:DSR_SC_PANEL,8,(chosen&&!back)||!enabled[i]?NULL:navigate,(void *)targets[i]);
+  lv_obj_t *b=dsr_sc_button(root,12+(int)i*100,46,96,38,chosen?(ios?(light?0xffffff:0x636366):DSR_SC_BLUE):DSR_SC_PANEL,8,(chosen&&!back)||!enabled[i]?NULL:navigate,(void *)targets[i]);
+  if(ios&&!chosen){lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);lv_obj_set_style_bg_opa(b,LV_OPA_COVER,LV_STATE_PRESSED);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,LV_STATE_DISABLED);}
   if(chosen&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(b,true);
   const lv_font_t *font=&dsr_roboto_14;lv_point_t size;lv_text_get_size(&size,dsr_sc_tr(names[i]),dsr_sc_font(font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(size.x>86)font=&dsr_roboto_12;
   lv_obj_t *label=dsr_sc_text(b,names[i],2,0,88,font,chosen?DSR_SC_TEXT:DSR_SC_MUTED);center(label);lv_obj_align(label,LV_ALIGN_CENTER,0,0);

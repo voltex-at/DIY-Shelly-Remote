@@ -69,6 +69,8 @@ enum {DSR_SC_STYLE_GRAPHITE=0,DSR_SC_STYLE_LIGHT=2,DSR_SC_STYLE_CYBER_BLUE=3};
 unsigned dsr_sc_style_from_name(const char *name);
 void dsr_sc_appearance(uint32_t accent,unsigned style,unsigned language);
 unsigned dsr_sc_style(void);
+/* Grafitowy and Jasny follow classic iOS: fills instead of outlines, no halos. */
+bool dsr_sc_ios(void);
 const char *dsr_sc_user(const char *text);
 const char *dsr_sc_name(const char *name);
 const char *dsr_sc_tr(const char *text);

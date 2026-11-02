@@ -217,7 +217,7 @@ int main(int argc,char **argv)
  lv_obj_clean(dsr_ui_screen("Memory checkpoint",false));lv_refr_now(display);
  lv_mem_monitor(&b);fprintf(stderr,"skin cycle memory: %lu -> %lu, largest %lu; used blocks %u -> %u\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size,(unsigned)a.used_cnt,(unsigned)b.used_cnt);CHECK(b.free_size+32>=a.free_size);CHECK(b.used_cnt==a.used_cnt);CHECK(b.free_biggest_size>32000);
  printf("Cyber Blue LVGL heap after warmup: %lu -> %lu bytes free; largest %lu; 60 saved skin switches, stable block count/<=32 B allocator slack; 128 KiB pool\n",(unsigned long)a.free_size,(unsigned long)b.free_size,(unsigned long)b.free_biggest_size);
- select_skin(0);CHECK(dsr_ui_brand_background()==background&&rgb(dsr_sc_color(DSR_SC_BG))==DSR_SC_BG);
+ select_skin(0);CHECK(dsr_ui_brand_background()==background&&rgb(dsr_sc_color(DSR_SC_BG))==0x000000); /* iOS dark */
  CHECK(!job_counts[DSR_JOB_SET_OUTPUT]&&!job_counts[DSR_JOB_COVER]&&!restart_requests);
  printf("PASS: %u Cyber Blue checks; %u real LVGL 320x480 frames; selection/save/cancel/reload, three skins, dialogs/keyboard/dropdown, pointer callback; storage/radio MODEL\n",checks,screenshots);
  lv_deinit();return 0;

@@ -25,6 +25,13 @@ void dsr_sc_border_color(lv_obj_t *o,lv_color_t color,lv_style_selector_t select
  /* Preserve only intentional semantic warning/error contours. */
  bool semantic=c==0xffc107||c==0xffc65b||c==0xffbf24||c==0xf0a020||c==0xffb52e||c==0xe1bb70||c==DSR_CYBER_DANGER;
  lv_color_t target=style==DSR_SC_STYLE_CYBER_BLUE&&!semantic?lv_color_hex(DSR_CYBER_CYAN):color;
+ /* iOS separates surfaces by fill, not outlines: neutral gray contours are
+  * hidden, accent selection and semantic warning contours stay visible. */
+ if(style!=DSR_SC_STYLE_CYBER_BLUE){
+  uint32_t t=lv_color_to_u32(target)&0xffffff;int r=(int)(t>>16),g=(int)((t>>8)&255),b=(int)(t&255);
+  int hi=r>g?(r>b?r:b):(g>b?g:b),lo=r<g?(r<b?r:b):(g<b?g:b);
+  lv_obj_set_style_border_opa(o,hi-lo<24?LV_OPA_TRANSP:LV_OPA_COVER,selector);
+ }
  if(selector==0&&lv_color_eq(lv_obj_get_style_border_color(o,0),target))return;
  lv_obj_set_style_border_color(o,target,selector);
 }
@@ -34,7 +41,8 @@ extern const lv_font_t dsr_roboto_medium_12,dsr_roboto_medium_14;
 extern const lv_font_t dsr_roboto_bold_18,dsr_roboto_bold_22,dsr_roboto_bold_28;
 const lv_font_t *dsr_sc_font(const lv_font_t *font)
 {
- if(style!=DSR_SC_STYLE_CYBER_BLUE)return font;
+ /* iOS: semibold-like titles, regular body text. */
+ if(style!=DSR_SC_STYLE_CYBER_BLUE)return font==&dsr_roboto_18?&dsr_roboto_bold_18:font==&dsr_roboto_22?&dsr_roboto_bold_22:font==&dsr_roboto_28?&dsr_roboto_bold_28:font;
  if(font==&dsr_roboto_12)return &dsr_roboto_medium_12;
  if(font==&dsr_roboto_14)return &dsr_roboto_medium_14;
  if(font==&dsr_roboto_18)return &dsr_roboto_bold_18;
@@ -45,24 +53,36 @@ const lv_font_t *dsr_sc_font(const lv_font_t *font)
 void dsr_sc_appearance(uint32_t color,unsigned theme,unsigned locale){accent=color;style=theme==DSR_SC_STYLE_LIGHT||theme==DSR_SC_STYLE_CYBER_BLUE?theme:DSR_SC_STYLE_GRAPHITE;language=locale<3?locale:1;}
 unsigned dsr_sc_style_from_name(const char *name)
 {return !name?DSR_SC_STYLE_GRAPHITE:!strcmp(name,"light")?DSR_SC_STYLE_LIGHT:!strcmp(name,"cyber_blue")?DSR_SC_STYLE_CYBER_BLUE:DSR_SC_STYLE_GRAPHITE;}
-/* "Jasny": every neutral token of the dark design maps to a light twin.
+/* Grafitowy and Jasny follow classic iOS (owner, 2026-11-01): every neutral
+ * token of the legacy dark design maps to an iOS system color, dark | light.
  * Data colors (accent, RGB swatches, warnings) pass through unchanged. */
-static uint32_t light(uint32_t c)
+static bool ios(void){return style!=DSR_SC_STYLE_CYBER_BLUE;}
+bool dsr_sc_ios(void){return ios();}
+static uint32_t ios_color(uint32_t c)
 {
- static const uint32_t map[][2]={
-  {DSR_SC_BG,0xeef2f6},{DSR_SC_PANEL,0xffffff},{DSR_SC_CARD,0xe3e8ed},{DSR_SC_EDGE,0xc3cbd3},
-  {DSR_SC_TEXT,0x14202b},{DSR_SC_MUTED,0x4f5d6b},{DSR_SC_NAV,0xffffff},{DSR_SC_OFF,0x7d8892},
-  {0xf0f4fb,0x14202b},{0x98aac0,0x7a8796},{0x45494d,0xffffff},{0x555b60,0xc9d0d7},{0x3c4246,0xdfe5eb},
-  {0x1a2733,0xe2e8ee},{0x344f71,0xc6daf2},{0x30373d,0xdde2e7},{0x232b33,0xf5f7f9},{0x9db5d1,0x47617c},
-  {0xa8bbd3,0x4d6782},{0x76e2b6,0x17855a},{0x72dfb0,0x17855a},{0xffb466,0xa95c0b},{0x5c492a,0xf3e2c0},
-  {0xffd68a,0x7a4d00},{0x41474b,0xffffff},{0x292d30,0xe6ebf0},
-  {0x252a2e,0xffffff},{0x244357,0xd6e6f8},{0x29343b,0xe3e8ed},{0x303943,0xdfe5eb},{0x25292b,0xffffff},
-  {0x262a2d,0xeef1f4},{0x414548,0xffffff},{0x60646b,0xc8cfd6},{0xe8ecef,0xdfe5eb},{0x818991,0x6b7682},
-  {0xe8edf2,0x14202b},{0xffc18c,0xa4500f},{0xe1bb70,0x8a6200},{0xffc077,0xa4500f},
+ static const uint32_t map[][3]={
+  /* background, grouped cards, separators, labels, tab bar, gray */
+  {DSR_SC_BG,0x000000,0xf2f2f7},{DSR_SC_PANEL,0x1c1c1e,0xffffff},{DSR_SC_CARD,0x1c1c1e,0xffffff},{DSR_SC_EDGE,0x38383a,0xc6c6c8},
+  {DSR_SC_TEXT,0xffffff,0x000000},{DSR_SC_MUTED,0x98989f,0x6c6c70},{DSR_SC_NAV,0x161618,0xf9f9f9},{DSR_SC_OFF,0x8e8e93,0x8e8e93},
+  {0xf0f4fb,0xffffff,0x000000},{0x98aac0,0x98989f,0x6c6c70},{0x45494d,0x2c2c2e,0xffffff},{0x555b60,0x38383a,0xc6c6c8},{0x3c4246,0x2c2c2e,0xefeff4},
+  {0x1a2733,0x1c1c1e,0xffffff},{0x344f71,0x3a3a3c,0xd1d1d6},{0x30373d,0x2c2c2e,0xe5e5ea},{0x232b33,0x161618,0xf9f9f9},{0x9db5d1,0x98989f,0x6c6c70},
+  {0xa8bbd3,0x98989f,0x6c6c70},{0x76e2b6,0x30d158,0x248a3d},{0x72dfb0,0x30d158,0x248a3d},{0xffb466,0xff9f0a,0xc93400},{0x5c492a,0x2e2410,0xfff4e0},
+  {0xffd68a,0xffd60a,0x8a6100},{0x41474b,0x2c2c2e,0xffffff},{0x292d30,0x2c2c2e,0xefeff4},
+  {0x252a2e,0x1c1c1e,0xffffff},{0x244357,0x16304a,0xe5f1ff},{0x29343b,0x2c2c2e,0xefeff4},{0x303943,0x2c2c2e,0xefeff4},{0x25292b,0x1c1c1e,0xffffff},
+  {0x262a2d,0x1c1c1e,0xffffff},{0x414548,0x2c2c2e,0xffffff},{0x60646b,0x38383a,0xc6c6c8},{0xe8ecef,0xe5e5ea,0xe5e5ea},{0x818991,0x8e8e93,0x6c6c70},
+  {0xe8edf2,0xffffff,0x000000},{0xffc18c,0xff9f0a,0xc93400},{0xe1bb70,0xffd60a,0x8a6100},{0xffc077,0xff9f0a,0xc93400},
   /* Shelly-style rows, rings and pills (0.7.49) */
-  {0x2b2f33,0xffffff},{0x23272a,0xe6ebf0},{0x3a3f44,0xc3cbd3},{0x17191c,0xe3e8ed},{0x1d2124,0xe6ebf0},{0x3d4246,0xc9d0d7},
-  {0xeceff1,0xf3f5f7},{0x5a6066,0xc9d0d7},{0x8a9096,0x6b7682},{0x1d3f73,0xd6e6f8},{0xf0a020,0x9a5a00}};
- for(size_t i=0;i<sizeof(map)/sizeof(map[0]);i++)if(map[i][0]==c)return map[i][1];
+  {0x2b2f33,0x1c1c1e,0xffffff},{0x23272a,0x2c2c2e,0xefeff4},{0x3a3f44,0x38383a,0xc6c6c8},{0x17191c,0x2c2c2e,0xefeff4},{0x1d2124,0x2c2c2e,0xefeff4},{0x3d4246,0x48484a,0xc7c7cc},
+  {0xeceff1,0xf2f2f7,0xffffff},{0x5a6066,0x3a3a3c,0xd1d1d6},{0x8a9096,0x8e8e93,0x8e8e93},{0x1d3f73,0x16304a,0xe5f1ff},{0xf0a020,0xff9f0a,0xb25f00}};
+ for(size_t i=0;i<sizeof(map)/sizeof(map[0]);i++)if(map[i][0]==c)return map[i][style==DSR_SC_STYLE_LIGHT?2:1];
+ return c;
+}
+/* An iOS fill placed on a parent of the same fill steps one level, as iOS
+ * nests tertiary fills inside grouped cards: no outline is needed. */
+static uint32_t ios_nested(uint32_t c)
+{
+ static const uint32_t steps[]={0x1c1c1e,0x2c2c2e,0x3a3a3c,0x48484a,0xffffff,0xefeff4,0xe5e5ea,0xd1d1d6};
+ for(unsigned i=0;i<8;i++)if(steps[i]==c&&i%4<3)return steps[i+1];
  return c;
 }
 /* Accent used AS TEXT on a light surface is darkened to stay readable;
@@ -70,7 +90,7 @@ static uint32_t light(uint32_t c)
 lv_color_t dsr_sc_text_color(uint32_t c)
 {
  if(style==DSR_SC_STYLE_CYBER_BLUE&&c==DSR_SC_BLUE)return lv_color_hex(DSR_CYBER_CYAN);
- if(style==DSR_SC_STYLE_LIGHT&&c==DSR_SC_BLUE){
+ if(style==DSR_SC_STYLE_LIGHT&&(c==DSR_SC_BLUE||c==DSR_SC_GLOW)){
   const uint32_t r=(accent>>16)&0xff,g=(accent>>8)&0xff,b=accent&0xff;
   return lv_color_make((uint8_t)(r*3/5),(uint8_t)(g*3/5),(uint8_t)(b*3/5));
  }
@@ -79,9 +99,9 @@ lv_color_t dsr_sc_text_color(uint32_t c)
 lv_color_t dsr_sc_color(uint32_t c)
 {
  if(style==DSR_SC_STYLE_CYBER_BLUE)return lv_color_hex(dsr_ui_cyber_color(c));
- if(c==DSR_SC_BLUE)return lv_color_hex(accent);
- if(style==DSR_SC_STYLE_LIGHT)c=light(c);
- return lv_color_hex(c);
+ /* iOS has one tint: the former blue halo color is the accent. */
+ if(c==DSR_SC_BLUE||c==DSR_SC_GLOW)return lv_color_hex(accent);
+ return lv_color_hex(ios_color(c));
 }
 /* User content (names of rooms, devices, scenes, dashboards) is shown as typed:
  * the next dsr_sc_tr of exactly this pointer returns it untranslated. */
@@ -530,13 +550,14 @@ void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...)
  char text[512];va_list args;va_start(args,format);vsnprintf(text,sizeof(text),dsr_sc_tr(format),args);va_end(args);lv_label_set_text(label,text);
 }
 
-/* Screen root: solid fallback color plus the owner's background artwork. */
+/* Screen root: Cyber Blue keeps the owner's tinted artwork; the iOS skins use
+ * the plain system background. */
 void dsr_sc_background(lv_obj_t *root)
 {
     dsr_ui_cyber_background(root,style==DSR_SC_STYLE_CYBER_BLUE);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
 #ifndef DSR_UI_REVIEW_DEMO
-    lv_obj_set_style_bg_image_src(root,dsr_ui_brand_background(),0);
+    lv_obj_set_style_bg_image_src(root,ios()?NULL:dsr_ui_brand_background(),0);
 #endif
 }
 /* Shared styles (0.7.50): a panel used to carry 13 local style properties and
@@ -578,10 +599,14 @@ lv_obj_t *dsr_sc_panel(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int ra
 {
     lv_obj_t *o=lv_obj_create(p);lv_obj_remove_style_all(o);
     lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,h);lv_obj_remove_flag(o,LV_OBJ_FLAG_SCROLLABLE|LV_OBJ_FLAG_CLICKABLE);
+    uint32_t fill=hex(dsr_sc_color(color));
+    if(ios()&&color!=DSR_SC_BG&&p&&lv_obj_get_style_bg_opa(p,0)>=LV_OPA_50&&hex(lv_obj_get_style_bg_color(p,0))==fill)fill=ios_nested(fill);
+    /* A thin blue title rule becomes an iOS hairline separator. */
+    if(ios()&&color==DSR_SC_BLUE&&h<=2&&w>=100)fill=hex(dsr_sc_color(DSR_SC_EDGE));
     /* remove_style_all leaves padding at its default 0. */
-    lv_style_t *s=radius>=0&&radius<=0xffff?shared(SHARED_PANEL,hex(dsr_sc_color(color)),(uintptr_t)radius|((uintptr_t)hex(dsr_sc_color(DSR_SC_TEXT))<<16)):NULL;
+    lv_style_t *s=radius>=0&&radius<=0xffff?shared(SHARED_PANEL,fill,(uintptr_t)radius|((uintptr_t)hex(dsr_sc_color(DSR_SC_TEXT))<<16)):NULL;
     if(s)lv_obj_add_style(o,s,0);
-    else{lv_obj_set_style_bg_color(o,dsr_sc_color(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
+    else{lv_obj_set_style_bg_color(o,lv_color_hex(fill),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);
      lv_obj_set_style_radius(o,radius,0);lv_obj_set_style_text_color(o,dsr_sc_color(DSR_SC_TEXT),0);}
     if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&radius<LV_RADIUS_CIRCLE&&h>=20&&!(w==h&&radius>=w/2))dsr_ui_cyber_panel(o,color==DSR_SC_BLUE);
     else if(style==DSR_SC_STYLE_CYBER_BLUE&&radius>=6)dsr_ui_cyber_contour(o);
@@ -607,9 +632,7 @@ lv_obj_t *dsr_sc_button(lv_obj_t *p,int x,int y,int w,int h,uint32_t color,int r
     else if(pressed)lv_obj_add_style(o,pressed,LV_STATE_PRESSED);else lv_obj_set_style_bg_color(o,dsr_sc_color(0x344f71),LV_STATE_PRESSED);
     if(disabled)lv_obj_add_style(o,disabled,LV_STATE_DISABLED);
     else{lv_obj_set_style_bg_color(o,dsr_sc_color(0x30373d),LV_STATE_DISABLED);lv_obj_set_style_opa(o,LV_OPA_COVER,LV_STATE_DISABLED);}
-    /* Consistent outlines distinguish controls from the background in all themes. */
-    if(style!=DSR_SC_STYLE_CYBER_BLUE&&radius>=6&&color!=DSR_SC_BLUE){lv_style_t *e=shared(SHARED_OUTLINE,hex(dsr_sc_color(DSR_SC_EDGE)),0);
-     if(e)lv_obj_add_style(o,e,0);else{dsr_sc_border_width(o,1,0);dsr_sc_border_color(o,dsr_sc_color(DSR_SC_EDGE),0);}}
+    /* iOS controls are distinguished by fill (see ios_nested), not outlines. */
     if(cb){
      /* Compact +/- and group controls keep their layout but have a minimum
       * 44 px touch target, including the space immediately around them. */
@@ -762,7 +785,7 @@ void dsr_sc_header(lv_obj_t *root,const char *title,bool demo,bool wifi,lv_event
 {
  if(back){
   header_callback=back;lv_obj_t *b=dsr_sc_button(root,12,0,44,DSR_SC_STATUS_H,DSR_SC_BG,8,back,context);lv_obj_set_user_data(b,(void *)&back_tag);
-  lv_obj_t *icon=dsr_sc_icon_centered(b,DSR_ICON_BACK,26,dsr_sc_icon_accent());
+  lv_obj_t *icon=dsr_sc_icon_centered(b,DSR_ICON_BACK,26,ios()?DSR_SC_BLUE:dsr_sc_icon_accent());
   if(style==DSR_SC_STYLE_CYBER_BLUE){dsr_ui_cyber_header_back(b);lv_obj_remove_event_cb(icon,icon_draw);lv_obj_add_event_cb(icon,header_back_icon,LV_EVENT_DRAW_MAIN,NULL);}
  }
  lv_obj_t *name=dsr_sc_text(root,title,back?56:12,14,back?192:232,&dsr_roboto_14,DSR_SC_TEXT);lv_obj_set_height(name,24);lv_label_set_long_mode(name,LV_LABEL_LONG_MODE_CLIP);
@@ -801,12 +824,13 @@ void dsr_sc_navigation(lv_obj_t *root,unsigned current,unsigned enabled,lv_event
  lv_obj_t *bar=dsr_sc_panel(root,0,DSR_SC_NAV_TOP,320,52,DSR_SC_NAV,0);
  if(style==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_navigation(bar,current);
  dsr_sc_panel(bar,0,0,320,1,0x60646b,0);
- lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);
- if(current<5)dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
+ /* iOS tab bar: flat, hairline on top, the current item tinted, no marker. */
+ if(!ios()){lv_obj_set_style_bg_grad_color(bar,dsr_sc_color(0x232b33),0);lv_obj_set_style_bg_grad_dir(bar,LV_GRAD_DIR_VER,0);}
+ if(current<5&&!ios())dsr_sc_panel(bar,16+(int)current*64,0,32,3,DSR_SC_BLUE,2);
  const dsr_ui_icon_t icons[]={DSR_ICON_HOME,DSR_ICON_GRID,DSR_ICON_CPU,DSR_ICON_SETTINGS,DSR_ICON_PLUS};
  for(unsigned i=0;i<5;i++){
   bool available=(enabled&(1u<<i))!=0;
-  uint32_t icon_color=!available?DSR_SC_OFF:i==4?dsr_sc_icon_accent():style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?dsr_sc_icon_accent():DSR_SC_MUTED;
+  uint32_t icon_color=!available?DSR_SC_OFF:i==4?(ios()?0xffffff:dsr_sc_icon_accent()):style==DSR_SC_STYLE_CYBER_BLUE?DSR_SC_GLOW:i==current?(ios()?DSR_SC_BLUE:dsr_sc_icon_accent()):ios()?DSR_SC_OFF:DSR_SC_MUTED;
   lv_obj_t *b=dsr_sc_button(bar,(int)i*64,4,64,47,DSR_SC_NAV,0,callback,(void *)(uintptr_t)i);lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);
   /* Leaving a navigation target cancels the tap instead of retaining it. */
   lv_obj_remove_flag(b,LV_OBJ_FLAG_PRESS_LOCK);
@@ -854,11 +878,8 @@ void dsr_sc_scrollbar(lv_obj_t *o)
 void dsr_sc_glow(lv_obj_t *o,bool on)
 {
  if(style==DSR_SC_STYLE_CYBER_BLUE){dsr_ui_cyber_glow(o,on);return;}
- /* Off costs nothing: default shadow width is 0. */
- lv_style_t *g=shared(SHARED_GLOW,hex(dsr_sc_color(DSR_SC_GLOW)),0);
- if(g){if(on)lv_obj_add_style(o,g,0);else lv_obj_remove_style(o,g,0);return;}
- lv_obj_set_style_shadow_width(o,on?14:0,0);lv_obj_set_style_shadow_spread(o,on?1:0,0);
- lv_obj_set_style_shadow_color(o,dsr_sc_color(DSR_SC_GLOW),0);lv_obj_set_style_shadow_opa(o,on?LV_OPA_70:LV_OPA_TRANSP,0);
+ /* iOS has no halos: state is carried by fill and tint. */
+ (void)o;(void)on;
 }
 lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool enabled,dsr_ui_icon_t icon,uint32_t icon_color,lv_event_cb_t cb,void *context)
 {
@@ -869,12 +890,11 @@ lv_obj_t *dsr_sc_power_button(lv_obj_t *parent,int x,int y,int size,bool on,bool
   if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
   return ring;
  }
- /* One object: light face, thick ring as its border (blue + glow when on).
-  * Two objects per row button matter: a 24-tile dashboard shares 128 KB LVGL heap. */
- lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,enabled?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,cb,context);
- dsr_sc_border_width(ring,5,0);dsr_sc_border_color(ring,dsr_sc_color(on&&enabled?DSR_SC_GLOW:0x3a3f44),0);
- dsr_sc_glow(ring,on&&enabled);
- dsr_sc_icon_centered(ring,icon,(size-10)*52/100,enabled?icon_color:0x8a9096);
+ /* iOS: one round object, accent-filled with a white glyph when on, a gray
+  * system fill otherwise. A 24-tile dashboard shares the 128 KB LVGL heap. */
+ (void)icon_color;
+ lv_obj_t *ring=dsr_sc_button(parent,x,y,size,size,on&&enabled?DSR_SC_BLUE:0x5a6066,LV_RADIUS_CIRCLE,cb,context);
+ dsr_sc_icon_centered(ring,icon,size*46/100,on&&enabled?0xffffff:enabled?DSR_SC_TEXT:0x8a9096);
  if(!enabled)lv_obj_add_state(ring,LV_STATE_DISABLED);
  return ring;
 }
@@ -926,7 +946,8 @@ lv_obj_t *dsr_sc_badge(lv_obj_t *parent,dsr_ui_icon_t icon,const char *text,int 
 {
  lv_obj_t *badge=dsr_sc_panel(parent,x,y,width,28,DSR_SC_PANEL,7);
  uint32_t contour=color==DSR_SC_TEXT?DSR_SC_GLOW:color;
- dsr_sc_border_color(badge,dsr_sc_color(contour),0);dsr_sc_border_width(badge,1,0);
+ /* iOS status pills are filled; only a warning tint keeps its contour. */
+ if(!ios()||(color!=DSR_SC_GLOW&&color!=DSR_SC_TEXT&&color!=DSR_SC_BLUE)){dsr_sc_border_color(badge,dsr_sc_color(contour),0);dsr_sc_border_width(badge,1,0);}
  /* 20 px requests become 24 px in Cyber Blue. Use an explicit 16 px glyph
   * and an 8 px gap, so icon and caption never share the same pixels. */
  dsr_sc_icon(badge,icon,8,4,16,contour);

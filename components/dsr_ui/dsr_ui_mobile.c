@@ -159,7 +159,13 @@ static void end_preview(void){if(cover_preview){model=preview_saved;memset(&prev
 void dsr_mobile_hide(void){repaint_pending=wake_repaint=false;trv_reset();placed_count=0;rgb_dirty=rgb_color_view=false;cover_drag=false;cover_preview_label=cover_position_label=NULL;cover_visual=NULL;cover_view_reset();light_drag=false;light_slider=light_knob=light_value=wheel_knob=rgb_text=NULL;memset(detail_electrical,0,sizeof(detail_electrical));signal_age_label=NULL;end_preview();active=false;info_open=false;content=sample_age=info_overlay=NULL;}
 static void center(lv_obj_t *o){lv_obj_set_style_text_align(o,LV_TEXT_ALIGN_CENTER,0);}
 static void truncate(lv_obj_t *o,int height){lv_obj_set_height(o,height);lv_label_set_long_mode(o,LV_LABEL_LONG_MODE_DOTS);}
-static void edge(lv_obj_t *o,uint32_t c,int width){dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);}
+/* iOS frames are fills: the routine blue/gray 1 px contours disappear there;
+ * selection (2 px) and semantic contacts/warnings keep their contour. */
+static void edge(lv_obj_t *o,uint32_t c,int width)
+{
+ if(dsr_sc_ios()&&width==1&&(c==DSR_SC_GLOW||c==DSR_SC_BLUE||c==0x3a3f44)){lv_obj_set_style_border_width(o,0,0);return;}
+ dsr_sc_border_color(o,dsr_sc_color(c),0);dsr_sc_border_width(o,width,0);
+}
 static void navigate(lv_event_t *e)
 {
     unsigned target=(unsigned)(uintptr_t)lv_event_get_user_data(e);
@@ -255,12 +261,28 @@ static void refresh_info(void)
  snprintf(text,sizeof(text),dsr_sc_tr("Urządzenia: %u • online: %u"),model.device_count,online);lv_obj_t *count=lv_obj_get_child(panel,2);if(strcmp(lv_label_get_text(count),text))lv_label_set_text(count,text);
  snprintf(text,sizeof(text),dsr_sc_tr("Pomieszczenia: %u"),model.room_count);count=lv_obj_get_child(panel,3);if(strcmp(lv_label_get_text(count),text))lv_label_set_text(count,text);
 }
+static int tab_y(void)
+{
+    bool cover=(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)||group_cover_selected();
+    return cover?52:page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||group_shared_selected()?44:52;
+}
+/* Under the tabs: the classic blue rule, or the gray track of an iOS
+ * segmented control whose chosen segment is a raised pill (tab()). */
+static uint32_t tab_track(void){return dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xe3e3e8:0x2c2c2e;}
+static void tab_rule(lv_obj_t *root,int y)
+{
+    if(dsr_sc_ios())dsr_sc_panel(root,12,tab_y(),296,44,tab_track(),10);
+    else dsr_sc_panel(root,12,y,296,1,DSR_SC_BLUE,0);
+}
 static void tab(lv_obj_t *root,const char *text,int x,int w,bool chosen,lv_event_cb_t cb,void *ctx)
 {
     bool cover=(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)||group_cover_selected();
-    int y=cover?52:page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS||group_shared_selected()?44:52;
-    lv_obj_t *b=dsr_sc_button(root,x,y,w,44,DSR_SC_BG,7,cb,ctx);
-    if(chosen){edge(b,DSR_SC_BLUE,1);lv_obj_set_style_border_side(b,LV_BORDER_SIDE_TOP|LV_BORDER_SIDE_LEFT|LV_BORDER_SIDE_RIGHT,0);}
+    int y=tab_y();bool ios=dsr_sc_ios();
+    /* iOS keeps the full 44 px target; a 2 px track-colored border insets the pill. */
+    lv_obj_t *b=dsr_sc_button(root,x,y,w,44,ios&&chosen?(dsr_sc_style()==DSR_SC_STYLE_LIGHT?0xffffff:0x636366):DSR_SC_BG,ios?10:7,cb,ctx);
+    if(ios&&chosen){lv_obj_set_style_border_width(b,2,0);lv_obj_set_style_border_color(b,lv_color_hex(tab_track()),0);lv_obj_set_style_border_opa(b,LV_OPA_COVER,0);}
+    if(ios&&!chosen){lv_obj_set_style_bg_opa(b,LV_OPA_TRANSP,0);lv_obj_set_style_bg_opa(b,LV_OPA_COVER,LV_STATE_PRESSED);}
+    if(chosen&&!ios){edge(b,DSR_SC_BLUE,1);lv_obj_set_style_border_side(b,LV_BORDER_SIDE_TOP|LV_BORDER_SIDE_LEFT|LV_BORDER_SIDE_RIGHT,0);}
     if(chosen&&dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_panel(b,true);
     /* Owner 2026-10: unselected Cyber tabs keep a slim contour, not the 2 px frame. */
     else if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE){lv_obj_set_style_border_width(b,1,0);lv_obj_set_style_border_opa(b,LV_OPA_70,0);}
@@ -279,11 +301,11 @@ static void tabs(lv_obj_t *root)
     bool cover=(page==DSR_MOBILE_DETAILS&&selected<model.device_count&&model.devices[selected].kind==DSR_DEVICE_COVER)||group_cover_selected();
     if(lighting_page()){lighting_light_tabs(root);return;}
     if(group_shared_selected()){
-        dsr_sc_panel(root,12,cover?95:87,296,1,DSR_SC_BLUE,0);
+        tab_rule(root,cover?95:87);
         tab(root,dsr_sc_name(model.groups[selected].name),12,192,true,NULL,NULL);
         tab(root,"Ustawienia",208,100,false,actions.edit_action?navigate:NULL,(void *)(uintptr_t)14);return;
     }
-    if(page!=DSR_MOBILE_HOME)dsr_sc_panel(root,12,cover?95:page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS?87:99,296,1,DSR_SC_BLUE,0);
+    if(page!=DSR_MOBILE_HOME)tab_rule(root,cover?95:page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS?87:99);
     /* Groups and scenes live under Pomieszczenia (owner 2026-10-18). */
     if(page==DSR_MOBILE_HOME)return;
     if(page==DSR_MOBILE_DETAILS||page==DSR_MOBILE_DEVICE_SETTINGS){
@@ -402,6 +424,14 @@ static bool card_warn(const dsr_mobile_device_t *d){return d->error!=DSR_OK||unb
  * cards. Keep offline/error messages; STOP still represents an active move. */
 static const char *card_cover_room(const dsr_mobile_device_t *d)
 {return d->kind==DSR_DEVICE_COVER&&d->online&&d->error==DSR_OK&&!unbound(d)?(d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane")):NULL;}
+static const char *card_state(const dsr_mobile_device_t *d,unsigned fields);
+/* Thermostat cards likewise show the room alone instead of "Room • Online"
+ * (owner, 2026-11-01); reading, offline and error states keep their text. */
+static const char *card_room_state(const dsr_mobile_device_t *d)
+{
+ const char *room=card_cover_room(d);if(room)return room;
+ return trv_device(d)&&!strcmp(card_state(d,255),"Online")?(d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane")):NULL;
+}
 /* "Room • " in front of the state, cut to max pixels; returns its width. */
 static int card_room_text(const dsr_mobile_device_t *d,char *text,size_t size,int max)
 {
@@ -477,9 +507,10 @@ static card_layout_t card_layout(const dsr_mobile_device_t *d,int width)
   if(s.x+20>l.metric_w){l.metric_x=12;l.metric_w=width-24;}
   l.height=l.metric_y+38;return l;
  }
- char text[160];l.room_max=row*11/20;l.room_w=card_warn(d)?0:card_room_text(d,text,sizeof(text),l.room_max);
+ const char *room_state=card_room_state(d);
+ char text[160];l.room_max=row*11/20;l.room_w=card_warn(d)||room_state?0:card_room_text(d,text,sizeof(text),l.room_max);
  /* A long state (waiting, sending) keeps the whole row; the room yields. */
- lv_text_get_size(&s,dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
+ lv_text_get_size(&s,room_state?room_state:dsr_sc_tr(card_state(d,255)),dsr_sc_font(&dsr_roboto_14),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(l.room_w+s.x>row)l.room_w=0;
  l.state_x=CARD_ROW_X+l.room_w;l.state_w=row-l.room_w;
  l.metric_x=CARD_ROW_X;l.metric_y=l.body+29;l.metric_w=row;l.height=l.body+68;
  if(trv)l.height=l.body+98;
@@ -513,7 +544,7 @@ static void contact_metric_draw(lv_obj_t *card,lv_layer_t *layer,dsr_ui_icon_t i
  if(size.x+44>width){font=dsr_sc_font(&dsr_roboto_12);lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);}
  int w=size.x+44;lv_area_t frame={x+(width-w)/2,y,x+(width-w)/2+w-1,y+23};
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
- else{lv_draw_rect_dsc_t border;lv_draw_rect_dsc_init(&border);border.base.obj=card;border.bg_opa=LV_OPA_TRANSP;border.border_width=1;border.border_color=dsr_sc_color(DSR_SC_GLOW);border.radius=8;lv_draw_rect(layer,&border,&frame);}
+ else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;lv_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
  lv_area_t a={frame.x1+6,y,frame.x1+29,y+23};dsr_sc_draw_icon(card,layer,icon,&a,color);
  int h=lv_font_get_line_height(font);a=(lv_area_t){frame.x1+38,y+(24-h)/2,frame.x2-6,y+(24-h)/2+h-1};
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);lv_draw_label(layer,&label,&a);
@@ -552,7 +583,7 @@ static void card_battery_draw(lv_event_t *event)
   a.x1+=shift;a.x2+=shift;frame.x1+=shift;frame.x2+=shift;
  }
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
- else{lv_draw_rect_dsc_t border;lv_draw_rect_dsc_init(&border);border.base.obj=card;border.bg_opa=LV_OPA_TRANSP;border.border_width=1;border.border_color=dsr_sc_color(DSR_SC_GLOW);border.radius=8;lv_draw_rect(layer,&border,&frame);}
+ else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;lv_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
  dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
  a.x1+=32;a.x2=frame.x2-6;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);
@@ -611,8 +642,9 @@ static lv_obj_t *device_card_shared(lv_obj_t *parent,unsigned i,const dsr_mobile
     bool on=!sensor&&!cover&&d->online&&d->output&&d->error==DSR_OK&&!unbound(d);
     lv_obj_t *card=dsr_sc_button(parent,x,y,width,height,0x2b2f33,DSR_SC_RADIUS,group?group_open:open_device,(void *)(uintptr_t)i);
     bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
-    if(hud)dsr_ui_cyber_device(card,on,d->error!=DSR_OK||unbound(d)||!d->online);else{edge(card,on?DSR_SC_GLOW:0x3a3f44,on?2:1);dsr_sc_glow(card,on);}
-    const char *cover_room=card_cover_room(d),*state=cover_room?cover_room:card_state(d,fields);bool warn=card_warn(d);
+    /* iOS cards carry state in the power button and text, not a contour. */
+    if(hud)dsr_ui_cyber_device(card,on,d->error!=DSR_OK||unbound(d)||!d->online);
+    const char *cover_room=card_room_state(d),*state=cover_room?cover_room:card_state(d,fields);bool warn=card_warn(d);
     /* The measurement frame already reports stale readings. Keep distinct
      * connection/authentication warnings, and the state when no frame is shown. */
     if(fields&&!DSR_ENDPOINT_IS_SENSOR(d->endpoint_kind)&&!unbound(d)&&!d->online&&d->error==DSR_OK&&model.wifi&&d->has_sample_time)state="";
@@ -631,7 +663,10 @@ static lv_obj_t *device_card_shared(lv_obj_t *parent,unsigned i,const dsr_mobile
     }
     const lv_font_t *state_font=&dsr_roboto_14;lv_point_t state_size;lv_text_get_size(&state_size,cover_room?cover_room:dsr_sc_tr(state),dsr_sc_font(state_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(!cover&&state_size.x>layout.state_w)state_font=&dsr_roboto_12;
     if(state_font==&dsr_roboto_12){lv_text_get_size(&state_size,dsr_sc_tr(state),dsr_sc_font(state_font),0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);if(state_size.x>layout.state_w)state_font=&dsr_roboto_11;}
-    lv_obj_t *status=dsr_sc_text(card,cover_room?dsr_sc_user(cover_room):state,layout.state_x,layout.row_y+(state_font==&dsr_roboto_14?0:state_font==&dsr_roboto_12?1:2),layout.state_w,state_font,warn?0xffc18c:on?(hud?DSR_SC_GLOW:DSR_SC_BLUE):hud?0x6fd3ff:DSR_SC_MUTED);
+    /* Cyber Blue shows the device state in gold (owner, 2026-11-01); a room
+     * shown in its place keeps the room color, warnings keep theirs. */
+    uint32_t state_color=warn?0xffc18c:hud?(cover_room?0x6fd3ff:on?0xffd24a:0xe6bc4f):on?DSR_SC_BLUE:DSR_SC_MUTED;
+    lv_obj_t *status=dsr_sc_text(card,cover_room?dsr_sc_user(cover_room):state,layout.state_x,layout.row_y+(state_font==&dsr_roboto_14?0:state_font==&dsr_roboto_12?1:2),layout.state_w,state_font,state_color);
     if(cover)lv_obj_set_height(status,layout.room_h);else truncate(status,lv_font_get_line_height(dsr_sc_font(&dsr_roboto_14)));
     lv_obj_add_event_cb(card,device_room_draw,LV_EVENT_DRAW_MAIN_END,(void *)drawing);
     if(cover){
@@ -643,7 +678,7 @@ static lv_obj_t *device_card_shared(lv_obj_t *parent,unsigned i,const dsr_mobile
       edge(pill,DSR_SC_GLOW,1);int border=lv_obj_get_style_border_width(pill,0),inner=104-2*border,left=(inner-96)/2,top=(56-2*border-44)/2;
       dsr_sc_panel(pill,left+47,top+6,1,32,hud?DSR_SC_GLOW:DSR_SC_EDGE,0);
       for(unsigned k=0;k<2;k++){
-       lv_obj_t *b=dsr_sc_button(pill,left+(int)k*52,top,44,44,hud?DSR_SC_BLUE:valid?0xeceff1:0x5a6066,LV_RADIUS_CIRCLE,group?group_cover_pair:cover_control,(void *)(uintptr_t)(i*2+(k?0:1)));
+       lv_obj_t *b=dsr_sc_button(pill,left+(int)k*52,top,44,44,hud?DSR_SC_BLUE:valid?0x30373d:0x5a6066,LV_RADIUS_CIRCLE,group?group_cover_pair:cover_control,(void *)(uintptr_t)(i*2+(k?0:1)));
        if(hud)dsr_ui_cyber_power(b,true,valid);
        dsr_sc_icon_centered(b,k?DSR_ICON_DOWN:DSR_ICON_UP,24,valid?DSR_SC_GLOW:0x8a9096);if(!valid)lv_obj_add_state(b,LV_STATE_DISABLED);
       }
@@ -1015,8 +1050,9 @@ static void trv_step(lv_event_t *event)
 }
 static lv_obj_t *trv_round_action(lv_obj_t *parent,unsigned index,int x,int y,int size,bool plus,bool valid,lv_event_cb_t callback)
 {
- lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,0xe8ecef,LV_RADIUS_CIRCLE,callback,(void *)(uintptr_t)(index*2+(plus?1:0)));
  bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
+ /* iOS: a gray system fill with the tinted glyph. */
+ lv_obj_t *b=dsr_sc_button(parent,x,y,size,size,hud?0xe8ecef:0x30373d,LV_RADIUS_CIRCLE,callback,(void *)(uintptr_t)(index*2+(plus?1:0)));
  if(hud)dsr_ui_cyber_power(b,true,valid);
  lv_obj_t *t=dsr_sc_text(b,plus?"+":"-",0,0,LV_SIZE_CONTENT,&dsr_roboto_22,hud?DSR_SC_TEXT:plus?0xe5322d:DSR_SC_BLUE);
  /* Center the visible glyph, including its baseline and side bearings. */
@@ -1077,7 +1113,7 @@ static void trv_details_view(lv_obj_t *root,const dsr_mobile_device_t *d,bool gr
  lv_obj_add_flag(arc,LV_OBJ_FLAG_ADV_HITTEST);lv_obj_remove_flag(arc,LV_OBJ_FLAG_SCROLLABLE);
  lv_obj_add_event_cb(arc,trv_arc_event,LV_EVENT_ALL,(void *)(uintptr_t)selected);
  if(!can)lv_obj_add_state(arc,LV_STATE_DISABLED);
- trv_dial.knob=dsr_sc_panel(root,0,0,26,26,0xe8ecef,LV_RADIUS_CIRCLE);edge(trv_dial.knob,0x1b1f22,2);lv_obj_remove_flag(trv_dial.knob,LV_OBJ_FLAG_CLICKABLE);
+ trv_dial.knob=dsr_sc_panel(root,0,0,26,26,0xe8ecef,LV_RADIUS_CIRCLE);edge(trv_dial.knob,0x1b1f22,2);lv_obj_set_style_border_opa(trv_dial.knob,LV_OPA_COVER,0); /* a knob keeps its ring in iOS */lv_obj_remove_flag(trv_dial.knob,LV_OBJ_FLAG_CLICKABLE);
  if(!known)lv_obj_add_flag(trv_dial.knob,LV_OBJ_FLAG_HIDDEN);
  if(known&&(!group||d->has_temperature))snprintf(text,sizeof(text),"%.1f °C",d->temperature_c);else snprintf(text,sizeof(text),"— °C");
  trv_view.temperature=dsr_sc_text(root,text,cx-60,157,120,&dsr_roboto_16,DSR_SC_TEXT);center(trv_view.temperature);

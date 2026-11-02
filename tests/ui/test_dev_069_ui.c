@@ -31,11 +31,13 @@ static lv_obj_t *containing(lv_obj_t *o,const char *text)
 static void noop(void){}
 static void stop_noop(unsigned index){(void)index;}
 static void trv_noop(unsigned index,uint8_t target){(void)index;(void)target;}
+/* Cyber Blue draws a contour; the iOS skins a filled pill of the same bounds. */
 static bool frame_pixel(int x,int y)
 {
- uint32_t expected=lv_color_to_u32(dsr_sc_color(DSR_SC_GLOW));int distance=0;
+ bool hud=dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE;
+ uint32_t expected=lv_color_to_u32(dsr_sc_color(hud?DSR_SC_GLOW:0x23272a));int distance=0;
  for(unsigned c=0;c<3;c++)distance+=abs((int)canvas[(y*320+x)*3+(int)c]-(int)((expected>>(16-c*8))&255));
- return distance<100; /* RGB565 + Cyber's translucent contour */
+ return distance<(hud?100:24); /* RGB565 + Cyber's translucent contour; iOS fill vs card */
 }
 static bool centered_symbol(lv_obj_t *label)
 {

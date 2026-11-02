@@ -2,6 +2,26 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Wygląd: Grafitowy i Jasny w stylu iOS, poprawki Cyber Blue, kandydat 0.7.80-dev — 2026-11-02
+
+Właściciel wybrał klasyczny iOS dla skórek Grafitowy (ciemna) i Jasny. Zmiany
+we wspólnych elementach (`dsr_ui_style.c`), więc obejmują wszystkie ekrany:
+kolory systemowe iOS (czerń/#1C1C1E/#2C2C2E, #F2F2F7/biel), jednolite tło bez
+grafiki, brak neutralnych obrysów i poświaty, element w karcie tego samego
+koloru o stopień jaśniejszy/ciemniejszy, zakładki jako przełącznik
+segmentowy, płaski dolny pasek z akcentem bieżącej pozycji, przycisk
+zasilania wypełniony akcentem po włączeniu, pogrubione tytuły (Roboto Bold).
+Obrysy semantyczne (ostrzeżenia, otwarty kontakt) i zaznaczenie 2 px zostają.
+Cyber Blue na życzenie właściciela: stan urządzenia na kartach złoty, karta
+termostatu pokazuje samo pomieszczenie zamiast „• Online” (także w iOS).
+Tło i ramki Cyber Blue bez zmian. Testy UI zaktualizowane świadomie (zegar
+pogrubiony, brak grafiki tła iOS, czarne tło Grafitu, wypełniona pigułka
+baterii, ramka segmentu 2 px przy zachowanych 44 px); naprawiono ukrytą
+obwódkę radia w kreatorze i ramkę gałki tarczy termostatu. Transport Shelly
+bez zmian względem 0.7.79. Właściciel polecił publikację DEV 0.7.80 po
+przejrzeniu renderów hosta; odbiór na płytce (kolory RGB565, czytelność)
+otwarty.
+
 ## Korekta transportu po logu 0.7.78: GET dla Gen2+, kandydat 0.7.79-dev — 2026-11-01
 
 Log właściciela z 0.7.78: jedna roleta nie odpowiada na żądania POST (także

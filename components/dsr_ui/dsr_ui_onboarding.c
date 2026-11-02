@@ -9,6 +9,7 @@ static bool active,last_wifi,last_cleanup;
 static int selected=-1;
 static lv_event_cb_t manual_open;
 static lv_obj_t *cards[4],*radios[4],*descriptions[3],*next_button,*hint;
+static lv_color_t radio_idle[4];
 static const char footer_tag;
 static const char *names[]={"Bluetooth","Wi-Fi AP","Sieć lokalna","Dodaj ręcznie (IP)"};
 static const char *descriptions_ready[]={"Urządzenia BLE • także bez Wi-Fi","Otwarty punkt dostępowy Shelly","Urządzenia w domowej sieci"};
@@ -32,8 +33,10 @@ static void refresh_selection(void)
   if(enabled)lv_obj_remove_state(cards[i],LV_STATE_DISABLED);else lv_obj_add_state(cards[i],LV_STATE_DISABLED);
   dsr_sc_border_width(cards[i],chosen?2:1,0);
   dsr_sc_border_color(cards[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_EDGE),0);
-  lv_obj_set_style_bg_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_CARD),0);
-  dsr_sc_border_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_MUTED),0);
+  /* Unchosen: the fill the panel was created with (iOS nests it inside the
+   * row). A radio keeps its ring even where iOS hides neutral outlines. */
+  lv_obj_set_style_bg_color(radios[i],chosen?dsr_sc_color(DSR_SC_BLUE):radio_idle[i],0);
+  dsr_sc_border_color(radios[i],dsr_sc_color(chosen?DSR_SC_BLUE:DSR_SC_MUTED),0);lv_obj_set_style_border_opa(radios[i],LV_OPA_COVER,0);
   if(chosen)lv_obj_add_state(radios[i],LV_STATE_CHECKED);else lv_obj_remove_state(radios[i],LV_STATE_CHECKED);
   if(i<3)dsr_sc_label_set_text(descriptions[i],enabled?descriptions_ready[i]:"Najpierw połącz domowe Wi-Fi");
  }
@@ -123,7 +126,7 @@ void dsr_ui_onboarding_open(lv_event_cb_t manual)
   dsr_sc_icon(row,i==0?DSR_ICON_CONTACT:i==1?DSR_ICON_WIFI:i==2?DSR_ICON_GRID:DSR_ICON_SETTINGS,12,i<3?24:13,24,dsr_sc_icon_accent());
   dsr_sc_text(row,names[i],48,i<3?9:15,206,&dsr_roboto_16,DSR_SC_TEXT);
   if(i<3)descriptions[i]=dsr_sc_text(row,descriptions_ready[i],48,35,206,&dsr_roboto_12,DSR_SC_MUTED);
-  radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);dsr_sc_border_width(radios[i],1,0);
+  radios[i]=dsr_sc_panel(row,264,i<3?26:16,18,18,DSR_SC_CARD,9);dsr_sc_border_width(radios[i],1,0);radio_idle[i]=lv_obj_get_style_bg_color(radios[i],0);
   lv_obj_add_event_cb(radios[i],selected_dot,LV_EVENT_DRAW_MAIN_END,NULL);
  }
  hint=dsr_sc_text(sheet,"Więcej opcji poniżej",128,57,176,&dsr_roboto_12,DSR_SC_MUTED);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_RIGHT,0);

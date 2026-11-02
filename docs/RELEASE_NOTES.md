@@ -1,3 +1,13 @@
+0.7.80-dev: kandydat do próby na płytce — Grafitowy i Jasny w stylu iOS, poprawki Cyber Blue.
+
+- Grafitowy i Jasny wyglądają jak klasyczny iOS (ciemny i jasny): systemowe kolory (czarne tło i karty #1C1C1E albo tło #F2F2F7 i białe karty), jednolite tło bez grafiki, bez szarych obrysów i niebieskiej poświaty. Przycisk lub pole w karcie jest o stopień jaśniejsze/ciemniejsze zamiast obrysowane.
+- Zakładki jako przełącznik segmentowy iOS (cele dotyku nadal 44 px), płaski dolny pasek z akcentem bieżącej pozycji, przycisk zasilania wypełniony akcentem po włączeniu, pogrubione tytuły i zegar, strzałka „wstecz” w kolorze akcentu. Akcent pozostaje kolorem z Web Panelu.
+- Obrysy ostrzeżeń, otwartego kontaktu i zaznaczenia zostają. Poprawiono obwódkę niezaznaczonego wyboru w kreatorze dodawania urządzenia i ramkę gałki tarczy termostatu.
+- Cyber Blue: stan urządzenia na kartach (strona główna, Urządzenia, pomieszczenia) jest złoty. Tło i ramki bez zmian.
+- Karta termostatu pokazuje samo pomieszczenie zamiast „Pomieszczenie • Online” (wszystkie skórki).
+- Transport Shelly bez zmian względem 0.7.79 (GET dla Gen2+). Rendery hosta LVGL 9.3 trzech skórek PL/EN/DE nie zastępują odbioru na płytce: kolory na wyświetlaczu RGB565 mogą się różnić.
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.79-dev: kandydat do próby na płytce — komendy i odczyty Shelly przez GET.
 
 - Log z 0.7.78: jedna roleta nie odpowiadała na żądania POST (także nowy odczyt `POST /rpc`, więc wyglądała na offline), a na GET odpowiadała. Te same błędy „WRITE, OFFLINE” z 0.7.76 dotyczyły tej rolety i komend POST.

@@ -44,7 +44,8 @@ int main(int argc,char **argv)
  for(unsigned s=0;s<3;s++){
   publish_style(styles[s]);CHECK(dsr_sc_style()==ids[s]&&style_hint==dsr_sc_style());
   char name[48];const double minimum=4.0;
-  dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(const void *)dsr_ui_brand_background());
+  /* Cyber Blue keeps the tinted artwork; the iOS skins a plain system background. */
+  dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(ids[s]==DSR_SC_STYLE_CYBER_BLUE?(const void *)dsr_ui_brand_background():NULL));
   contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-home-%s",332+s*10,styles[s]);screenshot(name);
   if(!s){
    dsr_network_device(NULL);choose_method("Dodaj ręcznie (IP)");lv_textarea_set_text(find_type(lv_screen_active(),&lv_textarea_class),"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);
