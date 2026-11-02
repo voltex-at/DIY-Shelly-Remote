@@ -14,9 +14,13 @@ odświeżeniu nakłada tło-grafikę oraz rysuje ramki kart z linii, gradienty i
 poświatę.
 
 Decyzje właściciela: wydajność renderowania Cyber Blue pozostaje bez zmian
-(dalej tylko poprawki UI); Grafitowy ma być domyślną skórką nowych instalacji
-(do przygotowania w następnym DEV). Kolory na wyświetlaczu i Jasny bez uwag
-na razie; dalsze uwagi do UI zbierane od właściciela.
+(dalej tylko poprawki UI); Grafitowy ma być domyślną skórką nowych instalacji.
+Sprawdzono w kodzie: już jest — domyślna konfiguracja `dsr_config_default()`
+ma `"theme":"graphite"` (od `b1ab8d8`, test `tests/test_config.c`), a brak
+wpisu `dsr_ui/style` w NVS, nieznana i wycofana wartość dają Grafit; Cyber Blue
+pojawia się tylko po wyborze właściciela lub z kopii zapasowej. Bez zmiany
+firmware. Kolory na wyświetlaczu i Jasny bez uwag na razie; dalsze uwagi do UI
+zbierane od właściciela.
 
 ## Wygląd: Grafitowy i Jasny w stylu iOS, poprawki Cyber Blue, kandydat 0.7.80-dev — 2026-11-02
 
