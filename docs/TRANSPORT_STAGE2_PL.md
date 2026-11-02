@@ -45,6 +45,12 @@ Shelly jest widoczna do ok. 5 min później. Gdyby pod adresem IP urządzenia
 pojawił się inny Shelly tego samego typu, zwykłe odczyty mogą do ok. 5 min
 pokazywać jego stan; każdy zapis najpierw sprawdza `/shelly`.
 
+**Wynik odbioru — 2026-11-02 (`dev-v0.7.80`, ten sam transport co 0.7.79):**
+właściciel potwierdził, że rolety reagują płynnie w skórkach Grafitowy
+i Cyber Blue. Ocena słowna, bez nowego logu USB; liczników `leg=`/`sdk=`
+nie analizowano. Punkty 2–4 z odbioru 0.7.78 (tryb oszczędzania Wi-Fi,
+zmiana nazwy, bateria) pozostają bez osobnego potwierdzenia.
+
 Baza: `dev-v0.7.77` / `ee1a8ba`. Wydanie: kandydat `0.7.78-dev` (tag
 `dev-v0.7.78`) na polecenie właściciela, przed odbiorem na płytce; bez
 flashowania. Host i kompilacja nie potwierdzają działania na ES3C35P; odbiór

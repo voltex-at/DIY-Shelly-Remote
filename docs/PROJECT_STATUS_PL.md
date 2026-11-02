@@ -2,6 +2,22 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Odbiór na płytce: DEV 0.7.80 — 2026-11-02
+
+Właściciel po aktualizacji ES3C35P do `dev-v0.7.80` (`350ac86`): rolety
+reagują płynnie w skórkach Grafitowy i Cyber Blue. To pierwsze potwierdzenie
+na sprzęcie, że transport GET dla Gen2+ (od 0.7.79) usunął błędy POST
+(„WRITE, OFFLINE”, `sdk=0x7007`). Ocena słowna właściciela, bez nowego logu
+USB. Grafitowy (iOS) działa według właściciela znacznie płynniej niż Cyber
+Blue. Prawdopodobna przyczyna (z kodu, bez pomiaru): Cyber Blue przy każdym
+odświeżeniu nakłada tło-grafikę oraz rysuje ramki kart z linii, gradienty i
+poświatę.
+
+Decyzje właściciela: wydajność renderowania Cyber Blue pozostaje bez zmian
+(dalej tylko poprawki UI); Grafitowy ma być domyślną skórką nowych instalacji
+(do przygotowania w następnym DEV). Kolory na wyświetlaczu i Jasny bez uwag
+na razie; dalsze uwagi do UI zbierane od właściciela.
+
 ## Wygląd: Grafitowy i Jasny w stylu iOS, poprawki Cyber Blue, kandydat 0.7.80-dev — 2026-11-02
 
 Właściciel wybrał klasyczny iOS dla skórek Grafitowy (ciemna) i Jasny. Zmiany
