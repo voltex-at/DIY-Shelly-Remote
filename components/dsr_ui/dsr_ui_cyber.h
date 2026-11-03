@@ -21,7 +21,10 @@ void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);
 /* Double contour for the compact header control, without diagonal inlays. */
 void dsr_ui_cyber_header_back(lv_obj_t *button);
 void dsr_ui_cyber_glow(lv_obj_t *obj,bool on);
+/* Call after the root's bg image is set: the brand art becomes the tinted copy. */
 void dsr_ui_cyber_background(lv_obj_t *root,bool active);
+/* The brand background with the Cyber tint applied once; NULL without PSRAM. */
+const lv_image_dsc_t *dsr_ui_cyber_backdrop(void);
 void dsr_ui_cyber_device(lv_obj_t *card,bool on,bool warning);
 /* Same chamfered tile contour without status strip (selector, room tiles). */
 void dsr_ui_cyber_frame(lv_obj_t *obj,bool inner);

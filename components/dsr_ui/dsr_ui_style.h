@@ -48,6 +48,14 @@ lv_obj_t *dsr_sc_button(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,
 lv_obj_t *dsr_sc_icon(lv_obj_t *parent,dsr_ui_icon_t kind,int x,int y,int size,uint32_t color);
 /* Reuse the same icon assets in dense cards without another LVGL object. */
 void dsr_sc_draw_icon(lv_obj_t *owner,lv_layer_t *layer,dsr_ui_icon_t kind,const lv_area_t *area,uint32_t color);
+/* Shapes from draw events: LVGL 9.3 queues a task for each one, also outside
+ * the band being redrawn (20 rows on the board), where it draws nothing. These
+ * skip such shapes, with the same pixels. Use them instead of lv_draw_*. */
+bool dsr_sc_in_band(const lv_layer_t *layer,const lv_area_t *area);
+void dsr_sc_draw_line(lv_layer_t *layer,const lv_draw_line_dsc_t *dsc);
+void dsr_sc_draw_rect(lv_layer_t *layer,const lv_draw_rect_dsc_t *dsc,const lv_area_t *area);
+void dsr_sc_draw_arc(lv_layer_t *layer,const lv_draw_arc_dsc_t *dsc);
+void dsr_sc_draw_label(lv_layer_t *layer,const lv_draw_label_dsc_t *dsc,const lv_area_t *area);
 /* Align inside the parent's actual content box, including border/padding.
  * Do not use (parent_size-icon_size)/2 as a child's relative position. */
 lv_obj_t *dsr_sc_icon_centered(lv_obj_t *parent,dsr_ui_icon_t kind,int size,uint32_t color);

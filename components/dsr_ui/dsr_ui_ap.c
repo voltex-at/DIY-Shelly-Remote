@@ -40,14 +40,14 @@ static void large_icon_draw(lv_event_t *event)
  lv_draw_rect_dsc_t dot;lv_draw_rect_dsc_init(&dot);dot.bg_color=color;dot.bg_opa=LV_OPA_COVER;dot.radius=LV_RADIUS_CIRCLE;
  if((uintptr_t)lv_event_get_user_data(event)==DSR_ICON_WIFI){
   lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.color=color;arc.width=4;arc.rounded=1;arc.center=(lv_point_t){a.x1+36,a.y1+58};arc.start_angle=220;arc.end_angle=320;
-  for(unsigned r=12;r<=36;r+=12){arc.radius=(uint16_t)r;lv_draw_arc(layer,&arc);}
-  lv_area_t point={a.x1+32,a.y1+54,a.x1+39,a.y1+61};lv_draw_rect(layer,&dot,&point);
+  for(unsigned r=12;r<=36;r+=12){arc.radius=(uint16_t)r;dsr_sc_draw_arc(layer,&arc);}
+  lv_area_t point={a.x1+32,a.y1+54,a.x1+39,a.y1+61};dsr_sc_draw_rect(layer,&dot,&point);
  }else{
   lv_draw_line_dsc_t line;lv_draw_line_dsc_init(&line);line.color=color;line.width=3;line.round_start=line.round_end=1;
   const lv_point_precise_t points[4]={{a.x1+32,a.y1+6},{a.x1+59,a.y1+54},{a.x1+5,a.y1+54},{a.x1+32,a.y1+6}};
-  for(unsigned i=0;i<3;i++){line.p1=points[i];line.p2=points[i+1];lv_draw_line(layer,&line);}
-  line.width=4;line.p1=(lv_point_precise_t){a.x1+32,a.y1+23};line.p2=(lv_point_precise_t){a.x1+32,a.y1+36};lv_draw_line(layer,&line);
-  lv_area_t point={a.x1+30,a.y1+43,a.x1+34,a.y1+47};lv_draw_rect(layer,&dot,&point);
+  for(unsigned i=0;i<3;i++){line.p1=points[i];line.p2=points[i+1];dsr_sc_draw_line(layer,&line);}
+  line.width=4;line.p1=(lv_point_precise_t){a.x1+32,a.y1+23};line.p2=(lv_point_precise_t){a.x1+32,a.y1+36};dsr_sc_draw_line(layer,&line);
+  lv_area_t point={a.x1+30,a.y1+43,a.x1+34,a.y1+47};dsr_sc_draw_rect(layer,&dot,&point);
  }
 }
 static void large_icon(lv_obj_t *card,dsr_ui_icon_t kind,int y,int size,uint32_t color)

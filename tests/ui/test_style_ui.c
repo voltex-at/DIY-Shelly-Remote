@@ -5,6 +5,7 @@
 #include "test_ui.c"
 #undef main
 #include "../../components/dsr_ui/dsr_ui_brand.h"
+#include "../../components/dsr_ui/dsr_ui_cyber.h"
 #include <math.h>
 static double luminance(lv_color_t c)
 {
@@ -44,8 +45,10 @@ int main(int argc,char **argv)
  for(unsigned s=0;s<3;s++){
   publish_style(styles[s]);CHECK(dsr_sc_style()==ids[s]&&style_hint==dsr_sc_style());
   char name[48];const double minimum=4.0;
-  /* Cyber Blue keeps the tinted artwork; the iOS skins a plain system background. */
-  dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(ids[s]==DSR_SC_STYLE_CYBER_BLUE?(const void *)dsr_ui_brand_background():NULL));
+  /* Cyber Blue keeps the tinted artwork (tinted once, no per-frame recolor);
+   * the iOS skins a plain system background. */
+  dsr_network_home(NULL);tick();CHECK(lv_obj_get_style_bg_image_src(lv_screen_active(),LV_PART_MAIN)==(ids[s]==DSR_SC_STYLE_CYBER_BLUE?(const void *)dsr_ui_cyber_backdrop():NULL));
+  if(ids[s]==DSR_SC_STYLE_CYBER_BLUE)CHECK(dsr_ui_cyber_backdrop()&&lv_obj_get_style_bg_image_recolor_opa(lv_screen_active(),LV_PART_MAIN)==LV_OPA_TRANSP);
   contrast(lv_screen_active(),minimum);snprintf(name,sizeof(name),"%u-style-home-%s",332+s*10,styles[s]);screenshot(name);
   if(!s){
    dsr_network_device(NULL);choose_method("Dodaj ręcznie (IP)");lv_textarea_set_text(find_type(lv_screen_active(),&lv_textarea_class),"192.168.1.77");click("Check & save device");CHECK(submitted.kind==DSR_JOB_BIND);

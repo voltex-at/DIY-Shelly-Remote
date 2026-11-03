@@ -536,7 +536,7 @@ static void device_room_draw(lv_event_t *event)
  lv_area_t a;lv_obj_get_content_coords(card,&a);a.x1+=CARD_ROW_X;a.y1+=rows?l.body:l.row_y;a.x2=a.x1+l.room_w-(rows?1:0);a.y2=a.y1+(rows?l.room_h:lv_font_get_line_height(font))-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);if(rows)label.base.obj=card;label.text=text;label.text_local=1;label.font=font;
  label.color=dsr_sc_text_color(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE?0x6fd3ff:DSR_SC_MUTED);
- lv_draw_label(lv_event_get_layer(event),&label,&a);
+ dsr_sc_draw_label(lv_event_get_layer(event),&label,&a);
 }
 static void contact_metric_draw(lv_obj_t *card,lv_layer_t *layer,dsr_ui_icon_t icon,const char *text,int x,int y,int width,uint32_t color)
 {
@@ -544,10 +544,10 @@ static void contact_metric_draw(lv_obj_t *card,lv_layer_t *layer,dsr_ui_icon_t i
  if(size.x+44>width){font=dsr_sc_font(&dsr_roboto_12);lv_text_get_size(&size,text,font,0,0,LV_COORD_MAX,LV_TEXT_FLAG_NONE);}
  int w=size.x+44;lv_area_t frame={x+(width-w)/2,y,x+(width-w)/2+w-1,y+23};
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
- else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;lv_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
+ else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;dsr_sc_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
  lv_area_t a={frame.x1+6,y,frame.x1+29,y+23};dsr_sc_draw_icon(card,layer,icon,&a,color);
  int h=lv_font_get_line_height(font);a=(lv_area_t){frame.x1+38,y+(24-h)/2,frame.x2-6,y+(24-h)/2+h-1};
- lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);lv_draw_label(layer,&label,&a);
+ lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);dsr_sc_draw_label(layer,&label,&a);
 }
 static void card_contact_draw(lv_event_t *event)
 {
@@ -555,7 +555,7 @@ static void card_contact_draw(lv_event_t *event)
  const dsr_mobile_device_t *d=&model.devices[i];lv_obj_t *card=lv_event_get_target(event);card_layout_t l=card_layout(d,lv_obj_get_width(card));
  lv_layer_t *layer=lv_event_get_layer(event);lv_area_t a;lv_obj_get_content_coords(card,&a);int x=a.x1+CARD_ROW_X,y=a.y1+l.body;
  a=(lv_area_t){x,y,x+l.room_w-1,y+l.room_h-1};lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);
- label.base.obj=card;label.text=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");label.text_local=1;label.font=dsr_sc_font(&dsr_roboto_14);label.align=LV_TEXT_ALIGN_CENTER;label.color=dsr_sc_text_color(DSR_SC_MUTED);lv_draw_label(layer,&label,&a);
+ label.base.obj=card;label.text=d->room<model.room_count?room_name(d):dsr_sc_tr("Nieprzypisane");label.text_local=1;label.font=dsr_sc_font(&dsr_roboto_14);label.align=LV_TEXT_ALIGN_CENTER;label.color=dsr_sc_text_color(DSR_SC_MUTED);dsr_sc_draw_label(layer,&label,&a);
  char text[40];bool lux=d->has_illuminance&&isfinite(d->illuminance_lux)&&d->illuminance_lux>=0;
  if(lux)snprintf(text,sizeof(text),d->illuminance_lux<1e6?"%.0f lx":"%.3g lx",d->illuminance_lux);else snprintf(text,sizeof(text),"— lx");
  contact_metric_draw(card,layer,DSR_ICON_ILLUMINANCE,text,x,y+l.room_h+6,l.metric_w,lux?DSR_SC_GLOW:DSR_SC_OFF);
@@ -583,11 +583,11 @@ static void card_battery_draw(lv_event_t *event)
   a.x1+=shift;a.x2+=shift;frame.x1+=shift;frame.x2+=shift;
  }
  if(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE)dsr_ui_cyber_draw_contour(layer,&frame,DSR_CYBER_CYAN,LV_OPA_80);
- else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;lv_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
+ else{lv_draw_rect_dsc_t pill;lv_draw_rect_dsc_init(&pill);pill.base.obj=card;pill.bg_color=dsr_sc_color(0x23272a);pill.radius=8;dsr_sc_draw_rect(layer,&pill,&frame);} /* iOS: filled pill */
  dsr_sc_draw_icon(card,lv_event_get_layer(event),DSR_ICON_BATTERY,&a,color);
  a.x1+=32;a.x2=frame.x2-6;a.y1+=(24-h)/2;a.y2=a.y1+h-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=card;label.text=text;label.text_local=1;label.font=font;label.color=dsr_sc_text_color(color);
- lv_draw_label(lv_event_get_layer(event),&label,&a);
+ dsr_sc_draw_label(lv_event_get_layer(event),&label,&a);
 }
 static void card_target_draw(lv_event_t *event)
 {
@@ -597,7 +597,7 @@ static void card_target_draw(lv_event_t *event)
  lv_obj_t *frame=lv_event_get_target(event);lv_area_t a;lv_obj_get_content_coords(frame,&a);
  const lv_font_t *font=dsr_sc_font(&dsr_roboto_12);int h=lv_font_get_line_height(font);a.x1+=4;a.x2-=4;a.y1+=(lv_area_get_height(&a)-h)/2;a.y2=a.y1+h-1;
  lv_draw_label_dsc_t label;lv_draw_label_dsc_init(&label);label.base.obj=frame;label.text=text;label.text_local=1;label.font=font;label.align=LV_TEXT_ALIGN_CENTER;label.color=dsr_sc_text_color(DSR_SC_TEXT);
- lv_draw_label(lv_event_get_layer(event),&label,&a);
+ dsr_sc_draw_label(lv_event_get_layer(event),&label,&a);
 }
 /* While a cover moves, or a movement/STOP is being sent, STOP is the largest
  * and only red control on the card and the detail page. Reverse actions stay

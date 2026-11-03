@@ -1,3 +1,13 @@
+0.7.81-dev: kandydat do próby na płytce — szybsze renderowanie Cyber Blue i szybsze budowanie ekranów.
+
+- Wygląd bez zmian: wszystkie klatki atlasu trzech skórek PL/EN/DE oraz klatki rysowane pasami 20 linii (jak na płytce) są identyczne z 0.7.80.
+- Kształty rysowane z kodu (ramki Cyber Blue, łuki tarczy termostatu, kreski skali, teksty kart, ikona baterii, pasek przewijania) nie tworzą już zadań LVGL poza aktualnie rysowanym pasem ekranu. Cyber Blue: o 40–48% mniej zadań rysowania na odświeżenie i klatkę przewijania; ekran ściemniacza także w Grafitowym i Jasnym.
+- Tło Cyber Blue jest przyciemniane raz do PSRAM (300 KB) zamiast przy każdym odświeżeniu, piksel w piksel tak samo jak dotąd. Przy braku PSRAM działa dotychczasowa ścieżka.
+- Tłumaczenia tekstów: tablica mieszająca (16 KB PSRAM) zamiast porównywania każdego tekstu z całą tabelą (~145 tys. porównań na zbudowanie ekranu głównego). Wynik identyczny w PL/EN/DE.
+- Pomiar tylko na hoście (LVGL 9.3, bufor 320×20): Cyber Blue −9…−14% czasu odświeżenia; host nie odwzorowuje odczytów Flash/PSRAM. Zysk na płytce do oceny właściciela. Nowy test `test_render_cost_ui` pilnuje, by te koszty nie wróciły.
+- Transport Shelly bez zmian względem 0.7.79/0.7.80.
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.80-dev: kandydat do próby na płytce — Grafitowy i Jasny w stylu iOS, poprawki Cyber Blue.
 
 - Grafitowy i Jasny wyglądają jak klasyczny iOS (ciemny i jasny): systemowe kolory (czarne tło i karty #1C1C1E albo tło #F2F2F7 i białe karty), jednolite tło bez grafiki, bez szarych obrysów i niebieskiej poświaty. Przycisk lub pole w karcie jest o stopień jaśniejsze/ciemniejsze zamiast obrysowane.

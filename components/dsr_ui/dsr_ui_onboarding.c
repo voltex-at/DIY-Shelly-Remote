@@ -23,7 +23,7 @@ static void selected_dot(lv_event_t *event)
  lv_obj_t *radio=lv_event_get_target(event);if(!lv_obj_has_state(radio,LV_STATE_CHECKED))return;
  lv_area_t a;lv_obj_get_coords(radio,&a);a.x1+=(lv_area_get_width(&a)-8)/2;a.y1+=(lv_area_get_height(&a)-8)/2;a.x2=a.x1+7;a.y2=a.y1+7;
  lv_draw_rect_dsc_t dot;lv_draw_rect_dsc_init(&dot);dot.bg_color=lv_color_hex(0xffffff);dot.bg_opa=LV_OPA_COVER;dot.radius=LV_RADIUS_CIRCLE;
- lv_draw_rect(lv_event_get_layer(event),&dot,&a);
+ dsr_sc_draw_rect(lv_event_get_layer(event),&dot,&a);
 }
 static void refresh_selection(void)
 {

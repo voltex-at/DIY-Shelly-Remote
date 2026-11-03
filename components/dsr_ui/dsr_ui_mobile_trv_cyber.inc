@@ -8,13 +8,13 @@ static void trv_ring_draw(lv_event_t *event)
  for(unsigned i=0;i<42;i++){
   double at=i*4.0/41;unsigned k=(unsigned)at;if(k>3)k=3;double f=at-k;uint32_t c=0;
   for(int bit=16;bit>=0;bit-=8){int v=(int)((stops[k]>>bit)&255),w=(int)((stops[k+1]>>bit)&255);c=(c<<8)|(uint32_t)(v+(w-v)*f);}
-  arc.color=dsr_sc_color(live?c:DSR_SC_OFF);arc.start_angle=135+270.0*i/42;arc.end_angle=135+270.0*(i+1)/42-1.2;lv_draw_arc(layer,&arc);
+  arc.color=dsr_sc_color(live?c:DSR_SC_OFF);arc.start_angle=135+270.0*i/42;arc.end_angle=135+270.0*(i+1)/42-1.2;dsr_sc_draw_arc(layer,&arc);
  }
- arc.radius=108;arc.width=1;arc.color=dsr_sc_color(live?0x2785ac:DSR_SC_OFF);arc.start_angle=135;arc.end_angle=405;lv_draw_arc(layer,&arc);
+ arc.radius=108;arc.width=1;arc.color=dsr_sc_color(live?0x2785ac:DSR_SC_OFF);arc.start_angle=135;arc.end_angle=405;dsr_sc_draw_arc(layer,&arc);
  for(unsigned i=0;i<19;i++){
   double angle=(135+15.0*i)*3.14159265358979/180;
   lv_draw_line_dsc_t l;lv_draw_line_dsc_init(&l);l.color=dsr_sc_color(DSR_SC_MUTED);l.width=1;
-  l.p1=(lv_point_precise_t){cx+110*cos(angle),cy+110*sin(angle)};l.p2=(lv_point_precise_t){cx+(i%3?114:117)*cos(angle),cy+(i%3?114:117)*sin(angle)};lv_draw_line(layer,&l);
+  l.p1=(lv_point_precise_t){cx+110*cos(angle),cy+110*sin(angle)};l.p2=(lv_point_precise_t){cx+(i%3?114:117)*cos(angle),cy+(i%3?114:117)*sin(angle)};dsr_sc_draw_line(layer,&l);
  }
 }
 static lv_obj_t *trv_percent_card(lv_obj_t *root,int x,const char *title,dsr_ui_icon_t icon,bool known,unsigned value,bool warning)

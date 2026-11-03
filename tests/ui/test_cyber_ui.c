@@ -37,6 +37,21 @@ static double full_paint_ms(void)
  for(unsigned i=0;i<8;i++){lv_obj_invalidate(lv_screen_active());lv_refr_now(display);}
  CHECK(clock_gettime(CLOCK_MONOTONIC,&b)==0);return ((b.tv_sec-a.tv_sec)*1000.0+(b.tv_nsec-a.tv_nsec)/1000000.0)/8;
 }
+/* The once-tinted backdrop equals LVGL's per-frame 70% #001c36 recolor of the
+ * Flash art (the 0.7.80 path), pixel for pixel. */
+static void backdrop_matches_lvgl_tint(void)
+{
+ const lv_image_dsc_t *tinted=dsr_ui_cyber_backdrop();
+ CHECK(tinted&&tinted->data!=dsr_ui_brand_background()->data&&lv_obj_get_style_bg_image_src(lv_screen_active(),0)==tinted);
+ lv_obj_t *previous=lv_screen_active(),*probe=lv_obj_create(NULL);lv_obj_remove_style_all(probe);
+ lv_obj_set_style_bg_opa(probe,LV_OPA_COVER,0);lv_obj_set_style_bg_image_src(probe,dsr_ui_brand_background(),0);
+ lv_obj_set_style_bg_image_recolor(probe,lv_color_hex(0x001c36),0);lv_obj_set_style_bg_image_recolor_opa(probe,LV_OPA_70,0);
+ lv_screen_load(probe);lv_refr_now(display);
+ static unsigned char reference[sizeof(canvas)];memcpy(reference,canvas,sizeof(canvas));
+ lv_obj_set_style_bg_image_src(probe,tinted,0);lv_obj_set_style_bg_image_recolor_opa(probe,LV_OPA_TRANSP,0);
+ lv_obj_invalidate(probe);lv_refr_now(display);CHECK(!memcmp(reference,canvas,sizeof(canvas)));
+ lv_screen_load(previous);lv_obj_delete(probe);lv_refr_now(display);
+}
 static void label_inside_parent(const char *text)
 {
  lv_obj_t *label=find_label(lv_screen_active(),text);CHECK(label);lv_area_t a,p;
@@ -203,6 +218,7 @@ int main(int argc,char **argv)
  printf("LVGL free before first Cyber selection %lu, after %lu (same appearance screen; includes lazy widget/style caches)\n",(unsigned long)legacy.free_size,(unsigned long)first.free_size);
  CHECK(rgb(dsr_sc_color(DSR_SC_BG))==DSR_CYBER_BG&&rgb(dsr_sc_color(DSR_SC_BLUE))==DSR_CYBER_BLUE);
  CHECK(dsr_ui_brand_background()==background); /* Reuse original dark art. */
+ backdrop_matches_lvgl_tint();
  gallery();icon_gallery();
  /* Re-enter from the saved document, as startup does (no device reboot). */
  dsr_sc_appearance(DSR_SC_BLUE,DSR_SC_STYLE_LIGHT,0);dsr_ui_apply_theme();dsr_network_home(NULL);tick();CHECK(dsr_sc_style()==DSR_SC_STYLE_CYBER_BLUE);

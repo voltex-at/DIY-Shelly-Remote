@@ -110,6 +110,17 @@ const char *dsr_sc_user(const char *text){user_text=text;return text;}
 /* Names the firmware itself created (defaults) stay localized. */
 const char *dsr_sc_name(const char *name)
 {return name&&strcmp(name,"Mój pulpit")&&strcmp(name,"Mój dom")?dsr_sc_user(name):name;}
+/* Translation index: a text without an entry (names, values) used to be
+ * compared with every string of the table below, ~4200 in Flash, about 145 k
+ * strcmp per Dashboard build. An open-addressing FNV-1a hash, filled once in
+ * row order, finds the same first matching row. */
+#define TR_SLOTS 8192u
+#ifdef ESP_PLATFORM
+#include "esp_attr.h"
+EXT_RAM_BSS_ATTR
+#endif
+static uint16_t tr_slots[TR_SLOTS]; /* row*3+column+1; 0 = empty */
+static uint32_t tr_hash(const char *s){uint32_t h=2166136261u;while(*s)h=(h^(uint8_t)*s++)*16777619u;return h;}
 const char *dsr_sc_tr(const char *text)
 {
  if(text&&text==user_text){user_text=NULL;return text;}
@@ -541,7 +552,20 @@ const char *dsr_sc_tr(const char *text)
  {"Brak dodatkowych pomiarów","No additional readings","Keine weiteren Messwerte"},
 #include "dsr_ui_strings.inc"
  };
- for(unsigned i=0;i<sizeof(words)/sizeof(words[0]);i++)for(unsigned key=0;key<3;key++)if(!strcmp(text,words[i][key]))return words[i][language];
+ enum{ROWS=sizeof(words)/sizeof(words[0])};
+ _Static_assert(ROWS*3<TR_SLOTS*3/4,"translation index load factor");
+ static bool indexed;
+ if(!indexed){
+  for(unsigned i=0;i<ROWS*3;i++){
+   const char *key=words[i/3][i%3];unsigned at=tr_hash(key)&(TR_SLOTS-1);
+   while(tr_slots[at]&&strcmp(words[(tr_slots[at]-1u)/3][(tr_slots[at]-1u)%3],key))at=(at+1)&(TR_SLOTS-1);
+   if(!tr_slots[at])tr_slots[at]=(uint16_t)(i+1); /* a repeated text keeps its first row */
+  }
+  indexed=true;
+ }
+ for(unsigned at=tr_hash(text)&(TR_SLOTS-1);tr_slots[at];at=(at+1)&(TR_SLOTS-1)){
+  unsigned i=tr_slots[at]-1u;if(!strcmp(text,words[i/3][i%3]))return words[i/3][language];
+ }
  return text;
 }
 void dsr_sc_label_set_text(lv_obj_t *label,const char *text){lv_label_set_text(label,dsr_sc_tr(text));}
@@ -554,11 +578,11 @@ void dsr_sc_label_set_text_fmt(lv_obj_t *label,const char *format,...)
  * the plain system background. */
 void dsr_sc_background(lv_obj_t *root)
 {
-    dsr_ui_cyber_background(root,style==DSR_SC_STYLE_CYBER_BLUE);
     lv_obj_set_style_bg_color(root,dsr_sc_color(DSR_SC_BG),0);lv_obj_set_style_bg_opa(root,LV_OPA_COVER,0);
 #ifndef DSR_UI_REVIEW_DEMO
     lv_obj_set_style_bg_image_src(root,ios()?NULL:dsr_ui_brand_background(),0);
 #endif
+    dsr_ui_cyber_background(root,style==DSR_SC_STYLE_CYBER_BLUE); /* swaps in the pre-tinted art */
 }
 /* Shared styles (0.7.50): a panel used to carry 13 local style properties and
  * a button three more state blocks, each a separate LVGL heap allocation. A
@@ -661,13 +685,38 @@ lv_obj_t *dsr_sc_warning(lv_obj_t *parent,const char *text,int x,int y,int width
     lv_obj_set_height(panel,height<48?48:height);return label;
 }
 
+/* Each test uses the area LVGL 9.3 gives the shape's task (lv_draw_line,
+ * lv_draw_arc, lv_draw_label; lv_draw_rect plus its outline and shadow). */
+bool dsr_sc_in_band(const lv_layer_t *layer,const lv_area_t *area)
+{const lv_area_t *c=&layer->_clip_area;return area->x1<=c->x2&&area->x2>=c->x1&&area->y1<=c->y2&&area->y2>=c->y1;}
+void dsr_sc_draw_line(lv_layer_t *layer,const lv_draw_line_dsc_t *dsc)
+{
+ int32_t w=dsc->width;
+ lv_area_t a={(int32_t)LV_MIN(dsc->p1.x,dsc->p2.x)-w,(int32_t)LV_MIN(dsc->p1.y,dsc->p2.y)-w,(int32_t)LV_MAX(dsc->p1.x,dsc->p2.x)+w,(int32_t)LV_MAX(dsc->p1.y,dsc->p2.y)+w};
+ if(dsr_sc_in_band(layer,&a))lv_draw_line(layer,dsc);
+}
+void dsr_sc_draw_rect(lv_layer_t *layer,const lv_draw_rect_dsc_t *dsc,const lv_area_t *area)
+{
+ int32_t reach=LV_MAX(dsc->outline_width+dsc->outline_pad,dsc->shadow_width+dsc->shadow_spread+LV_MAX(LV_ABS(dsc->shadow_offset_x),LV_ABS(dsc->shadow_offset_y)));
+ if(reach<0)reach=0;
+ lv_area_t a={area->x1-reach,area->y1-reach,area->x2+reach,area->y2+reach};
+ if(dsr_sc_in_band(layer,&a))lv_draw_rect(layer,dsc,area);
+}
+void dsr_sc_draw_arc(lv_layer_t *layer,const lv_draw_arc_dsc_t *dsc)
+{
+ lv_area_t a={dsc->center.x-dsc->radius,dsc->center.y-dsc->radius,dsc->center.x+dsc->radius-1,dsc->center.y+dsc->radius-1};
+ if(dsr_sc_in_band(layer,&a))lv_draw_arc(layer,dsc);
+}
+void dsr_sc_draw_label(lv_layer_t *layer,const lv_draw_label_dsc_t *dsc,const lv_area_t *area)
+{if(dsr_sc_in_band(layer,area))lv_draw_label(layer,dsc,area);}
+
 /* Apache-2.0 Material Symbols Rounded, pre-filtered to coverage masks.
  * No SVG parser, web font, or integer-grid line approximation at runtime. */
 extern const lv_image_dsc_t dsr_symbol_atlas[40];
 static void symbol_line(lv_layer_t *layer,const lv_area_t *a,int size,lv_color_t color,int x1,int y1,int x2,int y2)
 {
  lv_draw_line_dsc_t line;lv_draw_line_dsc_init(&line);line.color=color;line.width=size>=48?3:2;line.round_start=line.round_end=1;
- line.p1=(lv_point_precise_t){a->x1+x1*size/64,a->y1+y1*size/64};line.p2=(lv_point_precise_t){a->x1+x2*size/64,a->y1+y2*size/64};lv_draw_line(layer,&line);
+ line.p1=(lv_point_precise_t){a->x1+x1*size/64,a->y1+y1*size/64};line.p2=(lv_point_precise_t){a->x1+x2*size/64,a->y1+y2*size/64};dsr_sc_draw_line(layer,&line);
 }
 static lv_color_t icon_color(lv_obj_t *o)
 {return style==DSR_SC_STYLE_CYBER_BLUE?lv_obj_get_style_image_recolor(o,0):lv_obj_get_style_line_color(o,0);}
@@ -678,7 +727,7 @@ static void state_symbol(lv_layer_t *layer,unsigned kind,lv_area_t a,int size,lv
  else if(kind==DSR_ICON_VALVE){LINE(10,32,24,32);LINE(40,32,54,32);LINE(24,23,40,23);LINE(40,23,40,42);LINE(40,42,24,42);LINE(24,42,24,23);LINE(32,23,32,12);LINE(22,12,42,12);LINE(10,26,10,38);LINE(54,26,54,38);}
  else if(kind==DSR_ICON_BLUETOOTH){LINE(31,6,31,58);LINE(31,6,46,19);LINE(46,19,16,45);LINE(16,19,46,45);LINE(46,45,31,58);}
  else if(kind==DSR_ICON_REFRESH){
-  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){a.x1+size/2,a.y1+size/2};arc.radius=(uint16_t)(size*23/64);arc.width=size>=40?3:2;arc.color=color;arc.start_angle=30;arc.end_angle=300;lv_draw_arc(layer,&arc);
+  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){a.x1+size/2,a.y1+size/2};arc.radius=(uint16_t)(size*23/64);arc.width=size>=40?3:2;arc.color=color;arc.start_angle=30;arc.end_angle=300;dsr_sc_draw_arc(layer,&arc);
   LINE(43,6,44,19);LINE(44,19,31,18);
  }
  else{
@@ -768,8 +817,8 @@ static void header_back_icon(lv_event_t *event)
  lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=icon_color(icon);d.width=3;d.round_start=d.round_end=1;
  /* Keep the 24 px slot; only the chevron's stroke becomes heavier. */
  int x=(a.x1+a.x2)/2,y=(a.y1+a.y2)/2;
- d.p1=(lv_point_precise_t){x+4,y-8};d.p2=(lv_point_precise_t){x-4,y};lv_draw_line(lv_event_get_layer(event),&d);
- d.p1=d.p2;d.p2=(lv_point_precise_t){x+4,y+8};lv_draw_line(lv_event_get_layer(event),&d);
+ d.p1=(lv_point_precise_t){x+4,y-8};d.p2=(lv_point_precise_t){x-4,y};dsr_sc_draw_line(lv_event_get_layer(event),&d);
+ d.p1=d.p2;d.p2=(lv_point_precise_t){x+4,y+8};dsr_sc_draw_line(lv_event_get_layer(event),&d);
 }
 void dsr_sc_header_back(lv_obj_t *root,lv_event_cb_t back,void *context)
 {
@@ -860,7 +909,7 @@ static void scrollbar_margin(lv_event_t *e)
   * before that clip, while keeping rows clipped inside their normal bounds. */
  lv_obj_t *o=lv_event_get_target(e);if(lv_obj_get_style_pad_right(o,LV_PART_SCROLLBAR)>=0)return;lv_area_t h,v;lv_obj_get_scrollbar_area(o,&h,&v);
  if(lv_area_get_width(&v)<=0||lv_area_get_height(&v)<=0)return;
- lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);lv_obj_init_draw_rect_dsc(o,LV_PART_SCROLLBAR,&d);lv_draw_rect(lv_event_get_layer(e),&d,&v);
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);lv_obj_init_draw_rect_dsc(o,LV_PART_SCROLLBAR,&d);dsr_sc_draw_rect(lv_event_get_layer(e),&d,&v);
 }
 void dsr_sc_scrollbar(lv_obj_t *o)
 {

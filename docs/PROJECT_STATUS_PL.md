@@ -2,6 +2,28 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Wydajność renderowania Cyber Blue (i wspólnego rysowania), kandydat 0.7.81-dev — 2026-11-03
+
+Polecenie właściciela: poprawić wydajność Cyber Blue, potem poprawki UI.
+Pomiar hosta (`test_render_cost_ui`, LVGL 9.3, pasy 320×20 jak na płytce)
+pokazał w Cyber Blue ~5× więcej zadań rysowania niż w Grafit: linie ramek
+tworzone także poza bieżącym pasem i przyciemnianie ~150 tys. pikseli tła
+(300 KB z Flash) przy każdym odświeżeniu. Zmiany bez zmiany pikseli (atlas
+540 klatek i 24 klatki w pasach 20 linii identyczne bajt w bajt z 0.7.80):
+- kształty z kodu rysowania (ramki, łuki, kreski, teksty kart, bateria,
+  pasek przewijania) pomijane poza pasem: Cyber Blue −40…−48% zadań, ekran
+  ściemniacza 623→349 zadań we wszystkich skórkach;
+- tło Cyber Blue przyciemnione raz do PSRAM (300 KB, ta sama arytmetyka co
+  LVGL; bez PSRAM dotychczasowa ścieżka);
+- tłumaczenia: tablica mieszająca (16 KB PSRAM) zamiast ~145 tys. strcmp na
+  zbudowanie ekranu głównego; wynik sprawdzony wyrocznią w pełnym zestawie UI.
+Czas hosta: Cyber Blue −9…−14% na odświeżenie (host nie modeluje Flash/PSRAM
+ani alokacji zadań w PSRAM). Zysk na płytce niezmierzony — do oceny przez
+właściciela. Opcja na później: pasy 40 linii (~−25% w obu skórkach na
+hoście) kosztem +25 KB wewnętrznej RAM DMA, wymaga pomiaru pamięci z BLE.
+Właściciel polecił publikację DEV 0.7.81; odbiór płynności na płytce otwarty,
+następny krok: poprawki UI.
+
 ## Odbiór na płytce: DEV 0.7.80 — 2026-11-02
 
 Właściciel po aktualizacji ES3C35P do `dev-v0.7.80` (`350ac86`): rolety

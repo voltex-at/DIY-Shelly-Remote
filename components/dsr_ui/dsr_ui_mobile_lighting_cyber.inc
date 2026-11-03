@@ -113,7 +113,7 @@ static void lighting_light_ticks(lv_event_t *event)
   double t=(135.0+10.0*i)*3.14159265358979/180.0;int inner=i%3?LIGHT_R-20:LIGHT_R-25,outer=LIGHT_R-15;
   line.p1=(lv_point_precise_t){a.x1+LIGHT_CX+(int)lround(inner*cos(t)),a.y1+LIGHT_CY+(int)lround(inner*sin(t))};
   line.p2=(lv_point_precise_t){a.x1+LIGHT_CX+(int)lround(outer*cos(t)),a.y1+LIGHT_CY+(int)lround(outer*sin(t))};
-  lv_draw_line(lv_event_get_layer(event),&line);
+  dsr_sc_draw_line(lv_event_get_layer(event),&line);
  }
 }
 /* "Włączony" row: the whole row toggles the output; the switch only shows it. */

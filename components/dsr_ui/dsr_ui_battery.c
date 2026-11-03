@@ -76,13 +76,13 @@ static void battery_draw(lv_event_t *event)
  lv_obj_t *o=lv_event_get_target(event);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(event);
  uint32_t color=header_low?DSR_CYBER_DANGER:DSR_SC_GLOW;
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_TRANSP;d.border_width=DSR_CYBER_BORDER_WIDTH;d.border_color=dsr_sc_color(color);d.radius=3;
- lv_area_t cell={a.x1+1,a.y1+10,a.x1+46,a.y1+32};lv_draw_rect(layer,&d,&cell);
+ lv_area_t cell={a.x1+1,a.y1+10,a.x1+46,a.y1+32};dsr_sc_draw_rect(layer,&d,&cell);
  d.border_width=0;d.radius=1;d.bg_opa=LV_OPA_COVER;d.bg_color=dsr_sc_color(color);
- lv_area_t tip={a.x1+47,a.y1+17,a.x1+49,a.y1+25};lv_draw_rect(layer,&d,&tip);
+ lv_area_t tip={a.x1+47,a.y1+17,a.x1+49,a.y1+25};dsr_sc_draw_rect(layer,&d,&tip);
  /* The dim fill stays behind the percentage: no second row or charge glyph
   * competes with the value. Unknown level remains an empty outline + dash. */
  d.bg_opa=LV_OPA_30;
- if(header_fill>0){lv_area_t fill={cell.x1+3,cell.y1+3,cell.x1+2+40*header_fill/100,cell.y2-3};if(fill.x2>=fill.x1)lv_draw_rect(layer,&d,&fill);}
+ if(header_fill>0){lv_area_t fill={cell.x1+3,cell.y1+3,cell.x1+2+40*header_fill/100,cell.y2-3};if(fill.x2>=fill.x1)dsr_sc_draw_rect(layer,&d,&fill);}
 }
 static void charge_frame(lv_timer_t *timer)
 {

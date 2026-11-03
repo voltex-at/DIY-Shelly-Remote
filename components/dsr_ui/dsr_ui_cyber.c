@@ -4,8 +4,10 @@
  * image copies, blur or per-frame timers. No device/network code lives here. */
 #include "dsr_ui_cyber.h"
 #include "dsr_ui_style.h"
+#include "dsr_ui_brand.h"
 #include "dsr_board.h"
 #include "src/themes/lv_theme_private.h" /* LVGL 9.3's concrete theme storage */
+#include <stdlib.h>
 
 uint32_t dsr_ui_cyber_color(uint32_t c)
 {
@@ -40,6 +42,7 @@ typedef struct {
 } cyber_t;
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 EXT_RAM_BSS_ATTR
 #endif
 static cyber_t hud;
@@ -173,7 +176,7 @@ lv_theme_t *dsr_ui_cyber_theme(lv_theme_t *base)
 static void line(lv_layer_t *layer,int x1,int y1,int x2,int y2,uint32_t color)
 {
  lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=lv_color_hex(color);d.width=1;
- d.p1=(lv_point_precise_t){x1,y1};d.p2=(lv_point_precise_t){x2,y2};lv_draw_line(layer,&d);
+ d.p1=(lv_point_precise_t){x1,y1};d.p2=(lv_point_precise_t){x2,y2};dsr_sc_draw_line(layer,&d);
 }
 static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_t opa,int width);
 void dsr_ui_cyber_draw_contour(lv_layer_t *layer,const lv_area_t *a,uint32_t color,lv_opa_t opacity)
@@ -220,7 +223,7 @@ static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_
 {
  lv_draw_line_dsc_t d;lv_draw_line_dsc_init(&d);d.color=lv_color_hex(color);d.opa=opa;d.width=width;d.round_start=d.round_end=1;
  const lv_point_precise_t p[9]={{a.x1+cut,a.y1},{a.x2-cut,a.y1},{a.x2,a.y1+cut},{a.x2,a.y2-cut},{a.x2-cut,a.y2},{a.x1+cut,a.y2},{a.x1,a.y2-cut},{a.x1,a.y1+cut},{a.x1+cut,a.y1}};
- for(unsigned i=0;i<8;i++){d.p1=p[i];d.p2=p[i+1];lv_draw_line(layer,&d);}
+ for(unsigned i=0;i<8;i++){d.p1=p[i];d.p2=p[i+1];dsr_sc_draw_line(layer,&d);}
 }
 /* flags: 1 inner contour, 2 status strip, 4 on, 8 warning, 16 diagonal inlay. */
 static void frame_draw(lv_event_t *e)
@@ -232,8 +235,8 @@ static void frame_draw(lv_event_t *e)
  chamfer(layer,(lv_area_t){a.x1+1,a.y1+1,a.x2-1,a.y2-1},9,DSR_CYBER_CYAN,(flags&4)||pressed?LV_OPA_COVER:LV_OPA_80,2);
  if(flags&1)chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},7,DSR_CYBER_CYAN,LV_OPA_40,1);
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_COVER;d.radius=1;
- if(flags&2){d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x2f6f9c);lv_area_t strip={a.x1+4,a.y1+18,a.x1+5,a.y2-18};lv_draw_rect(layer,&d,&strip);}
- d.bg_color=lv_color_hex(DSR_CYBER_CYAN);lv_area_t bar={a.x1+14,a.y2-5,a.x1+42,a.y2-4};lv_draw_rect(layer,&d,&bar);
+ if(flags&2){d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x2f6f9c);lv_area_t strip={a.x1+4,a.y1+18,a.x1+5,a.y2-18};dsr_sc_draw_rect(layer,&d,&strip);}
+ d.bg_color=lv_color_hex(DSR_CYBER_CYAN);lv_area_t bar={a.x1+14,a.y2-5,a.x1+42,a.y2-4};dsr_sc_draw_rect(layer,&d,&bar);
 }
 static void frame(lv_obj_t *o,bool on,uintptr_t flags)
 {
@@ -252,12 +255,12 @@ static void power_draw(lv_event_t *e)
  lv_draw_arc_dsc_t arc;lv_draw_arc_dsc_init(&arc);arc.center=(lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2};
  /* Reference ring: cyan rim, dark gap, then the blue face of an active button. */
  if(side>=40&&lv_obj_get_style_outline_width(o,0)>0){
-  arc.radius=(uint16_t)(side/2-2);arc.width=3;arc.color=lv_color_hex(0x061631);arc.opa=LV_OPA_COVER;arc.start_angle=0;arc.end_angle=360;lv_draw_arc(lv_event_get_layer(e),&arc);
-  arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(0x5fc8ff);arc.opa=LV_OPA_70;lv_draw_arc(lv_event_get_layer(e),&arc);
+  arc.radius=(uint16_t)(side/2-2);arc.width=3;arc.color=lv_color_hex(0x061631);arc.opa=LV_OPA_COVER;arc.start_angle=0;arc.end_angle=360;dsr_sc_draw_arc(lv_event_get_layer(e),&arc);
+  arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(0x5fc8ff);arc.opa=LV_OPA_70;dsr_sc_draw_arc(lv_event_get_layer(e),&arc);
   return;
  }
- arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(DSR_CYBER_CYAN);arc.opa=LV_OPA_80;arc.start_angle=210;arc.end_angle=320;lv_draw_arc(lv_event_get_layer(e),&arc);
- arc.radius=(uint16_t)(side/2-2);arc.color=lv_color_hex(0x071a32);arc.opa=LV_OPA_60;arc.start_angle=25;arc.end_angle=155;lv_draw_arc(lv_event_get_layer(e),&arc);
+ arc.radius=(uint16_t)(side/2-5);arc.width=1;arc.color=lv_color_hex(DSR_CYBER_CYAN);arc.opa=LV_OPA_80;arc.start_angle=210;arc.end_angle=320;dsr_sc_draw_arc(lv_event_get_layer(e),&arc);
+ arc.radius=(uint16_t)(side/2-2);arc.color=lv_color_hex(0x071a32);arc.opa=LV_OPA_60;arc.start_angle=25;arc.end_angle=155;dsr_sc_draw_arc(lv_event_get_layer(e),&arc);
 }
 void dsr_ui_cyber_power(lv_obj_t *o,bool on,bool enabled)
 {
@@ -294,7 +297,7 @@ static void shutter_line(lv_layer_t *layer,int x1,int y1,int x2,int y2,uint32_t 
 {line(layer,x1,y1,x2,y2,shutter_color(color));}
 static void shutter_rect(lv_layer_t *layer,lv_area_t a,uint32_t fill,uint32_t border,int radius)
 {
- lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(shutter_color(fill));d.bg_opa=LV_OPA_COVER;d.border_width=1;d.border_color=lv_color_hex(shutter_color(border));d.radius=radius;lv_draw_rect(layer,&d,&a);
+ lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(shutter_color(fill));d.bg_opa=LV_OPA_COVER;d.border_width=1;d.border_color=lv_color_hex(shutter_color(border));d.radius=radius;dsr_sc_draw_rect(layer,&d,&a);
 }
 static void cover_draw(lv_event_t *e)
 {
@@ -308,7 +311,7 @@ static void cover_draw(lv_event_t *e)
  if(s->known){
   lv_draw_image_dsc_t image;lv_draw_image_dsc_init(&image);image.src=&shutter_garden;
   image.scale_x=lv_area_get_width(&glass)*LV_SCALE_NONE/152;image.scale_y=height*LV_SCALE_NONE/128;
-  lv_area_t source={glass.x1,glass.y1,glass.x1+151,glass.y1+127};lv_draw_image(layer,&image,&source);
+  lv_area_t source={glass.x1,glass.y1,glass.x1+151,glass.y1+127};lv_area_t reach={glass.x1-1,glass.y1-1,LV_MAX(glass.x2,source.x2)+1,LV_MAX(glass.y2,source.y2)+1};if(dsr_sc_in_band(layer,&reach))lv_draw_image(layer,&image,&source); /* scaled from the top-left pivot */
  }else{
   shutter_rect(layer,glass,0x101f2c,0x38536a,0);
   for(int y=top+8;y<bottom;y+=18)shutter_line(layer,glass.x1+4,y,glass.x2-4,y,0x243b4c);
@@ -318,7 +321,7 @@ static void cover_draw(lv_event_t *e)
   d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x098aca)),.opa=LV_OPA_COVER,.frac=0};
   d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(shutter_color(0x035491)),.opa=LV_OPA_COVER,.frac=255};
   /* Each seam follows the bottom rail; the curtain disappears into the top cassette. */
-  for(int end=edge-1;end>=top;end-=10){int start=end-9;if(start<top)start=top;lv_area_t slat={glass.x1,start,glass.x2,end};lv_draw_rect(layer,&d,&slat);shutter_line(layer,glass.x1,end,glass.x2,end,0x032c4b);if(start>top)shutter_line(layer,glass.x1,start,glass.x2,start,0x51d6f4);}
+  for(int end=edge-1;end>=top;end-=10){int start=end-9;if(start<top)start=top;lv_area_t slat={glass.x1,start,glass.x2,end};dsr_sc_draw_rect(layer,&d,&slat);shutter_line(layer,glass.x1,end,glass.x2,end,0x032c4b);if(start>top)shutter_line(layer,glass.x1,start,glass.x2,start,0x51d6f4);}
  }
  /* Machined guide profiles remain above the texture and moving slats. */
  for(unsigned i=0;i<2;i++){int x=i?glass.x2+1:glass.x1-6;
@@ -371,7 +374,7 @@ static void navigation_draw(lv_event_t *e)
   lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_color=lv_color_hex(0x07416d);d.bg_opa=LV_OPA_COVER;
   d.bg_grad.dir=LV_GRAD_DIR_VER;d.bg_grad.stops_count=2;
   d.bg_grad.stops[0]=(lv_grad_stop_t){.color=lv_color_hex(0x0d4b76),.opa=LV_OPA_COVER,.frac=0};d.bg_grad.stops[1]=(lv_grad_stop_t){.color=lv_color_hex(0x081a31),.opa=LV_OPA_COVER,.frac=255};
-  lv_area_t b={a.x1+(int)selected*64+1,a.y1+2,a.x1+(int)(selected+1)*64-1,a.y2};lv_draw_rect(layer,&d,&b);
+  lv_area_t b={a.x1+(int)selected*64+1,a.y1+2,a.x1+(int)(selected+1)*64-1,a.y2};dsr_sc_draw_rect(layer,&d,&b);
  }
  for(int x=64;x<300;x+=64)line(layer,a.x1+x,a.y1+8,a.x1+x,a.y2-7,0x23486a);
  line(layer,a.x1,a.y1,a.x2,a.y1,0x1675aa);
@@ -384,13 +387,53 @@ static void background_draw(lv_event_t *e)
  line(layer,a.x1,a.y1+105,a.x1+100,a.y1+5,DSR_CYBER_BORDER);
  line(layer,a.x2-68,a.y2-5,a.x2,a.y2-73,DSR_CYBER_CYAN);
 }
+#define BACKDROP_TINT 0x001c36
+#define BACKDROP_MIX LV_OPA_70
+#ifdef DSR_UI_REVIEW_DEMO
+#define brand_art() ((const lv_image_dsc_t *)NULL) /* the review fixture has no brand art */
+#else
+#define brand_art() dsr_ui_brand_background()
+#endif
+/* The dark brand art tinted 70% towards navy. LVGL used to mix every
+ * background pixel of every repaint (~150 k per full screen) and read the
+ * 300 KB from Flash. One PSRAM copy uses recolor() of LVGL 9.3
+ * lv_draw_sw_img.c (RGB565, mix below LV_OPA_MAX), so frames stay identical;
+ * drawing it is a plain copy. Kept for the session; NULL if PSRAM is short. */
+const lv_image_dsc_t *dsr_ui_cyber_backdrop(void)
+{
+ static lv_image_dsc_t tinted;
+ static bool tried;
+ /* Only built from the dark art, which the brand module returns in Cyber Blue. */
+ if(tinted.data||tried||dsr_sc_style()!=DSR_SC_STYLE_CYBER_BLUE)return tinted.data?&tinted:NULL;
+ tried=true;
+ const lv_image_dsc_t *art=brand_art();
+ if(!art||art->header.cf!=LV_COLOR_FORMAT_RGB565||art->header.stride!=art->header.w*2)return NULL;
+#ifdef ESP_PLATFORM
+ uint16_t *out=heap_caps_malloc(art->data_size,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+#else
+ uint16_t *out=malloc(art->data_size);
+#endif
+ if(!out)return NULL;
+ const lv_color_t tint=lv_color_hex(BACKDROP_TINT);const unsigned mix=BACKDROP_MIX,keep=255-mix;
+ const unsigned blue=(tint.blue>>3)*mix,green=(tint.green>>2)*mix,red=(tint.red>>3)*mix;
+ const uint16_t *in=(const uint16_t *)art->data;
+ for(uint32_t i=0;i<art->data_size/2;i++){
+  unsigned p=in[i];
+  out[i]=(uint16_t)((((red+((p>>11)&0x1f)*keep)<<3)&0xf800)+(((green+((p>>5)&0x3f)*keep)>>3)&0x07e0)+((blue+(p&0x1f)*keep)>>8));
+ }
+ tinted=*art;tinted.data=(const uint8_t *)out;return &tinted;
+}
 void dsr_ui_cyber_background(lv_obj_t *o,bool active)
 {
  lv_obj_remove_event_cb(o,background_draw);
  if(active){
-  /* Tint the original Flash artwork in the normal RGB565 draw path. No second
-   * bitmap, decoder, PSRAM copy or intermediate render layer. */
-  lv_obj_set_style_bg_image_recolor(o,lv_color_hex(0x001c36),0);lv_obj_set_style_bg_image_recolor_opa(o,LV_OPA_70,0);
+  const lv_image_dsc_t *tinted=lv_obj_get_style_bg_image_src(o,0)==brand_art()?dsr_ui_cyber_backdrop():NULL;
+  if(tinted){
+   lv_obj_set_style_bg_image_src(o,tinted,0);
+   lv_obj_remove_local_style_prop(o,LV_STYLE_BG_IMAGE_RECOLOR,0);lv_obj_remove_local_style_prop(o,LV_STYLE_BG_IMAGE_RECOLOR_OPA,0);
+  }
+  /* Fallback: tint the Flash artwork in the normal RGB565 draw path. */
+  else{lv_obj_set_style_bg_image_recolor(o,lv_color_hex(BACKDROP_TINT),0);lv_obj_set_style_bg_image_recolor_opa(o,BACKDROP_MIX,0);}
   lv_obj_add_event_cb(o,background_draw,LV_EVENT_DRAW_MAIN_END,NULL);
  }
 }
