@@ -19,7 +19,8 @@ Published tags and OTA release assets are retained.
   Grafit and Jasny follow classic iOS dark/light (`ios_color()` in
   `dsr_ui_style.c`): system fills, no neutral outlines or halos, a nested fill
   steps one level (`ios_nested()`), segmented tabs, flat tab bar. Cyber Blue
-  keeps its HUD; device state on cards is gold. Its background art is tinted
+  keeps its HUD with one chamfered contour per card or panel (no thin inner
+  line since 2026-11); device state on cards is gold. Its background art is tinted
   once into PSRAM (`dsr_ui_cyber_backdrop()`), not on every repaint.
 - Draw events use `dsr_sc_draw_line/rect/arc/label`, not `lv_draw_*`: LVGL 9.3
   queues a task for every shape, also outside the 20-row band being redrawn,

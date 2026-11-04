@@ -18,7 +18,7 @@ void dsr_ui_cyber_draw_contour(lv_layer_t *layer,const lv_area_t *area,uint32_t 
 uint32_t dsr_ui_cyber_color(uint32_t token);
 lv_theme_t *dsr_ui_cyber_theme(lv_theme_t *base);
 void dsr_ui_cyber_panel(lv_obj_t *panel,bool primary);
-/* Double contour for the compact header control, without diagonal inlays. */
+/* Panel contour for the compact header control, without diagonal inlays. */
 void dsr_ui_cyber_header_back(lv_obj_t *button);
 void dsr_ui_cyber_glow(lv_obj_t *obj,bool on);
 /* Call after the root's bg image is set: the brand art becomes the tinted copy. */
@@ -27,7 +27,7 @@ void dsr_ui_cyber_background(lv_obj_t *root,bool active);
 const lv_image_dsc_t *dsr_ui_cyber_backdrop(void);
 void dsr_ui_cyber_device(lv_obj_t *card,bool on,bool warning);
 /* Same chamfered tile contour without status strip (selector, room tiles). */
-void dsr_ui_cyber_frame(lv_obj_t *obj,bool inner);
+void dsr_ui_cyber_frame(lv_obj_t *obj,bool inlay); /* inlay: diagonal stripes */
 void dsr_ui_cyber_power(lv_obj_t *button,bool on,bool enabled);
 void dsr_ui_cyber_inset(lv_obj_t *obj);
 void dsr_ui_cyber_warning(lv_obj_t *obj,bool danger);

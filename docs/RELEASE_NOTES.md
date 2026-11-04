@@ -1,3 +1,11 @@
+0.7.82-dev: kandydat do próby na płytce — Cyber Blue z jednym konturem.
+
+- Po odbiorze 0.7.81 (zauważalnie płynniej) właściciel zrezygnował z dodatkowych cienkich obramowań Cyber Blue: karty urządzeń, panele, wiersze ustawień, zakładki, kafelki i przycisk „wstecz” mają jeden kontur 2 px zamiast podwójnego. Pasek stanu, skośne wstawki i krótka belka zostają.
+- Zmieniony wyłącznie wygląd Cyber Blue; Grafitowy i Jasny bez zmian (klatki atlasu identyczne z 0.7.81).
+- Pomiar hosta (LVGL 9.3, pasy 320×20): w Cyber Blue o 9–20% mniej zadań rysowania i 10–24% krótsze rysowanie względem 0.7.81 (całe odświeżenie −3…−6%). Zysk na płytce do oceny właściciela.
+- Transport Shelly, dane i konfiguracja bez zmian względem 0.7.81.
+- Aktualizacja zachowująca dane: podpisane DEV OTA lub UPDATE-APP-ONLY. Bez zmiany partycji, formatu konfiguracji, klucza OTA i parametrów dotyku. Wyłącznie DEV, bez scalenia do main.
+
 0.7.81-dev: kandydat do próby na płytce — szybsze renderowanie Cyber Blue i szybsze budowanie ekranów.
 
 - Wygląd bez zmian: wszystkie klatki atlasu trzech skórek PL/EN/DE oraz klatki rysowane pasami 20 linii (jak na płytce) są identyczne z 0.7.80.

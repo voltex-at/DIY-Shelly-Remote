@@ -2,6 +2,18 @@
 
 Zlecenie właściciela: przejrzeć lokalny projekt i wszystkie gałęzie, zebrać zlecenia oraz wykonane prace, wskazać niespójności, zastąpić stare zgłoszenia jednym issue i usunąć stare wyniki/rendery. Zakres porządkowania nie dodawał funkcji firmware; późniejsze wdrożenia opisano poniżej.
 
+## Cyber Blue: jeden kontur zamiast podwójnego, kandydat 0.7.82-dev — 2026-11-04
+
+Odbiór 0.7.81 na płytce: właściciel widzi zauważalną poprawę płynności
+i uznał, że rezygnacja z dodatkowych cienkich obramowań poprawi czytelność
+i odświeżanie. Usunięto wewnętrzny kontur 1 px (40%) z kart urządzeń, paneli,
+wierszy ustawień, zakładek, kafelków i przycisku „wstecz”; zostaje główny
+kontur 2 px, pasek stanu, skośne wstawki i krótka belka. Zmienione wyłącznie
+klatki Cyber Blue (180/180), Grafitowy i Jasny bez zmian (0/360). Host:
+o 9–20% mniej zadań i 10–24% krótsze rysowanie w Cyber Blue (−3…−6% całego
+odświeżenia). Pełny zestaw UI 62 PASS. Właściciel polecił publikację DEV
+0.7.82 po przejrzeniu porównań; odbiór na płytce otwarty.
+
 ## Wydajność renderowania Cyber Blue (i wspólnego rysowania), kandydat 0.7.81-dev — 2026-11-03
 
 Polecenie właściciela: poprawić wydajność Cyber Blue, potem poprawki UI.

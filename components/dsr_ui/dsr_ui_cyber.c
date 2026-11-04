@@ -98,7 +98,7 @@ static void init(void)
  lv_style_init(&hud.backdrop);lv_style_set_bg_color(&hud.backdrop,lv_color_hex(DSR_CYBER_BG));
  lv_style_set_bg_opa(&hud.backdrop,LV_OPA_80);lv_style_set_border_width(&hud.backdrop,0);lv_style_set_radius(&hud.backdrop,0);
  /* Owner reference 2026-10: dark navy tiles in both states; the chamfered
-  * double contour is drawn by frame_draw, the power button carries "on". */
+  * contour is drawn by frame_draw, the power button carries "on". */
  surface(&hud.device,0x0f243c,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device,lv_color_hex(0x09182b));lv_style_set_bg_grad_dir(&hud.device,LV_GRAD_DIR_VER);
  lv_style_set_border_width(&hud.device,0);lv_style_set_radius(&hud.device,18);
  surface(&hud.device_on,0x112c4b,DSR_CYBER_CYAN);lv_style_set_bg_grad_color(&hud.device_on,lv_color_hex(0x0a1b31));lv_style_set_bg_grad_dir(&hud.device_on,LV_GRAD_DIR_VER);
@@ -197,9 +197,8 @@ static void panel_draw(lv_event_t *e)
   * fills and red/yellow feedback without allocating decorative objects. */
  if(w<8||h<8)return;
  int cut=h<40?4:9;if(cut>w/4)cut=w/4;
+ /* One contour: the owner dropped the thin inner line (2026-11) for legibility. */
  dsr_ui_cyber_draw_contour(layer,&a,contour,disabled?LV_OPA_20:LV_OPA_80);
- if((w>=80||(flags&2))&&h>=40)
-  chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},cut-2,contour,disabled?LV_OPA_10:LV_OPA_40,1);
  if(w>=80&&h>=40){
   int span=h>70?26:16;if(span>w/4)span=w/4;
   for(int i=0;i<5;i++){int end=a.x2-12-i*6;line(layer,end-span,a.y1+6,end,a.y1+6+span,disabled?0x21344a:danger?0x9b2536:0x1b4568);}
@@ -215,7 +214,7 @@ static void own_surface(lv_obj_t *o,bool radius)
 void dsr_ui_cyber_panel(lv_obj_t *o,bool primary)
 {init();if(primary)own_surface(o,false);lv_obj_remove_local_style_prop(o,LV_STYLE_RADIUS,0);lv_obj_remove_style(o,&hud.action,0);lv_obj_remove_style(o,&hud.decor,0);lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_style(o,primary?&hud.action:&hud.decor,0);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)(primary?1:0));}
 void dsr_ui_cyber_header_back(lv_obj_t *o)
-{lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,(void *)(uintptr_t)2);}
+{lv_obj_remove_event_cb(o,panel_draw);lv_obj_add_event_cb(o,panel_draw,LV_EVENT_DRAW_MAIN_END,NULL);}
 void dsr_ui_cyber_glow(lv_obj_t *o,bool on)
 {init();if(on)lv_obj_add_style(o,&hud.glow,0);else lv_obj_remove_style(o,&hud.glow,0);}
 /* Chamfered contour of the owner's HUD reference: eight joined segments. */
@@ -225,7 +224,7 @@ static void chamfer(lv_layer_t *layer,lv_area_t a,int cut,uint32_t color,lv_opa_
  const lv_point_precise_t p[9]={{a.x1+cut,a.y1},{a.x2-cut,a.y1},{a.x2,a.y1+cut},{a.x2,a.y2-cut},{a.x2-cut,a.y2},{a.x1+cut,a.y2},{a.x1,a.y2-cut},{a.x1,a.y1+cut},{a.x1+cut,a.y1}};
  for(unsigned i=0;i<8;i++){d.p1=p[i];d.p2=p[i+1];dsr_sc_draw_line(layer,&d);}
 }
-/* flags: 1 inner contour, 2 status strip, 4 on, 8 warning, 16 diagonal inlay. */
+/* flags: 2 status strip, 4 on, 8 warning, 16 diagonal inlay. */
 static void frame_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);lv_area_t a;lv_obj_get_coords(o,&a);lv_layer_t *layer=lv_event_get_layer(e);
@@ -233,7 +232,6 @@ static void frame_draw(lv_event_t *e)
  int w=lv_area_get_width(&a),h=lv_area_get_height(&a);
  if(flags&16){int span=h>70?26:16;if(span>w/4)span=w/4;for(int i=0;i<5;i++){int end=a.x2-12-i*6;line(layer,end-span,a.y1+6,end,a.y1+6+span,0x1b4568);}}
  chamfer(layer,(lv_area_t){a.x1+1,a.y1+1,a.x2-1,a.y2-1},9,DSR_CYBER_CYAN,(flags&4)||pressed?LV_OPA_COVER:LV_OPA_80,2);
- if(flags&1)chamfer(layer,(lv_area_t){a.x1+5,a.y1+5,a.x2-5,a.y2-5},7,DSR_CYBER_CYAN,LV_OPA_40,1);
  lv_draw_rect_dsc_t d;lv_draw_rect_dsc_init(&d);d.bg_opa=LV_OPA_COVER;d.radius=1;
  if(flags&2){d.bg_color=lv_color_hex((flags&8)?0xffc107:(flags&4)?DSR_CYBER_CYAN:0x2f6f9c);lv_area_t strip={a.x1+4,a.y1+18,a.x1+5,a.y2-18};dsr_sc_draw_rect(layer,&d,&strip);}
  d.bg_color=lv_color_hex(DSR_CYBER_CYAN);lv_area_t bar={a.x1+14,a.y2-5,a.x1+42,a.y2-4};dsr_sc_draw_rect(layer,&d,&bar);
@@ -245,9 +243,9 @@ static void frame(lv_obj_t *o,bool on,uintptr_t flags)
  lv_obj_remove_event_cb(o,panel_draw);lv_obj_remove_event_cb(o,frame_draw);lv_obj_add_event_cb(o,frame_draw,LV_EVENT_DRAW_MAIN_END,(void *)flags);
 }
 void dsr_ui_cyber_device(lv_obj_t *o,bool on,bool warning)
-{frame(o,on,1|2|16|(on?4:0)|(warning?8:0));}
-void dsr_ui_cyber_frame(lv_obj_t *o,bool inner)
-{frame(o,false,inner?1|16:0);}
+{frame(o,on,2|16|(on?4:0)|(warning?8:0));}
+void dsr_ui_cyber_frame(lv_obj_t *o,bool inlay)
+{frame(o,false,inlay?16:0);}
 static void power_draw(lv_event_t *e)
 {
  lv_obj_t *o=lv_event_get_target(e);if(lv_obj_has_state(o,LV_STATE_DISABLED))return;
